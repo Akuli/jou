@@ -5,157 +5,123 @@
 
 set -e -o pipefail
 
+mkdir -vp tmp/qemu
+cd tmp/qemu
 
-function cd_temp_folder() {
-    mkdir -vp tmp/qemu
-    cd tmp/qemu
-}
+# Download in a way that handles interrupting. Useful if using slow internet.
+wget --continue -O disk-download.qcow2 https://cloud.debian.org/images/cloud/trixie/20250814-2204/debian-13-nocloud-arm64-20250814-2204.qcow2
+echo 'bda283e7c7037220897e201a5387773e48f688d33795cccd84d20db01dbffcbc  disk-download.qcow2' | sha256sum --check
 
-function download() {
-    if ! [ -f disk.qcow2 ]; then
-        # Download in a way that handles interrupting. Useful if using slow internet.
-        wget --continue -O disk-download.qcow2 https://cloud.debian.org/images/cloud/trixie/20250814-2204/debian-13-nocloud-arm64-20250814-2204.qcow2
-        if [ "$(sha256sum disk-download.qcow2 | cut -d' ' -f1)" != "bda283e7c7037220897e201a5387773e48f688d33795cccd84d20db01dbffcbc" ]; then
-            echo "Error: Download checksum failed!" >&2
-            exit 1
-        fi
-        mv disk-download.qcow2 disk.qcow2
-    fi
-}
+cp -v disk-download.qcow2 disk.qcow2
 
-function start() {
-    rm -vf input output
-    touch input output
+rm -vf input output
+touch input output
 
-    echo "Running qemu..."
+echo "Running qemu..."
 
-    # Without -bios the machine gets stuck with no output.
-    # See e.g. https://superuser.com/questions/1684886/qemu-aarch64-on-arm-mac-never-boots-and-only-shows-qemu-prompt
-    #
-    # Networking (-nic) took a lot of trial and error and searching to get
-    # right. Almost everything I tried broke internet access from inside the VM.
-    tail -f input | \
-        qemu-system-aarch64 \
-        -machine virt \
-        -cpu cortex-a72 \
-        -smp 2 \
-        -m 1G \
-        -hda disk.qcow2 \
-        -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd \
-        -serial stdio \
-        -monitor none \
-        -nic user,model=e1000,hostfwd=tcp:127.0.0.1:2222-:22 \
-        -nographic \
-        > output &
+# Without -bios the machine gets stuck with no output.
+# See e.g. https://superuser.com/questions/1684886/qemu-aarch64-on-arm-mac-never-boots-and-only-shows-qemu-prompt
+#
+# Networking (-nic) took a lot of trial and error and searching to get
+# right. Almost everything I tried broke internet access from inside the VM.
+# You should also listen only on localhost, not 0.0.0.0 (default).
+#
+# TODO: is that really true or was i dumb?...
+tail -f input | \
+    qemu-system-aarch64 \
+    -machine virt \
+    -cpu cortex-a72 \
+    -smp 2 \
+    -m 1G \
+    -hda disk.qcow2 \
+    -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd \
+    -serial stdio \
+    -monitor none \
+    -nic user,model=e1000,hostfwd=tcp:127.0.0.1:2222-:22 \
+    -nographic \
+    > output &
 
-#        -nic user
+qemu_pid=$!
+echo "
+*********************************************************************
+qemu is now running with PID $qemu_pid.
+If something doesn't work, use the following commands to debug:
 
+    \$ tail -f tmp/qemu/output      # Show VM console
+    \$ echo ls >> tmp/qemu/input    # Run command in VM
 
-    local pid=$!
-    echo "qemu PID: $pid"
+*********************************************************************
+"
 
-    echo $pid > pid.txt
-    disown
+# When exiting, kill the processes and reset terminal colors
+trap "printf '\x1b[0m'; kill $qemu_pid $tail_pid" EXIT
 
-    # Display output until it is fully started. The 'tail -f' job gets killed
-    # when this shell script exits.
-    #
-    # This also filters away screen clearing and cursor moving ANSI escape sequences.
-    tail -f output | sed -r 's/\x1b\[[0-9;]*[HJf]//g' &
-    tailpid=$!
+echo "Waiting for grub to show up..."
+while ! grep -q 'Press enter to boot the selected OS' output; do sleep 1; done
 
-    # When exiting, kill tail and reset terminal colors
-    trap "printf '\x1b[0m'; kill $tailpid" EXIT
+echo "Pressing Enter in grub menu..."
+echo >> input
 
-    # Wait for grub
-    while ! grep -q 'Press enter to boot the selected OS' output; do sleep 1; done
+echo "Waiting for login prompt. This will take a while..."
+while ! grep -q 'localhost login:' output; do sleep 1; done
 
-    # Press enter in grub menu
-    echo >> input
+echo "Logging in..."
+echo root >> input
 
-    # Wait for login prompt to appear
-    while ! grep -q 'localhost login:' output; do sleep 1; done
+echo "Waiting for bash prompt to appear..."
+while ! grep -q 'root@localhost:~#' output; do sleep 1; done
 
-    # Log in as root
-    echo root >> input
+#function run_command() {
+#    local command="$1"
+#
+#    local id="RunCommandID_$RANDOM$RANDOM$RANDOM$RANDOM"
+#    local oldsize=$(wc -c output | cut -d ' ' -f1)
+#
+#    # Start running the command
+#    echo "$command ; echo Exit status: \$?; echo '$id'" >> input
+#
+#    # Wait for it to be ready. We grep from output excluding the first `oldsize` bytes.
+#    while ! tail -c +$((oldsize+1)) output | grep --text -q "^$id"; do sleep 0.2; done
+#
+#    # Check exit status
+#    local status=$(grep --text -o "Exit status: [0-9]*" output | tail -1 | cut -d ' ' -f 3)
+#    if [ $status != 0 ]; then
+#        echo "*** Command failed: $command --> $status ***"
+#        exit 1
+#    fi
+#}
 
-    # Wait for bash prompt or password prompt to appear
-    while ! grep -qE 'root@localhost:~#|^Password: $' output; do sleep 1; done
+echo "Installing ssh server..."
 
-    # If we got password prompt, provide a password and then wait for bash prompt
-    if grep -q '^Password: $' output; then
-        echo 1 >> input
-        while ! grep -qE 'root@localhost:~#' output; do sleep 1; done
-    fi
-}
+# The success message is in two parts so that when we search for it, we don't find the
+# command that produces it.
+echo "
+apt update &&
+apt install -y openssh-server &&
+echo $(cat ~/.ssh/id*.pub | base64 | tr -d '\n') | base64 -d > .ssh/authorized_keys &&
+systemctl start ssh &&
+echo -n 'EVERYTHING IS ALL ' &&
+echo 'DONE NOW YEAH'" >> input
 
-function stop() {
-    # This does not need to be perfectly robust. It is intended only to make
-    # local development and experimenting less annoying.
-    if [ -f pid.txt ] && grep qemu /proc/$(cat pid.txt)/cmdline &>/dev/null; then
-        local pid=$(cat pid.txt)
-        kill $pid
+while ! grep -q 'EVERYTHING IS ALL DONE NOW YEAH' output; do sleep 1; done
 
-        # Wait for it to die, max 1 second
-        timeout 1 bash -c "while [ -d /proc/$pid ]; do sleep 0.1; done"
+# Silence big scary warning about changed host identity.
+# Yes, of course it changes if I re-run this script multiple times.
+# I understand why the warning exists and why it is essential in most use cases.
+echo "Silencing ssh warning..."
+ssh-keygen -f ~/.ssh/known_hosts -R "[localhost]:2222"
 
-        if [ -d /proc/$pid ]; then
-            echo "Error: Could not stop old qemu process (PID $pid)" >&2
-            exit 1
-        fi
-        echo "Stopped old qemu process (pid $pid)."
-    else
-        echo "Currently qemu is not running."
-    fi
-    rm -vf pid.txt
-}
+echo "Waiting for ssh to be working..."
+while ! ssh -o StrictHostKeyChecking=accept-new -p 2222 root@localhost echo hello; do sleep 1; done
 
-function run_command() {
-    local command="$1"
+echo "Now this works:  ssh -p 2222 root@localhost"
 
-    local id="$RANDOM$RANDOM$RANDOM$RANDOM$RANDOM"
-
-    # Do not show previous output again
-    truncate --size 0 output
-
-    # Figure out when it is done
-    (
-        while ! grep --text -q "^$id" output; do sleep 0.1; done
-    ) &
-
-    # While the command runs, display output, stop when it is done
-    tail -s 0.1 -f --pid=$! output | grep --text -v $id &
-
-    # Start running the command
-    echo "$command ; echo Exit status: \$?; echo -n '$id'" >> input
-
-    # Wait for it to be ready
-    wait
-
-    # Exit with its exit status
-    exit $(grep --text -o "Exit status:" output | tail -1 | cut -d ' ' -f 3)
-}
-
-if [ $# == 1 ] && [ $1 == start ]; then
-    cd_temp_folder
-    download
-    stop
-    start
-elif [ $# == 1 ] && [ $1 == stop ]; then
-    cd_temp_folder
-    stop
-elif [ $# == 2 ] && [ $1 == run ]; then
-    cd_temp_folder
-    run_command "$2"
-else
-    echo "Usage:"
-    echo ""
-    echo "  $0 start            Start VM"
-    echo "  $0 stop             Stop VM"
-    echo "  $0 run 'command'    Run command in VM"
-    exit 2
-fi
-
-
-# TODO: run these:
-# apt install openssh-server
+set -x
+ssh -p 2222 root@localhost mkdir jou
+(cd ../.. && tar c .git) | ssh -p 2222 root@localhost 'cd jou && tar xf -'
+ssh -p 2222 root@localhost apt install git llvm-19-dev clang-19 make
+ssh -p 2222 root@localhost make
+ssh -p 2222 root@localhost ./runtests.sh --verbose
+ssh -p 2222 root@localhost './jou -o jou2 compiler/main.jou && mv jou2 jou'
+ssh -p 2222 root@localhost ./runtests.sh --verbose
+ssh -p 2222 root@localhost ./doctest.sh
