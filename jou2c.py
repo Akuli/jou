@@ -30,6 +30,7 @@ GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 CONSTANTS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
 GLOBAL_NAME_COUNTER = itertools.count()
+FUNCTION_QUEUE: list[tuple[str, str]] = []
 
 
 @dataclass
@@ -1287,7 +1288,7 @@ def function_ast_to_value(
     default_self_type: JouType | None = None,
     typesub: dict[str, JouType] | None = None,
 ) -> JouValue:
-    assert ast[0] == "function_def"
+    assert ast[0] == "function_def", ast
     _, func_name, args, takes_varargs, return_type_ast, body, decors, location = ast
 
     argtypes = []
@@ -1515,7 +1516,8 @@ def find_function(path: str, func_name: str):
                 n = next(GLOBAL_NAME_COUNTER)
                 c_name = f"func{n}_{func_name}"
             result, decl = declare_c_function(path, ast, c_name=c_name)
-            print(decl + ";")  # Forward declare everything
+            print(decl + ";")  # Forward declare all functions
+            FUNCTION_QUEUE.append((path, func_name))
             break
         if ast[:2] == ("func_declare", func_name):
             result, decl = declare_c_function(path, ast)
@@ -1770,7 +1772,7 @@ class CFuncMaker:
         atype = self.get_type(arg)
         if atype.name.endswith("]") and expected_type.name.endswith("*"):
             # Array passed to pointer argument
-            arg = self.run_address_of_expression(arg)
+            arg = self.do_address_of_expression(arg)
         else:
             arg = self.do_expression(arg)
         return self.cast(arg, expected_type)
@@ -1869,26 +1871,26 @@ class CFuncMaker:
                     self.output.append(f"var_{varname} = {value.c_code};")
                     self.locals[varname] = value.type
                     return
-            ptr = self.run_address_of_expression(target_ast)
+            ptr = self.do_address_of_expression(target_ast)
             assert ptr.type.inner_type is not None
             value = self.cast(self.do_expression(value_ast), ptr.type.inner_type)
             self.output.append(f"*{ptr.c_code} = {value.c_code};")
 
         elif stmt[0] == "in_place_add":
             _, target_ast, value_ast, location = stmt
-            ptr = self.run_address_of_expression(target_ast)
+            ptr = self.do_address_of_expression(target_ast)
             value = self.do_expression(value_ast)
             self.output.append(f"*{ptr.c_code} += {value.c_code};")
 
         elif stmt[0] == "in_place_sub":
             _, target_ast, value_ast, location = stmt
-            ptr = self.run_address_of_expression(target_ast)
+            ptr = self.do_address_of_expression(target_ast)
             value = self.do_expression(value_ast)
             self.output.append(f"*{ptr.c_code} -= {value.c_code};")
 
         elif stmt[0] == "in_place_mul":
             _, target_ast, value_ast, location = stmt
-            ptr = self.run_address_of_expression(target_ast)
+            ptr = self.do_address_of_expression(target_ast)
             value = self.do_expression(value_ast)
             self.output.append(f"*{ptr.c_code} *= {value.c_code};")
 
@@ -2095,7 +2097,7 @@ class CFuncMaker:
         raise NotImplementedError(expr)
 
     # Evaluates &expr
-    def run_address_of_expression(self, expr) -> JouValue:
+    def do_address_of_expression(self, expr) -> JouValue:
         if expr[0] == "get_variable":
             _, varname = expr
             if varname in self.locals:
@@ -2122,28 +2124,29 @@ class CFuncMaker:
             if self.get_type(obj_ast).name.endswith("*"):
                 ptr = self.do_expression(obj_ast)
             else:
-                ptr = self.run_address_of_expression(obj_ast)
+                ptr = self.do_address_of_expression(obj_ast)
             result = self.add_variable(self.get_type(expr))
             self.output.append(f"{result.c_code} = &{ptr.c_code}->jou_{field_name}")
             return result
 
         elif expr[0] == "[":
-            raise NotImplementedError
-        #            # &ptr[index]
-        #            _, ptr_ast, index_ast = expr
-        #
-        #            if self.get_type(ptr_ast).is_array_type():
-        #                # &array[index] is slightly different from &ptr[index]
-        #                ptr_to_array = self.run_address_of_expression(ptr_ast)
-        #                assert ptr_to_array.type.inner_type is not None
-        #                assert ptr_to_array.type.inner_type.inner_type is not None
-        #                item_type = ptr_to_array.type.inner_type.inner_type
-        #                ptr = ptr_to_array.cast(item_type.pointer_type())
-        #            else:
-        #                ptr = self.do_expression(ptr_ast)
-        #
-        #            index = self.do_expression(index_ast)
-        #            return ptr.pointer_arithmetic(index.unwrap_value())
+            # &ptr[index]
+            _, ptr_ast, index_ast = expr
+
+            if self.get_type(ptr_ast).is_array_type():
+                # &array[index] is slightly different from &ptr[index]
+                ptr_to_array = self.do_address_of_expression(ptr_ast)
+                assert ptr_to_array.type.inner_type is not None
+                assert ptr_to_array.type.inner_type.inner_type is not None
+                item_type = ptr_to_array.type.inner_type.inner_type
+                ptr = self.cast(ptr_to_array, item_type.pointer_type())
+            else:
+                ptr = self.do_expression(ptr_ast)
+
+            index = self.do_expression(index_ast)
+            result = self.add_variable(ptr.type)
+            self.output.append(f"{result.c_code} = {ptr.c_code} + {index.c_code};")
+            return result
 
         elif expr[0] == "dereference":
             # &*foo --> just evaluate foo
@@ -2177,7 +2180,7 @@ class CFuncMaker:
                     got_pointer = obj_type.name.endswith("*")
 
                     if want_pointer and not got_pointer:
-                        obj = self.run_address_of_expression(obj_ast)
+                        obj = self.do_address_of_expression(obj_ast)
                     elif got_pointer and not want_pointer:
                         obj = self.deref(self.do_expression(obj_ast))
                     else:
@@ -2262,9 +2265,8 @@ class CFuncMaker:
             return jou_integer("int", value)
 
         elif expr[0] == "address_of":
-            raise NotImplementedError
-        #            _, obj = expr
-        #            return self.run_address_of_expression(obj)
+            _, obj = expr
+            return self.do_address_of_expression(obj)
 
         elif expr[0] == "string":
             _, py_bytes = expr
@@ -2390,7 +2392,7 @@ class CFuncMaker:
                 raise RuntimeError("wat")
 
             _, obj_ast = expr
-            ptr = self.run_address_of_expression(obj_ast)
+            ptr = self.do_address_of_expression(obj_ast)
             old_value = self.deref(ptr)
             new_value = self.add_variable(old_value.type)
             self.output.append(f"{new_value.c_code} = {old_value.c_code} + ({diff});")
@@ -2402,16 +2404,16 @@ class CFuncMaker:
             raise RuntimeError("wat")
 
         elif expr[0] == "array":
-            raise NotImplementedError
-        #            _, item_asts = expr
-        #            items = cast_array_members_to_a_common_type(
-        #                [self.do_expression(item) for item in item_asts]
-        #            )
-        #            item_type = items[0].jou_type
-        #            ctypes_array = (item_type.ctypes_type() * len(items))(
-        #                *(item.ctypes_value for item in items)
-        #            )
-        #            return JouValue(item_type.array_type(len(items)), ctypes_array)
+            _, item_asts = expr
+            items = cast_array_members_to_a_common_type(
+                [self.do_expression(item) for item in item_asts]
+            )
+            item_type = items[0].type
+            array_type = item_type.array_type(len(items))
+            var = self.add_variable(array_type)
+            for i, item in enumerate(items):
+                self.output.append(f"{var.c_code}.items[{i}] = {item.c_code};")
+            return var
 
         elif expr[0] == "dereference":
             raise NotImplementedError
@@ -2423,33 +2425,36 @@ class CFuncMaker:
 
 
 def define_function(path: str, ast: AST) -> None:
-        assert ast[0] == "function_def"
-        _, name, args, takes_varargs, return_type_ast, body, decors, location = ast
+    assert ast[0] == "function_def"
+    _, name, args, takes_varargs, return_type_ast, body, decors, location = ast
 
-        func_maker = CFuncMaker(path)
+    func_maker = CFuncMaker(path)
 
-        for arg_name, arg_type_ast, arg_value in args:
-            assert arg_type_ast is not None
-            func_maker.locals[arg_name] = type_from_ast(path, arg_type_ast)
+    for arg_name, arg_type_ast, arg_value in args:
+        assert arg_type_ast is not None
+        func_maker.locals[arg_name] = type_from_ast(path, arg_type_ast)
 
-        try:
-            func_maker.do_body(body)
-        except Exception as e:
-            error: Exception | None = e
-        else:
-            error = None
+    try:
+        func_maker.do_body(body)
+    except Exception as e:
+        error: Exception | None = e
+    else:
+        error = None
 
-        declaration = declare_c_function(path, ast)[1]
-        print(declaration, "{")
-        for line in func_maker.output:
-            print("    " + line)
+    # The function maker has now printed everything it needs to exist globally.
+    # We can now print the function we made.
 
-        # If an error happens, print everything we can. Leave out '}' to show
-        # that it is not complete.
-        if error:
-            raise error
+    declaration = declare_c_function(path, ast)[1]
+    print(declaration, "{")
+    for line in func_maker.output:
+        print("    " + line)
 
-        print("}")
+    # If an error happens, print everything we can. Leave out '}' to show
+    # that it is not complete.
+    if error:
+        raise error
+
+    print("}")
 
 
 def main() -> None:
@@ -2473,8 +2478,12 @@ def main() -> None:
 
     print("#include <stddef.h>")
     print("#include <stdint.h>")
-    def_main = next(item for item in ASTS[main_file] if item[:2] == ("function_def", "main"))
-    define_function(main_file, def_main)
+
+    FUNCTION_QUEUE.append((main_file, "main"))
+    while FUNCTION_QUEUE:
+        path, funcname = FUNCTION_QUEUE.pop()
+        funcdef = next(item for item in ASTS[path] if item[:2] == ("function_def", funcname))
+        define_function(path, funcdef)
 
 
 if __name__ == "__main__":
