@@ -32,9 +32,10 @@ def init_target() -> None:
     LLVMInitializeX86AsmParser()
     LLVMInitializeX86AsmPrinter()
 
-    if MACOS:
-        # Support the new M1 macs. This will enable the target also on x86_64
-        # macs, but it doesn't matter.
+    # Currently aarch64 is needed for:
+    #   - new M1 macs
+    #   - 64-bit raspberry pi
+    if not WINDOWS:
         LLVMInitializeAArch64TargetInfo()
         LLVMInitializeAArch64Target()
         LLVMInitializeAArch64TargetMC()
