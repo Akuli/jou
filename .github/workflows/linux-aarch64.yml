@@ -16,9 +16,10 @@ jobs:
         run: sudo apt update && sudo apt -y install qemu-system-aarch64
 
       - name: Download Debian disk image
-        run: |
-          wget -O disk.qcow2 https://cloud.debian.org/images/cloud/trixie/20250814-2204/debian-13-nocloud-arm64-20250814-2204.qcow2
-          echo 'bda283e7c7037220897e201a5387773e48f688d33795cccd84d20db01dbffcbc  disk.qcow2' | sha256sum --check
+        run: wget -q -O disk.qcow2 https://cloud.debian.org/images/cloud/trixie/20250814-2204/debian-13-nocloud-arm64-20250814-2204.qcow2
+
+      - name: Verify Debian disk image
+        run: echo 'bda283e7c7037220897e201a5387773e48f688d33795cccd84d20db01dbffcbc  disk.qcow2' | sha256sum --check
 
       - name: Start qemu
         # Figuring out the qemu command was painful and took a long time.
@@ -85,6 +86,7 @@ jobs:
       - name: Copy repository to VM
         run: |
           ./run.sh "nc -nlvp 2222 | tar x" &
+          sleep 3  # Wait for netcat to start
           tar c jou | nc -q 3 localhost 2222 &
           wait
           ./run.sh "cd jou"
@@ -98,7 +100,8 @@ jobs:
         run: ./run.sh "./jou -o jou2 compiler/main.jou && mv jou2 jou"
       - name: Compile and test again
         run: ./run.sh "./runtests.sh --verbose"
-      - run: ./doctest.sh
+      - name: Run doctests
+        run: ./run.sh "./doctest.sh"
 
       - name: Stop qemu
         if: always()  # Run this even if there are errors
