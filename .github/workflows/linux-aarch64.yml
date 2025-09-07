@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install qemu
-        run: sudo apt update && sudo apt -y install qemu-system-aarch64
+        run: sudo apt update && sudo apt -y install --no-install-recommends qemu-system-aarch64
 
       - name: Download Debian disk image
         run: wget -q -O disk.qcow2 https://cloud.debian.org/images/cloud/trixie/20250814-2204/debian-13-nocloud-arm64-20250814-2204.qcow2
@@ -99,7 +99,7 @@ jobs:
 
       - name: Install dependencies in VM
         # TODO: --no-install-recommends?
-        run: ./run.sh "apt update && apt -y install netcat-traditional git llvm-19-dev clang-19 make"
+        run: ./run.sh "apt update && apt -y install --no-install-recommends netcat-traditional git llvm-19-dev clang-19 make"
 
       - name: Checkout repository
         uses: actions/checkout@v4
