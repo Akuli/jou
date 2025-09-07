@@ -58,21 +58,22 @@ jobs:
 
       - name: Create runner script
         run: |
-          cat >run.sh <<EOF
+          cat >run.sh <<'EOF'
           #!/bin/bash
           [ $# == 1 ] || { echo "Usage: $0 <command>" >&2; exit 2; }
-          function skip_n_bytes() { local n=$1 file=$2; tail -c +$((n+1)) $file; }
           id="Command_$RANDOM$RANDOM$RANDOM$RANDOM"
-          tail -c0 -f output | tee output_$id &
-          trap "kill $(jobs -p)" EXIT
+          tail -c0 -f output | sed -u 1d &
+          trap "kill $!" EXIT
+          sleep 0.5  # wait for the above tail pipeline to start
           echo -n "$@" >> input
           echo " ; echo Exit status: \$?; echo '$id'" >> input
-          while ! skip_n_bytes $oldsize output | grep -q "^$id"; do sleep 0.2; done
+          while ! grep -q "^$id" output; do sleep 0.2; done
           exit $(grep --text -o "Exit status: [0-9]*" output | tail -1 | cut -d ' ' -f 3)
           EOF
           chmod +x run.sh
 
       - name: Install dependencies in VM
+        # TODO: --no-install-recommends?
         run: ./run.sh "apt update && apt -y install netcat-traditional git llvm-19-dev clang-19 make"
 
       - name: Checkout repository
@@ -84,9 +85,12 @@ jobs:
       - name: Copy repository to VM
         run: |
           ./run.sh "nc -nlvp 2222 | tar x" &
-          tar c jou | nc -q 5 localhost 2222 &
+          tar c jou | nc -q 3 localhost 2222 &
           wait
           ./run.sh "cd jou"
+
+      - name: Silence Git warning
+        run: ./run.sh "git config --global --add safe.directory /root/jou"
 
       - name: Compile and test
         run: ./run.sh "./runtests.sh --verbose"
@@ -99,4 +103,4 @@ jobs:
       - name: Stop qemu
         if: always()  # Run this even if there are errors
         run: |
-          if [ -f qemu-pid.txt ]; then kill $(cat qemu-pid.txt); fi
+          if [ -f qemu-pid.txt ]; then pid=$(cat qemu-pid.txt); echo "Killing $pid"; kill $pid; fi
