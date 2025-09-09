@@ -1811,18 +1811,6 @@ def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouTy
     raise NotImplementedError(ast)
 
 
-class Return(Exception):
-    pass
-
-
-class Break(Exception):
-    pass
-
-
-class Continue(Exception):
-    pass
-
-
 @functools.cache
 def get_source_lines(path: str) -> list[str]:
     with open(path, encoding="utf-8") as f:
@@ -1849,6 +1837,7 @@ class CFuncMaker:
         self.locals: dict[str, JouType] = {}
         self.output: list[str] = []
         self.name_counter = itertools.count()
+        self.loops: list[int] = []
 
     def local_var_ptr(self, name: str) -> JouValue:
         """Return pointer to local variable"""
@@ -1949,6 +1938,33 @@ class CFuncMaker:
         ptr = find_global_var_ptr(self.path, varname)
         return None if ptr is None else self.deref(ptr)
 
+    # for init; cond; incr:
+    #     body
+    def loop(self, init: AST | None, cond: AST | None, incr: AST | None, body: list[AST]) -> None:
+        if init:
+            self.do_statement(init)
+
+        self.output.append("while(1) {")
+
+        if cond:
+            cond_c = self.do_expression(cond).c_code
+            self.output.append(f"if (!{cond_c}) break;")
+
+        id = next(self.name_counter)
+        self.loops.append(id)
+        self.do_body(body)
+        self.loops.pop()
+
+        # The `continue` keyword must run incr but the first iteration doesn't.
+        # Also, unlike in C, the "incr" part may refer things defined in body.
+        #
+        # DO NOT USE the C continue keyword. It is not compatible with this.
+        self.output.append(f"loop{id}_continue: (void)0;")
+        if incr:
+            self.do_statement(incr)
+
+        self.output.append("}")
+
     def do_body(self, body):
         for item in body:
             self.do_statement(item)
@@ -2005,6 +2021,30 @@ class CFuncMaker:
             value = self.do_expression(value_ast)
             self.output.append(f"*{ptr.c_code} *= {value.c_code};")
 
+        elif stmt[0] == "in_place_div":
+            _, target_ast, value_ast, location = stmt
+            ptr = self.do_address_of_expression(target_ast)
+            value = self.do_expression(value_ast)
+            self.output.append(f"*{ptr.c_code} /= {value.c_code};")
+
+        elif stmt[0] == "in_place_bit_and":
+            _, target_ast, value_ast, location = stmt
+            ptr = self.do_address_of_expression(target_ast)
+            value = self.do_expression(value_ast)
+            self.output.append(f"*{ptr.c_code} &= {value.c_code};")
+
+        elif stmt[0] == "in_place_bit_or":
+            _, target_ast, value_ast, location = stmt
+            ptr = self.do_address_of_expression(target_ast)
+            value = self.do_expression(value_ast)
+            self.output.append(f"*{ptr.c_code} |= {value.c_code};")
+
+        elif stmt[0] == "in_place_bit_xor":
+            _, target_ast, value_ast, location = stmt
+            ptr = self.do_address_of_expression(target_ast)
+            value = self.do_expression(value_ast)
+            self.output.append(f"*{ptr.c_code} ^= {value.c_code};")
+
         elif stmt[0] == "declare_local_var":
             _, varname, type_ast, value_ast, location = stmt
             vartype = type_from_ast(self.path, type_ast)
@@ -2034,40 +2074,17 @@ class CFuncMaker:
 
         elif stmt[0] == "while":
             _, cond, body, location = stmt
-            # The Jou condition expression may be many C statements. That's why
-            # we use infinite loop.
-            self.output.append("while(1) {")
-            cond_c = self.do_expression(cond).c_code
-            self.output.append(f"if (!{cond_c}) break;")
-            self.do_body(body)
-            self.output.append("}")
+            self.loop(None, cond, None, body)
 
         elif stmt[0] == "for":
             _, init, cond, incr, body, location = stmt
-            if init is not None:
-                self.do_statement(init)
-            # The 'continue' keyword is tricky, because it must run incr.
-            if incr is None:
-                self.output.append("for(;;) {")
-            else:
-                n = next(self.name_counter)
-                self.output.insert(0, f"bool loop{n};")
-                self.output.append(f"loop{n} = false;")
-                self.output.append(f"for (;; loop{n}=true)" + " {")
-                self.output.append(f"if (loop{n})" + " {")
-                self.output.append(f"loop{n} = false;")
-                self.do_statement(incr)
-                self.output.append("}")
-            cond_c = self.do_expression(cond).c_code
-            self.output.append(f"if (!{cond_c}) break;")
-            self.do_body(body)
-            self.output.append("}")
+            self.loop(init, cond, incr, body)
 
         elif stmt[0] == "break":
-            raise Break()
+            self.output.append("break;")
 
         elif stmt[0] == "continue":
-            raise Continue()
+            self.output.append(f"goto loop{self.loops[-1]}_continue;")
 
         elif stmt[0] == "pass":
             pass
@@ -2123,19 +2140,18 @@ class CFuncMaker:
             _, func_ast, arg_asts = expr
 
             if func_ast[0] == ".":
-                raise NotImplementedError
-            #                _, obj, member = func_ast
-            #                obj_type = self.get_type(obj)
-            #
-            #                if obj_type.name.endswith("*"):
-            #                    assert obj_type.inner_type is not None
-            #                    obj_type = obj_type.inner_type
-            #
-            #                if member in obj_type.method_asts:
-            #                    # It is a method call
-            #                    funcptr = obj_type.get_method(member)
-            #                    assert funcptr.type.funcptr_return_type is not None
-            #                    return funcptr.type.funcptr_return_type
+                _, obj, member = func_ast
+                obj_type = self.get_type(obj)
+
+                if obj_type.name.endswith("*"):
+                    assert obj_type.inner_type is not None
+                    obj_type = obj_type.inner_type
+
+                if member in obj_type.method_asts:
+                    # It is a method call
+                    funcptr = obj_type.get_method(member)
+                    assert funcptr.type.funcptr_return_type is not None
+                    return funcptr.type.funcptr_return_type
 
             funcptr_type = self.get_type(func_ast)
             assert funcptr_type.funcptr_return_type is not None
