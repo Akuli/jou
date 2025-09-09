@@ -275,13 +275,16 @@ class JouType:
     def __repr__(self) -> str:
         return f"<JouType: {self.name}>"
 
-    def is_integer_type(self) -> bool:
+    def is_integer(self) -> bool:
         # Kinda hacky, but works fine
         return bool(re.fullmatch(r"u?int(8|16|32|64)", self.name))
 
-    def is_array_type(self) -> bool:
+    def is_array(self) -> bool:
         # More hacky :)
         return bool(re.fullmatch(r".*\[[0-9]+\]", self.name))
+
+    def is_class(self) -> bool:
+        return self.class_def_path is not None
 
     def to_c(self, *, fwd_decl_is_enough: bool = False) -> str:
         if self._c_name is not None and not (
@@ -300,7 +303,7 @@ class JouType:
         elif self.name == "double":
             result = "double"
 
-        elif self.is_integer_type():
+        elif self.is_integer():
             result = self.name + "_t"
 
         elif self.name.startswith("funcptr("):
@@ -325,21 +328,21 @@ class JouType:
             assert self.inner_type is not None
             return self.inner_type.to_c(fwd_decl_is_enough=True) + "*"
 
-        elif re.fullmatch(r".*\[[0-9]+\]$", self.name):
+        elif self.is_array():
             # Array. Wrap it in a struct so that they can be passed around on
             # stack freely. For example, you cannot return an array in C, but
             # you can return a struct.
             array_len = int(self.name.split("[")[-1].strip("]"))
             assert self.inner_type is not None
             inner_c = self.inner_type.to_c()
-            result = f"array{array_len}_{inner_c}"
+            result = f"array{array_len}_" + re.sub(r"[^A-Za-z0-9_]", "_", inner_c)
             print(f"// Create typedef for Jou array type {self.name}")
             print("typedef struct {", inner_c, "items[", array_len, "]; }", result, ";")
             print()
 
-        elif self.class_field_types is not None:
-            # Class
+        elif self.is_class():
             assert self.class_def_path is not None
+            assert self.class_field_types is not None
             if self.class_def_public:
                 result = "jou_"
             else:
@@ -500,7 +503,7 @@ def funcptr_type(argtypes: tuple[JouType, ...], return_type: JouType | None) -> 
 def jou_integer(jtype: JouType | str, value: int) -> JouValue:
     if isinstance(jtype, str):
         jtype = BASIC_TYPES[jtype]
-    assert jtype.is_integer_type()
+    assert jtype.is_integer()
 
     # The biggest values we support are unsigned long long (ULL).
     # The most negative values we support are long long (LL).
@@ -526,6 +529,7 @@ def jou_double(value: float) -> JouValue:
 def c_string(s: str | bytes) -> str:
     simple_chars = (
         string.ascii_letters
+        + string.digits
         + string.punctuation.replace("\\", "").replace('"', "")
         + " "
     ).encode("ascii")
@@ -539,7 +543,11 @@ def c_string(s: str | bytes) -> str:
         else:
             # This could be used for everything, but then debugging would be
             # quite painful.
-            result += f"\\x{byte:02x}"  # e.g. \x09 for tab character \t
+            #
+            # We cannot use hex because C consumes as many characters as
+            # possible in hex escapes, so "\x22compiler" attempts to interpret
+            # \x22c as a byte because c is a hexadecimal digit...
+            result += f"\\{byte:03o}"  # e.g. \011 for tab character \t
 
     return '"' + result + '"'
 
@@ -1847,7 +1855,7 @@ class CFuncMaker:
 
     def add_variable(self, jtype: JouType) -> JouValue:
         n = next(self.name_counter)
-        zero_init = "{0}" if jtype.class_def_path is not None else "0"
+        zero_init = "{0}" if jtype.is_class() or jtype.is_array() else "0"
         self.output.insert(0, f"{jtype.to_c()} tmp{n} = {zero_init};")
         return JouValue(jtype, f"tmp{n}")
 
@@ -2129,7 +2137,7 @@ class CFuncMaker:
             if lhs_type == rhs_type:
                 return lhs_type
 
-            if lhs_type.is_integer_type() and rhs_type.is_integer_type():
+            if lhs_type.is_integer() and rhs_type.is_integer():
                 lhs_signed = lhs_type.name.startswith("int")
                 rhs_signed = rhs_type.name.startswith("int")
                 lhs_unsigned = lhs_type.name.startswith("uint")
@@ -2277,7 +2285,7 @@ class CFuncMaker:
             # &ptr[index]
             _, ptr_ast, index_ast = expr
 
-            if self.get_type(ptr_ast).is_array_type():
+            if self.get_type(ptr_ast).is_array():
                 # &array[index] is slightly different from &ptr[index]
                 ptr_to_array = self.do_address_of_expression(ptr_ast)
                 assert ptr_to_array.type.inner_type is not None
@@ -2418,7 +2426,7 @@ class CFuncMaker:
             index = self.do_expression(index_ast)
             assert obj.type.inner_type is not None
             result = self.add_variable(obj.type.inner_type)
-            if obj.type.is_array_type():
+            if obj.type.is_array():
                 self.output.append(
                     f"{result.c_code} = {obj.c_code}.items[{index.c_code}];"
                 )
