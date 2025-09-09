@@ -1819,6 +1819,8 @@ def get_source_lines(path: str) -> list[str]:
 
 def cast_array_members_to_a_common_type(array: list[JouValue]) -> list[JouValue]:
     distinct_types = set(v.type for v in array)
+    if len(distinct_types) >= 2 and JOU_VOID_PTR in distinct_types:
+        distinct_types.remove(JOU_VOID_PTR)
     if len(distinct_types) == 1:
         return array
     raise NotImplementedError(distinct_types)
@@ -2093,14 +2095,16 @@ class CFuncMaker:
             _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
             match_obj = self.do_expression(match_obj_ast)
             func = None if func_ast is None else self.do_expression(func_ast)
-            assert func is None  # TODO
             brace_count = 0
             for case_objs, case_body in cases:
                 for case_obj_ast in case_objs:
                     case_obj = self.do_expression(case_obj_ast)
-                    self.output.append(
-                        f"if ({match_obj.c_code} == {case_obj.c_code}) " + "{"
-                    )
+                    if func is None:
+                        cond = f"{match_obj.c_code} == {case_obj.c_code}"
+                    else:
+                        ret = self.call_function(func, [match_obj, case_obj])
+                        cond = f"{ret.c_code} == 0"
+                    self.output.append("if (" + cond + ") {")
                     self.do_body(case_body)
                     self.output.append("} else {")
                     brace_count += 1
@@ -2125,14 +2129,27 @@ class CFuncMaker:
             if lhs_type == rhs_type:
                 return lhs_type
 
-            # Given int32 and int64, pick int64.
-            if (
-                lhs_type.is_integer_type()
-                and rhs_type.is_integer_type()
-                and lhs_type.name.startswith("int")
-                and rhs_type.name.startswith("int")
-            ):
-                return max([lhs_type, rhs_type], key=(lambda t: int(t.name[3:])))
+            if lhs_type.is_integer_type() and rhs_type.is_integer_type():
+                lhs_signed = lhs_type.name.startswith("int")
+                rhs_signed = rhs_type.name.startswith("int")
+                lhs_unsigned = lhs_type.name.startswith("uint")
+                rhs_unsigned = rhs_type.name.startswith("uint")
+                assert lhs_signed or lhs_unsigned
+                assert rhs_signed or rhs_unsigned
+
+                lhs_bits = int(lhs_type.name.removeprefix("u")[3:])
+                rhs_bits = int(rhs_type.name.removeprefix("u")[3:])
+
+                # Given int32 and int64, pick int64.
+                # Given uint32 and uint64, pick uint64.
+                if (lhs_signed and rhs_signed) or (lhs_unsigned and rhs_unsigned):
+                    return lhs_type if lhs_bits > rhs_bits else rhs_type
+
+                # Given int32 and uint8, pick int32.
+                if lhs_signed and rhs_unsigned and lhs_bits > rhs_bits:
+                    return lhs_type
+                if lhs_unsigned and rhs_signed and lhs_bits < rhs_bits:
+                    return rhs_type
 
             raise NotImplementedError(lhs_type, rhs_type)
 
@@ -2233,6 +2250,9 @@ class CFuncMaker:
                 )
             return var
 
+        elif expr[0] == "self":
+            return self.local_var_ptr("self")
+
         elif expr[0] == ".":
             _, obj_ast, field_name = expr
 
@@ -2329,7 +2349,7 @@ class CFuncMaker:
             raise RuntimeError(f"no variable named {varname} in {self.path}")
 
         if expr[0] == "self":
-            return self.find_any_var_or_constant("self")
+            return self.deref(self.local_var_ptr("self"))
 
         if expr[0] in ("eq", "ne", "gt", "lt", "ge", "le"):
             _, lhs_ast, rhs_ast = expr
