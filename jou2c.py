@@ -258,6 +258,7 @@ class JouType:
 
         self.inner_type: JouType | None = None
         self.class_def_path: str | None = None
+        self.class_def_public = False
         self.class_field_types: dict[str, JouType] | None = None
         self.method_asts: dict[str, AST] = {}
         self.generic_params: dict[str, JouType] = {}
@@ -289,14 +290,19 @@ class JouType:
             return self._c_name
 
         result: Any
+
         if self.name == "bool":
             result = "uint8_t"
+
         elif self.name == "float":
             result = "float"
+
         elif self.name == "double":
             result = "double"
+
         elif self.is_integer_type():
             result = self.name + "_t"
+
         elif self.name.startswith("funcptr("):
             # Use a typedef to get sane syntax for these bad boiis
             n = next(GLOBAL_NAME_COUNTER)
@@ -308,14 +314,17 @@ class JouType:
             print(f"typedef {return_type} (*funcptr{n})({args});")
             print()
             result = f"funcptr{n}"
+
         elif self.name == "void*":
             return "void*"
+
         elif self.name.endswith("*"):
             # Most of the time it's good to use void* for pointers where you
             # don't care about the contents. This helps in various corner cases
             # where classes refer to each other.
             assert self.inner_type is not None
             return self.inner_type.to_c(fwd_decl_is_enough=True) + "*"
+
         elif re.fullmatch(r".*\[[0-9]+\]$", self.name):
             # Array. Wrap it in a struct so that they can be passed around on
             # stack freely. For example, you cannot return an array in C, but
@@ -327,12 +336,23 @@ class JouType:
             print(f"// Create typedef for Jou array type {self.name}")
             print("typedef struct {", inner_c, "items[", array_len, "]; }", result, ";")
             print()
+
         elif self.class_field_types is not None:
             # Class
-            result = "jou_" + self.name.split("[")[0]
+            assert self.class_def_path is not None
+            if self.class_def_public:
+                result = "jou_"
+            else:
+                # It is a private class. Name it so that multiple files can have
+                # private classes with the same name.
+                i = list(ASTS.keys()).index(self.class_def_path)
+                result = f"jou{i}_"
+
+            result += self.name.split("[")[0]
+
             for gtype in self.generic_params.values():
                 result += "_"
-                result += gtype.to_c(fwd_decl_is_enough=True)
+                result += re.sub(r"[^A-Za-z0-9_]", "_", gtype.to_c(fwd_decl_is_enough=True))
 
             if not self._only_fwd_declared:
                 print(
@@ -357,6 +377,7 @@ class JouType:
                 print()
 
             self._only_fwd_declared = fwd_decl_is_enough
+
         else:
             raise NotImplementedError(self)
 
@@ -1315,6 +1336,7 @@ def evaluate_a_compile_time_if_statement() -> bool:
             elif not if_and_elifs:
                 ast[i : i + 1] = else_body
 
+            print(f"// Evaluated a compile-time if statement in {path}")
             return True
 
     return False
@@ -1401,6 +1423,7 @@ def define_class(
     # This is needed for recursive pointer fields.
     jou_type = JouType(full_name)
     jou_type.class_def_path = path
+    jou_type.class_def_public = "@public" in class_ast[-2]
     jou_type.generic_params = generic_params
 
     assert cache_key not in TYPES[path], cache_key
@@ -1640,8 +1663,9 @@ def find_global_var_ptr(path, varname):
             # TODO: numbered naming for non-public globals?
             _, _, vartype_ast, decors, location = ast
             vartype = type_from_ast(path, vartype_ast)
+            vartype_c = vartype.to_c()
             print(f"// Create global variable {varname} according to {path}.")
-            print(f"{vartype.to_c()} jou_g_{varname};")
+            print(f"{vartype_c} jou_g_{varname};")
             print()
             result = JouValue(vartype.pointer_type(), f"(&jou_g_{varname})")
             break
@@ -2133,8 +2157,13 @@ class CFuncMaker:
 
         if expr[0] == ".":
             _, obj_ast, field_name = expr
-            # obj.field
-            # TODO: what if it's enum or method or whatever
+
+            if obj_ast[0] == "get_variable":
+                _, name = obj_ast
+                if find_enum(self.path, name) is not None:
+                    # Enum.member
+                    return BASIC_TYPES["int"]
+
             obj_type = self.get_type(obj_ast)
             if obj_type.class_field_types is None:
                 assert obj_type.name.endswith("*")
@@ -2313,7 +2342,6 @@ class CFuncMaker:
             return JouValue(BASIC_TYPES["int64"], f"((int64_t) sizeof({t}))")
 
         elif expr[0] == ".":
-            # TODO: can be many other things than plain old field access!
             _, obj_ast, field_name = expr
             if obj_ast[0] == "get_variable":
                 _, obj_name = obj_ast
@@ -2383,9 +2411,9 @@ class CFuncMaker:
 
         elif expr[0] == "and":
             _, lhs_ast, rhs_ast = expr
-            self.output.append("// and")
             result = self.add_variable(BASIC_TYPES["bool"])
             lhs = self.do_expression(lhs_ast)
+            self.output.append("// and")
             self.output.append(f"if ({lhs.c_code})" + " {")
             rhs = self.do_expression(lhs_ast)
             self.output.append(f"{result.c_code} = {rhs.c_code};")
@@ -2393,17 +2421,22 @@ class CFuncMaker:
             return result
 
         elif expr[0] == "or":
-            raise NotImplementedError
-        #            _, lhs, rhs = expr
-        #            return jou_bool(
-        #                self.do_expression(lhs).unwrap_value()
-        #                or self.do_expression(rhs).unwrap_value()
-        #            )
+            _, lhs_ast, rhs_ast = expr
+            result = self.add_variable(BASIC_TYPES["bool"])
+            lhs = self.do_expression(lhs_ast)
+            self.output.append("// or")
+            self.output.append("if(%s) {%s=true;} else {" % (lhs.c_code, result.c_code))
+            rhs = self.do_expression(lhs_ast)
+            self.output.append(f"{result.c_code} = {rhs.c_code};")
+            self.output.append("}")
+            return result
 
         elif expr[0] == "not":
-            raise NotImplementedError
-        #            _, inner = expr
-        #            return jou_bool(not self.do_expression(inner).unwrap_value())
+            _, obj_ast = expr
+            obj = self.do_expression(obj_ast)
+            result = self.add_variable(BASIC_TYPES["bool"])
+            self.output.append(f"{result.c_code} = !{obj.c_code};")
+            return result
 
         elif expr[0] == "add":
             _, lhs_ast, rhs_ast = expr
@@ -2544,7 +2577,7 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
 def main() -> None:
     [main_file] = sys.argv[1:]
     parse_file(main_file)
-    while parse_an_imported_file() or evaluate_a_compile_time_if_statement():
+    while evaluate_a_compile_time_if_statement() or parse_an_imported_file():
         pass
 
     print()
