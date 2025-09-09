@@ -1216,7 +1216,9 @@ class Parser:
 def parse_file(path):
     # Remove "foo/../bar" and "foo/./bar" stuff
     path = simplify_path(path)
-    assert path not in ASTS
+
+    if path in ASTS:
+        return
 
     if VERBOSITY >= 2:
         print("Parsing", path, file=sys.stderr)
@@ -1236,47 +1238,46 @@ def parse_file(path):
                 imported.append(s[1])
             ast.append(s)
 
-    # Evaluate compile time if statements
-    making_progress = True
-    while making_progress:
-        making_progress = False
-        for i, stmt in enumerate(ast):
-            if stmt[0] == "if":
-                _, if_and_elifs, else_body, location = stmt
-                cond_ast, then = if_and_elifs.pop(0)
-                if cond_ast[0] == "get_variable":
-                    _, cond_varname = cond_ast
-                    cond_value = find_constant(path, cond_varname)
-                    assert cond_value is not None
-                elif cond_ast[0] == "constant":
-                    _, cond_value = cond_ast
-                else:
-                    raise RuntimeError(
-                        f"cannot evaluate compile-time if statement in {path}"
-                    )
-                if cond_value.c_code == "true":
-                    cond = True
-                elif cond_value.c_code == "false":
-                    cond = False
-                else:
-                    raise NotImplementedError(cond_value)
-                if cond:
-                    ast[i : i + 1] = then
-                elif not if_and_elifs:
-                    ast[i : i + 1] = else_body
-                making_progress = True
-                break
-
     ASTS[path] = ast
-    TYPES[path] = BASIC_TYPES.copy()  # type: ignore
-    GLOBALS[path] = {}
-    FUNCTIONS[path] = {}
-    CONSTANTS[path] = {
-        "WINDOWS": jou_bool(sys.platform == "win32"),
-        "MACOS": jou_bool(sys.platform == "darwin"),
-        "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
-    }
-    ENUMS[path] = {}
+
+    for imp_path in imported:
+        parse_file(imp_path)
+
+
+def evaluate_compile_time_if_statements() -> None:
+    for path, ast in ASTS.items():
+        making_progress = True
+        while making_progress:
+            making_progress = False
+            for i, stmt in enumerate(ast):
+                if stmt[0] == "if":
+                    _, if_and_elifs, else_body, location = stmt
+                    cond_ast, then = if_and_elifs.pop(0)
+
+                    if cond_ast[0] == "get_variable":
+                        _, cond_varname = cond_ast
+                        cond_value = find_constant(path, cond_varname)
+                        assert cond_value is not None
+                    elif cond_ast[0] == "constant":
+                        _, cond_value = cond_ast
+                    else:
+                        raise RuntimeError(
+                            f"cannot evaluate compile-time if statement in {path}"
+                        )
+
+                    if cond_value.c_code == "true":
+                        cond = True
+                    elif cond_value.c_code == "false":
+                        cond = False
+                    else:
+                        raise NotImplementedError(cond_value)
+
+                    if cond:
+                        ast[i : i + 1] = then
+                    elif not if_and_elifs:
+                        ast[i : i + 1] = else_body
+                    making_progress = True
+                    break
 
 
 def function_ast_to_value(
@@ -2103,7 +2104,6 @@ class CFuncMaker:
                 raise RuntimeError(
                     f"no local or global variable named {varname} in {self.path}"
                 )
-            print("// get_variable addressof", var)
             return var
 
         elif expr[0] == ".":
@@ -2133,7 +2133,6 @@ class CFuncMaker:
             if self.get_type(ptr_ast).is_array_type():
                 # &array[index] is slightly different from &ptr[index]
                 ptr_to_array = self.do_address_of_expression(ptr_ast)
-                print("// ptr_to_array =", ptr_to_array, "from", ptr_ast)
                 assert ptr_to_array.type.inner_type is not None
                 assert ptr_to_array.type.inner_type.inner_type is not None, ptr_to_array
                 item_type = ptr_to_array.type.inner_type.inner_type
@@ -2458,6 +2457,17 @@ def define_function(path: str, ast: AST) -> None:
 def main() -> None:
     [main_file] = sys.argv[1:]
     parse_file(main_file)
+
+    for path in ASTS.keys():
+        TYPES[path] = BASIC_TYPES.copy()  # type: ignore
+        GLOBALS[path] = {}
+        FUNCTIONS[path] = {}
+        CONSTANTS[path] = {
+            "WINDOWS": jou_bool(sys.platform == "win32"),
+            "MACOS": jou_bool(sys.platform == "darwin"),
+            "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
+        }
+        ENUMS[path] = {}
 
     if VERBOSITY >= 1:
         print("Evaluating compile-time if statements...", file=sys.stderr)
