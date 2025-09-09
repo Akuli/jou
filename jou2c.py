@@ -30,7 +30,7 @@ GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 CONSTANTS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
 GLOBAL_NAME_COUNTER = itertools.count()
-FUNCTION_QUEUE: list[tuple[str, str]] = []
+FUNCTION_QUEUE: list[tuple[str, AST, JouType | None]] = []
 
 
 @dataclass
@@ -255,11 +255,11 @@ class JouType:
 
     def __init__(self, name: str) -> None:
         self.name = name
-        # ctypes_type may be None for now and assigned later.
-        # This is needed when a class references itself through pointers.
+
         self.inner_type: JouType | None = None
+        self.class_def_path: str | None = None
         self.class_field_types: dict[str, JouType] | None = None
-        self.method_asts: dict[str, tuple[str, tuple[Any, ...]]] = {}
+        self.method_asts: dict[str, AST] = {}
         self.generic_params: dict[str, JouType] = {}
         self.funcptr_argtypes: list[JouType] | None = None
         self.funcptr_return_type: JouType | None = None
@@ -304,7 +304,9 @@ class JouType:
             assert self.funcptr_return_type is not None
             args = ", ".join(at.to_c() for at in self.funcptr_argtypes) or "void"
             return_type = self.funcptr_return_type.to_c()
+            print(f"// Create typedef for Jou funcptr type {self.name}")
             print(f"typedef {return_type} (*funcptr{n})({args});")
+            print()
             result = f"funcptr{n}"
         elif self.name == "void*":
             return "void*"
@@ -322,7 +324,9 @@ class JouType:
             assert self.inner_type is not None
             inner_c = self.inner_type.to_c()
             result = f"array{array_len}_{inner_c}"
+            print(f"// Create typedef for Jou array type {self.name}")
             print("typedef struct {", inner_c, "items[", array_len, "]; }", result, ";")
+            print()
         elif self.class_field_types is not None:
             # Class
             result = "jou_" + self.name.split("[")[0]
@@ -331,17 +335,26 @@ class JouType:
                 result += gtype.to_c(fwd_decl_is_enough=True)
 
             if not self._only_fwd_declared:
+                print(
+                    f"// Forward-declare the struct for {self.name} so that it is accessible everywhere."
+                )
                 print(f"struct {result};")
                 print(f"typedef struct {result} {result};")
+                print()
 
             if not fwd_decl_is_enough:
                 fields_c = [
                     ftype.to_c() + " jou_" + fname + ";"
                     for fname, ftype in self.class_field_types.items()
                 ]
+
+                print(
+                    f"// Fully define the struct for {self.name}. Just forward-declaring is no longer enough."
+                )
                 print("struct", result, "{")
                 print("\n".join("    " + f for f in fields_c) or "    int dummy;")
                 print("};")
+                print()
 
             self._only_fwd_declared = fwd_decl_is_enough
         else:
@@ -356,11 +369,20 @@ class JouType:
         if name in self._method_funcptrs:
             return self._method_funcptrs[name]
 
-        result = function_ast_to_value(
-            *self.method_asts[name],
-            default_self_type=self.pointer_type(),
-            typesub=self.generic_params,
+        ast = self.method_asts[name]
+
+        assert self.class_def_path is not None
+        result, decl = declare_c_function(self.class_def_path, ast, self)
+
+        print(
+            f"// Forward-declare Jou method {self.name}.{name}() so it can be called."
         )
+        print(f"// The body of {self.name}.{name}() will be processed later.")
+        print(decl + ";")
+        print()
+
+        FUNCTION_QUEUE.append((self.class_def_path, ast, self))
+
         self._method_funcptrs[name] = result
         return result
 
@@ -480,28 +502,33 @@ def jou_double(value: float) -> JouValue:
     return JouValue(BASIC_TYPES["double"], f"((double)({value}))")
 
 
-# None creates a NULL
-def jou_string(s: str | bytes | None) -> JouValue:
+def c_string(s: str | bytes) -> str:
     simple_chars = (
         string.ascii_letters
         + string.punctuation.replace("\\", "").replace('"', "")
         + " "
     ).encode("ascii")
 
+    result = ""
+    for byte in s.encode("utf-8") if isinstance(s, str) else s:
+        if byte in simple_chars:
+            result += chr(byte)
+        elif byte == ord("\n"):
+            result += "\\n"
+        else:
+            # This could be used for everything, but then debugging would be
+            # quite painful.
+            result += f"\\x{byte:02x}"  # e.g. \x09 for tab character \t
+
+    return '"' + result + '"'
+
+
+# None creates a NULL
+def jou_string(s: str | bytes | None) -> JouValue:
     if s is None:
         c_code = "((uint8_t*) NULL)"
     else:
-        c_code = '((uint8_t*) "'
-        for byte in s.encode("utf-8") if isinstance(s, str) else s:
-            if byte in simple_chars:
-                c_code += chr(byte)
-            elif byte == ord("\n"):
-                c_code += "\\n"
-            else:
-                # This could be used for everything, but then debugging would be
-                # quite painful.
-                c_code += f"\\x{byte:02x}"  # e.g. \x09 for tab character \t
-        c_code += '")'
+        c_code = f'((uint8_t*) {c_string(s)})'
 
     return JouValue(BASIC_TYPES["uint8"].pointer_type(), c_code)
 
@@ -1214,12 +1241,10 @@ class Parser:
 
 
 def parse_file(path):
+    print(f"// Parsing file: {path}")
     # Remove "foo/../bar" and "foo/./bar" stuff
     path = simplify_path(path)
     assert path not in ASTS
-
-    if VERBOSITY >= 2:
-        print("Parsing", path, file=sys.stderr)
 
     with open(path, encoding="utf-8") as f:
         content = f.read()
@@ -1251,7 +1276,7 @@ def parse_file(path):
 def parse_an_imported_file() -> bool:
     for ast in list(ASTS.values()):
         for stmt in ast:
-            if stmt[0] == 'import' and stmt[1] not in ASTS:
+            if stmt[0] == "import" and stmt[1] not in ASTS:
                 parse_file(stmt[1])
                 assert stmt[1] in ASTS
                 return True
@@ -1295,14 +1320,34 @@ def evaluate_a_compile_time_if_statement() -> bool:
     return False
 
 
-def function_ast_to_value(
-    path: str,
-    ast: AST,
-    *,
-    c_name: str | None = None,
-    default_self_type: JouType | None = None,
-    typesub: dict[str, JouType] | None = None,
-) -> JouValue:
+def get_funcdef_c_name(path: str, ast: AST, klass: JouType | None) -> str:
+    if ast[0] == "function_declare":
+        # C function names are never changed/mangled
+        assert klass is None
+        return ast[1]
+
+    assert ast[0] == "function_def"
+    jou_name = ast[1]
+
+    if klass is not None:
+        # It is a method
+        return klass.to_c(fwd_decl_is_enough=True) + "_" + jou_name
+
+    # TODO: handle methods!
+
+    if jou_name == "main":
+        return "main"
+
+    if "@public" in ast[-2]:
+        return f"jou_{jou_name}"
+
+    # It is a private function. Name it so that multiple files can have
+    # private functions with the same name.
+    i = list(ASTS.keys()).index(path)
+    return f"jou{i}_{jou_name}"
+
+
+def function_ast_to_value(path: str, ast: AST, klass: JouType | None) -> JouValue:
     if ast[0] == "function_def":
         _, func_name, args, takes_varargs, return_type_ast, body, decors, location = ast
     elif ast[0] == "function_declare":
@@ -1310,13 +1355,19 @@ def function_ast_to_value(
     else:
         raise NotImplementedError(ast)
 
+    if klass is None:
+        typesub = {}
+    else:
+        typesub = klass.generic_params
+
     argtypes = []
     for arg_name, arg_type, arg_default in args:
         assert arg_default is None
         if arg_type is None:
+            # TODO: this logic is in two places
             assert arg_name == "self"
-            assert default_self_type is not None
-            argtypes.append(default_self_type)
+            assert klass is not None
+            argtypes.append(klass.pointer_type())
         else:
             argtypes.append(type_from_ast(path, arg_type, typesub))
 
@@ -1325,7 +1376,9 @@ def function_ast_to_value(
     else:
         return_type = type_from_ast(path, return_type_ast, typesub)
 
-    return JouValue(funcptr_type(tuple(argtypes), return_type), c_name or func_name)
+    return JouValue(
+        funcptr_type(tuple(argtypes), return_type), get_funcdef_c_name(path, ast, klass)
+    )
 
 
 def define_class(
@@ -1347,6 +1400,7 @@ def define_class(
     # While defining this class, it must be possible to refer to it.
     # This is needed for recursive pointer fields.
     jou_type = JouType(full_name)
+    jou_type.class_def_path = path
     jou_type.generic_params = generic_params
 
     assert cache_key not in TYPES[path], cache_key
@@ -1363,7 +1417,7 @@ def define_class(
             fields.extend(union_members)
         elif member[0] == "function_def":
             method_name = member[1]
-            jou_type.method_asts[method_name] = (path, member)
+            jou_type.method_asts[method_name] = member
         elif member[0] == "pass":
             pass
         else:
@@ -1463,7 +1517,7 @@ def find_generic_class(path: str, class_name: str, generic_param: JouType):
 
 
 def declare_c_function(
-    path: str, ast: AST, *, c_name: str | None = None, semicolon: bool = True
+    path: str, ast: AST, klass: JouType | None
 ) -> tuple[JouValue, str]:
     if ast[0] == "function_def":
         _, func_name, args, takes_varargs, return_type_ast, body, decors, location = ast
@@ -1472,13 +1526,11 @@ def declare_c_function(
     else:
         raise RuntimeError(ast[0])
 
-    # TODO: pass default_self_type
-    # TODO: pass typesub
-    func = function_ast_to_value(path, ast, c_name=c_name)
-    assert func.type.funcptr_argtypes is not None
+    if klass is not None:
+        assert not klass.name.endswith("*")
 
-    if c_name is None:
-        c_name = func_name
+    func = function_ast_to_value(path, ast, klass)
+    assert func.type.funcptr_argtypes is not None
 
     arg_strings = []
     for (arg_name, _, _), argtype in zip(args, func.type.funcptr_argtypes):
@@ -1492,6 +1544,7 @@ def declare_c_function(
     else:
         ret_str = func.type.funcptr_return_type.to_c()
 
+    c_name = get_funcdef_c_name(path, ast, klass)
     declaration = f"{ret_str} {c_name}({', '.join(arg_strings)})"
     return (func, declaration)
 
@@ -1530,17 +1583,23 @@ def find_function(path: str, func_name: str):
     result: Any = None
     for ast in ASTS[path]:
         if ast[:2] == ("function_def", func_name):
-            c_name = None
-            if "@public" not in ast[-2] and func_name != "main":
-                n = next(GLOBAL_NAME_COUNTER)
-                c_name = f"func{n}_{func_name}"
-            result, decl = declare_c_function(path, ast, c_name=c_name)
-            print(decl + ";")  # Forward declare all functions
-            FUNCTION_QUEUE.append((path, func_name))
-            break
-        if ast[:2] == ("function_declare", func_name):
-            result, decl = declare_c_function(path, ast)
+            result, decl = declare_c_function(path, ast, None)
+
+            print(f"// Forward-declare Jou function {func_name}() so it can be called.")
+            print(f"// The body of {func_name}() will be processed later.")
             print(decl + ";")
+            print()
+
+            FUNCTION_QUEUE.append((path, ast, None))
+            break
+
+        if ast[:2] == ("function_declare", func_name):
+            result, decl = declare_c_function(path, ast, None)
+            print(
+                f"// Declaring function {func_name}() according to Jou declare statement in {path}."
+            )
+            print(decl + ";")
+            print()
             break
 
     if result is None:
@@ -1578,16 +1637,21 @@ def find_global_var_ptr(path, varname):
     for ast in ASTS[path]:
         if ast[:2] == ("global_var_def", varname):
             # Create new global variable
+            # TODO: numbered naming for non-public globals?
             _, _, vartype_ast, decors, location = ast
             vartype = type_from_ast(path, vartype_ast)
+            print(f"// Create global variable {varname} according to {path}.")
             print(f"{vartype.to_c()} jou_g_{varname};")
+            print()
             result = JouValue(vartype.pointer_type(), f"(&jou_g_{varname})")
             break
         if ast[:2] == ("global_var_declare", varname):
             # Declare a C global variable
             _, varname, vartype_ast, decors, location = ast
             vartype = type_from_ast(path, vartype_ast)
+            print(f"// Declare global C variable {varname} according to {path}.")
             print(f"extern {vartype.to_c()} {varname};")
+            print()
             result = JouValue(vartype.pointer_type(), f"(&{varname})")
             break
 
@@ -1622,7 +1686,7 @@ def evaluate_constant(ast: AST, jtype: JouType) -> JouValue:
     if ast[0] == "integer_constant":
         _, int_value = ast
         return jou_integer(jtype, int_value)
-    if ast[0] == 'string':
+    if ast[0] == "string":
         _, string = ast
         return jou_string(string)
     raise NotImplementedError(ast)
@@ -1764,11 +1828,12 @@ class CFuncMaker:
 
     def local_var_ptr(self, name: str) -> JouValue:
         """Return pointer to local variable"""
-        return JouValue(self.locals[name].pointer_type(), "&var_" + name)
+        return JouValue(self.locals[name].pointer_type(), "(&var_" + name + ")")
 
     def add_variable(self, jtype: JouType) -> JouValue:
         n = next(self.name_counter)
-        self.output.insert(0, f"{jtype.to_c()} tmp{n};")
+        zero_init = "{0}" if jtype.class_def_path is not None else "0"
+        self.output.insert(0, f"{jtype.to_c()} tmp{n} = {zero_init};")
         return JouValue(jtype, f"tmp{n}")
 
     def cast(self, value: JouValue, to: JouType) -> JouValue:
@@ -1928,11 +1993,12 @@ class CFuncMaker:
         elif stmt[0] == "assert":
             _, cond_ast, (filename, lineno) = stmt
             cond = self.do_expression(cond_ast)
-            filename_string = jou_string(filename)
             self.output.append("if (!" + cond.c_code + ") {")
+            msg = f'Assertion failed in file "{filename}", line {lineno}.'
             self.output.append(
-                f'_jou_assert_fail("???" /* TODO */, {filename_string.c_code}, {lineno})'
+                f'int32_t puts(uint8_t*); puts((uint8_t*) {c_string(msg)});'
             )
+            self.output.append("void abort(void); abort();")
             self.output.append("}")
 
         elif stmt[0] == "return":
@@ -1991,7 +2057,9 @@ class CFuncMaker:
             for case_objs, case_body in cases:
                 for case_obj_ast in case_objs:
                     case_obj = self.do_expression(case_obj_ast)
-                    self.output.append(f"if ({match_obj.c_code} == {case_obj.c_code}) " + "{")
+                    self.output.append(
+                        f"if ({match_obj.c_code} == {case_obj.c_code}) " + "{"
+                    )
                     self.do_body(case_body)
                     self.output.append("} else {")
                     brace_count += 1
@@ -2216,8 +2284,7 @@ class CFuncMaker:
             raise RuntimeError(f"no variable named {varname} in {self.path}")
 
         if expr[0] == "self":
-            raise NotImplementedError
-            # return self.locals["self"].deref()
+            return self.find_any_var_or_constant("self")
 
         if expr[0] in ("eq", "ne", "gt", "lt", "ge", "le"):
             _, lhs_ast, rhs_ast = expr
@@ -2241,11 +2308,9 @@ class CFuncMaker:
             return result
 
         elif expr[0] == "sizeof":
-            raise NotImplementedError(expr)
             _, obj = expr
-            t = self.get_type(obj)
-            assert t.ctypes_type is not None
-            return jou_integer("int64", ctypes.sizeof(t.ctypes_type()))
+            t = self.get_type(obj).to_c(fwd_decl_is_enough=False)
+            return JouValue(BASIC_TYPES["int64"], f"((int64_t) sizeof({t}))")
 
         elif expr[0] == ".":
             # TODO: can be many other things than plain old field access!
@@ -2290,22 +2355,24 @@ class CFuncMaker:
             assert obj.type.inner_type is not None
             result = self.add_variable(obj.type.inner_type)
             if obj.type.is_array_type():
-                self.output.append(f"{result.c_code} = {obj.c_code}.items[{index.c_code}];")
+                self.output.append(
+                    f"{result.c_code} = {obj.c_code}.items[{index.c_code}];"
+                )
             else:
                 self.output.append(f"{result.c_code} = {obj.c_code}[{index.c_code}];")
             return result
 
         elif expr[0] == "instantiate":
             _, type_ast, fields = expr
-            self.output.append("// LOOK HERE"*50)
-
             t = type_from_ast(self.path, type_ast)
             result = self.add_variable(t)
             assert t.class_field_types is not None
             for field_name, field_value in fields:
                 field_type = t.class_field_types[field_name]
                 field_value = self.cast(self.do_expression(field_value), field_type)
-                self.output.append(f"{result.c_code}.jou_{field_name} = {field_value.c_code};")
+                self.output.append(
+                    f"{result.c_code}.jou_{field_name} = {field_value.c_code};"
+                )
             return result
 
         elif expr[0] == "as":
@@ -2347,48 +2414,45 @@ class CFuncMaker:
             return result
 
         elif expr[0] == "sub":
-            raise NotImplementedError
-        #            _, lhs_ast, rhs_ast = expr
-        #            lhs = self.do_expression(lhs_ast)
-        #            rhs = self.do_expression(rhs_ast)
-        #            return jou_integer(
-        #                self.get_type(expr), lhs.unwrap_value() - rhs.unwrap_value()
-        #            )
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.do_expression(lhs_ast)
+            rhs = self.do_expression(rhs_ast)
+            result = self.add_variable(self.get_type(expr))
+            self.output.append(f"{result.c_code} = {lhs.c_code} - {rhs.c_code};")
+            return result
 
         elif expr[0] == "mul":
-            raise NotImplementedError
-        #            _, lhs_ast, rhs_ast = expr
-        #            lhs = self.do_expression(lhs_ast)
-        #            rhs = self.do_expression(rhs_ast)
-        #            return jou_integer(
-        #                self.get_type(expr), lhs.unwrap_value() * rhs.unwrap_value()
-        #            )
-        #
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.do_expression(lhs_ast)
+            rhs = self.do_expression(rhs_ast)
+            result = self.add_variable(self.get_type(expr))
+            self.output.append(f"{result.c_code} = {lhs.c_code} * {rhs.c_code};")
+            return result
+
         elif expr[0] == "div":
-            raise NotImplementedError
-        #            _, lhs_ast, rhs_ast = expr
-        #            lhs = self.do_expression(lhs_ast)
-        #            rhs = self.do_expression(rhs_ast)
-        #            # Jou's division is like Python's division: floor (not towards zero)
-        #            return jou_integer(
-        #                self.get_type(expr), lhs.unwrap_value() // rhs.unwrap_value()
-        #            )
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.do_expression(lhs_ast)
+            rhs = self.do_expression(rhs_ast)
+            result = self.add_variable(self.get_type(expr))
+            # TODO: Jou's integer division rules are different than C's
+            self.output.append(f"{result.c_code} = {lhs.c_code} / {rhs.c_code};")
+            return result
 
         elif expr[0] == "mod":
-            raise NotImplementedError
-        #            _, lhs_ast, rhs_ast = expr
-        #            lhs = self.do_expression(lhs_ast)
-        #            rhs = self.do_expression(rhs_ast)
-        #            # Jou's % is like Python's %
-        #            return jou_integer(
-        #                self.get_type(expr), lhs.unwrap_value() % rhs.unwrap_value()
-        #            )
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.do_expression(lhs_ast)
+            rhs = self.do_expression(rhs_ast)
+            result = self.add_variable(self.get_type(expr))
+            # TODO: Jou's integer modulo rules are different than C's
+            self.output.append(f"{result.c_code} = {lhs.c_code} % {rhs.c_code};")
+            return result
 
         elif expr[0] == "negate":
-            raise NotImplementedError
-        #            _, obj_ast = expr
-        #            obj = self.do_expression(obj_ast)
-        #            return jou_integer(self.get_type(expr), -obj.unwrap_value())
+            _, obj_ast = expr
+            obj = self.do_expression(obj_ast)
+            result = self.add_variable(self.get_type(expr))
+            self.output.append(f"{result.c_code} = -{obj.c_code};")
+            return result
 
         elif expr[0] in ("pre_incr", "post_incr", "pre_decr", "post_decr"):
             if "incr" in expr[0]:
@@ -2429,21 +2493,28 @@ class CFuncMaker:
             assert value.type.inner_type is not None
             result = self.add_variable(value.type.inner_type)
             self.output.append(f"{result.c_code} = *{value.c_code};")
-            return value
+            return result
 
         else:
             raise NotImplementedError(expr)
 
 
-def define_function(path: str, ast: AST) -> None:
-    assert ast[0] == "function_def"
+def define_function(path: str, ast: AST, klass: JouType | None) -> None:
+    assert ast[0] == "function_def", ast
     _, name, args, takes_varargs, return_type_ast, body, decors, location = ast
 
     func_maker = CFuncMaker(path)
 
     for arg_name, arg_type_ast, arg_value in args:
-        assert arg_type_ast is not None
-        func_maker.locals[arg_name] = type_from_ast(path, arg_type_ast)
+        if arg_type_ast is None:
+            # TODO: this logic is in two places
+            assert arg_name == "self"
+            assert klass is not None
+            func_maker.locals[arg_name] = klass.pointer_type()
+        else:
+            func_maker.locals[arg_name] = type_from_ast(
+                path, arg_type_ast, (None if klass is None else klass.generic_params)
+            )
 
     try:
         func_maker.do_body(body)
@@ -2455,7 +2526,8 @@ def define_function(path: str, ast: AST) -> None:
     # The function maker has now printed everything it needs to exist globally.
     # We can now print the function we made.
 
-    declaration = declare_c_function(path, ast)[1]
+    print(f"// This is the body of function {name}() defined in {path}.")
+    declaration = declare_c_function(path, ast, klass=klass)[1]
     print(declaration, "{")
     for line in func_maker.output:
         print("    " + line)
@@ -2466,6 +2538,7 @@ def define_function(path: str, ast: AST) -> None:
         raise error
 
     print("}")
+    print()
 
 
 def main() -> None:
@@ -2474,15 +2547,34 @@ def main() -> None:
     while parse_an_imported_file() or evaluate_a_compile_time_if_statement():
         pass
 
+    print()
+
+    print("// Hard-coded dependencies for core functionality.")
     print("#include <stddef.h>")
     print("#include <stdint.h>")
     print("#include <stdbool.h>")
+    print("#include <stdnoreturn.h>")
+    print()
 
-    FUNCTION_QUEUE.append((main_file, "main"))
+    print("// Ignore C compiler warning when declaring standard functions manually.")
+    print("// It likes to complain about e.g. char vs uint8_t.")
+    print("#ifdef __GNUC__")
+    print('#pragma GCC diagnostic ignored "-Wbuiltin-declaration-mismatch"')
+    print("#endif")
+    print()
+
+    # Everything else is done on-demand / as needed.
+    main_ast = next(
+        item for item in ASTS[main_file] if item[:2] == ("function_def", "main")
+    )
+    FUNCTION_QUEUE.append((main_file, main_ast, None))
+
+    processed = []
     while FUNCTION_QUEUE:
-        path, funcname = FUNCTION_QUEUE.pop()
-        funcdef = next(item for item in ASTS[path] if item[:2] == ("function_def", funcname))
-        define_function(path, funcdef)
+        triplet = FUNCTION_QUEUE.pop()
+        if triplet not in processed:
+            processed.append(triplet)
+            define_function(*triplet)
 
 
 if __name__ == "__main__":
