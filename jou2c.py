@@ -1216,9 +1216,7 @@ class Parser:
 def parse_file(path):
     # Remove "foo/../bar" and "foo/./bar" stuff
     path = simplify_path(path)
-
-    if path in ASTS:
-        return
+    assert path not in ASTS
 
     if VERBOSITY >= 2:
         print("Parsing", path, file=sys.stderr)
@@ -1239,45 +1237,62 @@ def parse_file(path):
             ast.append(s)
 
     ASTS[path] = ast
+    TYPES[path] = BASIC_TYPES.copy()  # type: ignore
+    GLOBALS[path] = {}
+    FUNCTIONS[path] = {}
+    CONSTANTS[path] = {
+        "WINDOWS": jou_bool(sys.platform == "win32"),
+        "MACOS": jou_bool(sys.platform == "darwin"),
+        "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
+    }
+    ENUMS[path] = {}
 
-    for imp_path in imported:
-        parse_file(imp_path)
+
+def parse_an_imported_file() -> bool:
+    for ast in list(ASTS.values()):
+        for stmt in ast:
+            if stmt[0] == 'import' and stmt[1] not in ASTS:
+                parse_file(stmt[1])
+                assert stmt[1] in ASTS
+                return True
+    return False
 
 
-def evaluate_compile_time_if_statements() -> None:
+def evaluate_a_compile_time_if_statement() -> bool:
     for path, ast in ASTS.items():
-        making_progress = True
-        while making_progress:
-            making_progress = False
-            for i, stmt in enumerate(ast):
-                if stmt[0] == "if":
-                    _, if_and_elifs, else_body, location = stmt
-                    cond_ast, then = if_and_elifs.pop(0)
+        for i, stmt in enumerate(ast):
+            if stmt[0] != "if":
+                continue
 
-                    if cond_ast[0] == "get_variable":
-                        _, cond_varname = cond_ast
-                        cond_value = find_constant(path, cond_varname)
-                        assert cond_value is not None
-                    elif cond_ast[0] == "constant":
-                        _, cond_value = cond_ast
-                    else:
-                        raise RuntimeError(
-                            f"cannot evaluate compile-time if statement in {path}"
-                        )
+            _, if_and_elifs, else_body, location = stmt
+            cond_ast, then = if_and_elifs.pop(0)
 
-                    if cond_value.c_code == "true":
-                        cond = True
-                    elif cond_value.c_code == "false":
-                        cond = False
-                    else:
-                        raise NotImplementedError(cond_value)
+            if cond_ast[0] == "get_variable":
+                _, cond_varname = cond_ast
+                cond_value = find_constant(path, cond_varname)
+                assert cond_value is not None
+            elif cond_ast[0] == "constant":
+                _, cond_value = cond_ast
+            else:
+                raise RuntimeError(
+                    f"cannot evaluate compile-time if statement in {path}"
+                )
 
-                    if cond:
-                        ast[i : i + 1] = then
-                    elif not if_and_elifs:
-                        ast[i : i + 1] = else_body
-                    making_progress = True
-                    break
+            if cond_value.c_code == "true":
+                cond = True
+            elif cond_value.c_code == "false":
+                cond = False
+            else:
+                raise NotImplementedError(cond_value)
+
+            if cond:
+                ast[i : i + 1] = then
+            elif not if_and_elifs:
+                ast[i : i + 1] = else_body
+
+            return True
+
+    return False
 
 
 def function_ast_to_value(
@@ -1607,6 +1622,9 @@ def evaluate_constant(ast: AST, jtype: JouType) -> JouValue:
     if ast[0] == "integer_constant":
         _, int_value = ast
         return jou_integer(jtype, int_value)
+    if ast[0] == 'string':
+        _, string = ast
+        return jou_string(string)
     raise NotImplementedError(ast)
 
 
@@ -1983,9 +2001,9 @@ class CFuncMaker:
         else:
             raise NotImplementedError(stmt)
 
-    # Evaluates the type of expr without evaluating expr
+    # Evaluates the type of expr without the side effects of evaluating expr.
     def get_type(self, expr: AST) -> JouType:
-        if expr[0] in ("get_variable", "self"):
+        if expr[0] in ("get_variable", "self", "constant"):
             return self.do_expression(expr).type
 
         if expr[0] in ("eq", "and", "or", "not"):
@@ -2065,10 +2083,6 @@ class CFuncMaker:
 
         if expr[0] == "sizeof":
             return BASIC_TYPES["int64"]
-
-        if expr[0] == "constant":
-            _, value = expr
-            return value.jou_type
 
         if expr[0] == "address_of":
             _, value = expr
@@ -2282,16 +2296,17 @@ class CFuncMaker:
             return result
 
         elif expr[0] == "instantiate":
-            raise NotImplementedError
-        #            _, type_ast, fields = expr
-        #            t = type_from_ast(self.path, type_ast)
-        #            ptr = t.allocate_instance()
-        #            assert t.class_field_types is not None
-        #            for field_name, field_value in fields:
-        #                field_type = t.class_field_types[field_name]
-        #                field_value = self.do_expression(field_value).cast(field_type)
-        #                ptr.get_field_pointer(field_name).deref_set(field_value)
-        #            return ptr.deref()
+            _, type_ast, fields = expr
+            self.output.append("// LOOK HERE"*50)
+
+            t = type_from_ast(self.path, type_ast)
+            result = self.add_variable(t)
+            assert t.class_field_types is not None
+            for field_name, field_value in fields:
+                field_type = t.class_field_types[field_name]
+                field_value = self.cast(self.do_expression(field_value), field_type)
+                self.output.append(f"{result.c_code}.jou_{field_name} = {field_value.c_code};")
+            return result
 
         elif expr[0] == "as":
             _, obj_ast, type_ast = expr
@@ -2324,13 +2339,12 @@ class CFuncMaker:
         #            return jou_bool(not self.do_expression(inner).unwrap_value())
 
         elif expr[0] == "add":
-            raise NotImplementedError
-        #            _, lhs_ast, rhs_ast = expr
-        #            lhs = self.do_expression(lhs_ast)
-        #            rhs = self.do_expression(rhs_ast)
-        #            return jou_integer(
-        #                self.get_type(expr), lhs.unwrap_value() + rhs.unwrap_value()
-        #            )
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.do_expression(lhs_ast)
+            rhs = self.do_expression(rhs_ast)
+            result = self.add_variable(self.get_type(expr))
+            self.output.append(f"{result.c_code} = {lhs.c_code} + {rhs.c_code};")
+            return result
 
         elif expr[0] == "sub":
             raise NotImplementedError
@@ -2457,21 +2471,8 @@ def define_function(path: str, ast: AST) -> None:
 def main() -> None:
     [main_file] = sys.argv[1:]
     parse_file(main_file)
-
-    for path in ASTS.keys():
-        TYPES[path] = BASIC_TYPES.copy()  # type: ignore
-        GLOBALS[path] = {}
-        FUNCTIONS[path] = {}
-        CONSTANTS[path] = {
-            "WINDOWS": jou_bool(sys.platform == "win32"),
-            "MACOS": jou_bool(sys.platform == "darwin"),
-            "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
-        }
-        ENUMS[path] = {}
-
-    if VERBOSITY >= 1:
-        print("Evaluating compile-time if statements...", file=sys.stderr)
-    evaluate_compile_time_if_statements()
+    while parse_an_imported_file() or evaluate_a_compile_time_if_statement():
+        pass
 
     print("#include <stddef.h>")
     print("#include <stdint.h>")
