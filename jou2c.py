@@ -1857,6 +1857,13 @@ class CFuncMaker:
         n = next(self.name_counter)
         zero_init = "{0}" if jtype.is_class() or jtype.is_array() else "0"
         self.output.insert(0, f"{jtype.to_c()} tmp{n} = {zero_init};")
+
+        # Make sure the type is fully defined so we can use it
+        t = jtype
+        while t is not None:
+            t.to_c()
+            t = t.inner_type
+
         return JouValue(jtype, f"tmp{n}")
 
     def cast(self, value: JouValue, to: JouType) -> JouValue:
