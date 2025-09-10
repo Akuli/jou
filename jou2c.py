@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import itertools
 import functools
-import subprocess
-import shutil
 import sys
 import os
 import string
 import re
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING, Iterator
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     # First element is always a string, but explainin that to mypy without
@@ -19,12 +17,8 @@ if TYPE_CHECKING:
 
 # GLOBAL STATE GO BRRRR
 # This place is where all mutated global variables go.
-VERBOSITY: int = 0
 ASTS: dict[str, Any] = {}
 FUNCTIONS: dict[str, dict[str, JouValue]] = {}
-TYPES_FWD_DECL: dict[
-    str, dict[str | tuple[str, tuple[JouType, ...] | JouType], JouType]
-] = {}
 TYPES: dict[str, dict[str | tuple[str, tuple[JouType, ...] | JouType], JouType]] = {}
 GLOBALS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 CONSTANTS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
@@ -355,7 +349,9 @@ class JouType:
 
             for gtype in self.generic_params.values():
                 result += "_"
-                result += re.sub(r"[^A-Za-z0-9_]", "_", gtype.to_c(fwd_decl_is_enough=True))
+                result += re.sub(
+                    r"[^A-Za-z0-9_]", "_", gtype.to_c(fwd_decl_is_enough=True)
+                )
 
             if not self._only_fwd_declared:
                 print(
@@ -557,7 +553,7 @@ def jou_string(s: str | bytes | None) -> JouValue:
     if s is None:
         c_code = "((uint8_t*) NULL)"
     else:
-        c_code = f'((uint8_t*) {c_string(s)})'
+        c_code = f"((uint8_t*) {c_string(s)})"
 
     return JouValue(BASIC_TYPES["uint8"].pointer_type(), c_code)
 
@@ -1469,12 +1465,6 @@ def find_named_type(path: str, type_name: str, *, fwd_decl_is_enough: bool = Fal
     except KeyError:
         pass
 
-    if fwd_decl_is_enough:
-        try:
-            return TYPES_FWD_DECL[path][type_name]
-        except KeyError:
-            pass
-
     result = None
 
     # Is there a class or enum definition in the same file?
@@ -1580,30 +1570,6 @@ def declare_c_function(
     return (func, declaration)
 
 
-# def declare_c_global_var(path, declare_ast):
-#    assert declare_ast[0] == "global_var_declare"
-#    _, varname, vartype_ast, decors, location = declare_ast
-#    if VERBOSITY >= 1:
-#        print("Declaring global variable", varname)
-#    vartype = type_from_ast(path, vartype_ast)
-#    ctype = vartype.ctypes_type()
-#    assert ctype is not None
-#
-#    for lib in LIBS:
-#        try:
-#            result = ctype.in_dll(lib, varname)
-#        except ValueError:
-#            continue
-#
-#        return JouValue(vartype.pointer_type(), result)
-#
-#    raise RuntimeError(f"C global variable not found: {varname}")
-#
-#
-# Return values:
-#   - AST (tuple) if function defined in Jou
-#   - ctypes function if function defined in C and only declared in Jou
-#   - None if function not found
 def find_function(path: str, func_name: str):
     try:
         return FUNCTIONS[path][func_name]
@@ -1859,7 +1825,7 @@ class CFuncMaker:
         self.output.insert(0, f"{jtype.to_c()} tmp{n} = {zero_init};")
 
         # Make sure the type is fully defined so we can use it
-        t = jtype
+        t: JouType | None = jtype
         while t is not None:
             t.to_c()
             t = t.inner_type
@@ -1898,21 +1864,8 @@ class CFuncMaker:
     #   - evaluation order
     #   - foo(bar) may or may not need to evaluate &bar (array to pointer conversion)
     def call_function(
-        self,
-        func: JouValue,
-        args,
-        #        *,
-        #        self_type: JouType | None = None,
+        self, func: JouValue, args: list[AST | JouValue]
     ) -> JouValue | None:
-        # Replace T with the actual type in "class Foo[T]"
-        #        if self_type is None:
-        #            typesub = {}
-        #        elif self_type.name.endswith("*"):
-        #            assert self_type.inner_type is not None
-        #            typesub = self_type.inner_type.generic_params
-        #        else:
-        #            typesub = self_type.generic_params
-        #
         actual_args = []
         assert func.type.funcptr_argtypes is not None
         for arg, arg_type in zip(args, func.type.funcptr_argtypes):
@@ -1957,7 +1910,9 @@ class CFuncMaker:
 
     # for init; cond; incr:
     #     body
-    def loop(self, init: AST | None, cond: AST | None, incr: AST | None, body: list[AST]) -> None:
+    def loop(
+        self, init: AST | None, cond: AST | None, incr: AST | None, body: list[AST]
+    ) -> None:
         if init:
             self.do_statement(init)
 
@@ -2020,47 +1975,27 @@ class CFuncMaker:
             value = self.cast(self.do_expression(value_ast), ptr.type.inner_type)
             self.output.append(f"*{ptr.c_code} = {value.c_code};")
 
-        elif stmt[0] == "in_place_add":
+        elif stmt[0].startswith("in_place_"):
             _, target_ast, value_ast, location = stmt
             ptr = self.do_address_of_expression(target_ast)
             value = self.do_expression(value_ast)
-            self.output.append(f"*{ptr.c_code} += {value.c_code};")
 
-        elif stmt[0] == "in_place_sub":
-            _, target_ast, value_ast, location = stmt
-            ptr = self.do_address_of_expression(target_ast)
-            value = self.do_expression(value_ast)
-            self.output.append(f"*{ptr.c_code} -= {value.c_code};")
-
-        elif stmt[0] == "in_place_mul":
-            _, target_ast, value_ast, location = stmt
-            ptr = self.do_address_of_expression(target_ast)
-            value = self.do_expression(value_ast)
-            self.output.append(f"*{ptr.c_code} *= {value.c_code};")
-
-        elif stmt[0] == "in_place_div":
-            _, target_ast, value_ast, location = stmt
-            ptr = self.do_address_of_expression(target_ast)
-            value = self.do_expression(value_ast)
-            self.output.append(f"*{ptr.c_code} /= {value.c_code};")
-
-        elif stmt[0] == "in_place_bit_and":
-            _, target_ast, value_ast, location = stmt
-            ptr = self.do_address_of_expression(target_ast)
-            value = self.do_expression(value_ast)
-            self.output.append(f"*{ptr.c_code} &= {value.c_code};")
-
-        elif stmt[0] == "in_place_bit_or":
-            _, target_ast, value_ast, location = stmt
-            ptr = self.do_address_of_expression(target_ast)
-            value = self.do_expression(value_ast)
-            self.output.append(f"*{ptr.c_code} |= {value.c_code};")
-
-        elif stmt[0] == "in_place_bit_xor":
-            _, target_ast, value_ast, location = stmt
-            ptr = self.do_address_of_expression(target_ast)
-            value = self.do_expression(value_ast)
-            self.output.append(f"*{ptr.c_code} ^= {value.c_code};")
+            if stmt[0] == "in_place_add":
+                self.output.append(f"*{ptr.c_code} += {value.c_code};")
+            elif stmt[0] == "in_place_sub":
+                self.output.append(f"*{ptr.c_code} -= {value.c_code};")
+            elif stmt[0] == "in_place_mul":
+                self.output.append(f"*{ptr.c_code} *= {value.c_code};")
+            elif stmt[0] == "in_place_div":
+                self.output.append(f"*{ptr.c_code} /= {value.c_code};")
+            elif stmt[0] == "in_place_bit_and":
+                self.output.append(f"*{ptr.c_code} &= {value.c_code};")
+            elif stmt[0] == "in_place_bit_or":
+                self.output.append(f"*{ptr.c_code} |= {value.c_code};")
+            elif stmt[0] == "in_place_bit_xor":
+                self.output.append(f"*{ptr.c_code} ^= {value.c_code};")
+            else:
+                raise NotImplementedError(stmt[0])
 
         elif stmt[0] == "declare_local_var":
             _, varname, type_ast, value_ast, location = stmt
@@ -2077,7 +2012,7 @@ class CFuncMaker:
             self.output.append("if (!" + cond.c_code + ") {")
             msg = f'Assertion failed in file "{filename}", line {lineno}.'
             self.output.append(
-                f'int32_t puts(uint8_t*); puts((uint8_t*) {c_string(msg)});'
+                f"int32_t puts(uint8_t*); puts((uint8_t*) {c_string(msg)});"
             )
             self.output.append("void abort(void); abort();")
             self.output.append("}")
@@ -2118,6 +2053,7 @@ class CFuncMaker:
                         cond = f"{match_obj.c_code} == {case_obj.c_code}"
                     else:
                         ret = self.call_function(func, [match_obj, case_obj])
+                        assert ret is not None
                         cond = f"{ret.c_code} == 0"
                     self.output.append("if (" + cond + ") {")
                     self.do_body(case_body)
@@ -2389,8 +2325,8 @@ class CFuncMaker:
 
         elif expr[0] == "sizeof":
             _, obj = expr
-            t = self.get_type(obj).to_c(fwd_decl_is_enough=False)
-            return JouValue(BASIC_TYPES["int64"], f"((int64_t) sizeof({t}))")
+            type_c = self.get_type(obj).to_c(fwd_decl_is_enough=False)
+            return JouValue(BASIC_TYPES["int64"], f"((int64_t) sizeof({type_c}))")
 
         elif expr[0] == ".":
             _, obj_ast, field_name = expr
@@ -2489,46 +2425,27 @@ class CFuncMaker:
             self.output.append(f"{result.c_code} = !{obj.c_code};")
             return result
 
-        elif expr[0] == "add":
+        elif expr[0] in ("add", "sub", "mul", "div", "mod"):
             _, lhs_ast, rhs_ast = expr
             lhs = self.do_expression(lhs_ast)
             rhs = self.do_expression(rhs_ast)
             result = self.add_variable(self.get_type(expr))
-            self.output.append(f"{result.c_code} = {lhs.c_code} + {rhs.c_code};")
-            return result
 
-        elif expr[0] == "sub":
-            _, lhs_ast, rhs_ast = expr
-            lhs = self.do_expression(lhs_ast)
-            rhs = self.do_expression(rhs_ast)
-            result = self.add_variable(self.get_type(expr))
-            self.output.append(f"{result.c_code} = {lhs.c_code} - {rhs.c_code};")
-            return result
+            if expr[0] == "add":
+                self.output.append(f"{result.c_code} = {lhs.c_code} + {rhs.c_code};")
+            elif expr[0] == "sub":
+                self.output.append(f"{result.c_code} = {lhs.c_code} - {rhs.c_code};")
+            elif expr[0] == "mul":
+                self.output.append(f"{result.c_code} = {lhs.c_code} * {rhs.c_code};")
+            elif expr[0] == "div":
+                # TODO: Jou's integer division rules are different than C's
+                self.output.append(f"{result.c_code} = {lhs.c_code} / {rhs.c_code};")
+            elif expr[0] == "mod":
+                # TODO: Jou's integer modulo rules are different than C's
+                self.output.append(f"{result.c_code} = {lhs.c_code} % {rhs.c_code};")
+            else:
+                raise RuntimeError("wat")
 
-        elif expr[0] == "mul":
-            _, lhs_ast, rhs_ast = expr
-            lhs = self.do_expression(lhs_ast)
-            rhs = self.do_expression(rhs_ast)
-            result = self.add_variable(self.get_type(expr))
-            self.output.append(f"{result.c_code} = {lhs.c_code} * {rhs.c_code};")
-            return result
-
-        elif expr[0] == "div":
-            _, lhs_ast, rhs_ast = expr
-            lhs = self.do_expression(lhs_ast)
-            rhs = self.do_expression(rhs_ast)
-            result = self.add_variable(self.get_type(expr))
-            # TODO: Jou's integer division rules are different than C's
-            self.output.append(f"{result.c_code} = {lhs.c_code} / {rhs.c_code};")
-            return result
-
-        elif expr[0] == "mod":
-            _, lhs_ast, rhs_ast = expr
-            lhs = self.do_expression(lhs_ast)
-            rhs = self.do_expression(rhs_ast)
-            result = self.add_variable(self.get_type(expr))
-            # TODO: Jou's integer modulo rules are different than C's
-            self.output.append(f"{result.c_code} = {lhs.c_code} % {rhs.c_code};")
             return result
 
         elif expr[0] == "negate":
