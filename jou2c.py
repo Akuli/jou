@@ -1942,6 +1942,9 @@ class CFuncMaker:
             self.do_statement(item)
 
     def do_statement(self, stmt) -> None:
+        filename, lineno = stmt[-1]
+        self.output.append(f"// File {filename}, line {lineno}: {stmt[0]}")
+
         if stmt[0] == "expr_stmt":
             _, expr, location = stmt
             self.do_expression(expr)
@@ -2004,7 +2007,7 @@ class CFuncMaker:
             self.locals[varname] = vartype
             if value_ast is not None:
                 value = self.cast(self.do_expression(value_ast), vartype)
-                self.output.append(f"*var_{varname} = {value.c_code};")
+                self.output.append(f"var_{varname} = {value.c_code};")
 
         elif stmt[0] == "assert":
             _, cond_ast, (filename, lineno) = stmt
