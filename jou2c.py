@@ -1808,12 +1808,13 @@ def cast_array_members_to_a_common_type(array: list[JouValue]) -> list[JouValue]
 # declare or define something global. The separate list is appended to the
 # output later.
 class CFuncMaker:
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, return_type: JouType | None) -> None:
         self.path = path
         self.locals: dict[str, JouType] = {}
         self.output: list[str] = []
         self.name_counter = itertools.count()
         self.loops: list[int] = []
+        self.return_type = return_type
 
     def local_var_ptr(self, name: str) -> JouValue:
         """Return pointer to local variable"""
@@ -1833,9 +1834,20 @@ class CFuncMaker:
         return JouValue(jtype, f"tmp{n}")
 
     def cast(self, value: JouValue, to: JouType) -> JouValue:
+        if value.type == to:
+            return value
+
         var = self.add_variable(to)
-        # TODO: does this C cast always do what we want?
-        self.output.append(f"{var.c_code} = ({to.to_c()}) {value.c_code};")
+        if to.is_array():
+            # Example:   foo: byte[100] = "hi"
+            assert value.type == BASIC_TYPES["uint8"].pointer_type()
+            assert to.inner_type == BASIC_TYPES["uint8"]
+            self.output.append(f"strcpy((uint8_t*)&{var.c_code}, {value.c_code});")
+        else:
+            if value.type.is_array():
+                self.output.append(f"{var.c_code} = ({to.to_c()}) &{value.c_code};")
+            else:
+                self.output.append(f"{var.c_code} = ({to.to_c()}) {value.c_code};")
         return var
 
     def deref(self, ptr: JouValue) -> JouValue:
@@ -2021,11 +2033,13 @@ class CFuncMaker:
             self.output.append("}")
 
         elif stmt[0] == "return":
-            _, val, location = stmt
-            if val is None:
+            _, val_ast, location = stmt
+            if val_ast is None:
                 self.output.append("return;")
             else:
-                self.output.append("return " + self.do_expression(val).c_code + ";")
+                assert self.return_type is not None
+                val = self.cast(self.do_expression(val_ast), self.return_type)
+                self.output.append("return " + val.c_code + ";")
 
         elif stmt[0] == "while":
             _, cond, body, location = stmt
@@ -2507,7 +2521,11 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
     assert ast[0] == "function_def", ast
     _, name, args, takes_varargs, return_type_ast, body, decors, location = ast
 
-    func_maker = CFuncMaker(path)
+    if return_type_ast in [("named_type", "None"), ("named_type", "noreturn")]:
+        return_type = None
+    else:
+        return_type = type_from_ast(path, return_type_ast, (None if klass is None else klass.generic_params))
+    func_maker = CFuncMaker(path, return_type)
 
     for arg_name, arg_type_ast, arg_value in args:
         if arg_type_ast is None:
