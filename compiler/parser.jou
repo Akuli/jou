@@ -1305,7 +1305,7 @@ class Parser:
                     result = AstStatement{
                         location = self.tokens.location,
                         kind = AstStatementKind.MethodDef,
-                        function = self.parse_function_or_method(True),
+                        method = self.parse_function_or_method(True),
                     }
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     fail(self.tokens.location, "nested functions are not supported")
@@ -1323,7 +1323,7 @@ class Parser:
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.GlobalVariableDeclare,
-                    global_var_def = AstGlobalVarDef{name = ntv.name, type = ntv.type},
+                    global_var_declare = AstGlobalVarDeclare{name = ntv.name, type = ntv.type},
                 }
             else:
                 result = AstStatement{

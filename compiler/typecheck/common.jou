@@ -122,7 +122,7 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             return type_from_ast(ft, containing_class, asttype.value_type).pointer_type()
 
         case AstTypeKind.Array:
-            tmp = type_from_ast(ft, containing_class, asttype.value_type)
+            tmp = type_from_ast(ft, containing_class, asttype.array.member_type)
             len = evaluate_array_length(asttype.array.length)
             if len <= 0:
                 fail(asttype.array.length.location, "array length must be positive")
