@@ -1875,8 +1875,10 @@ class CFuncMaker:
         # Handle varargs: printf("hello %d\n", 1, 2, 3)
         for arg in args[len(func.type.funcptr_argtypes) :]:
             if not isinstance(arg, JouValue):
-                # TODO: arrays as varargs not gonna work
-                arg = self.do_expression(arg, None)
+                if self.guess_type(arg).is_array():
+                    arg = self.do_address_of_expression(arg)
+                else:
+                    arg = self.do_expression(arg, None)
             if arg.type in (
                 BASIC_TYPES["int8"],
                 BASIC_TYPES["uint8"],
