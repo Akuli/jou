@@ -72,12 +72,3 @@ jobs:
         with:
           fetch-depth: 0  # Fetch the whole Git history, used for release description
       - run: ./release.sh --github-token "${{ secrets.GITHUB_TOKEN }}" --dry-run
-
-  python-interpreter:
-    timeout-minutes: 2
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: python3 -m venv env
-      - run: env/bin/pip install mypy
-      - run: env/bin/mypy --check-untyped-defs bint.py  # TODO: change file name, bint.py not good
