@@ -1868,9 +1868,9 @@ class CFuncMaker:
         assert func.type.funcptr_argtypes is not None
         for arg, arg_type in zip(args, func.type.funcptr_argtypes):
             if isinstance(arg, JouValue):
-                actual_args.append(arg)
+                actual_args.append(self.cast(arg, arg_type))
             else:
-                actual_args.append(self.do_expression(arg, arg_type))
+                actual_args.append(self.cast(self.do_expression(arg, arg_type), arg_type))
 
         # Handle varargs: printf("hello %d\n", 1, 2, 3)
         for arg in args[len(func.type.funcptr_argtypes) :]:
@@ -2076,7 +2076,7 @@ class CFuncMaker:
         if expr[0] in ("get_variable", "self", "constant"):
             return self.do_expression(expr, None).type
 
-        if expr[0] in ("eq", "and", "or", "not"):
+        if expr[0] in ("eq", "ne", "gt", "ge", "lt", "le", "and", "or", "not"):
             return BASIC_TYPES["bool"]
 
         if expr[0] in ("add", "sub", "mul", "div", "mod"):
@@ -2194,7 +2194,8 @@ class CFuncMaker:
 
         if expr[0] == "array":
             _, items = expr
-            return decide_array_item_type([self.guess_type(item) for item in items])
+            itype = decide_array_item_type([self.guess_type(item) for item in items])
+            return itype.array_type(len(items))
 
         raise NotImplementedError(expr)
 
