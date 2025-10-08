@@ -1572,7 +1572,10 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             typecheck_expression(state, &stmt.expression, NULL)
 
         case AstStatementKind.Assert:
-            typecheck_expression_with_implicit_cast(state, &stmt.expression, boolType, "assertion must be a bool, not <from>")
+            typecheck_expression_with_implicit_cast(
+                state, &stmt.assertion.condition, boolType,
+                "assertion must be a bool, not <from>",
+            )
 
         case (
             AstStatementKind.FunctionDeclare
