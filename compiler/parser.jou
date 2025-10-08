@@ -1305,7 +1305,7 @@ class Parser:
                     result = AstStatement{
                         location = self.tokens.location,
                         kind = AstStatementKind.MethodDef,
-                        function = self.parse_function_or_method(True),
+                        method = self.parse_function_or_method(True),
                     }
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     fail(self.tokens.location, "nested functions are not supported")

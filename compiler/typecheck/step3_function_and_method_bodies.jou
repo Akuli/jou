@@ -168,7 +168,7 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
         newtemplate: byte*
         asprintf(&newtemplate, errmsg_template, "a field of %s")
 
-        ensure_can_take_address(fom, &expr.operands[0], newtemplate)
+        ensure_can_take_address(fom, expr.class_field.instance, newtemplate)
         free(newtemplate)
         return
 
