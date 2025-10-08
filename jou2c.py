@@ -1791,13 +1791,13 @@ def get_source_lines(path: str) -> list[str]:
         return f.readlines()
 
 
-def cast_array_members_to_a_common_type(array: list[JouValue]) -> list[JouValue]:
-    distinct_types = set(v.type for v in array)
+def decide_array_item_type(item_types: list[JouType]) -> JouType:
+    distinct_types = set(item_types)
     if len(distinct_types) >= 2 and JOU_VOID_PTR in distinct_types:
         distinct_types.remove(JOU_VOID_PTR)
     if len(distinct_types) == 1:
-        return array
-    raise NotImplementedError(distinct_types)
+        return list(distinct_types)[0]
+    raise NotImplementedError(item_types)
 
 
 # As the name suggests, this class creates C functions.
@@ -1858,21 +1858,7 @@ class CFuncMaker:
         self.output.append(f"{var.c_code} = *{ptr.c_code};")
         return var
 
-    def process_function_argument(
-        self, arg: AST | JouValue, expected_type: JouType
-    ) -> JouValue:
-        if isinstance(arg, JouValue):
-            return self.cast(arg, expected_type)
-
-        atype = self.get_type(arg)
-        if atype.name.endswith("]") and expected_type.name.endswith("*"):
-            # Array passed to pointer argument
-            arg = self.do_address_of_expression(arg)
-        else:
-            arg = self.do_expression(arg)
-        return self.cast(arg, expected_type)
-
-    # Args can be given as ASTs for various reasons:
+    # Args are given as ASTs for various reasons:
     #   - evaluation order
     #   - foo(bar) may or may not need to evaluate &bar (array to pointer conversion)
     def call_function(
@@ -1881,13 +1867,16 @@ class CFuncMaker:
         actual_args = []
         assert func.type.funcptr_argtypes is not None
         for arg, arg_type in zip(args, func.type.funcptr_argtypes):
-            actual_args.append(self.process_function_argument(arg, arg_type))
+            if isinstance(arg, JouValue):
+                actual_args.append(arg)
+            else:
+                actual_args.append(self.do_expression(arg, arg_type))
 
         # Handle varargs: printf("hello %d\n", 1, 2, 3)
         for arg in args[len(func.type.funcptr_argtypes) :]:
             if not isinstance(arg, JouValue):
                 # TODO: arrays as varargs not gonna work
-                arg = self.do_expression(arg)
+                arg = self.do_expression(arg, None)
             if arg.type in (
                 BASIC_TYPES["int8"],
                 BASIC_TYPES["uint8"],
@@ -1931,7 +1920,7 @@ class CFuncMaker:
         self.output.append("while(1) {")
 
         if cond:
-            cond_c = self.do_expression(cond).c_code
+            cond_c = self.do_expression(cond, BASIC_TYPES["bool"]).c_code
             self.output.append(f"if (!{cond_c}) break;")
 
         id = next(self.name_counter)
@@ -1959,13 +1948,13 @@ class CFuncMaker:
 
         if stmt[0] == "expr_stmt":
             _, expr, location = stmt
-            self.do_expression(expr)
+            self.do_expression(expr, None)
 
         elif stmt[0] == "if":
             _, if_and_elifs, otherwise, location = stmt
             end_braces = ""
             for cond, body in if_and_elifs:
-                cond = self.do_expression(cond)
+                cond = self.do_expression(cond, BASIC_TYPES["bool"])
                 if cond.c_code != "false":
                     self.output.append("if (" + cond.c_code + ") {")
                     self.do_body(body)
@@ -1980,20 +1969,20 @@ class CFuncMaker:
                 _, varname = target_ast
                 if self.find_any_var_or_constant(varname) is None:
                     # Making a new variable. Use the type of the value being assigned.
-                    value = self.do_expression(value_ast)
+                    value = self.do_expression(value_ast, None)
                     self.output.insert(0, f"{value.type.to_c()} var_{varname};")
                     self.output.append(f"var_{varname} = {value.c_code};")
                     self.locals[varname] = value.type
                     return
             ptr = self.do_address_of_expression(target_ast)
             assert ptr.type.inner_type is not None
-            value = self.cast(self.do_expression(value_ast), ptr.type.inner_type)
+            value = self.cast(self.do_expression(value_ast, ptr.type.inner_type), ptr.type.inner_type)
             self.output.append(f"*{ptr.c_code} = {value.c_code};")
 
         elif stmt[0].startswith("in_place_"):
             _, target_ast, value_ast, location = stmt
             ptr = self.do_address_of_expression(target_ast)
-            value = self.do_expression(value_ast)
+            value = self.do_expression(value_ast, ptr.type.inner_type)
 
             if stmt[0] == "in_place_add":
                 self.output.append(f"*{ptr.c_code} += {value.c_code};")
@@ -2018,12 +2007,12 @@ class CFuncMaker:
             self.output.insert(0, f"{vartype.to_c()} var_{varname};")
             self.locals[varname] = vartype
             if value_ast is not None:
-                value = self.cast(self.do_expression(value_ast), vartype)
+                value = self.cast(self.do_expression(value_ast, vartype), vartype)
                 self.output.append(f"var_{varname} = {value.c_code};")
 
         elif stmt[0] == "assert":
             _, cond_ast, (filename, lineno) = stmt
-            cond = self.do_expression(cond_ast)
+            cond = self.do_expression(cond_ast, BASIC_TYPES["bool"])
             self.output.append("if (!" + cond.c_code + ") {")
             msg = f'Assertion failed in file "{filename}", line {lineno}.'
             self.output.append(
@@ -2038,7 +2027,7 @@ class CFuncMaker:
                 self.output.append("return;")
             else:
                 assert self.return_type is not None
-                val = self.cast(self.do_expression(val_ast), self.return_type)
+                val = self.cast(self.do_expression(val_ast, self.return_type), self.return_type)
                 self.output.append("return " + val.c_code + ";")
 
         elif stmt[0] == "while":
@@ -2060,12 +2049,12 @@ class CFuncMaker:
 
         elif stmt[0] == "match":
             _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
-            match_obj = self.do_expression(match_obj_ast)
-            func = None if func_ast is None else self.do_expression(func_ast)
+            match_obj = self.do_expression(match_obj_ast, None)
+            func = None if func_ast is None else self.do_expression(func_ast, None)
             brace_count = 0
             for case_objs, case_body in cases:
                 for case_obj_ast in case_objs:
-                    case_obj = self.do_expression(case_obj_ast)
+                    case_obj = self.do_expression(case_obj_ast, match_obj.type)
                     if func is None:
                         cond = f"{match_obj.c_code} == {case_obj.c_code}"
                     else:
@@ -2083,17 +2072,17 @@ class CFuncMaker:
             raise NotImplementedError(stmt)
 
     # Evaluates the type of expr without the side effects of evaluating expr.
-    def get_type(self, expr: AST) -> JouType:
+    def guess_type(self, expr: AST) -> JouType:
         if expr[0] in ("get_variable", "self", "constant"):
-            return self.do_expression(expr).type
+            return self.do_expression(expr, None).type
 
         if expr[0] in ("eq", "and", "or", "not"):
             return BASIC_TYPES["bool"]
 
         if expr[0] in ("add", "sub", "mul", "div", "mod"):
             _, lhs, rhs = expr
-            lhs_type = self.get_type(lhs)
-            rhs_type = self.get_type(rhs)
+            lhs_type = self.guess_type(lhs)
+            rhs_type = self.guess_type(rhs)
             if lhs_type == rhs_type:
                 return lhs_type
 
@@ -2126,7 +2115,7 @@ class CFuncMaker:
 
             if func_ast[0] == ".":
                 _, obj, member = func_ast
-                obj_type = self.get_type(obj)
+                obj_type = self.guess_type(obj)
 
                 if obj_type.name.endswith("*"):
                     assert obj_type.inner_type is not None
@@ -2138,7 +2127,7 @@ class CFuncMaker:
                     assert funcptr.type.funcptr_return_type is not None
                     return funcptr.type.funcptr_return_type
 
-            funcptr_type = self.get_type(func_ast)
+            funcptr_type = self.guess_type(func_ast)
             assert funcptr_type.funcptr_return_type is not None
             return funcptr_type.funcptr_return_type
 
@@ -2148,7 +2137,7 @@ class CFuncMaker:
 
         if expr[0] == "negate":
             _, obj_ast = expr
-            inner_type = self.get_type(obj_ast)
+            inner_type = self.guess_type(obj_ast)
             assert inner_type.name.startswith("int")  # not unsigned
             return inner_type
 
@@ -2165,7 +2154,7 @@ class CFuncMaker:
                     # Enum.member
                     return BASIC_TYPES["int"]
 
-            obj_type = self.get_type(obj_ast)
+            obj_type = self.guess_type(obj_ast)
             if obj_type.class_field_types is None:
                 assert obj_type.name.endswith("*")
                 assert obj_type.inner_type is not None
@@ -2175,7 +2164,7 @@ class CFuncMaker:
 
         if expr[0] == "[":
             _, ptr_or_array_ast, idx = expr
-            ptr_or_array_type = self.get_type(ptr_or_array_ast)
+            ptr_or_array_type = self.guess_type(ptr_or_array_ast)
             assert ptr_or_array_type.inner_type is not None
             return ptr_or_array_type.inner_type
 
@@ -2184,11 +2173,11 @@ class CFuncMaker:
 
         if expr[0] == "address_of":
             _, value = expr
-            return self.get_type(value).pointer_type()
+            return self.guess_type(value).pointer_type()
 
         if expr[0] == "dereference":
             _, ptr = expr
-            ptr_type = self.get_type(ptr)
+            ptr_type = self.guess_type(ptr)
             assert ptr_type.name.endswith("*")
             assert ptr_type.inner_type is not None
             return ptr_type.inner_type
@@ -2201,7 +2190,11 @@ class CFuncMaker:
 
         if expr[0] in ("pre_incr", "pre_decr", "post_incr", "post_decr"):
             _, obj = expr
-            return self.get_type(obj)
+            return self.guess_type(obj)
+
+        if expr[0] == "array":
+            _, items = expr
+            return decide_array_item_type([self.guess_type(item) for item in items])
 
         raise NotImplementedError(expr)
 
@@ -2233,11 +2226,13 @@ class CFuncMaker:
             # memory offset to that. In this case, we may not be able to
             # evaluate the instance itself because it may point to garbage
             # memory.
-            if self.get_type(obj_ast).name.endswith("*"):
-                ptr = self.do_expression(obj_ast)
+            #
+            # TODO: is guess_type() good enough?
+            if self.guess_type(obj_ast).name.endswith("*"):
+                ptr = self.do_expression(obj_ast, None)
             else:
                 ptr = self.do_address_of_expression(obj_ast)
-            result = self.add_variable(self.get_type(expr).pointer_type())
+            result = self.add_variable(self.guess_type(expr).pointer_type())
             self.output.append(f"{result.c_code} = &{ptr.c_code}->jou_{field_name};")
             return result
 
@@ -2245,7 +2240,7 @@ class CFuncMaker:
             # &ptr[index]
             _, ptr_ast, index_ast = expr
 
-            if self.get_type(ptr_ast).is_array():
+            if self.guess_type(ptr_ast).is_array():
                 # &array[index] is slightly different from &ptr[index]
                 ptr_to_array = self.do_address_of_expression(ptr_ast)
                 assert ptr_to_array.type.inner_type is not None
@@ -2253,22 +2248,29 @@ class CFuncMaker:
                 item_type = ptr_to_array.type.inner_type.inner_type
                 ptr = self.cast(ptr_to_array, item_type.pointer_type())
             else:
-                ptr = self.do_expression(ptr_ast)
+                ptr = self.do_expression(ptr_ast, None)
 
-            index = self.do_expression(index_ast)
+            index = self.do_expression(index_ast, BASIC_TYPES["int64"])
             result = self.add_variable(ptr.type)
             self.output.append(f"{result.c_code} = {ptr.c_code} + {index.c_code};")
             return result
 
         elif expr[0] == "dereference":
             # &*foo --> just evaluate foo
+            # TODO: pass in the expected type?
             _, obj_ast = expr
-            return self.do_expression(obj_ast)
+            return self.do_expression(obj_ast, None)
 
         else:
             raise NotImplementedError(expr)
 
-    def do_expression(self, expr) -> JouValue:
+    def do_expression(self, expr, expected_type: JouType | None) -> JouValue:
+        if expected_type is not None:
+            naive_type = self.guess_type(expr)
+            if naive_type.is_array() and expected_type.name.endswith("*"):
+                # Implicit array to pointer cast
+                return self.cast(self.do_address_of_expression(expr), expected_type)
+
         if expr[0] == "call":
             _, func_ast, arg_asts = expr
 
@@ -2276,7 +2278,7 @@ class CFuncMaker:
                 # It looks like obj.member(). Could be a funcptr call or a
                 # method call.
                 _, obj_ast, member_name = func_ast
-                obj_type = self.get_type(obj_ast)
+                obj_type = self.guess_type(obj_ast)
                 class_type = (
                     obj_type.inner_type if obj_type.name.endswith("*") else obj_type
                 )
@@ -2294,13 +2296,13 @@ class CFuncMaker:
                     if want_pointer and not got_pointer:
                         obj = self.do_address_of_expression(obj_ast)
                     elif got_pointer and not want_pointer:
-                        obj = self.deref(self.do_expression(obj_ast))
+                        obj = self.deref(self.do_expression(obj_ast, None))
                     else:
-                        obj = self.do_expression(obj_ast)
+                        obj = self.do_expression(obj_ast, None)
 
                     return self.call_function(method, [obj] + arg_asts)  # type: ignore
 
-            func = self.do_expression(func_ast)
+            func = self.do_expression(func_ast, None)
             return self.call_function(func, arg_asts)  # type: ignore
 
         if expr[0] == "get_variable":
@@ -2321,8 +2323,8 @@ class CFuncMaker:
 
         if expr[0] in ("eq", "ne", "gt", "lt", "ge", "le"):
             _, lhs_ast, rhs_ast = expr
-            lhs = self.do_expression(lhs_ast)
-            rhs = self.do_expression(rhs_ast)
+            lhs = self.do_expression(lhs_ast, None)
+            rhs = self.do_expression(rhs_ast, None)
             result = self.add_variable(BASIC_TYPES["bool"])
             if expr[0] == "lt":
                 self.output.append(f"{result.c_code} = {lhs.c_code} < {rhs.c_code};")
@@ -2342,7 +2344,7 @@ class CFuncMaker:
 
         elif expr[0] == "sizeof":
             _, obj = expr
-            type_c = self.get_type(obj).to_c(fwd_decl_is_enough=False)
+            type_c = self.guess_type(obj).to_c(fwd_decl_is_enough=False)
             return JouValue(BASIC_TYPES["int64"], f"((int64_t) sizeof({type_c}))")
 
         elif expr[0] == ".":
@@ -2354,7 +2356,7 @@ class CFuncMaker:
                     # It is Enum.Member, not instance.field
                     return jou_integer("int", enum.index(field_name))
 
-            obj = self.do_expression(obj_ast)
+            obj = self.do_expression(obj_ast, None)
             if obj.type.name.endswith("*"):
                 obj = self.deref(obj)
             assert obj.type.class_field_types is not None
@@ -2382,8 +2384,8 @@ class CFuncMaker:
 
         elif expr[0] == "[":
             _, obj_ast, index_ast = expr
-            obj = self.do_expression(obj_ast)
-            index = self.do_expression(index_ast)
+            obj = self.do_expression(obj_ast, None)
+            index = self.do_expression(index_ast, BASIC_TYPES["int64"])
             assert obj.type.inner_type is not None
             result = self.add_variable(obj.type.inner_type)
             if obj.type.is_array():
@@ -2401,7 +2403,7 @@ class CFuncMaker:
             assert t.class_field_types is not None
             for field_name, field_value in fields:
                 field_type = t.class_field_types[field_name]
-                field_value = self.cast(self.do_expression(field_value), field_type)
+                field_value = self.cast(self.do_expression(field_value, field_type), field_type)
                 self.output.append(
                     f"{result.c_code}.jou_{field_name} = {field_value.c_code};"
                 )
@@ -2409,17 +2411,16 @@ class CFuncMaker:
 
         elif expr[0] == "as":
             _, obj_ast, type_ast = expr
-            obj = self.do_expression(obj_ast)
             t = type_from_ast(self.path, type_ast)
-            return self.cast(obj, t)
+            return self.cast(self.do_expression(obj_ast, t), t)
 
         elif expr[0] == "and":
             _, lhs_ast, rhs_ast = expr
             result = self.add_variable(BASIC_TYPES["bool"])
-            lhs = self.do_expression(lhs_ast)
+            lhs = self.do_expression(lhs_ast, BASIC_TYPES["bool"])
             self.output.append("// and")
             self.output.append(f"if ({lhs.c_code})" + " {")
-            rhs = self.do_expression(rhs_ast)
+            rhs = self.do_expression(rhs_ast, BASIC_TYPES["bool"])
             self.output.append(f"{result.c_code} = {rhs.c_code};")
             self.output.append("} else { " + result.c_code + " = false; }")
             return result
@@ -2427,26 +2428,26 @@ class CFuncMaker:
         elif expr[0] == "or":
             _, lhs_ast, rhs_ast = expr
             result = self.add_variable(BASIC_TYPES["bool"])
-            lhs = self.do_expression(lhs_ast)
+            lhs = self.do_expression(lhs_ast, BASIC_TYPES["bool"])
             self.output.append("// or")
             self.output.append("if(%s) {%s=true;} else {" % (lhs.c_code, result.c_code))
-            rhs = self.do_expression(rhs_ast)
+            rhs = self.do_expression(rhs_ast, BASIC_TYPES["bool"])
             self.output.append(f"{result.c_code} = {rhs.c_code};")
             self.output.append("}")
             return result
 
         elif expr[0] == "not":
             _, obj_ast = expr
-            obj = self.do_expression(obj_ast)
+            obj = self.do_expression(obj_ast, BASIC_TYPES["bool"])
             result = self.add_variable(BASIC_TYPES["bool"])
             self.output.append(f"{result.c_code} = !{obj.c_code};")
             return result
 
         elif expr[0] in ("add", "sub", "mul", "div", "mod"):
             _, lhs_ast, rhs_ast = expr
-            lhs = self.do_expression(lhs_ast)
-            rhs = self.do_expression(rhs_ast)
-            result = self.add_variable(self.get_type(expr))
+            lhs = self.do_expression(lhs_ast, None)
+            rhs = self.do_expression(rhs_ast, None)
+            result = self.add_variable(self.guess_type(expr))
 
             if expr[0] == "add":
                 self.output.append(f"{result.c_code} = {lhs.c_code} + {rhs.c_code};")
@@ -2467,8 +2468,8 @@ class CFuncMaker:
 
         elif expr[0] == "negate":
             _, obj_ast = expr
-            obj = self.do_expression(obj_ast)
-            result = self.add_variable(self.get_type(expr))
+            obj = self.do_expression(obj_ast, None)
+            result = self.add_variable(self.guess_type(expr))
             self.output.append(f"{result.c_code} = -{obj.c_code};")
             return result
 
@@ -2494,19 +2495,17 @@ class CFuncMaker:
 
         elif expr[0] == "array":
             _, item_asts = expr
-            items = cast_array_members_to_a_common_type(
-                [self.do_expression(item) for item in item_asts]
-            )
-            item_type = items[0].type
-            array_type = item_type.array_type(len(items))
-            var = self.add_variable(array_type)
+            itype = decide_array_item_type([self.guess_type(item) for item in item_asts])
+            items = [self.cast(self.do_expression(item, itype), itype) for item in item_asts]
+            var = self.add_variable(itype.array_type(len(items)))
             for i, item in enumerate(items):
                 self.output.append(f"{var.c_code}.items[{i}] = {item.c_code};")
             return var
 
         elif expr[0] == "dereference":
             _, value_ast = expr
-            value = self.do_expression(value_ast)
+            ptype = None if expected_type is None else expected_type.pointer_type()
+            value = self.do_expression(value_ast, ptype)
             # TODO: handle *array? or intentionally not?...
             assert value.type.inner_type is not None
             result = self.add_variable(value.type.inner_type)
