@@ -187,7 +187,7 @@ function should_skip()
     fi
 
     # Skip special programs that don't interact nicely with automated tests
-    if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/perlin_noise.jou ] || [ $joufile = examples/memory_leak.jou ]; then
+    if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/memory_leak.jou ]; then
         return 0
     fi
 
@@ -215,12 +215,14 @@ function run_test()
     # jou flags start with space when non-empty
     command="$command$jou_flags"
 
-    if [[ "$joufile" =~ ^examples/aoc ]] || [[ $joufile == *double_dotdot_import* ]]; then
+    if [[ "$joufile" =~ ^examples/aoc ]] || [[ $joufile == *double_dotdot_import* ]] || [[ $joufile == *perlin* ]]; then
         # AoC files use fopen("sampleinput.txt", "r").
         # We don't do this for all files, because I like relative paths in error messages.
         #
-        # Also, double_dotdot_import test had a bug that was reproducible only with
-        # relative path.
+        # double_dotdot_import test had a bug that was reproducible only with relative path.
+        #
+        # Perlin noise example writes to a file. We want that file to end up in the examples
+        # folder, not in project root.
         command="cd $(dirname $joufile) && $command $(basename $joufile)"
     else
         command="$command $joufile"

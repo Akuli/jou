@@ -147,6 +147,11 @@ declare fscanf(file: FILE*, pattern: byte*, ...) -> int
 @public
 declare fread(destination: byte*, itemsize: long, n: long, file: FILE*) -> long
 
+# Writes n items of data, each of size "itemsize". Returns number of items successfully written.
+# Usually this is used with itemsize 1, so return value is number of bytes.
+@public
+declare fwrite(data: byte*, itemsize: long, n: long, file: FILE*) -> long
+
 # Ensure that output is actually written. It may remain buffered
 # if this function isn't called.
 @public

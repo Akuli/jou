@@ -157,6 +157,13 @@ static void optimize(void *module, int level) { (void)module; (void)level; }'$'\
                 sed -i 's/mingw64/..\\\\..\\\\..\\\\mingw64/g' bootstrap_compiler/output.c
             fi
         fi
+
+        if [ "$(uname)" == "Linux" ] && [ "$(uname -m)" == "aarch64" ] && [ $i -le 21 ]; then
+            # These versions of Jou have support for aarch64 but it is only
+            # enabled on MacOS. We are on linux and we need it.
+            echo "Patching Jou code to support aarch64..."
+            sed -i s/'if MACOS:'/'if True:'/g compiler/target.jou
+        fi
     )
 
     if [[ "$OS" =~ Windows ]]; then

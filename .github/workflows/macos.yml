@@ -9,7 +9,7 @@ on:
       - .github/workflows/macos.yml  # Run whenever this file is modified
 
 jobs:
-  # Please keep in sync with valgrind.yml
+  # Please keep in sync with valgrind.yml and linux-aarch64.yml
   check-if-needed:
     timeout-minutes: 1
     runs-on: ubuntu-latest
@@ -67,7 +67,7 @@ jobs:
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
       - run: ./doctest.sh
 
-  # Please keep in sync with valgrind.yml
+  # Please keep in sync with valgrind.yml and linux-aarch64.yml
   create-issue-on-failure:
     name: Create an issue if failed
     runs-on: ubuntu-latest
