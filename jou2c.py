@@ -1964,7 +1964,7 @@ class CFuncMaker:
                     self.output.append("} else {")
                     end_braces += "}"
             self.do_body(otherwise)
-            self.output.append(end_braces)
+            self.output.extend(end_braces)
 
         elif stmt[0] == "assign":
             _, target_ast, value_ast, location = stmt
@@ -2069,7 +2069,7 @@ class CFuncMaker:
                     self.output.append("} else {")
                     brace_count += 1
             self.do_body(case_underscore)
-            self.output.append("}" * brace_count)
+            self.output.extend("}" * brace_count)
 
         else:
             raise NotImplementedError(stmt)
@@ -2368,6 +2368,7 @@ class CFuncMaker:
                 class_type = obj.type
                 op = "."
 
+            assert class_type is not None
             assert class_type.class_field_types is not None
             ftype = class_type.class_field_types[field_name]
             result = self.add_variable(ftype)
@@ -2559,8 +2560,30 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
     print(f"// This is the body of function {name}() defined in {path}.")
     declaration = declare_c_function(path, ast, klass=klass)[1]
     print(declaration, "{")
+
+    # Turn this:
+    #
+    #   } else {
+    #   }
+    #
+    # into this:
+    #
+    #   }
+    #
+    i = 0
+    while i+1 < len(func_maker.output):
+        if func_maker.output[i] == "} else {" and func_maker.output[i+1] == "}":
+            del func_maker.output[i]
+        else:
+            i += 1
+
+    indent_level = 4
     for line in func_maker.output:
-        print("    " + line)
+        if line.split("//")[0].strip().startswith("}"):
+            indent_level = max(indent_level - 1, 4)
+        print(" " * indent_level + line)
+        if line.split("//")[0].strip().endswith("{"):
+            indent_level += 1
 
     # If an error happens, print everything we can. Leave out '}' to show
     # that it is not complete.
