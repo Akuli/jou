@@ -2419,7 +2419,7 @@ class CFuncMaker:
             lhs = self.do_expression(lhs_ast)
             self.output.append("// and")
             self.output.append(f"if ({lhs.c_code})" + " {")
-            rhs = self.do_expression(lhs_ast)
+            rhs = self.do_expression(rhs_ast)
             self.output.append(f"{result.c_code} = {rhs.c_code};")
             self.output.append("} else { " + result.c_code + " = false; }")
             return result
@@ -2430,7 +2430,7 @@ class CFuncMaker:
             lhs = self.do_expression(lhs_ast)
             self.output.append("// or")
             self.output.append("if(%s) {%s=true;} else {" % (lhs.c_code, result.c_code))
-            rhs = self.do_expression(lhs_ast)
+            rhs = self.do_expression(rhs_ast)
             self.output.append(f"{result.c_code} = {rhs.c_code};")
             self.output.append("}")
             return result
