@@ -1441,6 +1441,7 @@ def define_class(
         elif member[0] == "union":
             _, union_members, location = member
             # Just treat unions as flat things, good enough
+            # TODO: not good enough...
             fields.extend(union_members)
         elif member[0] == "function_def":
             method_name = member[1]
