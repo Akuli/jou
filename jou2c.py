@@ -1907,7 +1907,7 @@ class CFuncMaker:
             return constant
 
         if varname in self.locals:
-            return self.deref(self.local_var_ptr(varname))
+            return JouValue(self.locals[varname], "var_" + varname)
 
         ptr = find_global_var_ptr(self.path, varname)
         return None if ptr is None else self.deref(ptr)
@@ -2323,7 +2323,7 @@ class CFuncMaker:
             raise RuntimeError(f"no variable named {varname} in {self.path}")
 
         if expr[0] == "self":
-            return self.deref(self.local_var_ptr("self"))
+            return JouValue(self.locals["self"], "var_self")
 
         if expr[0] in ("eq", "ne", "gt", "lt", "ge", "le"):
             _, lhs_ast, rhs_ast = expr
@@ -2362,11 +2362,16 @@ class CFuncMaker:
 
             obj = self.do_expression(obj_ast, None)
             if obj.type.name.endswith("*"):
-                obj = self.deref(obj)
-            assert obj.type.class_field_types is not None
-            ftype = obj.type.class_field_types[field_name]
+                class_type = obj.type.inner_type
+                op = "->"
+            else:
+                class_type = obj.type
+                op = "."
+
+            assert class_type.class_field_types is not None
+            ftype = class_type.class_field_types[field_name]
             result = self.add_variable(ftype)
-            self.output.append(f"{result.c_code} = {obj.c_code}.jou_{field_name};")
+            self.output.append(f"{result.c_code} = {obj.c_code}{op}jou_{field_name};")
             return result
 
         elif expr[0] == "constant":
