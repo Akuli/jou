@@ -33,7 +33,7 @@ config.jou: Makefile.posix
 	echo 'const JOU_CLANG_PATH: byte* = "$(CLANG)"' >> config.jou
 
 jou_bootstrap: jou_to_c.py config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
-    # TODO: `-w` silences all errors. We may eventually want something less dumb.
+	# TODO: `-w` silences all errors. We may eventually want something less dumb.
 	python3 jou_to_c.py compiler/main.jou | $(CLANG) -w -O1 -x c - -o jou_bootstrap $(LINKER_FLAGS)
 
 jou: jou_bootstrap config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
