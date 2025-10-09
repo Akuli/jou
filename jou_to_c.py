@@ -1557,6 +1557,17 @@ def declare_c_function(
     for (arg_name, _, _), argtype in zip(args, func.type.funcptr_argtypes):
         arg_strings.append(f"{argtype.to_c()} var_{arg_name}")
 
+    if (
+        func_name == "main"
+        and len(arg_strings) == 2
+        and arg_strings[1].startswith("uint8_t**")
+    ):
+        # clang is picky. It wants "char **argv", not "uint8_t **argv".
+        #
+        # I don't think there's a good way to silence that error, so let's
+        # work around it instead.
+        arg_strings[1] = arg_strings[1].replace("uint8_t", "char", 1)
+
     if takes_varargs:
         arg_strings.append("...")
 
@@ -1870,7 +1881,9 @@ class CFuncMaker:
             if isinstance(arg, JouValue):
                 actual_args.append(self.cast(arg, arg_type))
             else:
-                actual_args.append(self.cast(self.do_expression(arg, arg_type), arg_type))
+                actual_args.append(
+                    self.cast(self.do_expression(arg, arg_type), arg_type)
+                )
 
         # Handle varargs: printf("hello %d\n", 1, 2, 3)
         for arg in args[len(func.type.funcptr_argtypes) :]:
@@ -1978,7 +1991,9 @@ class CFuncMaker:
                     return
             ptr = self.do_address_of_expression(target_ast)
             assert ptr.type.inner_type is not None
-            value = self.cast(self.do_expression(value_ast, ptr.type.inner_type), ptr.type.inner_type)
+            value = self.cast(
+                self.do_expression(value_ast, ptr.type.inner_type), ptr.type.inner_type
+            )
             self.output.append(f"*{ptr.c_code} = {value.c_code};")
 
         elif stmt[0].startswith("in_place_"):
@@ -2029,7 +2044,9 @@ class CFuncMaker:
                 self.output.append("return;")
             else:
                 assert self.return_type is not None
-                val = self.cast(self.do_expression(val_ast, self.return_type), self.return_type)
+                val = self.cast(
+                    self.do_expression(val_ast, self.return_type), self.return_type
+                )
                 self.output.append("return " + val.c_code + ";")
 
         elif stmt[0] == "while":
@@ -2412,7 +2429,9 @@ class CFuncMaker:
             assert t.class_field_types is not None
             for field_name, field_value in fields:
                 field_type = t.class_field_types[field_name]
-                field_value = self.cast(self.do_expression(field_value, field_type), field_type)
+                field_value = self.cast(
+                    self.do_expression(field_value, field_type), field_type
+                )
                 self.output.append(
                     f"{result.c_code}.jou_{field_name} = {field_value.c_code};"
                 )
@@ -2504,8 +2523,12 @@ class CFuncMaker:
 
         elif expr[0] == "array":
             _, item_asts = expr
-            itype = decide_array_item_type([self.guess_type(item) for item in item_asts])
-            items = [self.cast(self.do_expression(item, itype), itype) for item in item_asts]
+            itype = decide_array_item_type(
+                [self.guess_type(item) for item in item_asts]
+            )
+            items = [
+                self.cast(self.do_expression(item, itype), itype) for item in item_asts
+            ]
             var = self.add_variable(itype.array_type(len(items)))
             for i, item in enumerate(items):
                 self.output.append(f"{var.c_code}.items[{i}] = {item.c_code};")
@@ -2532,7 +2555,9 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
     if return_type_ast in [("named_type", "None"), ("named_type", "noreturn")]:
         return_type = None
     else:
-        return_type = type_from_ast(path, return_type_ast, (None if klass is None else klass.generic_params))
+        return_type = type_from_ast(
+            path, return_type_ast, (None if klass is None else klass.generic_params)
+        )
     func_maker = CFuncMaker(path, return_type)
 
     for arg_name, arg_type_ast, arg_value in args:
@@ -2570,8 +2595,8 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
     #   }
     #
     i = 0
-    while i+1 < len(func_maker.output):
-        if func_maker.output[i] == "} else {" and func_maker.output[i+1] == "}":
+    while i + 1 < len(func_maker.output):
+        if func_maker.output[i] == "} else {" and func_maker.output[i + 1] == "}":
             del func_maker.output[i]
         else:
             i += 1
@@ -2606,13 +2631,6 @@ def main() -> None:
     print("#include <stdint.h>")
     print("#include <stdbool.h>")
     print("#include <stdnoreturn.h>")
-    print()
-
-    print("// Ignore C compiler warning when declaring standard functions manually.")
-    print("// It likes to complain about e.g. char vs uint8_t.")
-    print("#ifdef __GNUC__")
-    print('#pragma GCC diagnostic ignored "-Wbuiltin-declaration-mismatch"')
-    print("#endif")
     print()
 
     # Everything else is done on-demand / as needed.
