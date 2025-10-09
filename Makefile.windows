@@ -1,14 +1,8 @@
 all: jou.exe
 
-jou_bootstrap.exe: bootstrap.sh
-	bash ./bootstrap.sh
+jou_bootstrap.exe: jou_to_c.py config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
+	# TODO: `-w` silences all errors. We may eventually want something less dumb.
+	python jou_to_c.py compiler/main.jou | $(CLANG) -w -O1 -x c - -o jou_bootstrap $(LINKER_FLAGS)
 
 jou.exe: jou_bootstrap.exe $(wildcard compiler/*.jou compiler/*/*.jou)
 	./jou_bootstrap.exe -o jou.exe compiler/main.jou
-
-# Does not delete tmp/bootstrap_cache because bootstrapping is slow.
-.PHONY: clean
-clean:
-	bash -O extglob -c "rm -rvf tmp/!(bootstrap_cache)"
-	rm -vf *.exe
-	find . -name jou_compiled -print -exec rm -rf '{}' +

@@ -38,9 +38,3 @@ jou_bootstrap: jou_to_c.py config.jou $(wildcard compiler/*.jou compiler/*/*.jou
 
 jou: jou_bootstrap config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
 	./jou_bootstrap -o jou compiler/main.jou
-
-# Does not delete tmp/bootstrap_cache because bootstrapping is slow.
-.PHONY: clean
-clean:
-	rm -rvf *.exe config.jou jou jou_bootstrap tmp
-	find . -name jou_compiled -print -exec rm -rf '{}' +
