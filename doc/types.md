@@ -164,7 +164,7 @@ For example, this is an error, because the type of `1000000000000000` is `int` b
 
 ```python
 def main() -> int:
-    x = 1000000000000000  # Error: value does not fit into int (32-bit signed integer)
+    x = 1000000000000000  # Error: value does not fit into int
     return 0
 ```
 
@@ -183,7 +183,7 @@ For example, using the variable later does not affect the inference in any way:
 
 ```python
 def main() -> int:
-    x = 1000000000000000  # Error: value does not fit into int (32-bit signed integer)
+    x = 1000000000000000  # Error: value does not fit into int
     y: int64 = x  # Does not affect the type of x
     return 0
 ```

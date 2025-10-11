@@ -179,7 +179,7 @@ If you don't use `as`, the value will not wrap around, and you will instead get 
 import "stdlib/io.jou"
 
 def main() -> int:
-    b: byte = 1234  # Error: value does not fit into byte (8-bit unsigned integer)
+    b: byte = 1234  # Error: value does not fit into byte
     return 0
 ```
 
