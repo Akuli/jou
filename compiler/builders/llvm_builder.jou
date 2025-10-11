@@ -42,7 +42,7 @@ def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
     #if ntypes == 1:
     #    return types[0]
 
-    sizeneeded = 0 as long
+    sizeneeded = 0 as int64
     for i = 0; i < ntypes; i++:
         size1 = LLVMABISizeOfType(target.target_data, types[i])
         size2 = LLVMStoreSizeOfType(target.target_data, types[i])
@@ -410,10 +410,10 @@ class LBuilder:
     def boolean(self, b: bool) -> LBuilderValue:
         return LBuilderValue{
             type = boolType,
-            llvm_value = LLVMConstInt(LLVMInt1Type(), b as long, False as int),
+            llvm_value = LLVMConstInt(LLVMInt1Type(), b as int64, False as int),
         }
 
-    def integer(self, t: Type*, value: long) -> LBuilderValue:
+    def integer(self, t: Type*, value: int64) -> LBuilderValue:
         assert t.is_integer_type()
         return LBuilderValue{
             type = t,

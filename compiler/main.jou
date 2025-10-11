@@ -78,7 +78,7 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     else:
         opt_or_unopt = "Unoptimized"
 
-    len = 0 as long
+    len = 0 as int64
     filename = LLVMGetSourceFileName(module, &len)
     printf("===== %s LLVM IR for file \"%.*s\" =====\n", opt_or_unopt, len as int, filename)
 
@@ -333,7 +333,7 @@ class CompileState:
 
                 from = self.find_file(stmt.import_statement.resolved_path)
                 assert from != NULL
-                from_index = ((from as long) - (self.files.ptr as long)) / sizeof(self.files.ptr[0])
+                from_index = ((from as int64) - (self.files.ptr as int64)) / sizeof(self.files.ptr[0])
 
                 if from == to:
                     fail(stmt.location, "the file itself cannot be imported")
@@ -413,7 +413,7 @@ class CompileState:
 #   - files with 'link' statements
 #   - command-line --linker-flags argument
 def collect_linker_flags(files: List[FileState]) -> byte*:
-    maxlen = 0 as long
+    maxlen = 0 as int64
     maxlen += strlen("-lm") + 1  # TODO: delete this
     if command_line_args.linker_flags != NULL:
         maxlen += strlen(command_line_args.linker_flags) + 1

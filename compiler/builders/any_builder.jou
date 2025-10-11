@@ -26,7 +26,7 @@ class AnyBuilderValue:
 class AnyBuilderBlock:
     lblock: LLVMBasicBlock*
     ublock: UvgBlock*  # funny naming :)
-    hblock: long
+    hblock: int64
 
 
 @public
@@ -251,7 +251,7 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.boolean(b)
         return result
 
-    def integer(self, t: Type*, value: long) -> AnyBuilderValue:
+    def integer(self, t: Type*, value: int64) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
             result.lvalue = self.lbuilder.integer(t, value)

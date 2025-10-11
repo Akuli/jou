@@ -402,7 +402,7 @@ def uint_type(bits: int) -> Type*:
 
 # Return a function pointer type like "funcptr(int, int) -> int"
 @public
-def funcptr_type(argtypes: Type**, nargs: long, takes_varargs: bool, return_type: Type*, is_noreturn: bool) -> Type*:
+def funcptr_type(argtypes: Type**, nargs: int64, takes_varargs: bool, return_type: Type*, is_noreturn: bool) -> Type*:
     if is_noreturn:
         assert return_type == NULL
 
