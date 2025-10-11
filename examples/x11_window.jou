@@ -14,15 +14,15 @@ class GC:
 declare XOpenDisplay(name: byte*) -> Display*
 declare XCreateSimpleWindow(
     display: Display*,
-    parent: long,
+    parent: int64,
     x: int,
     y: int,
     width: int,
     height: int,
     border_width: int,
-    border: long,
-    background: long,
-) -> long
+    border: int64,
+    background: int64,
+) -> int64
 declare XCreateGC(display: Display*, drawable: long, valuemask: long, values: XGCValues*) -> GC*
 declare XSetForeground(display: Display*, gc: GC*, foreground: long) -> int
 declare XSelectInput(display: Display*, window: long, event_mask: long) -> int

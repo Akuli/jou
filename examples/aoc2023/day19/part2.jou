@@ -37,11 +37,11 @@ class Box:
                 return True
         return False
 
-    def size(self) -> long:
+    def size(self) -> int64:
         if self.is_empty():
             return 0
 
-        result = 1 as long
+        result = 1 as int64
         for i = 0; i < 4; i++:
             result *= self.maxs[i] - self.mins[i] + 1
         return result
@@ -120,8 +120,8 @@ class UnionOfBoxes:
             if self.boxes.ptr[i].is_empty():
                 self.boxes.ptr[i] = self.boxes.pop()
 
-    def size(self) -> long:
-        result = 0 as long
+    def size(self) -> int64:
+        result = 0 as int64
         for p = self.boxes.ptr; p < self.boxes.end(); p++:
             result += p.size()
         return result
@@ -174,7 +174,7 @@ def parse_workflow(s: byte*) -> Workflow:
         xmas = "xmas"
         ptr = strstr(xmas, var)
         assert ptr != NULL
-        var_index = (ptr as long) - (&xmas[0] as long)
+        var_index = (ptr as int64) - (&xmas[0] as int64)
 
         mins = [1, 1, 1, 1]
         maxs = [4000, 4000, 4000, 4000]

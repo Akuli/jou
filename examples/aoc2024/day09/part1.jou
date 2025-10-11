@@ -48,10 +48,10 @@ def fill_slots(disk_map: int*) -> None:
             memswap(blankptr, last, sizeof(disk_map[0]))
 
 
-def compute_checksum(disk_map: int*) -> long:
-    result = 0 as long
+def compute_checksum(disk_map: int*) -> int64:
+    result = 0 as int64
     for i = 0; disk_map[i] >= 0; i++:
-        result += (disk_map[i] as long) * (i as long)
+        result += (disk_map[i] as int64) * (i as int64)
     return result
 
 

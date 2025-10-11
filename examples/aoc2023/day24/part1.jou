@@ -2,7 +2,7 @@ import "stdlib/io.jou"
 import "./bigint.jou"
 
 
-def det(matrix: long[2][2]) -> BigInt:
+def det(matrix: int64[2][2]) -> BigInt:
     a = matrix[0][0]
     b = matrix[0][1]
     c = matrix[1][0]
@@ -10,11 +10,11 @@ def det(matrix: long[2][2]) -> BigInt:
     return bigint(a).mul(bigint(d)).sub(bigint(b).mul(bigint(c)))
 
 
-def dot(v1: long[2], v2: long[2]) -> BigInt:
+def dot(v1: int64[2], v2: int64[2]) -> BigInt:
     return bigint(v1[0]).mul(bigint(v2[0])).add(bigint(v1[1]).mul(bigint(v2[1])))
 
 
-def matrix_times_vector(matrix: long[2][2], vector: long[2]) -> BigInt[2]:
+def matrix_times_vector(matrix: int64[2][2], vector: int64[2]) -> BigInt[2]:
     a = bigint(matrix[0][0])
     b = bigint(matrix[0][1])
     c = bigint(matrix[1][0])
@@ -27,7 +27,7 @@ def matrix_times_vector(matrix: long[2][2], vector: long[2]) -> BigInt[2]:
 # Returns the x and y of matrix*[x,y] = coeff_vector as fractions:
 #
 #   [top of x, top of y, bottom]
-def solve_linear_system_of_2_equations(matrix: long[2][2], coeff_vector: long[2]) -> BigInt[3]:
+def solve_linear_system_of_2_equations(matrix: int64[2][2], coeff_vector: int64[2]) -> BigInt[3]:
     a = matrix[0][0]
     b = matrix[0][1]
     c = matrix[1][0]
@@ -45,12 +45,12 @@ def solve_linear_system_of_2_equations(matrix: long[2][2], coeff_vector: long[2]
 
 
 class Rectangle:
-    x_min: long
-    x_max: long
-    y_min: long
-    y_max: long
+    x_min: int64
+    x_max: int64
+    y_min: int64
+    y_max: int64
 
-    def contains(self, point: long[2]) -> bool:
+    def contains(self, point: int64[2]) -> bool:
         x = point[0]
         y = point[1]
         return (
@@ -72,8 +72,8 @@ class Rectangle:
 
 
 class Ray:
-    start: long[2]
-    dir: long[2]
+    start: int64[2]
+    dir: int64[2]
 
     def intersects(self, other: Ray*, test_area: Rectangle) -> bool:
         if det([self.dir, other.dir]).is_zero():

@@ -3,7 +3,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 
-def next_num(n: long) -> long:
+def next_num(n: int64) -> int64:
     # TODO: bitshift operators
     n = (n ^ (n * 64)) % 16777216
     n = (n ^ (n / 32)) % 16777216
@@ -21,7 +21,7 @@ def diffseq_to_int(diffseq: int[4]) -> int:
 
 
 class Buyer:
-    seed: long
+    seed: int64
     diffseq_to_bananas: byte*
 
     def init_from_seed(self) -> None:

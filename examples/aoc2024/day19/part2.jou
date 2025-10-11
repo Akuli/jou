@@ -7,14 +7,14 @@ import "stdlib/mem.jou"
 
 class CacheEntry:
     towel: byte[40]
-    value: long
+    value: int64
 
 
 global avail_cache: CacheEntry[1000]
 global avail_cache_len: int
 
 
-def count_availability(towel: byte*, patterns: List[byte*]) -> long:
+def count_availability(towel: byte*, patterns: List[byte*]) -> int64:
     cacheptr: CacheEntry* = NULL
     if strlen(towel) < sizeof(avail_cache[0].towel):
         # Find value from cache if exists
@@ -28,9 +28,9 @@ def count_availability(towel: byte*, patterns: List[byte*]) -> long:
         strcpy(cacheptr.towel, towel)
 
     if towel[0] == '\0':
-        result = 1 as long
+        result = 1 as int64
     else:
-        result = 0 as long
+        result = 0 as int64
         for p = patterns.ptr; p < patterns.end(); p++:
             if starts_with(towel, *p):
                 result += count_availability(&towel[strlen(*p)], patterns)
@@ -55,7 +55,7 @@ def main() -> int:
         (*p)[strcspn(*p, ",")] = '\0'
 
     line: byte[1000]
-    result = 0 as long
+    result = 0 as int64
 
     while fgets(line, sizeof(line) as int, f) != NULL:
         trim_ascii_whitespace(line)

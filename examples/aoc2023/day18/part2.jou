@@ -58,13 +58,13 @@ def read_input_as_points(filename: byte*) -> List[int[2]]:
 
 
 # See day 10 part 2
-def polygon_area(corners: List[int[2]]) -> long:
-    double_area = 0 as long
+def polygon_area(corners: List[int[2]]) -> int64:
+    double_area = 0 as int64
     for i = 0; i < corners.len; i++:
-        a: long = corners.ptr[i][0]
-        b: long = corners.ptr[i][1]
-        c: long = corners.ptr[(i+1) % corners.len][0]
-        d: long = corners.ptr[(i+1) % corners.len][1]
+        a: int64 = corners.ptr[i][0]
+        b: int64 = corners.ptr[i][1]
+        c: int64 = corners.ptr[(i+1) % corners.len][0]
+        d: int64 = corners.ptr[(i+1) % corners.len][1]
         double_area += a*d - b*c
     return llabs(double_area)/2
 
