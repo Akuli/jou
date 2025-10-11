@@ -2,7 +2,7 @@ import "stdlib/mem.jou"
 
 
 @public
-def bigint(value: long) -> BigInt:
+def bigint(value: int64) -> BigInt:
     # assumes little-endian CPU
     result = BigInt{}
     assert sizeof(value) < sizeof(result.data)
@@ -17,10 +17,10 @@ def bigint(value: long) -> BigInt:
 class BigInt:
     data: byte[48]  # little endian, last byte includes sign bit
 
-    def to_long(self: BigInt) -> long:
-        # assume that value fits into 64-bit long
+    def to_long(self: BigInt) -> int64:
+        # assume that value fits into int64
         # also assume little-endian
-        result: long
+        result: int64
         memcpy(&result, &self.data, sizeof(result))
         return result
 
