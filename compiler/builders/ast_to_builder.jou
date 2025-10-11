@@ -349,7 +349,7 @@ class AstToBuilder:
         if t.is_number_type():
             new_value = self.builder.add(old_value, self.builder.cast(self.builder.integer(intType, diff), t))
         else:
-            new_value = self.builder.indexed_pointer(old_value, self.builder.integer(longType, diff))
+            new_value = self.builder.indexed_pointer(old_value, self.builder.integer(int64Type, diff))
 
         self.builder.set_ptr(ptr, new_value)
 
@@ -366,7 +366,7 @@ class AstToBuilder:
         first_item_ptr = self.builder.cast(arr_ptr, t.array.item_type.pointer_type())
 
         for i = 0; i < items.len; i++:
-            i_built = self.builder.integer(longType, i)
+            i_built = self.builder.integer(int64Type, i)
             item_ptr = self.builder.indexed_pointer(first_item_ptr, i_built)
             item_value = self.build_expression(&items.ptr[i])
             self.builder.set_ptr(item_ptr, item_value)

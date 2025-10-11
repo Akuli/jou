@@ -251,8 +251,8 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
         or (from.is_integer_type() and to.kind == TypeKind.Enum)
         or (from.kind == TypeKind.Enum and to.is_integer_type())
         or (from == boolType and to.is_integer_type())
-        or (from.is_pointer_type() and to == longType)
-        or (from == longType and to.is_pointer_type())
+        or (from.is_pointer_type() and to == int64Type)
+        or (from == int64Type and to.is_pointer_type())
     )
 
 
@@ -554,7 +554,7 @@ def typecheck_indexing(
 
     # LLVM assumes that indexes smaller than 64 bits are signed.
     # https://github.com/Akuli/jou/issues/48
-    do_implicit_cast(state.fom_types, indexexpr, longType, Location{}, NULL)
+    do_implicit_cast(state.fom_types, indexexpr, int64Type, Location{}, NULL)
 
     return ptrtype.value_type
 
@@ -1082,7 +1082,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             else:
                 obj_type_hint = NULL
             typecheck_expression_not_void(state, &expr.operands[0], obj_type_hint)
-            result = longType
+            result = int64Type
 
         case AstExpressionKind.Instantiate:
             result = typecheck_instantiation(state, &expr.instantiation, expr.location)

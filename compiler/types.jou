@@ -374,7 +374,7 @@ global boolType: Type*      # bool
 @public
 global intType: Type*       # int (32-bit signed)
 @public
-global longType: Type*      # long (64-bit signed)
+global int64Type: Type*     # int64 (64-bit signed)
 @public
 global byteType: Type*      # byte (8-bit unsigned)
 @public
@@ -460,7 +460,7 @@ def init_types() -> None:
 
     boolType = &global_type_state.boolean.type
     intType = &global_type_state.ints[32].type
-    longType = &global_type_state.ints[64].type
+    int64Type = &global_type_state.ints[64].type
     byteType = &global_type_state.uints[8].type
     floatType = &global_type_state.floater.type
     doubleType = &global_type_state.doublelele.type
@@ -484,7 +484,6 @@ def init_types() -> None:
 
     global_type_state.uints[8].type.name = "byte"
     global_type_state.ints[32].type.name = "int"
-    global_type_state.ints[64].type.name = "long"
 
 
 # Usually you don't need to free a type. This is in a function to make you

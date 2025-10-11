@@ -108,7 +108,6 @@ Jou has a few different kinds of tokens:
     - `bool`
     - `byte`
     - `int`
-    - `long`
     - `float`
     - `double`
     - `match`
