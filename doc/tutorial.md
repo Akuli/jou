@@ -209,7 +209,7 @@ and the remaining 31 bits work more or less like you would expect.
 
 Sometimes `int` isn't big enough.
 When `int` wraps around, you usually get negative numbers when you expect things to be positive,
-and you should probably use `int64` instead of `int`.
+and you should probably use [`int64`](types.md#integers) instead of `int`.
 Jou's `int64` is 8 bytes (64 bits), so twice the size of an `int` and hence much less likely to wrap around.
 You can use `as` to create an `int64`.
 To print an `int64`, use `%lld` instead of `%d`.
