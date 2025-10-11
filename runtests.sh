@@ -12,7 +12,7 @@ export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 function usage() {
-    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
+    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [--no-colors] [FILE_FILTER]" >&2
     echo ""
     echo "If a FILE_FILTER is given, runs only test files whose path contains it."
     echo "For example, you can use \"$0 class\" to run class-related tests."
@@ -23,6 +23,7 @@ valgrind=no
 verbose=no
 run_make=yes
 jou_flags=""
+colors=yes
 file_filter=""
 
 while [ $# != 0 ]; do
@@ -45,6 +46,10 @@ while [ $# != 0 ]; do
             fi
             jou_flags="$jou_flags $2"
             shift 2
+            ;;
+        --no-colors)
+            colors=no
+            shift
             ;;
         -*)
             usage
@@ -103,7 +108,7 @@ if [[ "${OS:=$(uname)}" =~ NetBSD ]] && which gdiff >/dev/null; then
 else
     diff="diff"
 fi
-if $diff --help | grep -q -- --color; then
+if [ $colors = yes ] && $diff --help | grep -q -- --color; then
     diff="$diff --color=always"
 fi
 
@@ -150,10 +155,17 @@ function post_process_output()
     fi
 }
 
-YELLOW="\x1b[33m"
-GREEN="\x1b[32m"
-RED="\x1b[31m"
-RESET="\x1b[0m"
+if [ $colors = yes ]; then
+    YELLOW="\x1b[33m"
+    GREEN="\x1b[32m"
+    RED="\x1b[31m"
+    RESET="\x1b[0m"
+else
+    YELLOW=""
+    GREEN=""
+    RED=""
+    RESET=""
+fi
 
 if [ $verbose = yes ]; then
     function show_run() { echo "run: $1"; }
@@ -238,7 +250,7 @@ function run_test()
     local diffpath
     diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
 
-    printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
+    printf "\n\n${YELLOW}*** Command: %s ***${RESET}\n\n" "$command" > $diffpath
 
     if $diff --text -u <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'
