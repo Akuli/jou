@@ -26,8 +26,8 @@ def shortest_vector(v: int64[2]) -> int64[2]:
 # Determines if two vectors go in the same direction.
 #
 # This would be easy with determinant, but I don't want to use them because
-# calculating determinant might overflow 64-bit long data type. I don't think
-# that would happen, but it could be really hard to debug.
+# calculating determinant might overflow int64. I don't think that would
+# happen, but it could be really hard to debug.
 def same_direction(v1: int64[2], v2: int64[2]) -> bool:
     s1 = shortest_vector(v1)
     s2 = shortest_vector(v2)
