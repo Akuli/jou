@@ -23,21 +23,21 @@ declare XCreateSimpleWindow(
     border: int64,
     background: int64,
 ) -> int64
-declare XCreateGC(display: Display*, drawable: long, valuemask: long, values: XGCValues*) -> GC*
-declare XSetForeground(display: Display*, gc: GC*, foreground: long) -> int
-declare XSelectInput(display: Display*, window: long, event_mask: long) -> int
-declare XMapRaised(display: Display*, window: long) -> int
+declare XCreateGC(display: Display*, drawable: int64, valuemask: int64, values: XGCValues*) -> GC*
+declare XSetForeground(display: Display*, gc: GC*, foreground: int64) -> int
+declare XSelectInput(display: Display*, window: int64, event_mask: int64) -> int
+declare XMapRaised(display: Display*, window: int64) -> int
 declare XDrawImageString(
     display: Display*,
-    drawable: long,
+    drawable: int64,
     gc: GC*,
     x: int,
     y: int,
     string: byte*,
     length: int,
 ) -> int
-declare XDefaultRootWindow(display: Display*) -> long
-declare XStoreName(display: Display*, window: long, name: byte*) -> int
+declare XDefaultRootWindow(display: Display*) -> int64
+declare XStoreName(display: Display*, window: int64, name: byte*) -> int
 declare XFlush(display: Display*) -> int
 
 def main() -> int:

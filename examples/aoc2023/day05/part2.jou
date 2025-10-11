@@ -33,7 +33,7 @@ class Map:
 
     # Find all numbers n for which map_number(n) == output.
     def inverse_image(self, output: int64) -> List[int64]:
-        result = List[long]{}
+        result = List[int64]{}
 
         for i = 0; i < self.ntriples; i++:
             dest_start = self.triples[i][0]
@@ -51,7 +51,7 @@ class Map:
 
     # Find all numbers n for which map_number(n) is in a list of outputs.
     def inverse_image_of_list(self, outputs: List[int64]) -> List[int64]:
-        result = List[long]{}
+        result = List[int64]{}
         for p = outputs.ptr; p < outputs.end(); p++:
             to_add = self.inverse_image(*p)
             result.extend(to_add)
@@ -120,7 +120,7 @@ def main() -> int:
 
     fclose(f)
 
-    interesting_inputs = List[long]{}
+    interesting_inputs = List[int64]{}
     for i = 0; i < input.nmaps; i++:
         # We get small values whenever the i'th map sees a start of its range.
         values = input.maps[i].get_input_range_starts()
@@ -138,7 +138,7 @@ def main() -> int:
     for i = 0; i < input.n_seed_ranges; i++:
         interesting_inputs.append(input.seed_ranges[i].start)
 
-    smallest = -1 as long
+    smallest = -1 as int64
     for p = interesting_inputs.ptr; p < interesting_inputs.end(); p++:
         if input.is_valid_seed(*p):
             n = *p
