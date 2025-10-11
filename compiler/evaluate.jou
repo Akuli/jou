@@ -178,7 +178,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
 
 @public
 def evaluate_array_length(expr: AstExpression*) -> int:
-    # TODO: this should probably support longs
+    # TODO: this should probably support int64
     c: Constant
     if evaluate_constant_expression(expr, &c, intType) and c.get_type() == intType:
         return c.integer.value as int

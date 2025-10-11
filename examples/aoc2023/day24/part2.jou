@@ -272,7 +272,7 @@ def lerp(src_min: int64, src_max: int64, dest_min: int64, dest_max: int64, value
     weight2 = src_max - value
 
     # weighted average: (dest_max*weight1 + dest_min*weight2)/(weight1 + weight2)
-    # multiplications are too big for longs, but values themselves seem to fit
+    # multiplications are too big for int64, but values themselves seem to fit
     top = bigint(weight1).mul(bigint(dest_max)).add(bigint(weight2).mul(bigint(dest_min)))
     bottom = weight1 + weight2
     return top.div_exact(bigint(bottom)).to_int64()
