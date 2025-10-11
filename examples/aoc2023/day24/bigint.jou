@@ -17,7 +17,7 @@ def bigint(value: int64) -> BigInt:
 class BigInt:
     data: byte[48]  # little endian, last byte includes sign bit
 
-    def to_long(self: BigInt) -> int64:
+    def to_int64(self: BigInt) -> int64:
         # assume that value fits into int64
         # also assume little-endian
         result: int64
@@ -185,9 +185,9 @@ class BigInt:
         #            if y != 0:
         #                result = bigint(x).divmod(bigint(y))
         #                assert x == (x/y)*y + (x%y)
-        #                assert x == result[0].to_long()*y + result[1].to_long()
-        #                assert result[0].to_long() == x / y
-        #                assert result[1].to_long() == x % y
+        #                assert x == result[0].to_int64()*y + result[1].to_int64()
+        #                assert result[0].to_int64() == x / y
+        #                assert result[1].to_int64() == x % y
 
     # self / y
     def div(self: BigInt, other: BigInt) -> BigInt:

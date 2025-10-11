@@ -22,8 +22,8 @@ class Equation:
         for v = 0; v < self.nvariables; v++:
             if v > 0:
                 printf(" + ")
-            printf("%lld x%d", self.coeffs[v].to_long(), v)
-        printf(" = %lld\n", self.rhs.to_long())
+            printf("%lld x%d", self.coeffs[v].to_int64(), v)
+        printf(" = %lld\n", self.rhs.to_int64())
 
 
 def add_with_coeff(dest: Equation*, src: Equation*, coeff: BigInt) -> None:
@@ -158,7 +158,7 @@ def test_equation_solver() -> None:
     ]
 
     result = solve_linear_system_of_equations(eqs, 3)
-    printf("x=%lld y=%lld\n", result[0].to_long(), result[1].to_long())  # Output: x=12 y=34
+    printf("x=%lld y=%lld\n", result[0].to_int64(), result[1].to_int64())  # Output: x=12 y=34
     free(result)
 
 
@@ -275,7 +275,7 @@ def lerp(src_min: int64, src_max: int64, dest_min: int64, dest_max: int64, value
     # multiplications are too big for longs, but values themselves seem to fit
     top = bigint(weight1).mul(bigint(dest_max)).add(bigint(weight2).mul(bigint(dest_min)))
     bottom = weight1 + weight2
-    return top.div_exact(bigint(bottom)).to_long()
+    return top.div_exact(bigint(bottom)).to_int64()
 
 
 def test_lerp() -> None:
@@ -318,15 +318,15 @@ def main() -> int:
     # Output: 5 3 4 6 1
     printf(
         "%lld %lld %lld %lld %lld\n",
-        solution[0].to_long(),
-        solution[1].to_long(),
-        solution[2].to_long(),
-        solution[3].to_long(),
-        solution[4].to_long(),
+        solution[0].to_int64(),
+        solution[1].to_int64(),
+        solution[2].to_int64(),
+        solution[3].to_int64(),
+        solution[4].to_int64(),
     )
 
-    t1 = solution[0].to_long()
-    t2 = solution[1].to_long()
+    t1 = solution[0].to_int64()
+    t2 = solution[1].to_int64()
 
     point_at_t1 = [
         moving_points[0].start[0] + t1*moving_points[0].speed[0],
