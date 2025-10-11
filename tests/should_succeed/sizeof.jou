@@ -7,7 +7,7 @@ def side_effect() -> int:
 
 class Foo:
     a: int
-    b: long
+    b: int64
     c: byte
 
 # See issue #224.
@@ -26,13 +26,13 @@ def main() -> int:
     bo: bool
     by: byte
     n: int
-    m: long
+    m: int64
     printf("%lld %lld %lld %lld\n", sizeof bo, sizeof by, sizeof n, sizeof m)  # Output: 1 1 4 8
 
     # test that operator precedence works
     printf("%lld\n", sizeof by + sizeof n + sizeof m)  # Output: 13
 
-    arr: long[100]
+    arr: int64[100]
     printf("%lld\n", sizeof arr)  # Output: 800
 
     # The "array length trick"

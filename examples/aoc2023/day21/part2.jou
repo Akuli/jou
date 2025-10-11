@@ -146,7 +146,7 @@ def count_reachables_in_square(state: State*, entry_point_of_grid: int[2], steps
 # where side/2 is actually (side-1)/2 because it uses Jou's floor division.
 # For example, for H we enter through the middle of its vertical left side.
 # Compared to its top left or bottom left corner, this saves (side-1)/2 steps up or down.
-def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> long:
+def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> int64:
     assert state.grid.width == state.grid.height
     side = state.grid.width
     assert side % 2 == 1
@@ -161,7 +161,7 @@ def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> lon
     steps_remaining_above_or_below = step_count - (side*radius - side/2)
 
     # Above with radius=4, there's three A's.
-    result = 0 as long
+    result = 0 as int64
     result += (radius-1) * count_reachables_in_square(state, [0,0], steps_remaining_diagonally)
     result += (radius-1) * count_reachables_in_square(state, [0,side-1], steps_remaining_diagonally)
     result += (radius-1) * count_reachables_in_square(state, [side-1,0], steps_remaining_diagonally)
@@ -229,7 +229,7 @@ def main() -> int:
     step_count = 1000      # sample input
     #step_count = 26501365  # actual input
 
-    result = 0 as long
+    result = 0 as int64
 
     r = 0
     while True:

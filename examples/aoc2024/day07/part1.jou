@@ -4,13 +4,13 @@ import "stdlib/str.jou"
 
 
 class Equation:
-    expected_result: long
-    values: long[100]
+    expected_result: int64
+    values: int64[100]
     nvalues: int
 
     def is_satisfiable(self) -> bool:
         assert self.nvalues > 0
-        results: long* = malloc(sizeof(results[0]) * 1)
+        results: int64* = malloc(sizeof(results[0]) * 1)
         assert results != NULL
         results[0] = self.values[0]
         nresults = 1
@@ -19,7 +19,7 @@ class Equation:
             if nresults == 0:
                 break
 
-            new_results: long* = malloc(sizeof(new_results[0]) * (nresults * 2))
+            new_results: int64* = malloc(sizeof(new_results[0]) * (nresults * 2))
             assert new_results != NULL
             new_nresults = 0
 
@@ -57,7 +57,7 @@ def main() -> int:
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
-    result = 0 as long
+    result = 0 as int64
 
     line: byte[100]
     while fgets(line, sizeof(line) as int, f) != NULL:

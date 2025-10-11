@@ -37,7 +37,7 @@ def print_code(code: int*) -> None:
             assert False
 
 
-def do_combo_op(n: int, regs: long[3]) -> long:
+def do_combo_op(n: int, regs: int64[3]) -> int64:
     assert 0 <= n and n <= 6
     if n >= 4:
         return regs[n - 4]
@@ -45,7 +45,7 @@ def do_combo_op(n: int, regs: long[3]) -> long:
         return n
 
 
-def run_code(code: int*, regs: long[3]) -> None:
+def run_code(code: int*, regs: int64[3]) -> None:
     output_started = False
     ip = &code[0]
 
@@ -91,9 +91,9 @@ def main() -> int:
 
     line: byte[1000]
     code: int[100]
-    reg_a = 0 as long
-    reg_b = 0 as long
-    reg_c = 0 as long
+    reg_a = 0 as int64
+    reg_b = 0 as int64
+    reg_c = 0 as int64
 
     while fgets(line, sizeof(line) as int, f) != NULL:
         if starts_with(line, "Register A: "):

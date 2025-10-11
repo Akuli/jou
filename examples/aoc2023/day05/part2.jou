@@ -6,23 +6,23 @@ import "stdlib/mem.jou"
 
 
 class Map:
-    triples: long[3][50]
+    triples: int64[3][50]
     ntriples: int
 
     def add_triple(self, s: byte*) -> None:
-        a, b, c: long
+        a, b, c: int64
         assert sscanf(s, "%lld %lld %lld", &a, &b, &c) == 3
 
         assert self.ntriples < sizeof(self.triples)/sizeof(self.triples[0])
         self.triples[self.ntriples++] = [a, b, c]
 
-    def get_input_range_starts(self) -> List[long]:
-        result = List[long]{}
+    def get_input_range_starts(self) -> List[int64]:
+        result = List[int64]{}
         for i = 0; i < self.ntriples; i++:
             result.append(self.triples[i][1])
         return result
 
-    def map_number(self, n: long) -> long:
+    def map_number(self, n: int64) -> int64:
         for i = 0; i < self.ntriples; i++:
             dest_start = self.triples[i][0]
             source_start = self.triples[i][1]
@@ -32,8 +32,8 @@ class Map:
         return n
 
     # Find all numbers n for which map_number(n) == output.
-    def inverse_image(self, output: long) -> List[long]:
-        result = List[long]{}
+    def inverse_image(self, output: int64) -> List[int64]:
+        result = List[int64]{}
 
         for i = 0; i < self.ntriples; i++:
             dest_start = self.triples[i][0]
@@ -50,8 +50,8 @@ class Map:
         return result
 
     # Find all numbers n for which map_number(n) is in a list of outputs.
-    def inverse_image_of_list(self, outputs: List[long]) -> List[long]:
-        result = List[long]{}
+    def inverse_image_of_list(self, outputs: List[int64]) -> List[int64]:
+        result = List[int64]{}
         for p = outputs.ptr; p < outputs.end(); p++:
             to_add = self.inverse_image(*p)
             result.extend(to_add)
@@ -60,10 +60,10 @@ class Map:
 
 
 class Range:
-    start: long
-    end: long
+    start: int64
+    end: int64
 
-    def contains(self, n: long) -> bool:
+    def contains(self, n: int64) -> bool:
         return self.start <= n and n < self.end
 
 
@@ -89,7 +89,7 @@ class Input:
             self.n_seed_ranges++
         free(words.ptr)
 
-    def is_valid_seed(self, n: long) -> bool:
+    def is_valid_seed(self, n: int64) -> bool:
         for i = 0; i < self.n_seed_ranges; i++:
             if self.seed_ranges[i].contains(n):
                 return True
@@ -120,7 +120,7 @@ def main() -> int:
 
     fclose(f)
 
-    interesting_inputs = List[long]{}
+    interesting_inputs = List[int64]{}
     for i = 0; i < input.nmaps; i++:
         # We get small values whenever the i'th map sees a start of its range.
         values = input.maps[i].get_input_range_starts()
@@ -138,7 +138,7 @@ def main() -> int:
     for i = 0; i < input.n_seed_ranges; i++:
         interesting_inputs.append(input.seed_ranges[i].start)
 
-    smallest = -1 as long
+    smallest = -1 as int64
     for p = interesting_inputs.ptr; p < interesting_inputs.end(); p++:
         if input.is_valid_seed(*p):
             n = *p

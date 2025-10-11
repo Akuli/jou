@@ -22,7 +22,7 @@ global numpad_table: int[2][128]
 #
 # Indexed by level. Level 0 is the directional keypad where user types (cost is
 # always 1). Levels 1-25 are operated by robots, so there are 26 levels.
-global cost_cache: long[128][128][26]
+global cost_cache: int64[128][128][26]
 
 
 def init_tables() -> None:
@@ -173,20 +173,20 @@ def get_numpad_move_sequences(code: byte*) -> byte[50][50]:
 # Returns the cost (number of user presses) needed to press the given key on
 # the keypad at the level. Assumes smaller-numbered levels start at A. This
 # makes sense, because they also go to A at end of pressing the key.
-def keypad_cost(level: int, prev_key: byte, key: byte) -> long:
+def keypad_cost(level: int, prev_key: byte, key: byte) -> int64:
     cacheptr = &cost_cache[level][prev_key][key]
     if *cacheptr != 0:
         return *cacheptr
 
     if level == 0:
         # Single key press from user
-        best_cost = 1 as long
+        best_cost = 1 as int64
     else:
         moves = arrow_keypad_table[prev_key][key]
 
-        best_cost = -1 as long
+        best_cost = -1 as int64
         for i = 0; i < 2 and moves[i] != NULL; i++:
-            cost = 0 as long
+            cost = 0 as int64
             prev = 'A'  # robot is still aimed at activate button after previous key press
             for p = moves[i]; *p != '\0'; p++:
                 # Press keys on smaller-numbered level
@@ -201,12 +201,12 @@ def keypad_cost(level: int, prev_key: byte, key: byte) -> long:
 
 
 # No caching
-def numpad_cost(code: byte*, initial_level: int) -> long:
+def numpad_cost(code: byte*, initial_level: int) -> int64:
     moves = get_numpad_move_sequences(code)
 
-    best_cost = -1 as long
+    best_cost = -1 as int64
     for i = 0; moves[i][0] != '\0'; i++:
-        cost = 0 as long
+        cost = 0 as int64
         prev = 'A'
         for p = &moves[i][0]; *p != '\0'; p++:
             cost += keypad_cost(initial_level, prev, *p)
@@ -233,7 +233,7 @@ def main() -> int:
     f = fopen(filename, "r")
     assert f != NULL
 
-    result = 0 as long
+    result = 0 as int64
     line: byte[20]
     while fgets(line, sizeof(line) as int, f) != NULL:
         trim_ascii_whitespace(line)

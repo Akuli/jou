@@ -22,8 +22,8 @@ class Equation:
         for v = 0; v < self.nvariables; v++:
             if v > 0:
                 printf(" + ")
-            printf("%lld x%d", self.coeffs[v].to_long(), v)
-        printf(" = %lld\n", self.rhs.to_long())
+            printf("%lld x%d", self.coeffs[v].to_int64(), v)
+        printf(" = %lld\n", self.rhs.to_int64())
 
 
 def add_with_coeff(dest: Equation*, src: Equation*, coeff: BigInt) -> None:
@@ -158,13 +158,13 @@ def test_equation_solver() -> None:
     ]
 
     result = solve_linear_system_of_equations(eqs, 3)
-    printf("x=%lld y=%lld\n", result[0].to_long(), result[1].to_long())  # Output: x=12 y=34
+    printf("x=%lld y=%lld\n", result[0].to_int64(), result[1].to_int64())  # Output: x=12 y=34
     free(result)
 
 
 class MovingPoint:
-    start: long[3]
-    speed: long[3]
+    start: int64[3]
+    speed: int64[3]
 
 
 # We don't need the whole input, first N lines are enough
@@ -174,7 +174,7 @@ def read_input(N: int) -> MovingPoint*:
 
     result: MovingPoint* = malloc(N * sizeof(result[0]))
     for i = 0; i < N; i++:
-        x, y, z, dx, dy, dz: long
+        x, y, z, dx, dy, dz: int64
         assert fscanf(f, "%lld, %lld, %lld @ %lld, %lld, %lld\n", &x, &y, &z, &dx, &dy, &dz) == 6
         result[i] = MovingPoint{start = [x,y,z], speed = [dx,dy,dz]}
 
@@ -267,15 +267,15 @@ def create_equations(moving_points: MovingPoint*, N: int, neqs: int*) -> Equatio
     return eqs
 
 
-def lerp(src_min: long, src_max: long, dest_min: long, dest_max: long, value: long) -> long:
+def lerp(src_min: int64, src_max: int64, dest_min: int64, dest_max: int64, value: int64) -> int64:
     weight1 = value - src_min
     weight2 = src_max - value
 
     # weighted average: (dest_max*weight1 + dest_min*weight2)/(weight1 + weight2)
-    # multiplications are too big for longs, but values themselves seem to fit
+    # multiplications are too big for int64, but values themselves seem to fit
     top = bigint(weight1).mul(bigint(dest_max)).add(bigint(weight2).mul(bigint(dest_min)))
     bottom = weight1 + weight2
-    return top.div_exact(bigint(bottom)).to_long()
+    return top.div_exact(bigint(bottom)).to_int64()
 
 
 def test_lerp() -> None:
@@ -290,7 +290,7 @@ def test_lerp() -> None:
     printf("%lld\n", lerp(0, 5, 100, 200, -1))  # Output: 80
 
 
-def lerp3D(src_min: long, src_max: long, dest_min: long[3], dest_max: long[3], value: long) -> long[3]:
+def lerp3D(src_min: int64, src_max: int64, dest_min: int64[3], dest_max: int64[3], value: int64) -> int64[3]:
     return [
         lerp(src_min, src_max, dest_min[0], dest_max[0], value),
         lerp(src_min, src_max, dest_min[1], dest_max[1], value),
@@ -318,15 +318,15 @@ def main() -> int:
     # Output: 5 3 4 6 1
     printf(
         "%lld %lld %lld %lld %lld\n",
-        solution[0].to_long(),
-        solution[1].to_long(),
-        solution[2].to_long(),
-        solution[3].to_long(),
-        solution[4].to_long(),
+        solution[0].to_int64(),
+        solution[1].to_int64(),
+        solution[2].to_int64(),
+        solution[3].to_int64(),
+        solution[4].to_int64(),
     )
 
-    t1 = solution[0].to_long()
-    t2 = solution[1].to_long()
+    t1 = solution[0].to_int64()
+    t2 = solution[1].to_int64()
 
     point_at_t1 = [
         moving_points[0].start[0] + t1*moving_points[0].speed[0],

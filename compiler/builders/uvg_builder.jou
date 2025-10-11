@@ -122,7 +122,7 @@ class UBuilder:
         else:
             return FALSE_ID
 
-    def integer(self, t: Type*, value: long) -> int:
+    def integer(self, t: Type*, value: int64) -> int:
         return ANONYMOUS_VALUE_ID
 
     def float_or_double(self, t: Type*, string: byte*) -> int:
@@ -202,7 +202,7 @@ class UBuilder:
             # There is an implicit cast from bool to bool.
             return value
         else:
-            # e.g. cast pointer to long
+            # e.g. cast pointer to int64
             self.dont_analyze(value)
             return ANONYMOUS_VALUE_ID
 

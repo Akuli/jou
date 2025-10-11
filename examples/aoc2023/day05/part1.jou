@@ -5,17 +5,17 @@ import "stdlib/mem.jou"
 
 
 class Map:
-    triples: long[3][50]
+    triples: int64[3][50]
     ntriples: int
 
     def add_triple(self, s: byte*) -> None:
-        a, b, c: long
+        a, b, c: int64
         assert sscanf(s, "%lld %lld %lld", &a, &b, &c) == 3
 
         assert self.ntriples < sizeof(self.triples)/sizeof(self.triples[0])
         self.triples[self.ntriples++] = [a, b, c]
 
-    def map_number(self, n: long) -> long:
+    def map_number(self, n: int64) -> int64:
         for i = 0; i < self.ntriples; i++:
             dest_start = self.triples[i][0]
             source_start = self.triples[i][1]
@@ -26,7 +26,7 @@ class Map:
 
 
 class Input:
-    seed_numbers: long[30]
+    seed_numbers: int64[30]
     n_seed_numbers: int
 
     maps: Map[10]
@@ -68,7 +68,7 @@ def main() -> int:
 
     fclose(f)
 
-    smallest = -1 as long
+    smallest = -1 as int64
     for i = 0; i < input.n_seed_numbers; i++:
         n = input.seed_numbers[i]
         for k = 0; k < input.nmaps; k++:

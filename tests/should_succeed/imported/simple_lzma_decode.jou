@@ -4,16 +4,16 @@ import "stdlib/io.jou"
 
 class lzma_stream:
     next_in: byte*
-    avail_in: long
-    total_in: long
+    avail_in: int64
+    total_in: int64
 
     next_out: byte*
-    avail_out: long
-    total_out: long
+    avail_out: int64
+    total_out: int64
 
     dummy: byte[1000]  # should be big enough, currently the whole struct 136 bytes on my system
 
-declare lzma_stream_decoder(strm: lzma_stream*, memlimit: long, flags: int) -> int
+declare lzma_stream_decoder(strm: lzma_stream*, memlimit: int64, flags: int) -> int
 declare lzma_code(stream: lzma_stream*, action: int) -> int
 declare lzma_end(stream: lzma_stream*) -> None
 
@@ -28,7 +28,7 @@ def simple_lzma_decode(filename: byte*) -> byte[100]:
     fclose(f)
 
     stream = lzma_stream{}
-    lzma_stream_decoder(&stream, -1 as long, 0)
+    lzma_stream_decoder(&stream, -1 as int64, 0)
     stream.next_in = input
     stream.avail_in = input_size
     stream.next_out = output

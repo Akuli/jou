@@ -40,9 +40,9 @@ def main() -> int:
     # Integer overflow. Not UB in Jou.
     printf("%hd\n", (20000 as int16) + (20000 as int16)) # Output: -25536
     printf("%d\n", 2000000000 + 2000000000)  # Output: -294967296
-    printf("%lld\n", (2000000000 as long) + (2000000000 as long))  # Output: 4000000000
+    printf("%lld\n", (2000000000 as int64) + (2000000000 as int64))  # Output: 4000000000
 
-    n: long = 2000000000
+    n: int64 = 2000000000
     printf("%lld\n", n+n)  # Output: 4000000000
     printf("%lld\n", 10*n)  # Output: 20000000000
     printf("%lld\n", n*n)  # Output: 4000000000000000000
