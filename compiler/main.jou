@@ -250,13 +250,25 @@ class FileState:
 
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
-    i = 0
-    while i < body.len and body.ptr[i].kind == AstStatementKind.Import:
-        i++
+    seen_other = False
+    for p = body.ptr; p < body.end(); p++:
+        if p.kind == AstStatementKind.Import:
+            if seen_other:
+                fail(p.location, "imports must be in the beginning of the file")
+        else:
+            seen_other = True
 
-    for ; i < body.len; i++:
-        if body.ptr[i].kind == AstStatementKind.Import:
-            fail(body.ptr[i].location, "imports must be in the beginning of the file")
+
+def check_class_fields_before_methods(body: List[AstStatement]) -> None:
+    for stmt = body.ptr; stmt < body.end(); stmt++:
+        if stmt.kind == AstStatementKind.Class:
+            seen_other = False
+            for p = stmt.classdef.body.ptr; p < stmt.classdef.body.end(); p++:
+                if p.kind == AstStatementKind.ClassField or p.kind == AstStatementKind.ClassUnion:
+                    if seen_other:
+                        fail(p.location, "class fields must be defined before methods")
+                else:
+                    seen_other = True
 
 
 class CompileState:
@@ -305,6 +317,7 @@ class CompileState:
             fs.ast.print()
 
         check_imports_at_start_of_file(fs.ast.body)
+        check_class_fields_before_methods(fs.ast.body)
 
         self.files.append(fs)
 
