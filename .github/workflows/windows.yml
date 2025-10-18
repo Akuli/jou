@@ -178,8 +178,10 @@ jobs:
         shell: bash
       - run: cp -r repo/tests repo/runtests.sh "test dir"
         shell: bash
-      - name: "Delete a test that depends on the compiler and cannot work without it"
-        run: rm -v "test dir"/tests/should_succeed/compiler_unit_tests.jou
+      - name: "Delete tests that depend on the compiler and cannot work without it"
+        run: |
+          rm -v "test dir"/tests/should_succeed/compiler_unit_tests.jou
+          rm -v "test dir"/tests/should_succeed/keywords.jou
         shell: bash
       - run: cd "test dir" && ./jou.exe --verbose examples/hello.jou
         shell: bash
