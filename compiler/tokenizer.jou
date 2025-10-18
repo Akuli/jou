@@ -21,11 +21,14 @@ def is_keyword(word: byte*) -> bool:
     # See also: tests/should_succeed/keywords.jou
     match word with strcmp:
         case (
-            "import" | "link" | "def" | "declare" | "class" | "union" | "enum" | "global" | "const"
-            | "return" | "if" | "elif" | "else" | "while" | "for" | "pass" | "break" | "continue"
-            | "True" | "False" | "None" | "NULL" | "void" | "noreturn" | "funcptr"
-            | "and" | "or" | "not" | "self" | "as" | "sizeof" | "assert"
-            | "bool" | "byte" | "int" | "float" | "double" | "match" | "with" | "case"
+            "import" | "link"
+            | "def" | "declare" | "class" | "union" | "enum" | "global" | "const"
+            | "if" | "elif" | "else" | "while" | "for" | "pass" | "break" | "continue" | "match" | "with" | "case" | "return"
+            | "True" | "False" | "None" | "NULL" | "self"
+            | "and" | "or" | "not" | "as" | "sizeof" | "assert"
+            | "bool" | "float" | "double" | "byte" | "int"
+            | "int8" | "int16" | "int32" | "int64"| "uint8" | "uint16" | "uint32" | "uint64"
+            | "void" | "noreturn" | "funcptr"
         ):
             return True
         case _:
