@@ -1,0 +1,111 @@
+# A list of keywords is specified in many places. This test ensures that they
+# stay in sync with each other.
+
+import "stdlib/list.jou"
+import "stdlib/process.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/ascii.jou"
+
+
+# TODO: add some kind of chdir to standard library
+if WINDOWS:
+    declare _chdir(dirname: byte*) -> int
+    def chdir(dir: byte*) -> int:
+        return _chdir(dir)
+else:
+    declare chdir(path: byte*) -> int
+
+
+def go_to_project_root() -> None:
+    for i = 0; i < 3; i++:
+        f = fopen("compiler/main.jou", "r")
+        if f != NULL:
+            fclose(f)
+            return
+        chdir("..")
+    printf("can't go to project root :(\n")
+    exit(1)
+
+
+def add_words_to_list(line: byte*, out: List[byte]*) -> None:
+    line_words = split_by_ascii_whitespace(line)
+    for w = line_words.ptr; w < line_words.end(); w++:
+        if out.len != 0:
+            out.append(' ')
+        out.extend_from_ptr(*w, strlen(*w))
+    free(line_words.ptr)
+
+
+def get_keywords_from_compiler_source() -> byte*:
+    f = fopen("compiler/tokenizer.jou", "rb")
+    assert f != NULL
+    line: byte[1024] = ""
+
+    # Find the place in compiler source code where the keywords are defined
+    while not starts_with(line, "def is_keyword"):
+        assert fgets(line, sizeof(line) as int, f) != NULL
+    while strstr(line, "case (") == NULL:
+        assert fgets(line, sizeof(line) as int, f) != NULL
+
+    # Extract the list of keywords in a dumb way
+    result = List[byte]{}
+    while True:
+        assert fgets(line, sizeof(line) as int, f) != NULL
+        trim_ascii_whitespace(line)
+        if strstr(line, "):") != NULL:
+            break
+        for p = &line[0]; *p != '\0'; p++:
+            if *p == '"' or *p == '|':
+                *p = ' '
+        add_words_to_list(line, &result)
+
+    fclose(f)
+    result.append('\0')
+    return result.ptr
+
+
+def get_keywords_from_documentation() -> byte*:
+    f = fopen("doc/compiler_internals/syntax-spec.md", "rb")
+    assert f != NULL
+    line: byte[1024] = ""
+
+    # Find the place in documentation where the keywords are listed
+    while strstr(line, "- **Keyword tokens**") == NULL:
+        assert fgets(line, sizeof(line) as int, f) != NULL
+
+    # Extract the list of keywords
+    result = List[byte]{}
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if not starts_with(line, "- `"):
+            break
+        for p = &line[0]; *p != '\0'; p++:
+            if *p == '-' or *p == '`':
+                *p = ' '
+        add_words_to_list(line, &result)
+
+    fclose(f)
+    result.append('\0')
+    return result.ptr
+
+
+def main() -> int:
+    go_to_project_root()
+
+    keywords_compiler = get_keywords_from_compiler_source()
+    keywords_doc = get_keywords_from_documentation()
+
+    puts(keywords_compiler)
+
+    if strcmp(keywords_compiler, keywords_doc) != 0:
+        printf("Keywords are defined differently in different places!\n")
+        printf("  Compiler:     %s\n", keywords_compiler)
+        printf("  Syntax doc:   %s\n", keywords_doc)
+        return 1
+
+    printf("ok\n")  # Output: ok
+    free(keywords_compiler)
+    free(keywords_doc)
+    return 0
