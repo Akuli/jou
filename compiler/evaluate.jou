@@ -160,17 +160,29 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
             if not evaluate_constant_expression(&expr.operands[0], result, type_hint):
                 return False
 
-            if result.get_type().kind != TypeKind.SignedInteger:
-                return False
-
-            # Negating the smallest signed integer would overflow.
-            # For example, int8 goes from -128 to +127.
-            # TODO: test this when possible
-            if result.integer.value == min_value(result.get_type()):
-                return False
-
-            result.integer.value *= -1
-            return True
+            match result.get_type().kind:
+                case TypeKind.SignedInteger:
+                    # Negating the smallest signed integer would overflow.
+                    # For example, int8 goes from -128 to +127.
+                    # TODO: test this when possible
+                    if result.integer.value == min_value(result.get_type()):
+                        return False
+                    result.integer.value *= -1
+                    return True
+                case TypeKind.FloatingPoint:
+                    old_string: byte[100] = result.float_or_double_text
+                    if old_string[0] == '-':
+                        # Remove minus sign in beginning: -(-1.0) becomes 1.0
+                        strcpy(result.float_or_double_text, &old_string[1])
+                        return True
+                    elif strlen(old_string) + 1 < sizeof(result.float_or_double_text):
+                        # Add minus to beginning
+                        sprintf(result.float_or_double_text, "-%s", old_string)
+                        return True
+                    else:
+                        return False
+                case _:
+                    return False
 
         case _:
             return False
