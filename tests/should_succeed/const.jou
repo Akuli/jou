@@ -3,8 +3,12 @@ import "./imported/magic_constant.jou"
 
 const foo: int = 42
 const negative: int = -6
-const flag: bool = True
 
+const pi: double = 3.14
+const minus_pi: double = -3.14
+const minus_minus_pi: double = -(-3.14)
+
+const flag: bool = True
 const yes1: bool = True and True
 const no1: bool = True and False
 const no2: bool = False and True
@@ -31,6 +35,11 @@ const big_negative: int64 = -12345678987654321
 def main() -> int:
     printf("foo = %d\n", foo)           # Output: foo = 42
     printf("negative = %d\n", negative) # Output: negative = -6
+
+    printf("pi = %.2f\n", pi)                   # Output: pi = 3.14
+    printf("minus pi = %.2f\n", minus_pi)       # Output: minus pi = -3.14
+    printf("-(-pi) = %.2f\n", minus_minus_pi)   # Output: -(-pi) = 3.14
+
     printf("flag = %d\n", flag)         # Output: flag = 1
     printf("%#x\n", MAGIC_CONSTANT)     # Output: 0x6a6f75
     printf("%llu\n", big)               # Output: 12345678901234567890
