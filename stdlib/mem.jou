@@ -3,11 +3,11 @@
 # Heap allocations
 # TODO: write a tutorial about using these and add a link
 @public
-declare malloc(size: long) -> void*  # allocate memory
+declare malloc(size: int64) -> void*  # allocate memory
 @public
-declare calloc(a: long, b: long) -> void*  # allocate a*b bytes of memory and zero it
+declare calloc(a: int64, b: int64) -> void*  # allocate a*b bytes of memory and zero it
 @public
-declare realloc(ptr: void*, new_size: long) -> void*  # grow/shrink allocated memory
+declare realloc(ptr: void*, new_size: int64) -> void*  # grow/shrink allocated memory
 @public
 declare free(ptr: void*) -> None  # release allocated memory so it can be reused
 
@@ -17,7 +17,7 @@ declare free(ptr: void*) -> None  # release allocated memory so it can be reused
 #   memset(&foo, 0, sizeof(foo))
 #
 @public
-declare memset(dest: void*, fill_byte: int, size: long) -> void*
+declare memset(dest: void*, fill_byte: int, size: int64) -> void*
 
 # These functions copy memory from one place to another. Source and destination
 # are of the same size, and pointers to their start are given.
@@ -28,9 +28,9 @@ declare memset(dest: void*, fill_byte: int, size: long) -> void*
 #   - it is a hint to people reading the code that there will be no overlap
 #   - it may be slightly faster.
 @public
-declare memcpy(dest: void*, source: void*, size: long) -> void*  # copy memory, overlaps are UB
+declare memcpy(dest: void*, source: void*, size: int64) -> void*  # copy memory, overlaps are UB
 @public
-declare memmove(dest: void*, source: void*, size: long) -> void*  # copy memory, overlaps are ok
+declare memmove(dest: void*, source: void*, size: int64) -> void*  # copy memory, overlaps are ok
 
 # Compare two memory regions of the same size. Return 0 if they contain the
 # same bytes, nonzero if different bytes.
@@ -44,17 +44,17 @@ declare memmove(dest: void*, source: void*, size: long) -> void*  # copy memory,
 #
 # This is somewhat similar to strcmp() in stdlib/str.jou.
 @public
-declare memcmp(a: void*, b: void*, size: long) -> int
+declare memcmp(a: void*, b: void*, size: int64) -> int
 
 # Swaps the contents of two memory regions of the same size.
 # This does nothing if the same memory region is passed twice.
 # This probably doesn't do what you want if the memory regions overlap in some other way.
 @public
-def memswap(a: void*, b: void*, size: long) -> None:
+def memswap(a: void*, b: void*, size: int64) -> None:
     a_bytes: byte* = a
     b_bytes: byte* = b
 
-    for i = 0 as long; i < size; i++:
+    for i = 0 as int64; i < size; i++:
         old_a = a_bytes[i]
         a_bytes[i] = b_bytes[i]
         b_bytes[i] = old_a

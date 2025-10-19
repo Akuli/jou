@@ -33,7 +33,7 @@ jobs:
 
   test:
     needs: [check-if-needed]
-    timeout-minutes: 60  # Bootstrapping and running all the tests in qemu VM is REALLY slow.
+    timeout-minutes: 75  # Bootstrapping and running all the tests in qemu VM is REALLY slow.
     runs-on: ubuntu-latest
     steps:
       - name: Install qemu
@@ -98,7 +98,6 @@ jobs:
           chmod +x run.sh
 
       - name: Install dependencies in VM
-        # TODO: --no-install-recommends?
         run: ./run.sh "apt update && apt -y install --no-install-recommends netcat-traditional git llvm-19-dev clang-19 make"
 
       - name: Checkout repository

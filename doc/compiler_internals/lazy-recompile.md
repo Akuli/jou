@@ -32,7 +32,7 @@ While this approach works, it has several downsides:
     Determining the dependencies is difficult in Jou.
     Simply depending on all `import`ed files is not enough,
     because it is possible to call methods defined in files that are not `import`ed.
-    If such a method changes a parameter from `int` to `long`, it must be passed differently,
+    If such a method changes a parameter from `int` to `int64`, it must be passed differently,
     so all calls to the method must be recompiled as well.
 - Timestamps work differently depending on both the OS and the underlying filesystem.
     For example, mtime may always appear as zero for some reason.

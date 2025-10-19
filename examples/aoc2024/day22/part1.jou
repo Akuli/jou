@@ -2,7 +2,7 @@ import "stdlib/io.jou"
 import "stdlib/str.jou"
 
 
-def next_num(n: long) -> long:
+def next_num(n: int64) -> int64:
     # TODO: bitshift operators
     n = (n ^ (n * 64)) % 16777216
     n = (n ^ (n / 32)) % 16777216
@@ -14,7 +14,7 @@ def main() -> int:
     f = fopen("sampleinput1.txt", "r")
     assert f != NULL
 
-    result = 0 as long
+    result = 0 as int64
 
     line: byte[100]
     while fgets(line, sizeof(line) as int, f) != NULL:

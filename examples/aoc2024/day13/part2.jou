@@ -3,7 +3,7 @@ import "stdlib/math.jou"
 import "stdlib/mem.jou"
 
 
-def gcd(a: long, b: long) -> long:
+def gcd(a: int64, b: int64) -> int64:
     assert a > 0 and b > 0
 
     while a > 0 and b > 0:
@@ -18,7 +18,7 @@ def gcd(a: long, b: long) -> long:
 
 
 # Returns the shortest vector in the same direction as the given vector.
-def shortest_vector(v: long[2]) -> long[2]:
+def shortest_vector(v: int64[2]) -> int64[2]:
     unwanted_scaling = gcd(llabs(v[0]), llabs(v[1]))
     return [v[0] / unwanted_scaling, v[1] / unwanted_scaling]
 
@@ -26,9 +26,9 @@ def shortest_vector(v: long[2]) -> long[2]:
 # Determines if two vectors go in the same direction.
 #
 # This would be easy with determinant, but I don't want to use them because
-# calculating determinant might overflow 64-bit long data type. I don't think
-# that would happen, but it could be really hard to debug.
-def same_direction(v1: long[2], v2: long[2]) -> bool:
+# calculating determinant might overflow int64. I don't think that would
+# happen, but it could be really hard to debug.
+def same_direction(v1: int64[2], v2: int64[2]) -> bool:
     s1 = shortest_vector(v1)
     s2 = shortest_vector(v2)
     return s1[0] == s2[0] and s1[1] == s2[1]
@@ -44,7 +44,7 @@ def same_direction(v1: long[2], v2: long[2]) -> bool:
 # vectors go in different directions.
 #
 # Return value is [x, y]. If solution is not an integer, returns [-1,-1].
-def solve_linear_unique_2x2_system(a: long, b: long, c: long, d: long, e: long, f: long) -> long[2]:
+def solve_linear_unique_2x2_system(a: int64, b: int64, c: int64, d: int64, e: int64, f: int64) -> int64[2]:
     if a < 0:
         a *= -1
         b *= -1
@@ -92,7 +92,7 @@ def solve_linear_unique_2x2_system(a: long, b: long, c: long, d: long, e: long, 
         return [-1, -1]
 
 
-def cost(a: long, b: long) -> long:
+def cost(a: int64, b: int64) -> int64:
     return 3*a + b
 
 
@@ -101,7 +101,7 @@ def cost(a: long, b: long) -> long:
 #   a*(button A presses) + b*(button B presses) = prize
 #
 # Returns [button A presses, button B presses].
-def optimize_1d(a: long, b: long, prize: long) -> long[2]:
+def optimize_1d(a: int64, b: int64, prize: int64) -> int64[2]:
     assert a > 0
     assert b > 0
     assert prize > 0
@@ -146,12 +146,12 @@ def optimize_1d(a: long, b: long, prize: long) -> long[2]:
 
 
 class ClawMachine:
-    a_vector: long[2]
-    b_vector: long[2]
-    prize: long[2]
+    a_vector: int64[2]
+    b_vector: int64[2]
+    prize: int64[2]
 
     # Returns cheapest button presses to win, or [-1, -1] if cannot win.
-    def optimize(self) -> long[2]:
+    def optimize(self) -> int64[2]:
         if same_direction(self.a_vector, self.b_vector):
             # The machine moves along a line.
             if not same_direction(self.a_vector, self.prize):
@@ -180,8 +180,8 @@ def main() -> int:
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
-    total_price = 0 as long
-    ax, ay, bx, by, px, py: long
+    total_price = 0 as int64
+    ax, ay, bx, by, px, py: int64
 
     while True:
         ret = fscanf(f, "Button A: X+%lld, Y+%lld\n", &ax, &ay)

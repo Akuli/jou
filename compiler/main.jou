@@ -78,7 +78,7 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     else:
         opt_or_unopt = "Unoptimized"
 
-    len = 0 as long
+    len = 0 as int64
     filename = LLVMGetSourceFileName(module, &len)
     printf("===== %s LLVM IR for file \"%.*s\" =====\n", opt_or_unopt, len as int, filename)
 
@@ -250,13 +250,25 @@ class FileState:
 
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
-    i = 0
-    while i < body.len and body.ptr[i].kind == AstStatementKind.Import:
-        i++
+    seen_other = False
+    for p = body.ptr; p < body.end(); p++:
+        if p.kind == AstStatementKind.Import:
+            if seen_other:
+                fail(p.location, "imports must be in the beginning of the file")
+        else:
+            seen_other = True
 
-    for ; i < body.len; i++:
-        if body.ptr[i].kind == AstStatementKind.Import:
-            fail(body.ptr[i].location, "imports must be in the beginning of the file")
+
+def check_class_fields_before_methods(body: List[AstStatement]) -> None:
+    for stmt = body.ptr; stmt < body.end(); stmt++:
+        if stmt.kind == AstStatementKind.Class:
+            seen_other = False
+            for p = stmt.classdef.body.ptr; p < stmt.classdef.body.end(); p++:
+                if p.kind == AstStatementKind.ClassField or p.kind == AstStatementKind.ClassUnion:
+                    if seen_other:
+                        fail(p.location, "class fields must be defined before methods")
+                else:
+                    seen_other = True
 
 
 class CompileState:
@@ -305,6 +317,7 @@ class CompileState:
             fs.ast.print()
 
         check_imports_at_start_of_file(fs.ast.body)
+        check_class_fields_before_methods(fs.ast.body)
 
         self.files.append(fs)
 
@@ -333,7 +346,7 @@ class CompileState:
 
                 from = self.find_file(stmt.import_statement.resolved_path)
                 assert from != NULL
-                from_index = ((from as long) - (self.files.ptr as long)) / sizeof(self.files.ptr[0])
+                from_index = ((from as int64) - (self.files.ptr as int64)) / sizeof(self.files.ptr[0])
 
                 if from == to:
                     fail(stmt.location, "the file itself cannot be imported")
@@ -413,7 +426,7 @@ class CompileState:
 #   - files with 'link' statements
 #   - command-line --linker-flags argument
 def collect_linker_flags(files: List[FileState]) -> byte*:
-    maxlen = 0 as long
+    maxlen = 0 as int64
     maxlen += strlen("-lm") + 1  # TODO: delete this
     if command_line_args.linker_flags != NULL:
         maxlen += strlen(command_line_args.linker_flags) + 1

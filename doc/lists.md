@@ -124,7 +124,7 @@ def main() -> int:
     return 0
 ```
 
-(Because `numbers.len` is a `long`, it [should be printed with `%lld`](types.md#integers).)
+(Because `numbers.len` is an `int64`, it [should be printed with `%lld`](types.md#integers).)
 
 Here `List[int]{}` is [the syntax for creating a new instance of a class](classes.md#instantiating-syntax).
 In this case, the class is `List[int]`, which means a list of `int`s.
@@ -200,12 +200,12 @@ class SimpleList:
 
 The list also needs to know how many items it contains.
 To do that, let's add another member called `len`.
-Let's use `long` so that [lists can contain more than 2147483647 items](tutorial.md#byte-int-long).
+Let's use `int64` so that [lists can contain more than 2147483647 items](tutorial.md#byte-int-int64).
 
 ```python
 class SimpleList:
     ptr: int*
-    len: long
+    len: int64
 ```
 
 Let's say we append an item to a list whose `len` is `4`.
@@ -218,8 +218,8 @@ To do this, we need to keep track of how much memory we have already allocated:
 ```python
 class SimpleList:
     ptr: int*
-    len: long
-    alloc: long
+    len: int64
+    alloc: int64
 ```
 
 That's basically all there is to it. The rest is quite straight-forward.

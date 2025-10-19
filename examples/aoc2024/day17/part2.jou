@@ -4,7 +4,7 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 
-def do_combo_op(n: int, regs: long[3]) -> long:
+def do_combo_op(n: int, regs: int64[3]) -> int64:
     assert 0 <= n and n <= 6
     if n >= 4:
         return regs[n - 4]
@@ -13,8 +13,8 @@ def do_combo_op(n: int, regs: long[3]) -> long:
 
 
 # Return value is between 0 and 7 (3 bits), or -1 if the program doesn't output anything.
-def get_first_output(code: int*, reg_a: long) -> int:
-    regs = [reg_a, 0 as long, 0 as long]
+def get_first_output(code: int*, reg_a: int64) -> int:
+    regs = [reg_a, 0 as int64, 0 as int64]
     ip = &code[0]
 
     while *ip != -1:
@@ -69,9 +69,9 @@ def get_first_output(code: int*, reg_a: long) -> int:
 # This function finds all such x that:
 #   - when machine runs on x, it outputs the desired output
 #   - last 7 bits of x are as given (-1 means anything will do).
-def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: int, last7: int) -> List[long]:
+def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: int, last7: int) -> List[int64]:
     assert desired_output_len >= 0
-    results = List[long]{}
+    results = List[int64]{}
 
     if desired_output_len == 0:
         # Ensure the code does nothing, imagining that the loop condition is at

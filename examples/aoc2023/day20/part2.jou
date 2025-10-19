@@ -155,7 +155,7 @@ def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
                         todo.send_later(item.to, item.to.destinations[i], not all_high)
 
 
-def gcd(a: long, b: long) -> long:
+def gcd(a: int64, b: int64) -> int64:
     assert a > 0 and b > 0
     while True:
         a %= b
@@ -163,7 +163,7 @@ def gcd(a: long, b: long) -> long:
             return b
         memswap(&a, &b, sizeof(a))
 
-def lcm(a: long, b: long) -> long:
+def lcm(a: int64, b: int64) -> int64:
     return (a/gcd(a,b)) * b
 
 
@@ -265,7 +265,7 @@ def main() -> int:
     # It could happen that a channel also sends low after sending high, and the
     # execution order is so that the output conjunction never sees all highs at
     # the same time. Let's hope that doesn't happen...
-    result = -1 as long
+    result = -1 as int64
     for i = 0; i < nchannels; i++:
         first_5_highs = run_part_of_input(channels[i][0], channels[i][1])
 

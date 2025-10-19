@@ -55,7 +55,7 @@ class VariableManager:
 
         return &self.variables[i]
 
-    def get_result(self) -> long:
+    def get_result(self) -> int64:
         # Variables starting with z are named z00, z01, z02, ...
         # Loop backwards to get bit order right.
         zcount = 0
@@ -63,7 +63,7 @@ class VariableManager:
             if self.varnames[i][0] == 'z':
                 zcount++
 
-        result = 0 as long
+        result = 0 as int64
         for i = zcount-1; i >= 0; i--:
             name: byte[100]
             sprintf(name, "z%02d", i)

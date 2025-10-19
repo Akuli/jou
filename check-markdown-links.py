@@ -76,7 +76,7 @@ def get_all_refs(path):
         #
         # Examples:
         #   "## Combining multiple cases with `|`" --> #combining-multiple-cases-with-
-        #   "## `byte`, `int`, `long`" --> #byte-int-long
+        #   "## `byte`, `int`, `int64`" --> #byte-int-int64
         #   "## Undefined Behavior (UB)" --> #undefined-behavior-ub
         #   "## Rust's approach to UB" --> #rusts-approach-to-ub
         #

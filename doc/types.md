@@ -12,7 +12,7 @@ Jou has the following signed integer types:
 | `int8`            | 1 byte (8 bits)   | `%d`          | `-128`                        | `127`                         |
 | `int16`           | 2 bytes (16 bits) | `%d`          | `-32_768`                     | `32_767`                      |
 | `int32` or `int`  | 4 bytes (32 bits) | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
-| `int64` or `long` | 8 bytes (64 bits) | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
+| `int64`           | 8 bytes (64 bits) | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
 
 And the following unsigned integer types:
 
@@ -24,9 +24,7 @@ And the following unsigned integer types:
 | `uint64`          | 8 bytes (64 bits) | `%llu`        | `0`       | `18_446_744_073_709_551_615`  |
 
 For convenience, the most commonly used types have simpler names:
-`byte` always means same as `uint8`,
-`int` always means same as `int32`, and
-`long` always means same as `int64`.
+`byte` always means same as `uint8` and `int` always means same as `int32`.
 
 Values of integers in Jou code may contain underscores.
 They are ignored, but they often make large numbers much more readable.
@@ -125,7 +123,7 @@ please create an issue if this becomes a problem for you.
 
 Jou has two kinds of casts:
 - **Implicit casts** are done basically whenever a value must be of a specific type.
-    For example, you can pass an `int` to a function that expects a `long` argument,
+    For example, you can pass an `int` to a function that expects an `int64` argument,
     because function arguments are cast implicitly.
 - **Explicit casts** are done with the `as` keyword, e.g. `0 as byte`.
 
@@ -135,14 +133,14 @@ The allowed implicit casts are:
     if the size of `T1` is smaller than the size of `T2`,
     and this is not a "signed → unsigned" cast.
     For example, `byte` casts implicitly to `int` (8-bit unsigned → 32-bit signed),
-    and `int` casts implicitly to `long` (32-bit signed → 64-bit signed).
+    and `int` casts implicitly to `int64` (32-bit signed → 64-bit signed).
 - `float` casts implicitly to `double`.
 - Any integer type (signed or unsigned) casts implicitly to `float` or `double`.
 - Any pointer type casts implicitly to `void*`, and `void*` casts implicitly to any pointer type.
 
 Explicit casts are:
 - Array to pointer: `T[N]` (where `T` is a type and `N` is an integer) casts to `T*` or `void*`.
-    Note that `array_of_ints as long*` is a compiler error.
+    Note that `array_of_ints as int64*` is a compiler error.
 - Any pointer type casts to any other pointer type. This includes `void*` pointers.
 - Any number type casts to any other number type.
 - Any integer type casts to any enum.
@@ -151,8 +149,8 @@ Explicit casts are:
     For example, `True as int` is `1`.
     However, integers cannot be cast to `bool`.
     Use an explicit `foo == 1`, `foo != 0`, `foo > 0` or `match foo: ...` depending on what you need.
-- Any pointer type casts to `long`. (This gives the memory address as an integer.)
-- `long` casts to any pointer type.
+- Any pointer type casts to `int64`. (This gives the memory address as an integer.)
+- `int64` casts to any pointer type.
 - Anything that type inference is capable of doing (see below).
     For example `123123123123123 as int64` or `"foo" as byte[10]`.
 
@@ -166,7 +164,7 @@ For example, this is an error, because the type of `1000000000000000` is `int` b
 
 ```python
 def main() -> int:
-    x = 1000000000000000  # Error: value does not fit into int (32-bit signed integer)
+    x = 1000000000000000  # Error: value does not fit into int
     return 0
 ```
 
@@ -185,7 +183,7 @@ For example, using the variable later does not affect the inference in any way:
 
 ```python
 def main() -> int:
-    x = 1000000000000000  # Error: value does not fit into int (32-bit signed integer)
+    x = 1000000000000000  # Error: value does not fit into int
     y: int64 = x  # Does not affect the type of x
     return 0
 ```

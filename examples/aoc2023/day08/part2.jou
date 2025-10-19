@@ -34,7 +34,7 @@ class Input:
             self.nodes[i].right_node = self.find_node(self.nodes[i].right)
 
 
-def gcd(a: long, b: long) -> long:
+def gcd(a: int64, b: int64) -> int64:
     assert a > 0 and b > 0
     while True:
         a %= b
@@ -42,7 +42,7 @@ def gcd(a: long, b: long) -> long:
             return b
         memswap(&a, &b, sizeof(a))
 
-def lcm(a: long, b: long) -> long:
+def lcm(a: int64, b: int64) -> int64:
     return (a/gcd(a,b)) * b
 
 
@@ -62,9 +62,9 @@ def lcm(a: long, b: long) -> long:
 # Repeating starts where we reach the same state twice. By same state, I
 # mean same current node and same index into the left_right_string.
 class ZCounts:
-    non_repeating: List[long]
-    first_cycle: List[long]
-    cycle_offset: long  # 10 in the example, each cycle starts 10 bigger than previous
+    non_repeating: List[int64]
+    first_cycle: List[int64]
+    cycle_offset: int64  # 10 in the example, each cycle starts 10 bigger than previous
 
     def free(self) -> None:
         free(self.non_repeating.ptr)
@@ -129,8 +129,8 @@ def get_z_counts(input: Input*, start: Node*) -> ZCounts:
         for i = 0; i < nstates; i++:
             if i % left_right_strlen == nstates % left_right_strlen and states[i] == node:
                 # from here it cycles
-                non_repeating = List[long]{}
-                first_cycle = List[long]{}
+                non_repeating = List[int64]{}
+                first_cycle = List[int64]{}
                 for k = 0; k < nstates; k++:
                     if states[k].name[2] == 'Z':
                         if k < i:

@@ -82,7 +82,6 @@ Jou has a few different kinds of tokens:
     - `enum`
     - `global`
     - `const`
-    - `return`
     - `if`
     - `elif`
     - `else`
@@ -91,29 +90,37 @@ Jou has a few different kinds of tokens:
     - `pass`
     - `break`
     - `continue`
+    - `match`
+    - `with`
+    - `case`
+    - `return`
     - `True`
     - `False`
     - `None`
     - `NULL`
-    - `void`
-    - `noreturn`
-    - `funcptr`
+    - `self`
     - `and`
     - `or`
     - `not`
-    - `self`
     - `as`
     - `sizeof`
     - `assert`
     - `bool`
-    - `byte`
-    - `int`
-    - `long`
     - `float`
     - `double`
-    - `match`
-    - `with`
-    - `case`
+    - `byte`
+    - `int`
+    - `int8`
+    - `int16`
+    - `int32`
+    - `int64`
+    - `uint8`
+    - `uint16`
+    - `uint32`
+    - `uint64`
+    - `void`
+    - `noreturn`
+    - `funcptr`
 - **Newline tokens** occur at the end of a line of code.
     Lines that only contain spaces and comments do not produce a newline token;
     this ensures that blank lines are ignored as they should be.
