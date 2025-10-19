@@ -48,6 +48,7 @@ echo "is easier to download and extract a zip file instead (see README.md)."
 echo ""
 echo ""
 
+# Keep the size in the command below up to date if you update WinLibs:
 if [ -d mingw64 ]; then
     echo "mingw64 has already been downloaded and extracted."
     echo "If you want to download it again, delete the mingw64 folder."
@@ -58,6 +59,10 @@ else
         url=https://github.com/Akuli/jou/releases/download/2025-04-08-2200/jou_windows_64bit_2025-04-08-2200.zip
         filename=jou_windows_64bit_2025-04-08-2200.zip
         sha=2945093e2ef7229729f010e45aac9bbe4635a4ee1289857d6aa0cdfb81b0d24b
+        # This is the folder where the downloaded Jou compiler (jou.exe) will go.
+        # Placing it here makes bootstrap.sh use our downloaded Jou compiler
+        # instead of starting from scratch.
+        jou_exe_folder=tmp/bootstrap_cache/016_98c5fb2792eaac8bbe7496a176808d684f631d82
     else
         # This is a mingw64 version that comes with LLVM 19.
         url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
@@ -86,47 +91,12 @@ else
         unzip -q $filename -d tmp/windows_setup_extracted
         mv -v tmp/windows_setup_extracted/jou/mingw64 ./
         mv -v tmp/windows_setup_extracted/jou/*.dll mingw64/bin/  # will be in PATH while developing
-        mv -v tmp/windows_setup_extracted/jou/jou.exe jou_bootstrap.exe
-        touch jou_bootstrap.exe  # make sure time stamp is reasonable
+        mv -v tmp/windows_setup_extracted/jou/jou.exe $jou_exe_folder/
         rm -rf tmp/windows_setup_extracted
     else
         unzip -q $filename
     fi
     rm $filename
-fi
-
-echo ""
-
-if [ $small = no ]; then
-    # We will be bootstrapping this thing ourselves, so we need Python.
-    if [ -d bootstrap-python ]; then
-        echo "Python has already been downloaded and extracted."
-        echo "If you want to download it again, delete the bootstrap-python folder."
-    else
-        python="$(command -v py python python3 | grep -v Microsoft/WindowsApps | head -1)"
-        if [ -n "$python" ] && "$python" --version; then
-            echo "Found Python: $python"
-            "$python" --version
-        else
-            url=https://www.python.org/ftp/python/3.9.5/python-3.9.5-embed-amd64.zip
-            filename=python-3.9.5-embed-amd64.zip
-            sha=f6954b64af18386c523988a23c512452fd289e3591218e7dbb76589b9b326d34
-
-            echo "Downloading $filename..."
-            curl -L -o $filename $url
-
-            echo "Verifying $filename..."
-            if [ "$(sha256sum $filename | cut -d' ' -f1)" != "$sha" ]; then
-                echo "Verifying $filename failed! Please try again or create an issue on GitHub." >&2
-                exit 1
-            fi
-
-            echo "Extracting $filename..."
-            mkdir -v bootstrap-python
-            unzip -q $filename -d bootstrap-python
-            rm $filename
-        fi
-    fi
 fi
 
 echo ""
