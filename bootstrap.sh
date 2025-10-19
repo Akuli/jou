@@ -56,8 +56,7 @@ if ! [[ "$("$python" --version || true)" =~ ^Python\ 3 ]]; then
     exit 1
 fi
 
-# TODO: change this
-commit=6b67cb64bdac33251e1ba3273410c9500369f86c
+commit=d89c4f5a33ac9a6be7b2dcd66d6f2dca695452bc
 
 if [ -f tmp/bootstrap/jou_bootstrap_$commit ]; then
     echo "$0: Found tmp/bootstrap/jou_bootstrap_$commit. Delete the tmp/bootstrap folder if you want to bootstrap again."
