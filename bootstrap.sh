@@ -16,7 +16,7 @@
 #     avoid that.
 
 
-set -e -o pipefail
+set -e
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
