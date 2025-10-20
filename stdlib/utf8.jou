@@ -20,7 +20,7 @@ def is_utf8_continuation(b: byte) -> bool:
 #
 # For example, strlen("ö") == 2, but utf8_char_count("ö") == 1.
 #
-# This function always returns some number between 0 and strlen(s), even if the
+# This function returns a number between 0 and strlen(s) inclusive even if the
 # string s is not valid UTF-8.
 @public
 def utf8_char_count(s: byte*) -> int64:
