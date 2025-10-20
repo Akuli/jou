@@ -108,9 +108,7 @@ class Type:
     def is_number_type(self) -> bool:
         return self.is_integer_type() or self.kind == TypeKind.FloatingPoint
 
-    # For integer types, return the minimum value (as signed 64-bit).
     def min_value(self) -> int64:
-        assert self.is_integer_type()
         match self.kind:
             case TypeKind.SignedInteger:
                 match self.size_in_bits:
@@ -129,9 +127,7 @@ class Type:
             case _:
                 assert False
 
-    # For integer types, return the maximum value (as unsigned 64-bit).
     def max_value(self) -> uint64:
-        assert self.is_integer_type()
         match self.kind:
             case TypeKind.SignedInteger:
                 match self.size_in_bits:
