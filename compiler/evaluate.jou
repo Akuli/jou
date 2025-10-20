@@ -38,62 +38,7 @@ def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
     return value.boolean as int
 
 
-# For integer types, returns the smallest supported value.
-@public
-def min_value(t: Type*) -> int64:
-    match t.kind:
-        # See doc/types.md
-        case TypeKind.SignedInteger:
-            match t.size_in_bits:
-                case 8:
-                    return -0x80
-                case 16:
-                    return -0x8000
-                case 32:
-                    # TODO: This is more difficult than it should be.
-                    return -(0x8000_0000 as int64)
-                case 64:
-                    # TODO: This is more difficult than it should be. Relies on overflow.
-                    return (0x8000_0000_0000_0000 as uint64) as int64
-                case _:
-                    assert False
-        case TypeKind.UnsignedInteger:
-            return 0
-        case _:
-            assert False
-
-
-# For integer types, returns the biggest supported value.
-@public
-def max_value(t: Type*) -> uint64:
-    match t.kind:
-        # See doc/types.md
-        case TypeKind.SignedInteger:
-            match t.size_in_bits:
-                case 8:
-                    return 0x7f
-                case 16:
-                    return 0x7fff
-                case 32:
-                    return 0x7fff_ffff
-                case 64:
-                    return 0x7fff_ffff_ffff_ffff
-                case _:
-                    assert False
-        case TypeKind.UnsignedInteger:
-            match t.size_in_bits:
-                case 8:
-                    return 0xff
-                case 16:
-                    return 0xffff
-                case 32:
-                    return 0xffff_ffff
-                case 64:
-                    return 0xffff_ffff_ffff_ffff
-                case _:
-                    assert False
-        case _:
-            assert False
+# min_value and max_value are provided as methods on Type (see types.jou).
 
 
 # Returns False if the expression is not a simple compile-time constant.
@@ -111,7 +56,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
             else:
                 t = intType
 
-            if expr.integer_value > max_value(t):
+            if expr.integer_value > t.max_value():
                 snprintf(msg, sizeof(msg), "value does not fit into %s", t.name)
                 fail(expr.location, msg)
 
@@ -167,7 +112,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
                     # Negating the smallest signed integer would overflow.
                     # For example, int8 goes from -128 to +127.
                     # TODO: test this when possible
-                    if result.integer.value == min_value(result.get_type()):
+                    if result.integer.value == result.get_type().min_value():
                         return False
                     result.integer.value *= -1
                     return True
