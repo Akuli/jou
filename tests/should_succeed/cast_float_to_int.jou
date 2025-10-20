@@ -2,6 +2,15 @@ import "stdlib/io.jou"
 import "stdlib/math.jou"
 
 def main() -> int:
+    puts("--- Fits ---")                # Output: --- Fits ---
+    printf("%d\n", 24.68 as byte)       # Output: 24
+    printf("%d\n", 24.68f as byte)      # Output: 24
+    printf("%d\n", 24.68 as int)        # Output: 24
+    printf("%d\n", 24.68f as int)       # Output: 24
+    printf("%d\n", (-24.68) as int)     # Output: -24
+    printf("%d\n", (-24.68f) as int)    # Output: -24
+
+    puts("--- Large signed ---")        # Output: --- Large signed ---
     printf("%d\n", 200.0 as int8)       # Output: 127
     printf("%d\n", 200.0f as int8)      # Output: 127
     printf("%d\n", 40000.0 as int16)    # Output: 32767
@@ -11,6 +20,7 @@ def main() -> int:
     printf("%lld\n", 1e20 as int64)     # Output: 9223372036854775807
     printf("%lld\n", 1e20f as int64)    # Output: 9223372036854775807
 
+    puts("--- Small signed ---")        # Output: --- Small signed ---
     printf("%d\n", -200.0 as int8)      # Output: -128
     printf("%d\n", -200.0f as int8)     # Output: -128
     printf("%d\n", -40000.0 as int16)   # Output: -32768
@@ -20,6 +30,7 @@ def main() -> int:
     printf("%lld\n", -1e20 as int64)    # Output: -9223372036854775808
     printf("%lld\n", -1e20f as int64)   # Output: -9223372036854775808
 
+    puts("--- Large unsigned ---")      # Output: --- Large unsigned ---
     printf("%d\n", 300.0 as uint8)      # Output: 255
     printf("%d\n", 300.0f as uint8)     # Output: 255
     printf("%d\n", 70000.0 as uint16)   # Output: 65535
@@ -29,6 +40,7 @@ def main() -> int:
     printf("%llu\n", 1e300 as uint64)   # Output: 18446744073709551615
     printf("%llu\n", 1e300f as uint64)  # Output: 18446744073709551615
 
+    puts("--- Small unsigned ---")      # Output: --- Small unsigned ---
     printf("%d\n", -1.0 as uint8)       # Output: 0
     printf("%d\n", -2.0f as uint8)      # Output: 0
     printf("%d\n", -3.0 as uint16)      # Output: 0
@@ -38,19 +50,19 @@ def main() -> int:
     printf("%llu\n", -7.0 as uint64)    # Output: 0
     printf("%llu\n", -8.0f as uint64)   # Output: 0
 
-    # Infinity
+    puts("--- Infinity ---")            # Output: --- Infinity ---
     printf("%d\n", (1.0/0.0) as int)    # Output: 2147483647
     printf("%d\n", (1.0f/0.0f) as int)  # Output: 2147483647
     printf("%d\n", (1.0/0.0) as byte)   # Output: 255
     printf("%d\n", (1.0f/0.0f) as byte) # Output: 255
 
-    # Minus infinity
+    puts("--- Minus Infinity ---")      # Output: --- Minus Infinity ---
     printf("%d\n", log(0) as int)       # Output: -2147483648
     printf("%d\n", logf(0) as int)      # Output: -2147483648
     printf("%d\n", log(0) as byte)      # Output: 0
     printf("%d\n", logf(0) as byte)     # Output: 0
 
-    # NaN
+    puts("--- NaN ---")                 # Output: --- NaN ---
     printf("%d\n", (0.0/0.0) as int)    # Output: 0
     printf("%d\n", (0.0f/0.0f) as int)  # Output: 0
     printf("%d\n", (0.0/0.0) as byte)   # Output: 0
