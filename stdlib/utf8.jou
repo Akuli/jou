@@ -8,11 +8,11 @@
 
 
 # Check if b is a continuation byte. A UTF-8 multibyte (that is, non-ASCII)
-# character starts with a start byte and then has zero or more continuation
+# character starts with a start byte and then has one or more continuation
 # bytes after it.
 @public
 def is_utf8_continuation(b: byte) -> bool:
-    # Continuation bytes look like 10xx xxxx, where x bits are data.
+    # Continuation bytes look like 10xxxxxx, where x bits are data.
     return b & 0b1100_0000 == 0b1000_0000
 
 
@@ -20,7 +20,7 @@ def is_utf8_continuation(b: byte) -> bool:
 #
 # For example, strlen("ö") == 2, but utf8_char_count("ö") == 1.
 #
-# This function always returns some number between 0 and strlen(s), even if the
+# This function returns a number between 0 and strlen(s) inclusive even if the
 # string s is not valid UTF-8.
 @public
 def utf8_char_count(s: byte*) -> int64:
