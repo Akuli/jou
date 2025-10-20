@@ -222,6 +222,10 @@ def cast_floating_point_to_integer(builder: LLVMBuilder*, obj: LLVMValue*, from:
                 # then return min
                 int_min,
                 # If value is between min and max, use LLVM's normal conversion.
+                #
+                # If value is not between min and max, LLVM returns a poison
+                # value. It is fine to construct a poison value if it is not
+                # used. Using a poison value invokes UB.
                 (
                     LLVMBuildFPToSI(builder, obj, type_to_llvm(to), "normal_cast_signed")
                     if is_signed else
