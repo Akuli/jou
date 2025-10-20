@@ -203,23 +203,29 @@ def cast_floating_point_to_integer(builder: LLVMBuilder*, obj: LLVMValue*, from:
 
     return LLVMBuildSelect(
         builder,
+        # If NaN:
         LLVMBuildFCmp(builder, LLVMRealPredicate.UNO, obj, obj, "is_nan"),
-        LLVMConstInt(type_to_llvm(to), 0, 0),  # NaN --> 0
+        # then return 0
+        LLVMConstInt(type_to_llvm(to), 0, 0),
         # If not NaN:
         LLVMBuildSelect(
             builder,
+            # If value > max:
             LLVMBuildFCmp(builder, LLVMRealPredicate.OGT, obj, floating_max, "greater_than_max"),
-            int_max,  # greater than max --> output max value
-            # If <= max:
+            # then return max
+            int_max,
+            # If value <= max:
             LLVMBuildSelect(
                 builder,
+                # If value < min:
                 LLVMBuildFCmp(builder, LLVMRealPredicate.OLT, obj, floating_min, "less_than_min"),
-                int_min,  # less than min --> output min value
-                # If between min and max:
+                # then return min
+                int_min,
+                # If value is between min and max, use LLVM's normal conversion.
                 (
-                    LLVMBuildFPToSI(builder, obj, type_to_llvm(to), "normal_signed")
+                    LLVMBuildFPToSI(builder, obj, type_to_llvm(to), "normal_cast_signed")
                     if is_signed else
-                    LLVMBuildFPToUI(builder, obj, type_to_llvm(to), "normal_unsigned")
+                    LLVMBuildFPToUI(builder, obj, type_to_llvm(to), "normal_cast_unsigned")
                 ),
                 "min_check",
             ),
