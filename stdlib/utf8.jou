@@ -41,6 +41,9 @@ def utf8_char_size(u: uint32) -> int:
     if u <= 0x7ff:
         return 2
     if u <= 0xffff:
+        if 0xD800 <= u and u <= 0xDFFF:
+            # invalid UTF-8: represents UTF-16 surrogate
+            return -1
         return 3
     if u <= 0x10ffff:
         return 4
@@ -48,10 +51,10 @@ def utf8_char_size(u: uint32) -> int:
 
 
 # Consumes one codepoint (character) from a UTF-8 string. For example, if
-# s = "örkki", then utf8_decode_one(&s) returns 246 and advances s so that it
+# s = "örkki", then utf8_decode_char(&s) returns 246 and advances s so that it
 # appears as "rkki". Returns 0 without moving s on error.
 @public
-def utf8_decode_one(s: byte**) -> uint32:
+def utf8_decode_char(s: byte**) -> uint32:
     result: uint32
 
     start_byte = **s
@@ -82,14 +85,11 @@ def utf8_decode_one(s: byte**) -> uint32:
         result |= b & 0b0011_1111  # get the 6 data bits from continuation byte
 
     if utf8_char_size(result) != num_bytes:
-        # invalid UTF-8: overlong encoding
+        # invalid UTF-8: overlong encoding or surrogate
         #
-        # It is important to reject these! Otherwise we have security problems,
-        # because there are multiple ways to represent the same string.
-        return 0
-
-    if 0xD800 <= result and result <= 0xDFFF:
-        # invalid UTF-8: represents UTF-16 surrogate
+        # It is important to reject overlong encodings! Otherwise we have
+        # security problems, because there are multiple ways to represent
+        # the same string.
         return 0
 
     if **s != '\0':

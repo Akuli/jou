@@ -15,22 +15,22 @@ def test_successful_decode() -> None:
     puts("success decode")  # Output: success decode
     string = "örkki€😀"
     s = string
-    printf("%u\n", utf8_decode_one(&s))  # Output: 246
-    printf("%u\n", utf8_decode_one(&s))  # Output: 114
-    printf("%u\n", utf8_decode_one(&s))  # Output: 107
-    printf("%u\n", utf8_decode_one(&s))  # Output: 107
-    printf("%u\n", utf8_decode_one(&s))  # Output: 105
-    printf("%u\n", utf8_decode_one(&s))  # Output: 8364
-    printf("%u\n", utf8_decode_one(&s))  # Output: 128512
-    printf("%u\n", utf8_decode_one(&s))  # Output: 0
-    printf("%u\n", utf8_decode_one(&s))  # Output: 0
-    printf("%u\n", utf8_decode_one(&s))  # Output: 0
+    printf("%u\n", utf8_decode_char(&s))  # Output: 246
+    printf("%u\n", utf8_decode_char(&s))  # Output: 114
+    printf("%u\n", utf8_decode_char(&s))  # Output: 107
+    printf("%u\n", utf8_decode_char(&s))  # Output: 107
+    printf("%u\n", utf8_decode_char(&s))  # Output: 105
+    printf("%u\n", utf8_decode_char(&s))  # Output: 8364
+    printf("%u\n", utf8_decode_char(&s))  # Output: 128512
+    printf("%u\n", utf8_decode_char(&s))  # Output: 0
+    printf("%u\n", utf8_decode_char(&s))  # Output: 0
+    printf("%u\n", utf8_decode_char(&s))  # Output: 0
     assert s == &string[strlen(string)]
 
 
 def check_fail(s: byte*) -> None:
     ptr = s
-    printf("should fail --> %u\n", utf8_decode_one(&ptr))
+    printf("should fail --> %u\n", utf8_decode_char(&ptr))
     assert ptr == s
 
 
@@ -40,7 +40,7 @@ def test_repeated_start_byte() -> None:
     strcpy(&s[2], "ö")
 
     ptr = &s[0]
-    printf("m = %u\n", utf8_decode_one(&ptr))  # Output: m = 109
+    printf("m = %u\n", utf8_decode_char(&ptr))  # Output: m = 109
     assert ptr == &s[1]
     check_fail(ptr)  # Output: should fail --> 0
 
@@ -51,7 +51,7 @@ def test_truncated() -> None:
     s[2] = '\0'
 
     ptr = &s[0]
-    printf("m = %u\n", utf8_decode_one(&ptr))  # Output: m = 109
+    printf("m = %u\n", utf8_decode_char(&ptr))  # Output: m = 109
     assert ptr == &s[1]
     check_fail(ptr)  # Output: should fail --> 0
 
@@ -92,7 +92,7 @@ def test_overlong_encoding() -> None:
     #           = 000 011111 011000 000000
     smiley: byte[4] = [0b11110_000, 0b10_011111, 0b10_011000, 0b10_000000]
     ptr = &smiley[0]
-    printf("smiley = %u\n", utf8_decode_one(&ptr))  # Output: smiley = 128512
+    printf("smiley = %u\n", utf8_decode_char(&ptr))  # Output: smiley = 128512
     assert ptr == &smiley[4]
 
 
@@ -143,7 +143,7 @@ def test_decoding_random_data() -> None:
         string = [rand() as byte, rand() as byte, rand() as byte, rand() as byte, '\0']
         ptr = &string[0]
 
-        while utf8_decode_one(&ptr) != 0:
+        while utf8_decode_char(&ptr) != 0:
             pass
         if *ptr == '\0':
             # We got to end of string, it is valid UTF-8
