@@ -109,6 +109,7 @@ class Type:
         return self.is_integer_type() or self.kind == TypeKind.FloatingPoint
 
     def min_value(self) -> int64:
+        # See doc/types.md
         match self.kind:
             case TypeKind.SignedInteger:
                 match self.size_in_bits:
@@ -117,8 +118,10 @@ class Type:
                     case 16:
                         return -0x8000
                     case 32:
+                        # TODO: This is more difficult than it should be.
                         return -(0x8000_0000 as int64)
                     case 64:
+                        # TODO: This is more difficult than it should be. Relies on overflow.
                         return (0x8000_0000_0000_0000 as uint64) as int64
                     case _:
                         assert False
@@ -128,6 +131,7 @@ class Type:
                 assert False
 
     def max_value(self) -> uint64:
+        # See doc/types.md
         match self.kind:
             case TypeKind.SignedInteger:
                 match self.size_in_bits:
