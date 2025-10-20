@@ -1,0 +1,59 @@
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+
+def main() -> int:
+    printf("%d\n", 200.0 as int8)       # Output: 127
+    printf("%d\n", 200.0f as int8)      # Output: 127
+    printf("%d\n", 40000.0 as int16)    # Output: 32767
+    printf("%d\n", 40000.0f as int16)   # Output: 32767
+    printf("%d\n", 3e10 as int32)       # Output: 2147483647
+    printf("%d\n", 3e10f as int32)      # Output: 2147483647
+    printf("%lld\n", 1e20 as int64)     # Output: 9223372036854775807
+    printf("%lld\n", 1e20f as int64)    # Output: 9223372036854775807
+
+    printf("%d\n", -200.0 as int8)      # Output: -128
+    printf("%d\n", -200.0f as int8)     # Output: -128
+    printf("%d\n", -40000.0 as int16)   # Output: -32768
+    printf("%d\n", -40000.0f as int16)  # Output: -32768
+    printf("%d\n", -3e10 as int32)      # Output: -2147483648
+    printf("%d\n", -3e10f as int32)     # Output: -2147483648
+    printf("%lld\n", -1e20 as int64)    # Output: -9223372036854775808
+    printf("%lld\n", -1e20f as int64)   # Output: -9223372036854775808
+
+    printf("%d\n", 300.0 as uint8)      # Output: 255
+    printf("%d\n", 300.0f as uint8)     # Output: 255
+    printf("%d\n", 70000.0 as uint16)   # Output: 65535
+    printf("%d\n", 70000.0f as uint16)  # Output: 65535
+    printf("%u\n", 1e20 as uint32)      # Output: 4294967295
+    printf("%u\n", 1e20f as uint32)     # Output: 4294967295
+    printf("%llu\n", 1e300 as uint64)   # Output: 18446744073709551615
+    printf("%llu\n", 1e300f as uint64)  # Output: 18446744073709551615
+
+    printf("%d\n", -1.0 as uint8)       # Output: 0
+    printf("%d\n", -2.0f as uint8)      # Output: 0
+    printf("%d\n", -3.0 as uint16)      # Output: 0
+    printf("%d\n", -4.0f as uint16)     # Output: 0
+    printf("%u\n", -5.0 as uint32)      # Output: 0
+    printf("%u\n", -6.0f as uint32)     # Output: 0
+    printf("%llu\n", -7.0 as uint64)    # Output: 0
+    printf("%llu\n", -8.0f as uint64)   # Output: 0
+
+    # Infinity
+    printf("%d\n", (1.0/0.0) as int)    # Output: 2147483647
+    printf("%d\n", (1.0f/0.0f) as int)  # Output: 2147483647
+    printf("%d\n", (1.0/0.0) as byte)   # Output: 255
+    printf("%d\n", (1.0f/0.0f) as byte) # Output: 255
+
+    # Minus infinity
+    printf("%d\n", log(0) as int)       # Output: -2147483648
+    printf("%d\n", logf(0) as int)      # Output: -2147483648
+    printf("%d\n", log(0) as byte)      # Output: 0
+    printf("%d\n", logf(0) as byte)     # Output: 0
+
+    # NaN
+    printf("%d\n", (0.0/0.0) as int)    # Output: 0
+    printf("%d\n", (0.0f/0.0f) as int)  # Output: 0
+    printf("%d\n", (0.0/0.0) as byte)   # Output: 0
+    printf("%d\n", (0.0f/0.0f) as byte) # Output: 0
+
+    return 0
