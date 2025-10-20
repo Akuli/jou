@@ -15,7 +15,6 @@ import "../errors_and_warnings.jou"
 import "../ast.jou"
 import "./any_builder.jou"
 import "../llvm.jou"
-import "../evaluate.jou"
 import "../target.jou"
 import "../types.jou"
 import "./ast_to_builder.jou"
@@ -171,6 +170,65 @@ def build_llvm_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue
     return LLVMBuildExactSDiv(builder, top, rhs, "sdiv")
 
 
+# Clamps out-of-range values to min or max. Returns 0 for NaN.
+#
+# Doing this in LLVM without invoking UB is surprisingly difficult. The
+# following pseudo-code roughly describes what this does:
+#
+#    if float_value is NaN:
+#        result = 0
+#    elif float_value > max:
+#        result = max
+#    elif float_value < min:
+#        result = min
+#    else:
+#        result = normal LLVM conversion
+#
+def cast_floating_point_to_integer(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
+    assert from.kind == TypeKind.FloatingPoint
+    assert to.is_integer_type()
+
+    is_signed = (to.kind == TypeKind.SignedInteger)
+
+    if is_signed:
+        int_min = LLVMConstInt(type_to_llvm(to), to.min_value(), 1)
+        int_max = LLVMConstInt(type_to_llvm(to), to.max_value() as int64, 1)
+        floating_min = LLVMBuildSIToFP(builder, int_min, type_to_llvm(from), "floating_min")
+        floating_max = LLVMBuildSIToFP(builder, int_max, type_to_llvm(from), "floating_max")
+    else:
+        int_min = LLVMConstInt(type_to_llvm(to), to.min_value(), 0)
+        int_max = LLVMConstInt(type_to_llvm(to), to.max_value() as int64, 0)
+        floating_min = LLVMBuildUIToFP(builder, int_min, type_to_llvm(from), "floating_min")
+        floating_max = LLVMBuildUIToFP(builder, int_max, type_to_llvm(from), "floating_max")
+
+    return LLVMBuildSelect(
+        builder,
+        LLVMBuildFCmp(builder, LLVMRealPredicate.UNO, obj, obj, "is_nan"),
+        LLVMConstInt(type_to_llvm(to), 0, 0),  # NaN --> 0
+        # If not NaN:
+        LLVMBuildSelect(
+            builder,
+            LLVMBuildFCmp(builder, LLVMRealPredicate.OGT, obj, floating_max, "greater_than_max"),
+            int_max,  # greater than max --> output max value
+            # If <= max:
+            LLVMBuildSelect(
+                builder,
+                LLVMBuildFCmp(builder, LLVMRealPredicate.OLT, obj, floating_min, "less_than_min"),
+                int_min,  # less than min --> output min value
+                # If between min and max:
+                (
+                    LLVMBuildFPToSI(builder, obj, type_to_llvm(to), "normal_signed")
+                    if is_signed else
+                    LLVMBuildFPToUI(builder, obj, type_to_llvm(to), "normal_unsigned")
+                ),
+                "min_check",
+            ),
+            "max_check",
+        ),
+        "nan_check",
+    )
+
+
 def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
     assert from != NULL
     assert to != NULL
@@ -202,46 +260,7 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
                 return LLVMBuildUIToFP(builder, obj, type_to_llvm(to), "cast")
         if from.kind == TypeKind.FloatingPoint and to.is_integer_type():
             # double/float --> integer
-            # LLVM's FPToSI/FPToUI is undefined for out-of-range values and NaNs.
-            # Implement defined behavior by clamping the floating value to the
-            # destination integer range and treating NaN as 0.
-
-            # Get integer bounds using Type methods.
-            min_v = to.min_value()
-            max_v = to.max_value()
-
-            is_signed = (to.kind == TypeKind.SignedInteger)
-
-            # Create integer LLVM constants for min/max once.
-            int_min = LLVMConstInt(type_to_llvm(to), min_v, 1 if is_signed else 0)
-            int_max = LLVMConstInt(type_to_llvm(to), max_v as int64, 1 if is_signed else 0)
-
-            # Normal conversion: FP->int (signed or unsigned)
-            normal_conv = LLVMBuildFPToSI(builder, obj, type_to_llvm(to), "cast_normal") if is_signed else LLVMBuildFPToUI(builder, obj, type_to_llvm(to), "cast_normal")
-
-            # Convert integer min/max to floating point by converting the integer constants.
-            if from.size_in_bits == 32:
-                fp_min = LLVMBuildSIToFP(builder, int_min, LLVMFloatType(), "fp_min") if is_signed else LLVMBuildUIToFP(builder, int_min, LLVMFloatType(), "fp_min")
-                fp_max = LLVMBuildSIToFP(builder, int_max, LLVMFloatType(), "fp_max") if is_signed else LLVMBuildUIToFP(builder, int_max, LLVMFloatType(), "fp_max")
-            else:
-                fp_min = LLVMBuildSIToFP(builder, int_min, LLVMDoubleType(), "fp_min") if is_signed else LLVMBuildUIToFP(builder, int_min, LLVMDoubleType(), "fp_min")
-                fp_max = LLVMBuildSIToFP(builder, int_max, LLVMDoubleType(), "fp_max") if is_signed else LLVMBuildUIToFP(builder, int_max, LLVMDoubleType(), "fp_max")
-
-            # Build the three comparisons once and reuse.
-            cmp_lt = LLVMBuildFCmp(builder, LLVMRealPredicate.OLT, obj, fp_min, "cmp_lt")
-            cmp_gt = LLVMBuildFCmp(builder, LLVMRealPredicate.OGT, obj, fp_max, "cmp_gt")
-            # cmp_ord returns true if both operands are ordered (not NaN). We use UNO later for NaN check.
-            cmp_ord = LLVMBuildFCmp(builder, LLVMRealPredicate.ORD, obj, obj, "cmp_ord")
-
-            # Clamp to min or max when out of range. Use LLVMBuildSelect to pick value.
-            min_select = LLVMBuildSelect(builder, cmp_lt, int_min, normal_conv, "min_select")
-            result = LLVMBuildSelect(builder, cmp_gt, int_max, min_select, "clamped")
-
-            # If NaN (unordered), treat as zero. Zero const doesn't need sign extension flag.
-            zero_int = LLVMConstInt(type_to_llvm(to), 0, 0)
-            is_nan = LLVMBuildFCmp(builder, LLVMRealPredicate.UNO, obj, obj, "is_nan")
-            final = LLVMBuildSelect(builder, is_nan, zero_int, result, "nan_check")
-            return final
+            return cast_floating_point_to_integer(builder, obj, from, to)
         if from.kind == TypeKind.FloatingPoint and to.kind == TypeKind.FloatingPoint:
             # double/float --> double/float
             return LLVMBuildFPCast(builder, obj, type_to_llvm(to), "cast")
