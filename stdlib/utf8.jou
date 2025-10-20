@@ -12,7 +12,7 @@
 # bytes after it.
 @public
 def is_utf8_continuation(b: byte) -> bool:
-    # Continuation bytes look like 10xx xxxx, where x bits are data.
+    # Continuation bytes look like 10xxxxxx, where x bits are data.
     return b & 0b1100_0000 == 0b1000_0000
 
 
