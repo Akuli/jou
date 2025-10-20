@@ -80,7 +80,7 @@ def utf8_decode_char(s: byte**) -> uint32:
             # invalid UTF-8: bad continuation byte
             return 0
 
-        # TODO(Jou): proper bitshift operators
+        # TODO: add bitshift operators to Jou
         result *= 64  # shift left by 6
         result |= b & 0b0011_1111  # get the 6 data bits from continuation byte
 
