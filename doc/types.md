@@ -169,7 +169,7 @@ def main() -> int:
     return 0
 ```
 
-Casting a `float` or `double` to an integer deletes the fractional part.
+Casting a `float` or `double` to an integer truncates away the fractional part.
 Out-of-range values become the smallest or largest value of the integer type.
 The result is zero if the `float` or `double` is [a NaN value](https://en.wikipedia.org/wiki/NaN).
 For example:
