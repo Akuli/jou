@@ -39,6 +39,7 @@ def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
 
 
 # For integer types, returns the smallest supported value.
+@public
 def min_value(t: Type*) -> int64:
     match t.kind:
         # See doc/types.md
@@ -63,6 +64,7 @@ def min_value(t: Type*) -> int64:
 
 
 # For integer types, returns the biggest supported value.
+@public
 def max_value(t: Type*) -> uint64:
     match t.kind:
         # See doc/types.md

@@ -36,10 +36,21 @@ def main() -> int:
     printf("%lld\n", n)  # Output: 123123123123123
     printf("%lld bytes (%lld bits)\n", sizeof(n), sizeof(n)*8)  # Output: 8 bytes (64 bits)
 
-    # The following two lines are UB and produce different
-    # values with -O3 and without:
-    #printf("%d\n", -12.34 as byte)
-    #printf("%d\n", -12.99 as byte)
+    # The following lines previously relied on LLVM's FP->int conversion
+    # which was undefined for out-of-range floats and NaNs. The compiler
+    # now defines float->integer casts to clip to the destination type's
+    # range. For NaN, the result is defined as 0.
+    printf("%d\n", -12.34 as byte)  # Output: 0
+    printf("%d\n", -12.99 as byte)  # Output: 0
+    # NaN should convert to 0
+    printf("%d\n", (0.0/0.0) as int)  # Output: 0
+
+    # Positive overflow should clip to the destination max
+    printf("%d\n", 300.0 as byte)  # Output: 255
+    printf("%d\n", 128.9 as int8)  # Output: 127
+
+    # Unsigned conversions: large positive floats clip to unsigned max
+    printf("%u\n", 1e20 as uint32)  # Output: 4294967295
 
     one = 1 as int  # Warning: unnecessary cast from int to int
     printf("%d\n", one)  # Output: 1
@@ -47,5 +58,38 @@ def main() -> int:
     # Not unnecessary cast, otherwise y would become int
     y = 123 as int64
     printf("%lld\n", y)  # Output: 123
+
+    # Exhaustive overflow/underflow checks for all integer types
+    # signed 8-bit
+    printf("%d\n", 200.0 as int8)   # Output: 127
+    printf("%d\n", -200.0 as int8)  # Output: -128
+
+    # unsigned 8-bit (byte)
+    printf("%u\n", 300.0 as byte)   # Output: 255
+    printf("%u\n", -1.0 as byte)    # Output: 0
+
+    # signed 16-bit
+    printf("%d\n", 40000.0 as int16)   # Output: 32767
+    printf("%d\n", -40000.0 as int16)  # Output: -32768
+
+    # unsigned 16-bit
+    printf("%u\n", 70000.0 as uint16)  # Output: 65535
+    printf("%u\n", -1.0 as uint16)     # Output: 0
+
+    # signed 32-bit
+    printf("%d\n", 3e10 as int32)    # Output: 2147483647
+    printf("%d\n", -3e10 as int32)   # Output: -2147483648
+
+    # unsigned 32-bit
+    printf("%u\n", 1e20 as uint32)   # Output: 4294967295
+    printf("%u\n", -1.0 as uint32)   # Output: 0
+
+    # signed 64-bit
+    printf("%lld\n", 1e20 as int64)  # Output: 9223372036854775807
+    printf("%lld\n", -1e20 as int64) # Output: -9223372036854775808
+
+    # unsigned 64-bit
+    printf("%llu\n", 1e300 as uint64) # Output: 18446744073709551615
+    printf("%llu\n", -1.0 as uint64)   # Output: 0
 
     return 0

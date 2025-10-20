@@ -154,6 +154,22 @@ Explicit casts are:
 - Anything that type inference is capable of doing (see below).
     For example `123123123123123 as int64` or `"foo" as byte[10]`.
 
+Behavior of numeric casts
+-------------------------
+
+When casting floating-point values to integer types with `as`, Jou
+defines the semantics to avoid undefined behavior from underlying
+lowering. If the floating-point value is outside the destination
+integer range, the value is clipped to the destination type's minimum
+or maximum. If the floating-point value is a NaN (not-a-number), the
+result of the cast is defined as `0`.
+
+Examples:
+
+- `(123.9 as int8)` becomes `127` (clipped to `int8` max)
+- `(-12.3 as byte)` becomes `0` (clipped to `byte` min)
+- `((0.0/0.0) as int)` becomes `0` (NaN -> 0)
+
 
 ## Type Inference
 
