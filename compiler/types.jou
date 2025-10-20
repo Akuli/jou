@@ -108,6 +108,58 @@ class Type:
     def is_number_type(self) -> bool:
         return self.is_integer_type() or self.kind == TypeKind.FloatingPoint
 
+    def min_value(self) -> int64:
+        # See doc/types.md
+        match self.kind:
+            case TypeKind.SignedInteger:
+                match self.size_in_bits:
+                    case 8:
+                        return -0x80
+                    case 16:
+                        return -0x8000
+                    case 32:
+                        # TODO: This is more difficult than it should be.
+                        return -(0x8000_0000 as int64)
+                    case 64:
+                        # TODO: This is more difficult than it should be. Relies on overflow.
+                        return (0x8000_0000_0000_0000 as uint64) as int64
+                    case _:
+                        assert False
+            case TypeKind.UnsignedInteger:
+                return 0
+            case _:
+                assert False
+
+    def max_value(self) -> uint64:
+        # See doc/types.md
+        match self.kind:
+            case TypeKind.SignedInteger:
+                match self.size_in_bits:
+                    case 8:
+                        return 0x7f
+                    case 16:
+                        return 0x7fff
+                    case 32:
+                        return 0x7fff_ffff
+                    case 64:
+                        return 0x7fff_ffff_ffff_ffff
+                    case _:
+                        assert False
+            case TypeKind.UnsignedInteger:
+                match self.size_in_bits:
+                    case 8:
+                        return 0xff
+                    case 16:
+                        return 0xffff
+                    case 32:
+                        return 0xffff_ffff
+                    case 64:
+                        return 0xffff_ffff_ffff_ffff
+                    case _:
+                        assert False
+            case _:
+                assert False
+
     def is_pointer_type(self) -> bool:
         match self.kind:
             case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
