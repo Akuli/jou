@@ -126,11 +126,11 @@ for i in $(seq 1 ${#commits[@]}); do
 static void optimize(void *module, int level) { (void)module; (void)level; }'$'\n' bootstrap_compiler/main.c
         fi
 
-        echo "Deleting version check..."
-        # Delete version checks to support bootstrapping on newer LLVM versions
-        sed -i -e "/Found unsupported LLVM version/d" Makefile.*
-
         if [ $i -le 7 ]; then
+            echo "Deleting version check..."
+            # Delete version checks to support bootstrapping on newer LLVM versions
+            sed -i -e "/Found unsupported LLVM version/d" Makefile.*
+
             echo "Patching Jou code..."
             # Delete function calls we no longer need
             sed -i -e /LLVMCreatePassManager/d compiler/main.jou
