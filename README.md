@@ -184,7 +184,7 @@ $ LLVM_CONFIG=llvm-config-15 make
 
 1. Install the dependencies:
     ```
-    # pkgin install bash clang git gmake
+    # pkgin install bash clang git gmake python313
     ```
     Optionally `diffutils` can be installed for coloured diff outputs.
 2. Download and compile Jou.
