@@ -21,7 +21,7 @@ jobs:
           version: '10.0'
           environment_variables: PKG_PATH
           run: |
-            sudo pkgin -y install clang gmake diffutils git && \
+            sudo pkgin -y install clang gmake diffutils git python313 && \
             gmake && \
             ./runtests.sh --verbose && \
             mv jou jou_bootstrap && gmake && \
