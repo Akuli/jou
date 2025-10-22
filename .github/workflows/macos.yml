@@ -40,18 +40,23 @@ jobs:
     strategy:
       matrix:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
+        # Please keep in sync with linux.yml and macos.yml
         params:
+          # Oldest version: all opt levels
           - { llvm-version: 15, opt-level: '-O0' }
           - { llvm-version: 15, opt-level: '-O1' }
           - { llvm-version: 15, opt-level: '-O2' }
           - { llvm-version: 15, opt-level: '-O3' }
+          # Most versions: just one opt level to save time
           - { llvm-version: 16, opt-level: '-O1' }
           - { llvm-version: 17, opt-level: '-O1' }
           - { llvm-version: 18, opt-level: '-O1' }
-          - { llvm-version: 19, opt-level: '-O0' }
           - { llvm-version: 19, opt-level: '-O1' }
-          - { llvm-version: 19, opt-level: '-O2' }
-          - { llvm-version: 19, opt-level: '-O3' }
+          # Latest version: all opt levels
+          - { llvm-version: 20, opt-level: '-O0' }
+          - { llvm-version: 20, opt-level: '-O1' }
+          - { llvm-version: 20, opt-level: '-O2' }
+          - { llvm-version: 20, opt-level: '-O3' }
     steps:
       - uses: actions/checkout@v4
         with:
