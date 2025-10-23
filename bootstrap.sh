@@ -37,7 +37,6 @@ else
         make="make"
     fi
     exe_suffix=""
-    python=$( (which python3 python || true) | head -1)
 fi
 
 
@@ -47,7 +46,7 @@ if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     # Avoid the "python.exe" launcher that opens app store for installing python.
     python=$( (command -v py python || true) | grep -v Microsoft/WindowsApps | head -1)
 else
-    python=$( (which python3 python || true) | head -1)
+    python=$( (command -v python3.13 python3 python || true) | head -1)
 fi
 
 if ! [[ "$("$python" --version || true)" =~ ^Python\ 3 ]]; then
