@@ -204,8 +204,13 @@ function should_skip()
     fi
 
     # If liblzma is not installed in a pkg-config compatible way, skip tests that use it
-    if [[ $joufile =~ link_with_liblzma ]] && ! (pkg-config --exists liblzma 2>/dev/null); then
-        return 0
+    if [[ $joufile =~ link_with_liblzma ]]; then
+        if ! (pkg-config --exists liblzma 2>/dev/null); then
+            return 0
+        fi
+        if [[ $joufile =~ (relative|system)_path && ! -e "$(pkg-config --variable=libdir liblzma)/liblzma.a" ]]; then
+            return 0
+        fi
     fi
 
     return 1  # false, don't skip
