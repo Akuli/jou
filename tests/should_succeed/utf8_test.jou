@@ -15,22 +15,22 @@ def test_successful_decode() -> None:
     puts("success decode")  # Output: success decode
     string = "örkki€😀"
     s = string
-    printf("%u\n", utf8_decode_char(&s))  # Output: 246
-    printf("%u\n", utf8_decode_char(&s))  # Output: 114
-    printf("%u\n", utf8_decode_char(&s))  # Output: 107
-    printf("%u\n", utf8_decode_char(&s))  # Output: 107
-    printf("%u\n", utf8_decode_char(&s))  # Output: 105
-    printf("%u\n", utf8_decode_char(&s))  # Output: 8364
-    printf("%u\n", utf8_decode_char(&s))  # Output: 128512
-    printf("%u\n", utf8_decode_char(&s))  # Output: 0
-    printf("%u\n", utf8_decode_char(&s))  # Output: 0
-    printf("%u\n", utf8_decode_char(&s))  # Output: 0
+    printf("%d\n", utf8_decode_char(&s))  # Output: 246
+    printf("%d\n", utf8_decode_char(&s))  # Output: 114
+    printf("%d\n", utf8_decode_char(&s))  # Output: 107
+    printf("%d\n", utf8_decode_char(&s))  # Output: 107
+    printf("%d\n", utf8_decode_char(&s))  # Output: 105
+    printf("%d\n", utf8_decode_char(&s))  # Output: 8364
+    printf("%d\n", utf8_decode_char(&s))  # Output: 128512
+    printf("%d\n", utf8_decode_char(&s))  # Output: 0
+    printf("%d\n", utf8_decode_char(&s))  # Output: 0
+    printf("%d\n", utf8_decode_char(&s))  # Output: 0
     assert s == &string[strlen(string)]
 
 
 def check_fail(s: byte*) -> None:
     ptr = s
-    printf("should fail --> %u\n", utf8_decode_char(&ptr))
+    printf("should fail --> %d\n", utf8_decode_char(&ptr))
     assert ptr == s
 
 
@@ -40,9 +40,9 @@ def test_repeated_start_byte() -> None:
     strcpy(&s[2], "ö")
 
     ptr = &s[0]
-    printf("m = %u\n", utf8_decode_char(&ptr))  # Output: m = 109
+    printf("m = %d\n", utf8_decode_char(&ptr))  # Output: m = 109
     assert ptr == &s[1]
-    check_fail(ptr)  # Output: should fail --> 0
+    check_fail(ptr)  # Output: should fail --> -1
 
 
 def test_truncated() -> None:
@@ -51,16 +51,16 @@ def test_truncated() -> None:
     s[2] = '\0'
 
     ptr = &s[0]
-    printf("m = %u\n", utf8_decode_char(&ptr))  # Output: m = 109
+    printf("m = %d\n", utf8_decode_char(&ptr))  # Output: m = 109
     assert ptr == &s[1]
-    check_fail(ptr)  # Output: should fail --> 0
+    check_fail(ptr)  # Output: should fail --> -1
 
 
 def test_missing_start() -> None:
     puts("missing start")  # Output: missing start
     s = "mörkö"
     # Go to middle of ö character
-    check_fail(&s[2])  # Output: should fail --> 0
+    check_fail(&s[2])  # Output: should fail --> -1
 
 
 def test_overlong_encoding() -> None:
@@ -84,7 +84,7 @@ def test_overlong_encoding() -> None:
     #
     #   U+20AC = 000 000010 000010 101100
     bad_euro_sign: byte[4] = [0b11110_000, 0b10_000010, 0b10_000010, 0b10_101100]
-    check_fail(bad_euro_sign)  # Output: should fail --> 0
+    check_fail(bad_euro_sign)  # Output: should fail --> -1
 
     # 4-byte sequences are for e.g. 😀 (U+1F600)
     #
@@ -92,7 +92,7 @@ def test_overlong_encoding() -> None:
     #           = 000 011111 011000 000000
     smiley: byte[4] = [0b11110_000, 0b10_011111, 0b10_011000, 0b10_000000]
     ptr = &smiley[0]
-    printf("smiley = %u\n", utf8_decode_char(&ptr))  # Output: smiley = 128512
+    printf("smiley = %d\n", utf8_decode_char(&ptr))  # Output: smiley = 128512
     assert ptr == &smiley[4]
 
 
@@ -105,12 +105,12 @@ def test_4byte_sequence_that_decodes_to_large_value() -> None:
     #   U+110000    = 1 0001 0000 0000 0000 0000
     #               = 100 010000 000000 000000
     bad_4byte_sequence: byte[4] = [0b11110_100, 0b10_010000, 0b10_000000, 0b10_000000]
-    check_fail(bad_4byte_sequence)  # Output: should fail --> 0
+    check_fail(bad_4byte_sequence)  # Output: should fail --> -1
 
     #   U+110123    = 1 0001 0000 0001 0010 0011
     #               = 100 010000 000100 100011
     bad_4byte_sequence = [0b11110_100, 0b10_010000, 0b10_000100, 0b10_100011]
-    check_fail(bad_4byte_sequence)  # Output: should fail --> 0
+    check_fail(bad_4byte_sequence)  # Output: should fail --> -1
 
 
 def test_surrogates() -> None:
@@ -130,9 +130,9 @@ def test_surrogates() -> None:
     #           = 1101 111111 111111
     surrogate3: byte[3] = [0b1110_1101, 0b10_111111, 0b10_111111]
 
-    check_fail(surrogate1)  # Output: should fail --> 0
-    check_fail(surrogate2)  # Output: should fail --> 0
-    check_fail(surrogate3)  # Output: should fail --> 0
+    check_fail(surrogate1)  # Output: should fail --> -1
+    check_fail(surrogate2)  # Output: should fail --> -1
+    check_fail(surrogate3)  # Output: should fail --> -1
 
 
 def test_decoding_random_data() -> None:
@@ -143,7 +143,7 @@ def test_decoding_random_data() -> None:
         string = [rand() as byte, rand() as byte, rand() as byte, rand() as byte, '\0']
         ptr = &string[0]
 
-        while utf8_decode_char(&ptr) != 0:
+        while utf8_decode_char(&ptr) > 0:
             pass
         if *ptr == '\0':
             # We got to end of string, it is valid UTF-8
