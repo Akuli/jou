@@ -157,6 +157,30 @@ def test_decoding_random_data() -> None:
         printf("valid_count=%d num_iters=%d\n", valid_count, num_iters)
 
 
+def test_encode_char() -> None:
+    puts("encode char")  # Output: encode char
+
+    s: byte[5]
+
+    s = utf8_encode_char('A')
+    puts(s)  # Output: A
+
+    # Test various non-ASCII characters. Do not print them because any Windows
+    # IO weirdness I may run into is not a bug in the UTF-8 module.
+    s = utf8_encode_char(246)  # ö
+    printf("%d,%d,%d,%d,%d\n", s[0], s[1], s[2], s[3], s[4])  # Output: 195,182,0,0,0
+    s = utf8_encode_char(0x20AC)  # €
+    printf("%d,%d,%d,%d,%d\n", s[0], s[1], s[2], s[3], s[4])  # Output: 226,130,172,0,0
+    s = utf8_encode_char(0x1F600)  # 😀
+    printf("%d,%d,%d,%d,%d\n", s[0], s[1], s[2], s[3], s[4])  # Output: 240,159,152,128,0
+    s = utf8_encode_char(0xD800)  # surrogate --> error
+    printf("%d,%d,%d,%d,%d\n", s[0], s[1], s[2], s[3], s[4])  # Output: 0,0,0,0,0
+    s = utf8_encode_char(0x110000)  # too large --> error
+    printf("%d,%d,%d,%d,%d\n", s[0], s[1], s[2], s[3], s[4])  # Output: 0,0,0,0,0
+    s = utf8_encode_char(0)
+    printf("%d,%d,%d,%d,%d\n", s[0], s[1], s[2], s[3], s[4])  # Output: 0,0,0,0,0
+
+
 def main() -> int:
     test_char_count()
     test_successful_decode()
@@ -167,4 +191,5 @@ def main() -> int:
     test_4byte_sequence_that_decodes_to_large_value()
     test_surrogates()
     test_decoding_random_data()
+    test_encode_char()
     return 0
