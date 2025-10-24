@@ -51,10 +51,15 @@ def utf8_char_size(u: uint32) -> int:
 
 
 # Consumes one codepoint (character) from a UTF-8 string. For example, if
-# s = "örkki", then utf8_decode_char(&s) returns 246 and advances s so that it
-# appears as "rkki". Returns 0 without moving s on error.
+# s = "örkki", then utf8_decode_char(&s) returns 246 (Unicode codepoint number
+# of the ö character) and advances s so that it appears as "rkki".
+#
+# Specifically, the return value is:
+#   positive    if the pointer was moved past a valid character
+#   0           if the string is empty (points at a '\0' end marker)
+#   -1          if the string starts with invalid UTF-8
 @public
-def utf8_decode_char(s: byte**) -> uint32:
+def utf8_decode_char(s: byte**) -> int32:
     result: uint32
 
     start_byte = **s
@@ -72,13 +77,13 @@ def utf8_decode_char(s: byte**) -> uint32:
         result = start_byte & 0b0000_0111
     else:
         # invalid UTF-8: bad start byte
-        return 0
+        return -1
 
     for i = 1; i < num_bytes; i++:
         b = (*s)[i]
         if not is_utf8_continuation(b):
             # invalid UTF-8: bad continuation byte
-            return 0
+            return -1
 
         # TODO: add bitshift operators to Jou
         result *= 64  # shift left by 6
@@ -90,8 +95,8 @@ def utf8_decode_char(s: byte**) -> uint32:
         # It is important to reject overlong encodings! Otherwise we have
         # security problems, because there are multiple ways to represent
         # the same string.
-        return 0
+        return -1
 
     if **s != '\0':
         *s = &(*s)[num_bytes]
-    return result
+    return result as int32
