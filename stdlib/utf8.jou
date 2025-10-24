@@ -95,3 +95,42 @@ def utf8_decode_char(s: byte**) -> uint32:
     if **s != '\0':
         *s = &(*s)[num_bytes]
     return result
+
+
+# Converts a codepoint (character) to a UTF-8 string. For example,
+# utf8_encode_char(246) returns [195, 182, 0, 0, 0] which is the string "ö".
+# This has two bytes of UTF-8 and several '\0' (aka 0) terminators even though
+# just one would be enough.
+#
+# A codepoint is never more than 4 bytes in UTF-8, so the 5-byte return value
+# always has room for a '\0' terminator.
+#
+# If the given number is not a valid Unicode codepoint number, this function
+# returns [0, 0, 0, 0, 0], also known as the empty string.
+@public
+def utf8_encode_char(u: uint32) -> byte[5]:
+    result: byte[5] = [0, 0, 0, 0, 0]
+
+    match utf8_char_size(u):
+        case 1:
+            result[0] = u as byte
+        case 2:
+            # TODO: add bitshift operators to Jou, /64 should be shift right by 6.
+            result[0] = (0b1100_0000 | (u / 64)) as byte
+            result[1] = (0b1000_0000 | (u & 0b0011_1111)) as byte
+        case 3:
+            result[0] = (0b1110_0000 | ((u / 64) / 64)) as byte
+            result[1] = (0b1000_0000 | ((u / 64) & 0b0011_1111)) as byte
+            result[2] = (0b1000_0000 | (u & 0b0011_1111)) as byte
+        case 4:
+            result[0] = (0b1111_0000 | (((u / 64) / 64) / 64)) as byte
+            result[1] = (0b1000_0000 | (((u / 64) / 64) & 0b0011_1111)) as byte
+            result[2] = (0b1000_0000 | ((u / 64) & 0b0011_1111)) as byte
+            result[3] = (0b1000_0000 | (u & 0b0011_1111)) as byte
+        case -1:
+            # Invalid codepoint
+            pass
+        case _:
+            assert False
+
+    return result
