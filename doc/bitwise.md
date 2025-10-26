@@ -212,6 +212,7 @@ and the type of `b` does not affect that.
 
 The result of `~a` is the value of `a` with all bits flipped.
 This is also known as bitwise inverting.
+See [XOR](#bitwise-xor) if you want to flip only some of the bits in a number.
 
 For example:
 
@@ -266,8 +267,6 @@ Therefore `x + (~x) == -1` for any signed value `x`.
 For example, we got `-4` because `3 + (-4) == -1`.
 
 The type of `~a` is always same as the type of `a`.
-
-See [XOR](#bitwise-xor) if you want to flip only some of the bits in a number.
 
 
 ## Hexadecimal Numbers
