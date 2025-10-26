@@ -83,7 +83,7 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
                 new_results = find_matching_inputs(code, &desired_output[1], desired_output_len - 1, last7_before)
                 for p = new_results.ptr; p < new_results.end(); p++:
                     x = *p
-                    x *= 8  # TODO: add bitwise operator to Jou
+                    x *= 8  # TODO: add bitwise left shift operator to Jou
                     x |= last10 & 0b111
                     assert x & 0b11_1111_1111 == last10
                     results.append(x)
