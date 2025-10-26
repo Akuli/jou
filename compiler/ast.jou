@@ -228,35 +228,36 @@ enum AstExpressionKind:
     GetClassFieldPtr    # foo.bar, foo is a pointer to an instance and bar is a field
     As
     # unary operators
-    SizeOf      # sizeof x
-    AddressOf   # &x
-    Dereference # *x
-    Negate      # -x
-    Not         # not x
-    PreIncr     # ++x
-    PostIncr    # x++
-    PreDecr     # --x
-    PostDecr    # x--
+    SizeOf          # sizeof x
+    AddressOf       # &x
+    Dereference     # *x
+    Negate          # -x
+    Not             # not x
+    PreIncr         # ++x
+    PostIncr        # x++
+    PreDecr         # --x
+    PostDecr        # x--
     # binary operators
-    Add         # x+y
-    Sub         # x-y
-    Mul         # x*y
-    Div         # x/y
-    Indexing    # x[y]
-    Mod         # x % y
-    BitAnd      # x & y
-    BitOr       # x | y
-    BitXor      # x ^ y
-    Eq          # x == y
-    Ne          # x != y
-    Gt          # x > y
-    Lt          # x < y
-    Ge          # x >= y
-    Le          # x <= y
-    And         # x and y
-    Or          # x or y
+    Add             # x+y
+    Sub             # x-y
+    Mul             # x*y
+    Div             # x/y
+    Indexing        # x[y]
+    Mod             # x % y
+    BitAnd          # x & y
+    BitOr           # x | y
+    BitXor          # x ^ y
+    BitShiftRight   # x >> y
+    Eq              # x == y
+    Ne              # x != y
+    Gt              # x > y
+    Lt              # x < y
+    Ge              # x >= y
+    Le              # x <= y
+    And             # x and y
+    Or              # x or y
     # ternary operators
-    TernaryIf   # x if y else z
+    TernaryIf       # x if y else z
 
 @public
 class AstExpression:
@@ -361,6 +362,8 @@ class AstExpression:
                 printf("bitwise or\n")
             case AstExpressionKind.BitXor:
                 printf("bitwise xor\n")
+            case AstExpressionKind.BitShiftRight:
+                printf("bitwise shift right\n")
             case AstExpressionKind.Eq:
                 printf("eq\n")
             case AstExpressionKind.Ne:
@@ -434,6 +437,7 @@ class AstExpression:
                 | AstExpressionKind.BitAnd
                 | AstExpressionKind.BitOr
                 | AstExpressionKind.BitXor
+                | AstExpressionKind.BitShiftRight
                 | AstExpressionKind.Eq
                 | AstExpressionKind.Ne
                 | AstExpressionKind.Gt
@@ -583,18 +587,19 @@ enum AstStatementKind:
     ForLoop
     Break
     Continue
-    DeclareLocalVar # x: SomeType = y (the "= y" is optional)
-    ClassField      # x: SomeType (inside a class)
-    ClassUnion      # "union:" followed by indented fields inside a class
-    Assign          # x = y
-    InPlaceAdd      # x += y
-    InPlaceSub      # x -= y
-    InPlaceMul      # x *= y
-    InPlaceDiv      # x /= y
-    InPlaceMod      # x %= y
-    InPlaceBitAnd   # x &= y
-    InPlaceBitOr    # x |= y
-    InPlaceBitXor   # x ^= y
+    DeclareLocalVar         # x: SomeType = y (the "= y" is optional)
+    ClassField              # x: SomeType (inside a class)
+    ClassUnion              # "union:" followed by indented fields inside a class
+    Assign                  # x = y
+    InPlaceAdd              # x += y
+    InPlaceSub              # x -= y
+    InPlaceMul              # x *= y
+    InPlaceDiv              # x /= y
+    InPlaceMod              # x %= y
+    InPlaceBitAnd           # x &= y
+    InPlaceBitOr            # x |= y
+    InPlaceBitXor           # x ^= y
+    InPlaceBitShiftRight    # x >>= y
     FunctionDeclare
     FunctionDef
     MethodDef
@@ -694,6 +699,9 @@ class AstStatement:
             case AstStatementKind.InPlaceBitXor:
                 printf("in-place bitwise xor\n")
                 self.assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceBitShiftRight:
+                printf("in-place bitwise shift right\n")
+                self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.FunctionDeclare:
                 printf("declare a function: ")
                 self.function.print_with_tree_printer(tp)
@@ -766,6 +774,7 @@ class AstStatement:
                 | AstStatementKind.InPlaceBitAnd
                 | AstStatementKind.InPlaceBitOr
                 | AstStatementKind.InPlaceBitXor
+                | AstStatementKind.InPlaceBitShiftRight
             ):
                 self.assignment.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:

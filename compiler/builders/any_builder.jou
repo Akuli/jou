@@ -379,6 +379,17 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.bit_xor(a.hvalue, b.hvalue)
         return result
 
+    # a >> b
+    def bit_shift_right(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self.lbuilder != NULL:
+            result.lvalue = self.lbuilder.bit_shift_right(a.lvalue, b.lvalue)
+        if self.ubuilder != NULL:
+            result.uvalue = self.ubuilder.bit_shift_right(a.uvalue, b.uvalue)
+        if self.hbuilder != NULL:
+            result.hvalue = self.hbuilder.bit_shift_right(a.hvalue, b.hvalue)
+        return result
+
     # a == b
     def eq(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
