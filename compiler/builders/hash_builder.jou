@@ -294,7 +294,7 @@ class HBuilder:
         self.hash.add_string("shr")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        # Types can be different for shift operations - only left side matters
+        # Type of b doesn't matter. Result's type is always the type of a.
         return self.new_value(a.type)
 
     # a == b
