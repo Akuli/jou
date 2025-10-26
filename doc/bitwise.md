@@ -71,6 +71,12 @@ def main() -> int:
 
 Reason:
 
+```
+      3  = 0b0011
+      10 = 0b1010
+---------------=---
+  3 & 10 = 0b0010 = 2
+```
 
 Think of AND as filtering the bits: `3 &` takes the last two bits of a number.
 
@@ -247,8 +253,6 @@ Reason (for the 8-bit `~(3 as int8)` example above, works the same way with 32-b
   -1 (signed)   = 255 (unsigned) = 11111111
   -2 (signed)   = 254 (unsigned) = 11111110
   -3 (signed)   = 253 (unsigned) = 11111101
-  -4 (signed)   = 252 (unsigned) = 11111100
-  3 (signed)    = 3 (unsigned)   = 00000011
   -4 (signed)   = 252 (unsigned) = 11111100
 ```
 
