@@ -87,21 +87,25 @@ def main() -> int:
     printf("%lld %lld %lld %lld\n", d1, d2, d3, d4)  # Output: 1507010757257 753505378628 376752689314 188376344657
 
     # In-place
-    a1 >>= 0
-    b1 >>= 0
-    c1 >>= 0
-    d1 >>= 0
-    printf("%d %d %u %lld\n", a1, b1, c1, d1)  # Output: 48 385 241121 1507010757257
-    a1 >>= 1
-    b1 >>= 2
-    c1 >>= 3
-    d1 >>= 4
-    printf("%d %d %u %lld\n", a1, b1, c1, d1)  # Output: 24 96 30140 94188172328
-    a1 >>= -1
-    b1 >>= -2
-    c1 >>= -3
-    d1 >>= -4
-    printf("%d %d %u %lld\n", a1, b1, c1, d1)  # Output: 0 0 0 0
+    a: byte = 'a'
+    b: int16 = 12345
+    c: uint32 = 123454321
+    d: int64 = 12345432123454321
+    a >>= 0
+    b >>= 0
+    c >>= 0
+    d >>= 0
+    printf("%d %d %u %lld\n", a, b, c, d)  # Output: 97 12345 123454321 12345432123454321
+    a >>= 1
+    b >>= 2
+    c >>= 3
+    d >>= 4
+    printf("%d %d %u %lld\n", a, b, c, d)  # Output: 48 3086 15431790 771589507715895
+    a >>= -1
+    b >>= -2
+    c >>= -3
+    d >>= -4
+    printf("%d %d %u %lld\n", a, b, c, d)  # Output: 0 0 0 0
 
     # Casting right side to uint8 is not a valid way to implement bitshifts.
     # This would fail if bitshifts were implemented in that way.
