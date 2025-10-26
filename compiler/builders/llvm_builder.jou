@@ -239,6 +239,40 @@ def cast_floating_point_to_integer(builder: LLVMBuilder*, obj: LLVMValue*, from:
     )
 
 
+# Builds the result of "a >> b". Avoids LLVM's undefined behaviors.
+def shift_right(builder: LLVMBuilder*, a: LLVMValue*, b: LLVMValue*, shift_type: Type*) -> LLVMValue*:
+    assert LLVMTypeOf(a) == type_to_llvm(shift_type)
+
+    return LLVMBuildSelect(
+        builder,
+        # If we shift beyond the width of the type
+        LLVMBuildICmp(
+            builder,
+            # Check if shift amount >= width
+            LLVMIntPredicate.UGE,
+            b,
+            # Width of the data type (max 64, so surely fits into b's type)
+            LLVMConstInt(LLVMTypeOf(b), shift_type.size_in_bits, False as int),
+            "shifts_beyond_width",
+        ),
+        # Then return zero
+        LLVMConstInt(LLVMTypeOf(a), 0, False as int),
+        # Otherwise, return the result of a normal LLVM bitshift, which is a
+        # poison value for shifting beyond the width. This is fine because
+        # creating a poison value is not UB if you don't use the poison value.
+        LLVMBuildLShr(
+            builder,
+            a,
+            # Shift amount must be converted to a's type because LLVM wants it
+            # that way. This is fine: when the result is used, the shift amount
+            # is 0 to 63 so it surely fits.
+            LLVMBuildIntCast2(builder, b, LLVMTypeOf(a), False as int, "shift_amount"),
+            "bitshift_right_or_poison",
+        ),
+        "bitshift_right",
+    )
+
+
 def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
     assert from != NULL
     assert to != NULL
@@ -591,38 +625,10 @@ class LBuilder:
 
     # a >> b
     def bit_shift_right(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
-        # When shift amount is >= width or < 0, the result should be 0
-        shift_type = type_to_llvm(a.type)
-        width = a.type.size_in_bits
-        # Use int64 for comparison to avoid truncation
-        cmp_type = LLVMInt64Type()
-        width_const = LLVMConstInt(cmp_type, width as int64, False as int)
-        zero_const = LLVMConstInt(cmp_type, 0, False as int)
-        shift_amount_cmp = LLVMBuildIntCast2(self.llvm_builder, b.llvm_value, cmp_type, False as int, "shift_amount_cmp")
-        # Test if shift amount is valid (0 <= amount < width)
-        is_negative = LLVMBuildICmp(self.llvm_builder, LLVMIntPredicate.SLT, shift_amount_cmp, zero_const, "is_negative")
-        is_too_large = LLVMBuildICmp(self.llvm_builder, LLVMIntPredicate.UGE, shift_amount_cmp, width_const, "is_too_large")
-        is_invalid = LLVMBuildOr(self.llvm_builder, is_negative, is_too_large, "is_invalid")
-        # For the actual shift, cast to the left operand's width
-        shift_amount = LLVMBuildIntCast2(self.llvm_builder, b.llvm_value, shift_type, False as int, "shift_amount")
-
-        # Instead of always performing the shift, use select to avoid shifting if invalid
-        match a.type.kind:
-            case TypeKind.SignedInteger:
-                unsigned_type = uint_type(a.type.size_in_bits)
-                unsigned_a = LLVMBuildIntCast2(self.llvm_builder, a.llvm_value, type_to_llvm(unsigned_type), False as int, "unsigned_a")
-                shifted = LLVMBuildLShr(self.llvm_builder, unsigned_a, shift_amount, "shr")
-                signed_result = LLVMBuildIntCast2(self.llvm_builder, shifted, type_to_llvm(a.type), True as int, "signed_result")
-                zero_signed = LLVMConstInt(type_to_llvm(a.type), 0, True as int)
-                final_result = LLVMBuildSelect(self.llvm_builder, is_invalid, zero_signed, signed_result, "final_result")
-                return LBuilderValue{type = a.type, llvm_value = final_result}
-            case TypeKind.UnsignedInteger:
-                zero_unsigned = LLVMConstInt(type_to_llvm(a.type), 0, False as int)
-                shifted = LLVMBuildLShr(self.llvm_builder, a.llvm_value, shift_amount, "shr")
-                final_result = LLVMBuildSelect(self.llvm_builder, is_invalid, zero_unsigned, shifted, "final_result")
-                return LBuilderValue{type = a.type, llvm_value = final_result}
-            case _:
-                assert False
+        return LBuilderValue{
+            type = a.type,
+            llvm_value = shift_right(self.llvm_builder, a.llvm_value, b.llvm_value, a.type),
+        }
 
     # a == b
     def eq(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
