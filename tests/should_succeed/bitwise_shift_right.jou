@@ -124,7 +124,8 @@ def main() -> int:
     printf("%d\n", 97 >> 257)  # Output: 0
     printf("%d\n", 'a' >> 257)  # Output: 0
 
-    # Type hint on shift goes to the left side of shift
+    # Type hint on shift goes to the left side of shift, so compiler knows that
+    # the big number here is supposed to be a uint64, not int
     big_number: uint64 = 12345432123454321 >> 1
     printf("%llu\n", big_number)  # Output: 6172716061727160
 
