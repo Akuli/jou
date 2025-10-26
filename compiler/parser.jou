@@ -913,7 +913,13 @@ class Parser:
     # TODO: ban chaining different bitwise operations e.g. a ^ b & c
     def parse_expression_with_bitwise_ops(self) -> AstExpression:
         result = self.parse_expression_with_add()
-        while self.tokens.is_operator("&") or self.tokens.is_operator("|") or self.tokens.is_operator("^") or self.tokens.is_operator("<<") or self.tokens.is_operator(">>"):
+        while (
+            self.tokens.is_operator("&")
+            or self.tokens.is_operator("|")
+            or self.tokens.is_operator("^")
+            or self.tokens.is_operator("<<")
+            or self.tokens.is_operator(">>")
+        ):
             t = self.tokens++
             lhs_rhs = [result, self.parse_expression_with_add()]
             result = build_operator_expression(t, 2, lhs_rhs)
