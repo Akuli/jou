@@ -78,7 +78,7 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
         assert arity == 2
         result.kind = AstExpressionKind.BitXor
     elif t.is_operator("<<"):
-        fail(t.location, "sorry, the bitwise '<<' operator is not supported yet (see issue #879 on GitHub)")
+        fail(t.location, "sorry, the bitwise '<<' operator is not supported yet (https://github.com/Akuli/jou/issues/879)")
     elif t.is_operator(">>"):
         assert arity == 2
         result.kind = AstExpressionKind.BitShiftRight
@@ -124,7 +124,7 @@ def determine_the_kind_of_a_statement_that_starts_with_an_expression(
     if this_token_is_after_that_initial_expression.is_operator("^="):
         return AstStatementKind.InPlaceBitXor
     if this_token_is_after_that_initial_expression.is_operator("<<="):
-        fail(this_token_is_after_that_initial_expression.location, "sorry, the bitwise '<<=' operator is not supported yet (see issue #879 on GitHub)")
+        fail(this_token_is_after_that_initial_expression.location, "sorry, the bitwise '<<=' operator is not supported yet (https://github.com/Akuli/jou/issues/879)")
     if this_token_is_after_that_initial_expression.is_operator(">>="):
         return AstStatementKind.InPlaceBitShiftRight
     return AstStatementKind.ExpressionStatement

@@ -1225,7 +1225,11 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             | AstExpressionKind.Le
             | AstExpressionKind.BitShiftRight
         ):
-            typecheck_expression_not_void(state, &expr.operands[0], NULL)
+            if expr.kind == AstExpressionKind.BitShiftRight:
+                # Result of "a >> b" is same type as a. Pass type hint along.
+                typecheck_expression_not_void(state, &expr.operands[0], type_hint)
+            else:
+                typecheck_expression_not_void(state, &expr.operands[0], NULL)
             typecheck_expression_not_void(state, &expr.operands[1], NULL)
             result = check_binop(state.fom_types, expr.kind, expr.location, &expr.operands[0], &expr.operands[1])
 
