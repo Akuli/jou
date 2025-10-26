@@ -483,30 +483,30 @@ def check_binop(
         # Special-cased, because right side type does not affect the type of result.
         do_implicit_cast(fom, rhs, int64Type, Location{}, NULL)
         return lhs.types.orig_type
-    else:
-        cast_type: Type* = NULL
-        if got_bools:
-            cast_type = boolType
-        if got_integers:
-            cast_type = cast_type_of_integer_binop(ltype, rtype, op)
-        if got_numbers and not got_integers:
-            if ltype == doubleType or rtype == doubleType:
-                cast_type = doubleType
-            else:
-                cast_type = floatType
-        if got_pointers:
-            cast_type = uint_type(64)
-        if got_enums:
-            cast_type = intType
-        assert cast_type != NULL
 
-        do_implicit_cast(fom, lhs, cast_type, Location{}, NULL)
-        do_implicit_cast(fom, rhs, cast_type, Location{}, NULL)
-
-        if some_kind_of_compare:
-            return boolType
+    cast_type: Type* = NULL
+    if got_bools:
+        cast_type = boolType
+    if got_integers:
+        cast_type = cast_type_of_integer_binop(ltype, rtype, op)
+    if got_numbers and not got_integers:
+        if ltype == doubleType or rtype == doubleType:
+            cast_type = doubleType
         else:
-            return cast_type
+            cast_type = floatType
+    if got_pointers:
+        cast_type = uint_type(64)
+    if got_enums:
+        cast_type = intType
+    assert cast_type != NULL
+
+    do_implicit_cast(fom, lhs, cast_type, Location{}, NULL)
+    do_implicit_cast(fom, rhs, cast_type, Location{}, NULL)
+
+    if some_kind_of_compare:
+        return boolType
+    else:
+        return cast_type
 
 
 def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
@@ -1523,7 +1523,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     opname = "xor"
                 case AstStatementKind.InPlaceBitShiftRight:
                     op = AstExpressionKind.BitShiftRight
-                    opname = "bruh2"
+                    opname = "bitwise shift"  # currently never used, I think...
                 case _:
                     assert False
 

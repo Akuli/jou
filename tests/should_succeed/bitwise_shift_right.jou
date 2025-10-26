@@ -11,6 +11,8 @@ def check_uint8(x: uint8*) -> None:
     pass
 def check_int16(x: int16*) -> None:
     pass
+def check_int32(x: int32*) -> None:
+    pass
 def check_uint32(x: uint32*) -> None:
     pass
 def check_int64(x: int64*) -> None:
@@ -28,6 +30,16 @@ def main() -> int:
     i6 = 1234 >> (6 as int32)  # Warning: unnecessary cast from int to int
     i7 = 1234 >> (7 as uint64)
     i8 = 1234 >> (8 as int64)
+
+    check_int32(&i0)
+    check_int32(&i1)
+    check_int32(&i2)
+    check_int32(&i3)
+    check_int32(&i4)
+    check_int32(&i5)
+    check_int32(&i6)
+    check_int32(&i7)
+    check_int32(&i8)
 
     # Output: 1234 617 308 154 77 38 19 9 4
     printf("%d %d %d %d %d %d %d %d %d\n", i0, i1, i2, i3, i4, i5, i6, i7, i8)
@@ -111,5 +123,9 @@ def main() -> int:
     # This would fail if bitshifts were implemented in that way.
     printf("%d\n", 97 >> 257)  # Output: 0
     printf("%d\n", 'a' >> 257)  # Output: 0
+
+    # Type hint on shift goes to the left side of shift
+    big_number: uint64 = 12345432123454321 >> 1
+    printf("%llu\n", big_number)  # Output: 6172716061727160
 
     return 0
