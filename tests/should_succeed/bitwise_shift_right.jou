@@ -25,7 +25,7 @@ def main() -> int:
     i3 = 1234 >> (3 as uint16)
     i4 = 1234 >> (4 as int16)
     i5 = 1234 >> (5 as uint32)
-    i6 = 1234 >> 6
+    i6 = 1234 >> (6 as int32)  # Warning: unnecessary cast from int to int
     i7 = 1234 >> (7 as uint64)
     i8 = 1234 >> (8 as int64)
 
@@ -105,5 +105,5 @@ def main() -> int:
 
     # Casting right side to uint8 is not a valid way to implement bitshifts.
     # This would fail if bitshifts were implemented in that way.
-    printf("%d\n", 97 >> 257)  # Output: 48
-    printf("%d\n", 'a' >> 257)  # Output: 48
+    printf("%d\n", 97 >> 257)  # Output: 0
+    printf("%d\n", 'a' >> 257)  # Output: 0
