@@ -371,6 +371,11 @@ def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind
                 return rtype
             return ltype
 
+        # Result of bitwise xor is the type of the left side. There is no
+        # "cast type" that would be applied to both.
+        case AstExpressionKind.BitShiftRight:
+            assert False
+
         case (
             AstExpressionKind.Eq
             | AstExpressionKind.Ne
@@ -411,12 +416,15 @@ def check_binop(
     lhs: AstExpression*,
     rhs: AstExpression*,
 ) -> Type*:
+    msg: byte[500]
+
     assert lhs.types.orig_type != NULL
     assert rhs.types.orig_type != NULL
 
     do_what: byte*
     some_kind_of_compare = False
     equals_compare = False
+    bitshift = False
 
     match op:
         case AstExpressionKind.Add:
@@ -437,6 +445,7 @@ def check_binop(
             do_what = "xor"
         case AstExpressionKind.BitShiftRight:
             do_what = "do bitwise shift with"
+            bitshift = True
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
             do_what = "compare"
             some_kind_of_compare = True
@@ -466,34 +475,39 @@ def check_binop(
         or (got_bools and not equals_compare)
         or (got_enums and not equals_compare)
         or (got_pointers and not some_kind_of_compare)
+        or (bitshift and not got_integers)
     ):
-        msg: byte[500]
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
 
-    cast_type: Type* = NULL
-    if got_bools:
-        cast_type = boolType
-    if got_integers:
-        cast_type = cast_type_of_integer_binop(ltype, rtype, op)
-    if got_numbers and not got_integers:
-        if ltype == doubleType or rtype == doubleType:
-            cast_type = doubleType
-        else:
-            cast_type = floatType
-    if got_pointers:
-        cast_type = uint_type(64)
-    if got_enums:
-        cast_type = intType
-    assert cast_type != NULL
-
-    do_implicit_cast(fom, lhs, cast_type, Location{}, NULL)
-    do_implicit_cast(fom, rhs, cast_type, Location{}, NULL)
-
-    if some_kind_of_compare:
-        return boolType
+    if op == AstExpressionKind.BitShiftRight:
+        # Special-cased, because right side type does not affect the type of result.
+        do_implicit_cast(fom, rhs, int64Type, Location{}, NULL)
+        return lhs.types.orig_type
     else:
-        return cast_type
+        cast_type: Type* = NULL
+        if got_bools:
+            cast_type = boolType
+        if got_integers:
+            cast_type = cast_type_of_integer_binop(ltype, rtype, op)
+        if got_numbers and not got_integers:
+            if ltype == doubleType or rtype == doubleType:
+                cast_type = doubleType
+            else:
+                cast_type = floatType
+        if got_pointers:
+            cast_type = uint_type(64)
+        if got_enums:
+            cast_type = intType
+        assert cast_type != NULL
+
+        do_implicit_cast(fom, lhs, cast_type, Location{}, NULL)
+        do_implicit_cast(fom, rhs, cast_type, Location{}, NULL)
+
+        if some_kind_of_compare:
+            return boolType
+        else:
+            return cast_type
 
 
 def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
