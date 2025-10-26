@@ -211,7 +211,7 @@ and the type of `b` does not affect that.
 ## Bitwise Not
 
 The result of `~a` is the value of `a` with all bits flipped.
-This is also known as bitwise inverting.
+This is also known as bitwise negation and bitwise inverting.
 See [XOR](#bitwise-xor) if you want to flip only some of the bits in a number.
 
 For example:
