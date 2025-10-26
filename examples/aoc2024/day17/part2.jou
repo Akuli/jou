@@ -22,9 +22,7 @@ def get_first_output(code: int*, reg_a: int64) -> int:
         operand = *ip++
 
         if opcode == 0:  # adv = A DiVision
-            i = do_combo_op(operand, regs)
-            while i --> 0:
-                regs[0] /= 2  # TODO: add left shift operator to Jou
+            regs[0] >>= do_combo_op(operand, regs)
         elif opcode == 1:  # bxl = B bitwise Xor with Literal
             regs[1] ^= operand
         elif opcode == 2:  # bst = B Set value and Truncate to 3 bits
@@ -37,15 +35,9 @@ def get_first_output(code: int*, reg_a: int64) -> int:
         elif opcode == 5:  # out = OUTput value
             return do_combo_op(operand, regs) & 0b111
         elif opcode == 6:  # bdv = B DiVision
-            regs[1] = regs[0]
-            i = do_combo_op(operand, regs)
-            while i --> 0:
-                regs[1] /= 2
+            regs[1] = regs[0] >> do_combo_op(operand, regs)
         elif opcode == 7:  # cdv = C DiVision
-            regs[2] = regs[0]
-            i = do_combo_op(operand, regs)
-            while i --> 0:
-                regs[2] /= 2
+            regs[2] = regs[0] >> do_combo_op(operand, regs)
 
     return -1  # no output
 
@@ -87,11 +79,11 @@ def find_matching_inputs(code: int*, desired_output: int*, desired_output_len: i
                 and get_first_output(code, last10) == desired_output[0]
             ):
                 # Recursively find more bits.
-                last7_before = last10 / 8  # shift right by 3
+                last7_before = last10 >> 3
                 new_results = find_matching_inputs(code, &desired_output[1], desired_output_len - 1, last7_before)
                 for p = new_results.ptr; p < new_results.end(); p++:
                     x = *p
-                    x *= 8  # shift left to make room
+                    x *= 8  # TODO: add bitwise left shift operator to Jou
                     x |= last10 & 0b111
                     assert x & 0b11_1111_1111 == last10
                     results.append(x)
