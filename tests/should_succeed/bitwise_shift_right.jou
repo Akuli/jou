@@ -25,7 +25,7 @@ def main() -> int:
     printf("%d\n", 1234 >> (3 as uint16))  # Output: 154
     printf("%d\n", 1234 >> (4 as int16))  # Output: 77
     printf("%d\n", 1234 >> (5 as uint32))  # Output: 38
-    printf("%d\n", 1234 >> (6 as int32))  # Output: 19
+    printf("%d\n", 1234 >> (6 as uint32))  # Output: 19  # Warning: unnecessary cast from int to int
     printf("%d\n", 1234 >> (7 as uint64))  # Output: 9
     printf("%d\n", 1234 >> (8 as int64))  # Output: 4
 
@@ -99,3 +99,7 @@ def main() -> int:
     c2 >>= -3
     d2 >>= -4
     printf("%d %d %u %lld\n", a2, b2, c3, d4)  # Output: 0 0 0 0
+
+    # Casting right side to uint8 is not a valid way to implement bitshifts.
+    # This would fail if you do that.
+    printf("%d\n", 'a' >> 257)  # Output: 48

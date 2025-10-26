@@ -100,6 +100,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             | AstExpressionKind.BitAnd
             | AstExpressionKind.BitOr
             | AstExpressionKind.BitXor
+            | AstExpressionKind.BitShiftRight
         ):
             return "the result of a calculation"
 
@@ -434,6 +435,8 @@ def check_binop(
             do_what = "take bitwise OR of"
         case AstExpressionKind.BitXor:
             do_what = "xor"
+        case AstExpressionKind.BitShiftRight:
+            do_what = "do bitwise shift with"
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
             do_what = "compare"
             some_kind_of_compare = True
@@ -1114,8 +1117,8 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                     temptype.name)
                 fail(expr.location, msg)
 
-        case AstExpressionKind.GetClassField | AstExpressionKind.GetClassFieldPtr:
-            # Constructed above, should not already be like this when we get here
+        case AstExpressionKind.GetClassField | AstExpressionKind.GetClassFieldPtr | AstExpressionKind.GetFuncPtr:
+            # Constructed here, should not already be like this when we get here
             assert False
 
         case AstExpressionKind.Call:
@@ -1207,6 +1210,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             | AstExpressionKind.Ge
             | AstExpressionKind.Lt
             | AstExpressionKind.Le
+            | AstExpressionKind.BitShiftRight
         ):
             typecheck_expression_not_void(state, &expr.operands[0], NULL)
             typecheck_expression_not_void(state, &expr.operands[1], NULL)
@@ -1267,10 +1271,6 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             else:
                 typecheck_expression_not_void(state, &expr.as_.value, NULL)
                 do_explicit_cast(state.fom_types, &expr.as_.value, result, expr.location)
-
-        case _:
-            printf("%d\n", expr.kind as int)
-            assert False
 
     assert result != NULL
     expr.types.orig_type = result
@@ -1470,12 +1470,17 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             | AstStatementKind.InPlaceBitAnd
             | AstStatementKind.InPlaceBitOr
             | AstStatementKind.InPlaceBitXor
+            | AstStatementKind.InPlaceBitShiftRight
         ):
             targetexpr = &stmt.assignment.target
             valueexpr = &stmt.assignment.value
 
             targettype = typecheck_expression_not_void(state, targetexpr, NULL)
-            value_type = typecheck_expression_not_void(state, valueexpr, targettype)
+            if stmt.kind == AstStatementKind.InPlaceBitShiftRight:
+                # The type of "y" in "x >>= y" has nothing to do with the type of x.
+                value_type = typecheck_expression_not_void(state, valueexpr, NULL)
+            else:
+                value_type = typecheck_expression_not_void(state, valueexpr, targettype)
             ensure_can_take_address(state.fom_types, targetexpr, "cannot assign to %s")
 
             match stmt.kind:
@@ -1503,6 +1508,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 case AstStatementKind.InPlaceBitXor:
                     op = AstExpressionKind.BitXor
                     opname = "xor"
+                case AstStatementKind.InPlaceBitShiftRight:
+                    op = AstExpressionKind.BitShiftRight
+                    opname = "bruh2"
                 case _:
                     assert False
 
