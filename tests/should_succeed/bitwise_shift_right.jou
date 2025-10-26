@@ -19,15 +19,18 @@ def check_int64(x: int64*) -> None:
 
 def main() -> int:
     # Type of right side shouldn't matter
-    printf("%d\n", 1234 >> 0)  # Output: 1234
-    printf("%d\n", 1234 >> (1 as byte))  # Output: 617
-    printf("%d\n", 1234 >> (2 as int8))  # Output: 308
-    printf("%d\n", 1234 >> (3 as uint16))  # Output: 154
-    printf("%d\n", 1234 >> (4 as int16))  # Output: 77
-    printf("%d\n", 1234 >> (5 as uint32))  # Output: 38
-    printf("%d\n", 1234 >> (6 as uint32))  # Output: 19  # Warning: unnecessary cast from int to int
-    printf("%d\n", 1234 >> (7 as uint64))  # Output: 9
-    printf("%d\n", 1234 >> (8 as int64))  # Output: 4
+    i0 = 1234 >> 0
+    i1 = 1234 >> (1 as byte)
+    i2 = 1234 >> (2 as int8)
+    i3 = 1234 >> (3 as uint16)
+    i4 = 1234 >> (4 as int16)
+    i5 = 1234 >> (5 as uint32)
+    i6 = 1234 >> 6
+    i7 = 1234 >> (7 as uint64)
+    i8 = 1234 >> (8 as int64)
+
+    # Output: 1234 617 308 154 77 38 19 9 4
+    printf("%d %d %d %d %d %d %d %d %d\n", i0, i1, i2, i3, i4, i5, i6, i7, i8)
 
     # Negative values get shifted as if they were unsigned.
     # Example: -1 >> 4 = 0xFFFF_FFFF >> 4 = 0x0FFF_FFFF = 268435455
