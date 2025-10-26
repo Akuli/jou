@@ -611,18 +611,16 @@ class LBuilder:
             case TypeKind.SignedInteger:
                 unsigned_type = uint_type(a.type.size_in_bits)
                 unsigned_a = LLVMBuildIntCast2(self.llvm_builder, a.llvm_value, type_to_llvm(unsigned_type), False as int, "unsigned_a")
-                zero_unsigned = LLVMConstInt(type_to_llvm(unsigned_type), 0, False as int)
-                value_to_shift = LLVMBuildSelect(self.llvm_builder, is_invalid, zero_unsigned, unsigned_a, "value_to_shift")
-                shifted = LLVMBuildLShr(self.llvm_builder, value_to_shift, shift_amount, "shr")
+                shifted = LLVMBuildLShr(self.llvm_builder, unsigned_a, shift_amount, "shr")
                 signed_result = LLVMBuildIntCast2(self.llvm_builder, shifted, type_to_llvm(a.type), True as int, "signed_result")
                 zero_signed = LLVMConstInt(type_to_llvm(a.type), 0, True as int)
                 final_result = LLVMBuildSelect(self.llvm_builder, is_invalid, zero_signed, signed_result, "final_result")
                 return LBuilderValue{type = a.type, llvm_value = final_result}
             case TypeKind.UnsignedInteger:
                 zero_unsigned = LLVMConstInt(type_to_llvm(a.type), 0, False as int)
-                value_to_shift = LLVMBuildSelect(self.llvm_builder, is_invalid, zero_unsigned, a.llvm_value, "value_to_shift")
-                shifted = LLVMBuildLShr(self.llvm_builder, value_to_shift, shift_amount, "shr")
-                return LBuilderValue{type = a.type, llvm_value = shifted}
+                shifted = LLVMBuildLShr(self.llvm_builder, a.llvm_value, shift_amount, "shr")
+                final_result = LLVMBuildSelect(self.llvm_builder, is_invalid, zero_unsigned, shifted, "final_result")
+                return LBuilderValue{type = a.type, llvm_value = final_result}
             case _:
                 assert False
 
