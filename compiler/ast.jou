@@ -233,6 +233,7 @@ enum AstExpressionKind:
     Dereference     # *x
     Negate          # -x
     Not             # not x
+    BitNot          # ~x
     PreIncr         # ++x
     PostIncr        # x++
     PreDecr         # --x
@@ -338,6 +339,8 @@ class AstExpression:
                 printf("negate\n")
             case AstExpressionKind.Not:
                 printf("not\n")
+            case AstExpressionKind.BitNot:
+                printf("bitwise not\n")
             case AstExpressionKind.PreIncr:
                 printf("pre-increment\n")
             case AstExpressionKind.PostIncr:

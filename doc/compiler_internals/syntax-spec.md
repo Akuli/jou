@@ -129,7 +129,7 @@ Jou has a few different kinds of tokens:
     Indent tokens always occur just after newline tokens.
     It is an error if the code is indented with tabs or with some indentation size other than 4 spaces.
 - **Dedent tokens** are added whenever the amount of indentation decreases by 4 spaces.
-- **Operator tokens** are any of the following: `... <<= >>= == != -> <= >= ++ -- += -= *= /= %= &= |= ^= << >> . , : ; = ( ) { } [ ] & % * / + - ^ < > |`
+- **Operator tokens** are any of the following: `... <<= >>= == != -> <= >= ++ -- += -= *= /= %= &= |= ^= << >> . , : ; = ( ) { } [ ] & % * / + - ^ < > | ~`
     Note that `...` means literally three dots in the source code,
     and is used, for example, when declaring the `printf()` function in [stdlib/io.jou](../../stdlib/io.jou).
     Also note that `a = = b` and `a == b` do different things:

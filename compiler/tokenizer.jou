@@ -15,7 +15,7 @@ def is_identifier_or_number_byte(b: byte) -> bool:
     return b >= 128 or is_ascii_letter(b) or is_ascii_digit(b) or b == '_'
 
 def is_operator_byte(c: byte) -> bool:
-    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|^", c) != NULL
+    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|^~", c) != NULL
 
 def is_keyword(word: byte*) -> bool:
     # See also: tests/should_succeed/keywords.jou
@@ -448,7 +448,7 @@ class Tokenizer:
             "...", "===", "!==", "<<=", ">>=",
             "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
             "&&", "||", "<<", ">>",
-            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "^", "<", ">", "!", "|",
+            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "^", "<", ">", "!", "|", "~",
         ]
         operator: byte[100] = ""
 

@@ -423,6 +423,17 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.not_(value.hvalue)
         return result
 
+    # ~value
+    def bit_not(self, value: AnyBuilderValue) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self.lbuilder != NULL:
+            result.lvalue = self.lbuilder.bit_not(value.lvalue)
+        if self.ubuilder != NULL:
+            result.uvalue = self.ubuilder.bit_not(value.uvalue)
+        if self.hbuilder != NULL:
+            result.hvalue = self.hbuilder.bit_not(value.hvalue)
+        return result
+
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
