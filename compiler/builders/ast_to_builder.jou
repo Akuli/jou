@@ -518,6 +518,8 @@ class AstToBuilder:
                 return self.build_or(&expr.operands[0], &expr.operands[1])
             case AstExpressionKind.Not:
                 return self.builder.not_(self.build_expression(&expr.operands[0]))
+            case AstExpressionKind.BitNot:
+                return self.builder.bit_not(self.build_expression(&expr.operands[0]))
             case AstExpressionKind.TernaryIf:
                 return self.build_ternary(&expr.operands[0], &expr.operands[1], &expr.operands[2])
 

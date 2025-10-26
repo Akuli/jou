@@ -100,6 +100,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             | AstExpressionKind.BitOr
             | AstExpressionKind.BitXor
             | AstExpressionKind.BitShiftRight
+            | AstExpressionKind.BitNot
         ):
             return "the result of a calculation"
 
@@ -1209,6 +1210,12 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 snprintf(msg, sizeof(msg),
                     "value after '-' must be a float or double or a signed integer, not %s",
                     result.name)
+                fail(expr.location, msg)
+
+        case AstExpressionKind.BitNot:
+            result = typecheck_expression_not_void(state, &expr.operands[0], type_hint)
+            if not result.is_integer_type():
+                snprintf(msg, sizeof(msg), "cannot take bitwise NOT of %s", result.name)
                 fail(expr.location, msg)
 
         case (
