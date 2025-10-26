@@ -423,7 +423,7 @@ def check_binop(
     do_what: byte*
     some_kind_of_compare = False
     equals_compare = False
-    bitshift = False
+    need_integers = False
 
     match op:
         case AstExpressionKind.Add:
@@ -438,13 +438,16 @@ def check_binop(
             do_what = "take remainder with"
         case AstExpressionKind.BitAnd:
             do_what = "take bitwise AND of"
+            need_integers = True
         case AstExpressionKind.BitOr:
             do_what = "take bitwise OR of"
+            need_integers = True
         case AstExpressionKind.BitXor:
             do_what = "xor"
+            need_integers = True
         case AstExpressionKind.BitShiftRight:
             do_what = "do bitwise shift with"
-            bitshift = True
+            need_integers = True
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
             do_what = "compare"
             some_kind_of_compare = True
@@ -474,7 +477,7 @@ def check_binop(
         or (got_bools and not equals_compare)
         or (got_enums and not equals_compare)
         or (got_pointers and not some_kind_of_compare)
-        or (bitshift and not got_integers)
+        or (need_integers and not got_integers)
     ):
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
