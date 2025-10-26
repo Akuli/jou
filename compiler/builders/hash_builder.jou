@@ -317,6 +317,12 @@ class HBuilder:
         self.hash.add_int64(value.id)
         return self.new_value(boolType)
 
+    # ~value
+    def bit_not(self, value: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("bitnot")
+        self.hash.add_int64(value.id)
+        return self.new_value(value.type)
+
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> HBuilderValue:
         self.hash.add_string("sizeof")
