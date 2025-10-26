@@ -1,0 +1,101 @@
+# Tests for the bitwise shift right operator (a >> b)
+
+import "stdlib/io.jou"
+
+
+# These are used to fail compiling if a value is of the wrong type.
+#
+# Taking a pointer avoids implicit casts. For example, if b is a byte, then
+# b implicitly casts to int16, but &b doesn't implicitly cast to int16*.
+def check_uint8(x: uint8*) -> None:
+    pass
+def check_int16(x: int16*) -> None:
+    pass
+def check_uint32(x: uint32*) -> None:
+    pass
+def check_int64(x: int64*) -> None:
+    pass
+
+
+def main() -> int:
+    # Type of right side shouldn't matter
+    printf("%d\n", 1234 >> 0)  # Output: 1234
+    printf("%d\n", 1234 >> (1 as byte))  # Output: 617
+    printf("%d\n", 1234 >> (2 as int8))  # Output: 308
+    printf("%d\n", 1234 >> (3 as uint16))  # Output: 154
+    printf("%d\n", 1234 >> (4 as int16))  # Output: 77
+    printf("%d\n", 1234 >> (5 as uint32))  # Output: 38
+    printf("%d\n", 1234 >> (6 as int32))  # Output: 19
+    printf("%d\n", 1234 >> (7 as uint64))  # Output: 9
+    printf("%d\n", 1234 >> (8 as int64))  # Output: 4
+
+    # Negative values get shifted as if they were unsigned.
+    # Example: -1 >> 4 = 0xFFFF_FFFF >> 4 = 0x0FFF_FFFF = 268435455
+    printf("%d\n", -1 >> 0)  # Output: -1
+    printf("%d\n", -1 >> 1)  # Output: 2147483647
+    printf("%d\n", -1 >> 2)  # Output: 1073741823
+    printf("%d\n", -1 >> 3)  # Output: 536870911
+    printf("%d\n", -1 >> 4)  # Output: 268435455
+
+    # This is not UB in Jou like it would be in C.
+    printf("%d\n", 123 >> 10000000)  # Output: 0
+
+    # Here -1 gets interpreted as an uint32, so a very large value, not UB
+    printf("%lld\n", 123 >> -1)  # Output: 0
+
+    # Other data types. Again, type of right side doesn't matter.
+    a1 = 'a' >> (1 as byte)
+    a2 = 'a' >> (2 as int16)
+    a3 = 'a' >> (3 as uint32)
+    a4 = 'a' >> (4 as int64)
+    b1 = (12345 as int16) >> (5 as byte)
+    b2 = (12345 as int16) >> (6 as int16)
+    b3 = (12345 as int16) >> (7 as uint32)
+    b4 = (12345 as int16) >> (8 as int64)
+    c1 = (123454321 as uint32) >> (9 as byte)
+    c2 = (123454321 as uint32) >> (10 as int16)
+    c3 = (123454321 as uint32) >> (11 as uint32)
+    c4 = (123454321 as uint32) >> (12 as int64)
+    d1 = (12345432123454321 as int64) >> (13 as byte)
+    d2 = (12345432123454321 as int64) >> (14 as int16)
+    d3 = (12345432123454321 as int64) >> (15 as uint32)
+    d4 = (12345432123454321 as int64) >> (16 as int64)
+
+    check_uint8(&a1)
+    check_uint8(&a2)
+    check_uint8(&a3)
+    check_uint8(&a4)
+    check_int16(&b1)
+    check_int16(&b2)
+    check_int16(&b3)
+    check_int16(&b4)
+    check_uint32(&c1)
+    check_uint32(&c2)
+    check_uint32(&c3)
+    check_uint32(&c4)
+    check_int64(&d1)
+    check_int64(&d2)
+    check_int64(&d3)
+    check_int64(&d4)
+
+    printf("%d %d %d %d\n", a1, a2, a3, a4)  # Output: 48 24 12 6
+    printf("%d %d %d %d\n", b1, b2, b3, b4)  # Output: 385 192 96 48
+    printf("%u %u %u %u\n", c1, c2, c3, c4)  # Output: 241121 120560 60280 30140
+    printf("%lld\n", d1, d2, d3, d4)  # Output: 1507010757257 753505378628 376752689314 188376344657
+
+    # In-place
+    a1 >>= 0
+    b1 >>= 0
+    c1 >>= 0
+    d1 >>= 0
+    printf("%d %d %u %lld\n", a1, b1, c1, d1)  # Output: 48 385 241121 1507010757257
+    a1 >>= 1
+    b1 >>= 2
+    c1 >>= 3
+    d1 >>= 4
+    printf("%d %d %u %lld\n", a1, b1, c1, d1)  # Output: 24 192 120560 753505378628
+    a2 >>= -1
+    b2 >>= -2
+    c2 >>= -3
+    d2 >>= -4
+    printf("%d %d %u %lld\n", a2, b2, c3, d4)  # Output: 0 0 0 0
