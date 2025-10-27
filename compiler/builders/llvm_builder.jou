@@ -665,7 +665,7 @@ class LBuilder:
     def bit_not(self, value: LBuilderValue) -> LBuilderValue:
         all_bits = uint_type(value.type.size_in_bits).max_value()
         llvm_result = LLVMBuildXor(self.llvm_builder, value.llvm_value, LLVMConstInt(type_to_llvm(value.type), all_bits as int64, False as int), "bit_not")
-        return LBuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = value.type, llvm_value = llvm_result}
 
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> LBuilderValue:
