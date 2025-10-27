@@ -17,8 +17,12 @@ Jou has the following bitwise operations:
 - `a & b` is the bitwise AND
 - `a | b` is the bitwise OR
 - `a ^ b` is the bitwise XOR
+- `a << b` is the bitwise shift left (doesn't work yet! see [issue #879](https://github.com/Akuli/jou/issues/879))
+- `a >> b` is the bitwise shift right
+- `~a` is the bitwise NOT
 
 Jou also has in-place versions of these operators: `a &= b` does `a = a & b`.
+There is no in-place version of `~`.
 
 To explain what bitwise XOR and other operations do,
 we first need to understand how numbers can be written in binary.
@@ -142,17 +146,127 @@ Think of XOR as flipping (toggling) bits: `3 ^` flips the last two bits, either 
 The type of `a ^ b` is determined just like for bitwise OR (see above).
 
 
-## Unsupported/Missing
+## Bitwise Shift Left
 
-Bitshift operators `<<` and `>>` don't exist yet.
-For now, use multiplication and division.
-For example, you can use `x * 8` when you need `x << 3`.
+Doesn't exist yet :( See [issue #879](https://github.com/Akuli/jou/issues/879).
 
-The bitwise invert operator `~a` doesn't exist yet.
-For now, you can toggle all bits with XOR, e.g. `x ^= 0xFFFF_FFFF` for a 32-bit invert.
-(Look below to understand what `0xFFFF_FFFF` does.)
 
-See also [issue #879](https://github.com/Akuli/jou/issues/879).
+## Bitwise Shift Right
+
+The result of `a >> b` is the number `a` with all bits moved right by the value of `b`.
+Zero bits are added to the left and bits on the right are removed.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 15 >> 1)  # Output: 7
+    return 0
+```
+
+Reason:
+
+```
+  15 = 0b1101
+  7  =  0b110
+```
+
+Mathematically, `number >> 1` is same as `number / 2` (unless `number` is negative, see below).
+Similarly, `number >> 2` divides by 4, `number >> 3` divides by 8, `number >> 4` divides by 16 and so on.
+(Jou's `/` operator is floor division when used with integers, so `15.0 / 2.0 == 7.5` but `15 / 2 == 7`.
+Feel free to [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) to discuss this if you want.)
+
+In Jou (unlike in C and C++), it is not possible to get [Undefined Behavior](ub.md) by doing a bitshift.
+If you shift by a very large amount, all the bits simply get replaced by zeros.
+You will also get zero if you shift by a negative amount.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 15 >> 12345)  # Output: 0
+    printf("%d\n", 15 >> -1)  # Output: 0
+    return 0
+```
+
+Shifting a negative number produces surprising results,
+because Jou also shifts the sign bit out of its place.
+The sign bit is the first bit in a signed number,
+and it is 1 when the number is negative.
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", (-1) >> 1)  # Output: 2147483647
+    return 0
+```
+
+The type of `a >> b` is simply the type of `a`,
+and the type of `b` does not affect that.
+
+
+## Bitwise Not
+
+The result of `~a` is the value of `a` with all bits flipped.
+This is also known as bitwise negation and bitwise inverting.
+See [XOR](#bitwise-xor) if you want to flip only some of the bits in a number.
+
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", ~(10 as byte))  # Output: 245
+    return 0
+```
+
+Reason:
+
+```
+   10 = 0b00001010
+  245 = 0b11110101
+```
+
+Using `~` with signed types produces surprising results, because it also flips the sign bit.
+The sign bit is the first bit in a signed number,
+and it is 1 when the number is negative.
+Therefore negative values become non-negative and non-negative values become negative.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", ~(3 as int8))  # Output: -4
+    printf("%d\n", ~3)            # Output: -4
+    return 0
+```
+
+Reason (for the 8-bit `~(3 as int8)` example above, works the same way with 32-bit `int`):
+
+```
+  3 (signed)    = 3 (unsigned)   = 00000011
+  2 (signed)    = 2 (unsigned)   = 00000010
+  1 (signed)    = 1 (unsigned)   = 00000001
+  0 (signed)    = 0 (unsigned)   = 00000000
+  -1 (signed)   = 255 (unsigned) = 11111111
+  -2 (signed)   = 254 (unsigned) = 11111110
+  -3 (signed)   = 253 (unsigned) = 11111101
+  -4 (signed)   = 252 (unsigned) = 11111100
+```
+
+Here's one way to think about what happened above.
+As you can see, `-1` is the value where all bits are 1.
+On the other hand, `x + (~x)` also has all bits set to 1,
+because each bit comes from either `x` or `~x`.
+Therefore `x + (~x) == -1` for any signed value `x`.
+For example, we got `-4` because `3 + (-4) == -1`.
+
+The type of `~a` is always same as the type of `a`.
 
 
 ## Hexadecimal Numbers
