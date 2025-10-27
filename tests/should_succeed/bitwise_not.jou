@@ -54,4 +54,7 @@ def main() -> int:
     h2: uint64 = ~0xFFFF_FFFF_FFFF_FFFF
     printf("%llu\n", h2)  # Output: 0
 
+    # This was a bug in the past
+    printf("%d\n", ~(3 as int8))  # Output: -4
+
     return 0
