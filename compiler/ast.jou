@@ -455,7 +455,21 @@ class AstExpression:
                 return 2
             case AstExpressionKind.TernaryIf:
                 return 3
-            case _:
+            case (
+                AstExpressionKind.IntegerConstant
+                | AstExpressionKind.Constant
+                | AstExpressionKind.Array
+                | AstExpressionKind.Call
+                | AstExpressionKind.Instantiate
+                | AstExpressionKind.Self
+                | AstExpressionKind.GetVariable
+                | AstExpressionKind.GetFuncPtr
+                | AstExpressionKind.DotOperator
+                | AstExpressionKind.GetEnumMember
+                | AstExpressionKind.GetClassField
+                | AstExpressionKind.GetClassFieldPtr
+                | AstExpressionKind.As
+            ):
                 return 0
 
     def is_valid_as_a_statement(self) -> bool:
