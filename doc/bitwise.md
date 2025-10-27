@@ -200,7 +200,7 @@ and it is 1 when the number is negative.
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", (-1) >> 1)  # Output: 1073741824
+    printf("%d\n", (-1) >> 1)  # Output: 2147483647
     return 0
 ```
 
