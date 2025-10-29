@@ -41,8 +41,18 @@ In Jou, you can use the `0b` prefix to write a number in binary (just like in Py
 import "stdlib/io.jou"
 
 def main() -> int:
+    #            1 ---.
+    #            2 --.|
+    #                ||
     printf("%d\n", 0b11)  # Output: 3
+
+    #            1 -----.
+    #            2 ----.|
+    #            4 ---.||
+    #            8 --.|||
+    #                ||||
     printf("%d\n", 0b1010)  # Output: 10
+
     return 0
 ```
 
@@ -72,6 +82,11 @@ def main() -> int:
 Reason:
 
 ```
+         1 -----.
+         2 ----.|
+         4 ---.||
+         8 --.|||
+             ||||
       3  = 0b0011
       10 = 0b1010
 ---------------=---
@@ -105,6 +120,11 @@ def main() -> int:
 Reason:
 
 ```
+         1 -----.
+         2 ----.|
+         4 ---.||
+         8 --.|||
+             ||||
       3  = 0b0011
       10 = 0b1010
 -------------=-==-
@@ -135,6 +155,11 @@ def main() -> int:
 Reason:
 
 ```
+         1 -----.
+         2 ----.|
+         4 ---.||
+         8 --.|||
+             ||||
       3  = 0b0011
       10 = 0b1010
 -------------=--=-
@@ -156,15 +181,20 @@ For example:
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", 7 << 1)  # Output: 14
+    printf("%d\n", 6 << 1)  # Output: 12
     return 0
 ```
 
 Reason:
 
 ```
-  7  =  0b110
-  14 = 0b1100
+     1 -----.
+     2 ----.|
+     4 ---.||
+     8 --.|||
+         ||||
+  6  = 0b0110
+  12 = 0b1100
 ```
 
 Mathematically, `number << 1` is same as `number * 2`.
@@ -213,6 +243,15 @@ def main() -> int:
 Reason:
 
 ```
+                 1 ---------.
+                 2 --------.|
+                 4 -------.||
+                 8 ------.|||
+                16 -----.||||
+                32 ----.|||||
+                64 ---.||||||
+               128 --.|||||||
+                     ||||||||
 'a' = 97 as byte = 0b01100001 =  64 + 32 + 1 = 97
 'a' << 1         = 0b11000010 = 128 + 64 + 2 = 194
 'a' << 2         = 0b10000100 =      128 + 4 = 132
@@ -252,20 +291,25 @@ For example:
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", 15 >> 1)  # Output: 7
+    printf("%d\n", 13 >> 1)  # Output: 6
     return 0
 ```
 
 Reason:
 
 ```
-  15 = 0b1101
-  7  =  0b110
+     1 -----.
+     2 ----.|
+     4 ---.||
+     8 --.|||
+         ||||
+  13 = 0b1101
+   6 = 0b0110
 ```
 
 Mathematically, `number >> 1` is same as `number / 2` (unless `number` is negative, see below).
 Similarly, `number >> 2` divides by 4, `number >> 3` divides by 8, `number >> 4` divides by 16 and so on.
-(Jou's `/` operator is floor division when used with integers, so `15.0 / 2.0 == 7.5` but `15 / 2 == 7`.
+(Jou's `/` operator is floor division when used with integers, so `13.0 / 2.0 == 6.5` but `13 / 2 == 6`.
 Feel free to [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) to discuss this if you want.)
 
 In Jou (unlike in C and C++), it is not possible to get [Undefined Behavior](ub.md) by doing a bitshift.
@@ -318,6 +362,15 @@ def main() -> int:
 Reason:
 
 ```
+      1 ---------.
+      2 --------.|
+      4 -------.||
+      8 ------.|||
+     16 -----.||||
+     32 ----.|||||
+     64 ---.||||||
+    128 --.|||||||
+          ||||||||
    10 = 0b00001010
   245 = 0b11110101
 ```
@@ -340,14 +393,23 @@ def main() -> int:
 Reason (for the 8-bit `~(3 as int8)` example above, works the same way with 32-bit `int`):
 
 ```
-  3 (signed)    = 3 (unsigned)   = 00000011
-  2 (signed)    = 2 (unsigned)   = 00000010
-  1 (signed)    = 1 (unsigned)   = 00000001
-  0 (signed)    = 0 (unsigned)   = 00000000
-  -1 (signed)   = 255 (unsigned) = 11111111
-  -2 (signed)   = 254 (unsigned) = 11111110
-  -3 (signed)   = 253 (unsigned) = 11111101
-  -4 (signed)   = 252 (unsigned) = 11111100
+                                 1 ---------.
+                                 2 --------.|
+                                 4 -------.||
+                                 8 ------.|||
+                                16 -----.||||
+                                32 ----.|||||
+                                64 ---.||||||
+                               128 --.|||||||
+                                     ||||||||
+  3 (signed)    = 3 (unsigned)   = 0b00000011
+  2 (signed)    = 2 (unsigned)   = 0b00000010
+  1 (signed)    = 1 (unsigned)   = 0b00000001
+  0 (signed)    = 0 (unsigned)   = 0b00000000
+  -1 (signed)   = 255 (unsigned) = 0b11111111
+  -2 (signed)   = 254 (unsigned) = 0b11111110
+  -3 (signed)   = 253 (unsigned) = 0b11111101
+  -4 (signed)   = 252 (unsigned) = 0b11111100
 ```
 
 Here's one way to think about what happened above.
