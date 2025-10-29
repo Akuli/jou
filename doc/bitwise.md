@@ -129,7 +129,7 @@ Reason:
       3  = 0b0011
       10 = 0b1010
 -------------=-==-
-  3 ^ 10 = 0b1011 = 8+2+1 = 11
+  3 | 10 = 0b1011 = 8+2+1 = 11
 ```
 
 Think of OR as adding bits: `3 |` sets the last two bits to 1 regardless of what they were originally.
@@ -164,7 +164,7 @@ Reason:
       3  = 0b0011
       10 = 0b1010
 -------------=--=-
-  3 | 10 = 0b1001 = 8+1 = 9
+  3 ^ 10 = 0b1001 = 8+1 = 9
 ```
 
 Think of XOR as flipping (toggling) bits: `3 ^` flips the last two bits, either from 0 to 1 or from 1 to 0.
