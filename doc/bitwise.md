@@ -309,7 +309,7 @@ Reason:
 
 Mathematically, `number >> 1` is same as `number / 2` (unless `number` is negative, see below).
 Similarly, `number >> 2` divides by 4, `number >> 3` divides by 8, `number >> 4` divides by 16 and so on.
-(Jou's `/` operator is floor division when used with integers, so `15.0 / 2.0 == 7.5` but `15 / 2 == 7`.
+(Jou's `/` operator is floor division when used with integers, so `13.0 / 2.0 == 6.5` but `13 / 2 == 6`.
 Feel free to [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) to discuss this if you want.)
 
 In Jou (unlike in C and C++), it is not possible to get [Undefined Behavior](ub.md) by doing a bitshift.
