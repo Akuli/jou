@@ -17,6 +17,8 @@ def check_uint32(x: uint32*) -> None:
     pass
 def check_int64(x: int64*) -> None:
     pass
+def check_uint64(x: uint64*) -> None:
+    pass
 
 
 def main() -> int:
@@ -41,7 +43,7 @@ def main() -> int:
     check_int32(&i7)
     check_int32(&i8)
 
-    # Output: 1234 617 308 154 77 38 19 9 4
+    # Output: 1234 2468 4936 9872 19744 39488 78976 157952 315904
     printf("%d %d %d %d %d %d %d %d %d\n", i0, i1, i2, i3, i4, i5, i6, i7, i8)
 
     # Negative values are shifted just like unsigned numbers. They tend to keep
@@ -61,9 +63,9 @@ def main() -> int:
     i = 1 << 63
     check_int32(&i)
     printf("%d\n", i)  # Output: 0
-    i_big = (1 as int64) << 63
-    check_int64(&i_big)
-    printf("%lld\n", i_big)  # Output: 9223372036854775807
+    u_big = (1 as uint64) << 63
+    check_uint64(&u_big)
+    printf("%llu\n", u_big)  # Output: 9223372036854775808
 
     # Other data types. Again, type of right side doesn't matter.
     a1 = 'a' << (1 as byte)
@@ -136,5 +138,8 @@ def main() -> int:
     # the big number here is supposed to be a uint64, not int
     big_number: uint64 = 1 << 63
     printf("%llu\n", big_number)  # Output: 9223372036854775808
+
+    # Gotcha: byte doesn't magically become int, like it would in C
+    printf("%d\n", 'a' << 8)  # Output: 0
 
     return 0

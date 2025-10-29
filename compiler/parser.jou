@@ -78,7 +78,8 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
         assert arity == 2
         result.kind = AstExpressionKind.BitXor
     elif t.is_operator("<<"):
-        fail(t.location, "sorry, the bitwise '<<' operator is not supported yet (https://github.com/Akuli/jou/issues/879)")
+        assert arity == 2
+        result.kind = AstExpressionKind.BitShiftLeft
     elif t.is_operator(">>"):
         assert arity == 2
         result.kind = AstExpressionKind.BitShiftRight
