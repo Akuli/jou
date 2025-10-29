@@ -38,6 +38,7 @@ commits=(
     99de2976a7f3b34ec6b2b07725c5ad1400313dc1  # bitwise xor operator `^`
     944c0f34e941d340af1749cdceea4621860ec69f  # bitwise '&' and '|', "const" supports integers other than int
     9339a749315b82f73d19bacdccab5ee327c44822  # accessing fields and methods on pointers with '.' instead of '->'
+    f6b2fa34fcb00a45ff0e36f6c70f153168ff5889  # function pointers
 )
 
 for commit in ${commits[@]}; do

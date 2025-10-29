@@ -248,6 +248,7 @@ enum AstExpressionKind:
     BitAnd          # x & y
     BitOr           # x | y
     BitXor          # x ^ y
+    BitShiftLeft    # x << y
     BitShiftRight   # x >> y
     Eq              # x == y
     Ne              # x != y
@@ -365,6 +366,8 @@ class AstExpression:
                 printf("bitwise or\n")
             case AstExpressionKind.BitXor:
                 printf("bitwise xor\n")
+            case AstExpressionKind.BitShiftLeft:
+                printf("bitwise shift left\n")
             case AstExpressionKind.BitShiftRight:
                 printf("bitwise shift right\n")
             case AstExpressionKind.Eq:
@@ -441,6 +444,7 @@ class AstExpression:
                 | AstExpressionKind.BitAnd
                 | AstExpressionKind.BitOr
                 | AstExpressionKind.BitXor
+                | AstExpressionKind.BitShiftLeft
                 | AstExpressionKind.BitShiftRight
                 | AstExpressionKind.Eq
                 | AstExpressionKind.Ne
@@ -617,6 +621,7 @@ enum AstStatementKind:
     InPlaceBitAnd           # x &= y
     InPlaceBitOr            # x |= y
     InPlaceBitXor           # x ^= y
+    InPlaceBitShiftLeft     # x <<= y
     InPlaceBitShiftRight    # x >>= y
     FunctionDeclare
     FunctionDef
@@ -717,6 +722,9 @@ class AstStatement:
             case AstStatementKind.InPlaceBitXor:
                 printf("in-place bitwise xor\n")
                 self.assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceBitShiftLeft:
+                printf("in-place bitwise shift left\n")
+                self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceBitShiftRight:
                 printf("in-place bitwise shift right\n")
                 self.assignment.print_with_tree_printer(tp)
@@ -792,6 +800,7 @@ class AstStatement:
                 | AstStatementKind.InPlaceBitAnd
                 | AstStatementKind.InPlaceBitOr
                 | AstStatementKind.InPlaceBitXor
+                | AstStatementKind.InPlaceBitShiftLeft
                 | AstStatementKind.InPlaceBitShiftRight
             ):
                 self.assignment.free()

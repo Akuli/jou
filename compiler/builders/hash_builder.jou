@@ -289,6 +289,14 @@ class HBuilder:
         assert a.type == b.type
         return self.new_value(a.type)
 
+    # a << b
+    def bit_shift_left(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("shl")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        # Type of b doesn't matter. Result's type is always the type of a.
+        return self.new_value(a.type)
+
     # a >> b
     def bit_shift_right(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("shr")
