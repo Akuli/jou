@@ -41,7 +41,6 @@ In Jou, you can use the `0b` prefix to write a number in binary (just like in Py
 import "stdlib/io.jou"
 
 def main() -> int:
-
     #            1 ---.
     #            2 --.|
     #                ||
@@ -299,8 +298,13 @@ def main() -> int:
 Reason:
 
 ```
+     1 -----.
+     2 ----.|
+     4 ---.||
+     8 --.|||
+         ||||
   15 = 0b1101
-  7  =  0b110
+   7 = 0b0110
 ```
 
 Mathematically, `number >> 1` is same as `number / 2` (unless `number` is negative, see below).
@@ -358,6 +362,15 @@ def main() -> int:
 Reason:
 
 ```
+      1 ---------.
+      2 --------.|
+      4 -------.||
+      8 ------.|||
+     16 -----.||||
+     32 ----.|||||
+     64 ---.||||||
+    128 --.|||||||
+          ||||||||
    10 = 0b00001010
   245 = 0b11110101
 ```
@@ -380,14 +393,23 @@ def main() -> int:
 Reason (for the 8-bit `~(3 as int8)` example above, works the same way with 32-bit `int`):
 
 ```
-  3 (signed)    = 3 (unsigned)   = 00000011
-  2 (signed)    = 2 (unsigned)   = 00000010
-  1 (signed)    = 1 (unsigned)   = 00000001
-  0 (signed)    = 0 (unsigned)   = 00000000
-  -1 (signed)   = 255 (unsigned) = 11111111
-  -2 (signed)   = 254 (unsigned) = 11111110
-  -3 (signed)   = 253 (unsigned) = 11111101
-  -4 (signed)   = 252 (unsigned) = 11111100
+                                 1 ---------.
+                                 2 --------.|
+                                 4 -------.||
+                                 8 ------.|||
+                                16 -----.||||
+                                32 ----.|||||
+                                64 ---.||||||
+                               128 --.|||||||
+                                     ||||||||
+  3 (signed)    = 3 (unsigned)   = 0b00000011
+  2 (signed)    = 2 (unsigned)   = 0b00000010
+  1 (signed)    = 1 (unsigned)   = 0b00000001
+  0 (signed)    = 0 (unsigned)   = 0b00000000
+  -1 (signed)   = 255 (unsigned) = 0b11111111
+  -2 (signed)   = 254 (unsigned) = 0b11111110
+  -3 (signed)   = 253 (unsigned) = 0b11111101
+  -4 (signed)   = 252 (unsigned) = 0b11111100
 ```
 
 Here's one way to think about what happened above.
