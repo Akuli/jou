@@ -156,7 +156,7 @@ For example:
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", 7 >> 1)  # Output: 14
+    printf("%d\n", 7 << 1)  # Output: 14
     return 0
 ```
 
@@ -200,15 +200,19 @@ To make this less annoying,
 [type inference](types.md#type-inference) works so that
 if the compiler expects `a << b` to be of some type,
 it also expects `a` to be of that type.
-For example, below `1` becomes an `uint64` when `1 << 63` is annotated as `uint64`:
+
+For example, below `1` becomes an `uint64` when `1 << 63` is annotated as `uint64`.
+Note that [you need `%llu` to properly print an `uint64`](types.md#integers).
 
 ```python
+import "stdlib/io.jou"
+
 def main() -> int:
     a: int = 1 << 63   # doesn't fit
     printf("%d\n", a)  # Output: 0
 
     b: uint64 = 1 << 64
-    printf("%d\n", b)  # Output: 9223372036854775808
+    printf("%llu\n", b)  # Output: 9223372036854775808
 
     return 0
 ```
