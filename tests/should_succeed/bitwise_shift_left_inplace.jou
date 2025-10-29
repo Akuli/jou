@@ -1,0 +1,64 @@
+# Tests for the in-place bitwise shift left operator (a <<= b)
+# TODO: Delete this and make the tests more similar to the right shift
+
+import "stdlib/io.jou"
+
+
+def main() -> int:
+    # Type of right side shouldn't matter
+    i = 3
+    i <<= 1 as int8
+    printf("%d\n", i)  # Output: 6
+    i <<= 2 as byte
+    printf("%d\n", i)  # Output: 24
+    i <<= 3 as int64
+    printf("%d\n", i)  # Output: 192
+    i <<= 4 as unt64
+    printf("%d\n", i)  # Output: 3072
+    i <<= 5
+    printf("%d\n", i)  # Output: 98304
+
+    # Negative values are shifted just like unsigned numbers. They tend to keep
+    # their sign bit when shifting.
+    # Example: -1 << 4 = 0xFFFF_FFFF << 4 = 0xFFFF_FFF0 = -16
+    i = -1
+    i <<= 0
+    printf("%d\n", i)  # Output: -1
+    i <<= 4
+    printf("%d\n", i)  # Output: -16
+
+    # This is not UB in Jou like it would be in C. All bits are removed.
+    i <<= 10000000
+    printf("%d\n", i)  # Output: 0
+
+    # Shift amount is always interpreted as an unsigned value, so negative
+    # numbers will always wrap around to so large shift amounts that result
+    # is zero.
+    i = 12345
+    i <<= -1
+    printf("%d\n", i)  # Output: 0
+
+    # Other data types. Again, type of right side doesn't matter.
+    a: byte = 'a'
+    b: int16 = 123
+    c: uint32 = 456
+    d: int64 = 789
+
+    a <<= 1
+    b <<= 2
+    c <<= 3
+    d <<= 4
+    printf("%d %d %u %lld\n", a, b, c, d)  # Output: 194 492 3648 12624
+
+    # Making negative value by placing a bit to be the sign bit
+    i = 1
+    i <<= 31
+    printf("%d\n", i)  # Output: -2147483648
+
+    # Casting right side to uint8 is not a valid way to implement bitshifts.
+    # This would fail if bitshifts were implemented in that way.
+    a_byte: byte = 'a'
+    a_byte <<= 257
+    printf("%d\n", my_byte)  # Output: 0
+
+    return 0
