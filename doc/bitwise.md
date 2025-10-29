@@ -181,7 +181,7 @@ For example:
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", 7 << 1)  # Output: 14
+    printf("%d\n", 6 << 1)  # Output: 12
     return 0
 ```
 
@@ -193,8 +193,8 @@ Reason:
      4 ---.||
      8 --.|||
          ||||
-  7  = 0b0110
-  14 = 0b1100
+  6  = 0b0110
+  12 = 0b1100
 ```
 
 Mathematically, `number << 1` is same as `number * 2`.
@@ -291,7 +291,7 @@ For example:
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", 15 >> 1)  # Output: 7
+    printf("%d\n", 13 >> 1)  # Output: 6
     return 0
 ```
 
@@ -303,8 +303,8 @@ Reason:
      4 ---.||
      8 --.|||
          ||||
-  15 = 0b1101
-   7 = 0b0110
+  13 = 0b1101
+   6 = 0b0110
 ```
 
 Mathematically, `number >> 1` is same as `number / 2` (unless `number` is negative, see below).
