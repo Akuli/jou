@@ -17,7 +17,7 @@ Jou has the following bitwise operations:
 - `a & b` is the bitwise AND
 - `a | b` is the bitwise OR
 - `a ^ b` is the bitwise XOR
-- `a << b` is the bitwise shift left (doesn't work yet! see [issue #879](https://github.com/Akuli/jou/issues/879))
+- `a << b` is the bitwise shift left
 - `a >> b` is the bitwise shift right
 - `~a` is the bitwise NOT
 
@@ -148,7 +148,98 @@ The type of `a ^ b` is determined just like for bitwise OR (see above).
 
 ## Bitwise Shift Left
 
-Doesn't exist yet :( See [issue #879](https://github.com/Akuli/jou/issues/879).
+The result of `a << b` is the number `a` with all bits moved left by the value of `b`.
+Zero bits are added to the right and bits on the left are removed.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 7 << 1)  # Output: 14
+    return 0
+```
+
+Reason:
+
+```
+  7  =  0b110
+  14 = 0b1100
+```
+
+Mathematically, `number << 1` is same as `number * 2`.
+Similarly, `number << 2` multiplies by 4, `number << 3` multiplies by 8, `number << 4` multiplies by 16 and so on.
+This is also true for negative numbers:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    # This calculates (-3) * 8
+    printf("%d\n", (-3) << 3)  # Output: -24
+    return 0
+```
+
+In Jou (unlike in C and C++), it is not possible to get [Undefined Behavior](ub.md) by doing a bitshift.
+If you shift by a very large amount, all the bits simply get replaced by zeros.
+You will also get zero if you shift by a negative amount.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 15 << 12345)  # Output: 0
+    printf("%d\n", 15 << -1)  # Output: 0
+    return 0
+```
+
+The result of `a << b` is always the same type as `a`.
+Bits are thrown away if they don't fit within the type of `a`.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 'a' << 0)  # Output: 97
+    printf("%d\n", 'a' << 1)  # Output: 194
+    printf("%d\n", 'a' << 2)  # Output: 132
+    printf("%d\n", 'a' << 3)  # Output: 8
+    printf("%d\n", 'a' << 4)  # Output: 16
+    return 0
+```
+
+Reason:
+
+```
+'a' = 97 as byte = 0b01100001 =  64 + 32 + 1 = 97
+'a' << 1         = 0b11000010 = 128 + 64 + 2 = 194
+'a' << 2         = 0b10000100 =      128 + 4 = 132
+'a' << 3         = 0b00001000 =            8 = 8
+'a' << 4         = 0b00010000 =           16 = 16
+```
+
+To make this less annoying,
+[type inference](types.md#type-inference) works so that
+if the compiler expects `a << b` to be of some type,
+it also expects `a` to be of that type.
+
+For example, below `1` becomes an `uint64` when `1 << 63` is annotated as `uint64`.
+Note that [you need `%llu` to properly print an `uint64`](types.md#integers).
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    a: int = 1 << 63   # doesn't fit
+    printf("%d\n", a)  # Output: 0
+
+    b: uint64 = 1 << 63
+    printf("%llu\n", b)  # Output: 9223372036854775808
+
+    return 0
+```
 
 
 ## Bitwise Shift Right
