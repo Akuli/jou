@@ -85,7 +85,7 @@ def utf8_decode_char(s: byte**) -> int32:
             # invalid UTF-8: bad continuation byte
             return -1
 
-        result *= 64  # TODO: add bitshift left operator to Jou
+        result <<= 6
         result |= b & 0b0011_1111  # get the 6 data bits from continuation byte
 
     if utf8_char_size(result) != num_bytes:

@@ -99,6 +99,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             | AstExpressionKind.BitAnd
             | AstExpressionKind.BitOr
             | AstExpressionKind.BitXor
+            | AstExpressionKind.BitShiftLeft
             | AstExpressionKind.BitShiftRight
             | AstExpressionKind.BitNot
         ):
@@ -446,7 +447,7 @@ def check_binop(
         case AstExpressionKind.BitXor:
             do_what = "xor"
             need_integers = True
-        case AstExpressionKind.BitShiftRight:
+        case AstExpressionKind.BitShiftLeft | AstExpressionKind.BitShiftRight:
             do_what = "do bitwise shift with"
             need_integers = True
         case AstExpressionKind.Eq | AstExpressionKind.Ne:
@@ -483,7 +484,7 @@ def check_binop(
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
 
-    if op == AstExpressionKind.BitShiftRight:
+    if op == AstExpressionKind.BitShiftLeft or op == AstExpressionKind.BitShiftRight:
         # Special-cased, because right side type does not affect the type of result.
         do_implicit_cast(fom, rhs, int64Type, Location{}, NULL)
         return lhs.types.orig_type
@@ -1233,9 +1234,13 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             | AstExpressionKind.Ge
             | AstExpressionKind.Lt
             | AstExpressionKind.Le
+            | AstExpressionKind.BitShiftLeft
             | AstExpressionKind.BitShiftRight
         ):
-            if expr.kind == AstExpressionKind.BitShiftRight:
+            if (
+                expr.kind == AstExpressionKind.BitShiftLeft
+                or expr.kind == AstExpressionKind.BitShiftRight
+            ):
                 # Result of "a >> b" is same type as a. Pass type hint along.
                 typecheck_expression_not_void(state, &expr.operands[0], type_hint)
             else:
@@ -1497,13 +1502,17 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             | AstStatementKind.InPlaceBitAnd
             | AstStatementKind.InPlaceBitOr
             | AstStatementKind.InPlaceBitXor
+            | AstStatementKind.InPlaceBitShiftLeft
             | AstStatementKind.InPlaceBitShiftRight
         ):
             targetexpr = &stmt.assignment.target
             valueexpr = &stmt.assignment.value
 
             targettype = typecheck_expression_not_void(state, targetexpr, NULL)
-            if stmt.kind == AstStatementKind.InPlaceBitShiftRight:
+            if (
+                stmt.kind == AstStatementKind.InPlaceBitShiftLeft
+                or stmt.kind == AstStatementKind.InPlaceBitShiftRight
+            ):
                 # The type of "y" in "x >>= y" has nothing to do with the type of x.
                 value_type = typecheck_expression_not_void(state, valueexpr, NULL)
             else:
@@ -1535,6 +1544,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 case AstStatementKind.InPlaceBitXor:
                     op = AstExpressionKind.BitXor
                     opname = "xor"
+                case AstStatementKind.InPlaceBitShiftLeft:
+                    op = AstExpressionKind.BitShiftLeft
+                    opname = "bitwise shift"  # currently never used, I think...
                 case AstStatementKind.InPlaceBitShiftRight:
                     op = AstExpressionKind.BitShiftRight
                     opname = "bitwise shift"  # currently never used, I think...

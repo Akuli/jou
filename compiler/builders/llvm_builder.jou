@@ -239,9 +239,28 @@ def cast_floating_point_to_integer(builder: LLVMBuilder*, obj: LLVMValue*, from:
     )
 
 
-# Builds the result of "a >> b". Avoids LLVM's undefined behaviors.
-def shift_right(builder: LLVMBuilder*, a: LLVMValue*, b: LLVMValue*, shift_type: Type*) -> LLVMValue*:
+# Builds the result of "a << b" or "a >> b". Avoids LLVM's undefined behaviors.
+def bitshift(
+    builder: LLVMBuilder*,
+    a: LLVMValue*,
+    b: LLVMValue*,
+    shift_type: Type*,
+    left: bool,
+) -> LLVMValue*:
     assert LLVMTypeOf(a) == type_to_llvm(shift_type)
+
+    # Shift amount must be converted to a's type because LLVM wants it that
+    # way. This is fine: when the result is used, the shift amount is 0 to 63
+    # so it surely fits.
+    llvm_shift_amount = LLVMBuildIntCast2(builder, b, LLVMTypeOf(a), False as int, "shift_amount")
+
+    # Compute a normal LLVM bitshift. It is a poison value for shifting beyond
+    # the width. This is fine because creating a poison value is not UB if you
+    # don't use the poison value.
+    if left:
+        bitshift_or_poison = LLVMBuildShl(builder, a, llvm_shift_amount, "bitshift_or_poison")
+    else:
+        bitshift_or_poison = LLVMBuildLShr(builder, a, llvm_shift_amount, "bitshift_or_poison")
 
     return LLVMBuildSelect(
         builder,
@@ -257,19 +276,10 @@ def shift_right(builder: LLVMBuilder*, a: LLVMValue*, b: LLVMValue*, shift_type:
         ),
         # Then return zero
         LLVMConstInt(LLVMTypeOf(a), 0, False as int),
-        # Otherwise, return the result of a normal LLVM bitshift, which is a
-        # poison value for shifting beyond the width. This is fine because
-        # creating a poison value is not UB if you don't use the poison value.
-        LLVMBuildLShr(
-            builder,
-            a,
-            # Shift amount must be converted to a's type because LLVM wants it
-            # that way. This is fine: when the result is used, the shift amount
-            # is 0 to 63 so it surely fits.
-            LLVMBuildIntCast2(builder, b, LLVMTypeOf(a), False as int, "shift_amount"),
-            "bitshift_right_or_poison",
-        ),
-        "bitshift_right",
+        # Otherwise, return the result of a normal LLVM bitshift, which is not
+        # a poison value when it is chosen.
+        bitshift_or_poison,
+        "bitshift",
     )
 
 
@@ -623,11 +633,18 @@ class LBuilder:
         llvm_xor = LLVMBuildXor(self.llvm_builder, a.llvm_value, b.llvm_value, "bit_xor")
         return LBuilderValue{type = a.type, llvm_value = llvm_xor}
 
+    # a << b
+    def bit_shift_left(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
+        return LBuilderValue{
+            type = a.type,
+            llvm_value = bitshift(self.llvm_builder, a.llvm_value, b.llvm_value, a.type, True),
+        }
+
     # a >> b
     def bit_shift_right(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         return LBuilderValue{
             type = a.type,
-            llvm_value = shift_right(self.llvm_builder, a.llvm_value, b.llvm_value, a.type),
+            llvm_value = bitshift(self.llvm_builder, a.llvm_value, b.llvm_value, a.type, False),
         }
 
     # a == b

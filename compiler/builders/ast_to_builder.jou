@@ -256,6 +256,8 @@ class AstToBuilder:
                 return self.builder.bit_or(lhs, rhs)
             case AstExpressionKind.BitXor:
                 return self.builder.bit_xor(lhs, rhs)
+            case AstExpressionKind.BitShiftLeft:
+                return self.builder.bit_shift_left(lhs, rhs)
             case AstExpressionKind.BitShiftRight:
                 return self.builder.bit_shift_right(lhs, rhs)
             case _:
@@ -500,6 +502,7 @@ class AstToBuilder:
                 | AstExpressionKind.BitAnd
                 | AstExpressionKind.BitOr
                 | AstExpressionKind.BitXor
+                | AstExpressionKind.BitShiftLeft
                 | AstExpressionKind.BitShiftRight
                 | AstExpressionKind.Eq
                 | AstExpressionKind.Ne
@@ -759,6 +762,8 @@ class AstToBuilder:
                 self.build_inplace_binop(AstExpressionKind.BitOr, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceBitXor:
                 self.build_inplace_binop(AstExpressionKind.BitXor, &stmt.assignment.target, &stmt.assignment.value)
+            case AstStatementKind.InPlaceBitShiftLeft:
+                self.build_inplace_binop(AstExpressionKind.BitShiftLeft, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceBitShiftRight:
                 self.build_inplace_binop(AstExpressionKind.BitShiftRight, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.Return:
