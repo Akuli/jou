@@ -56,7 +56,8 @@ def main() -> int:
     # Here -1 gets interpreted as an uint32, so a very large value, not UB
     printf("%lld\n", 123 << -1)  # Output: 0
 
-    # Type of "a << b" is always the type of a
+    # Type of "a << b" is always the type of a, so "1 << 63" doesn't fit into
+    # int and produces zero.
     i = 1 << 63
     check_int32(&i)
     printf("%d\n", i)  # Output: 0
