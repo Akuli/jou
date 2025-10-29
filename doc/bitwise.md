@@ -149,7 +149,7 @@ The type of `a ^ b` is determined just like for bitwise OR (see above).
 ## Bitwise Shift Left
 
 The result of `a << b` is the number `a` with all bits moved left by the value of `b`.
-Zero bits are added to the right.
+Zero bits are added to the right and bits on the left are removed.
 For example:
 
 ```python
@@ -169,6 +169,30 @@ Reason:
 
 Mathematically, `number << 1` is same as `number * 2`.
 Similarly, `number << 2` multiplies by 4, `number << 3` multiplies by 8, `number << 4` multiplies by 16 and so on.
+This is also true for negative numbers:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    # This calculates (-3) * 8
+    printf("%d\n", (-3) << 3)  # Output: -24
+    return 0
+```
+
+In Jou (unlike in C and C++), it is not possible to get [Undefined Behavior](ub.md) by doing a bitshift.
+If you shift by a very large amount, all the bits simply get replaced by zeros.
+You will also get zero if you shift by a negative amount.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 15 << 12345)  # Output: 0
+    printf("%d\n", 15 << -1)  # Output: 0
+    return 0
+```
 
 The result of `a << b` is always the same type as `a`.
 Bits are thrown away if they don't fit within the type of `a`.
@@ -211,7 +235,7 @@ def main() -> int:
     a: int = 1 << 63   # doesn't fit
     printf("%d\n", a)  # Output: 0
 
-    b: uint64 = 1 << 64
+    b: uint64 = 1 << 63
     printf("%llu\n", b)  # Output: 9223372036854775808
 
     return 0
