@@ -101,6 +101,17 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
             return True
 
         case AstExpressionKind.Negate:
+            # Special-case e.g. "const foo: int8 = -128" because 128 is not a
+            # valid int8 but -128 is, so can't just evaluate 128 and add minus.
+            if (
+                type_hint != NULL
+                and type_hint.is_integer_type()
+                and expr.operands[0].kind == AstExpressionKind.IntegerConstant
+                and expr.operands[0].integer_value == (-type_hint.min_value()) as uint64
+            ):
+                *result = int_constant(type_hint, type_hint.min_value())
+                return True
+
             if not evaluate_constant_expression(&expr.operands[0], result, type_hint):
                 return False
 
