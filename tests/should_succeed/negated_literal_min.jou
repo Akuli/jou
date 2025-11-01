@@ -1,0 +1,22 @@
+import "stdlib/io.jou"
+
+# Reproducer for negated integer literal overflow issue
+const INT_MIN: int = -0x8000_0000  # currently errors: value does not fit into int
+const INT8_MAX: int8 = 127
+const INT8_MIN: int8 = -128  # currently errors: value does not fit into int8
+
+# Also test other signed integer sizes
+const INT16_MIN: int16 = -0x8000
+const INT16_MAX: int16 = 0x7fff
+const INT64_MIN: int64 = -0x8000_0000_0000_0000
+const INT64_MAX: int64 = 0x7fff_ffff_ffff_ffff
+
+def main() -> int:
+    printf("%d\n", INT_MIN)   # Output: -2147483648
+    printf("%d\n", INT8_MAX)  # Output: 127
+    printf("%d\n", INT8_MIN)  # Output: -128
+    printf("%d\n", INT16_MAX)   # Output: 32767
+    printf("%d\n", INT16_MIN)   # Output: -32768
+    printf("%lld\n", INT64_MAX) # Output: 9223372036854775807
+    printf("%lld\n", INT64_MIN) # Output: -9223372036854775808
+    return 0

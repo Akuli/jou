@@ -101,6 +101,42 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
             return True
 
         case AstExpressionKind.Negate:
+            # Special-case integer literal negation: if operand is an integer literal,
+            # don't call evaluate_constant_expression on it (it would fail for
+            # literals that are too large for the signed type, e.g. 0x8000_0000),
+            # instead handle it here so that -0x8000_0000 can become int.min_value.
+            if expr.operands[0].kind == AstExpressionKind.IntegerConstant:
+                # Determine target integer type to use for the literal.
+                if type_hint != NULL and type_hint.is_integer_type():
+                    t = type_hint
+                else:
+                    t = intType
+
+                lit = expr.operands[0]
+                # If literal fits into t.max_value(), just negate normally.
+                if lit.integer_value <= t.max_value():
+                    *result = int_constant(t, lit.integer_value as int64)
+                    # Negate, but check overflow: if negating min_value it would overflow.
+                    if result.integer.value == t.min_value():
+                        return False
+                    result.integer.value *= -1
+                    return True
+
+                # Literal is too large to fit into positive range of t. It might be
+                # exactly -t.min_value(), so that negating it yields t.min_value().
+                # Check for that special case.
+                # t.min_value() is negative, so -t.min_value() is the absolute value.
+                abs_min = (-(t.min_value())) as uint64
+                if lit.integer_value == abs_min:
+                    *result = int_constant(t, t.min_value())
+                    return True
+
+                # Otherwise, the literal alone doesn't fit and it's not the special case.
+                snprintf(msg, sizeof(msg), "value does not fit into %s", t.name)
+                fail(expr.location, msg)
+                return False
+
+            # Non-literal operand: evaluate it normally and then handle types.
             if not evaluate_constant_expression(&expr.operands[0], result, type_hint):
                 return False
 
