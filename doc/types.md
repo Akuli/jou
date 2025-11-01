@@ -26,10 +26,10 @@ And the following unsigned integer types:
 For convenience, the most commonly used types have simpler names:
 `byte` always means same as `uint8` and `int` always means same as `int32`.
 
-The minimum and maximum values shown above are also in [stdlib/limits.jou](../stdlib/limits.jou).
-
 Values of integers in Jou code may contain underscores.
 They are ignored, but they often make large numbers much more readable.
+
+The minimum and maximum values shown above are also in [stdlib/limits.jou](../stdlib/limits.jou).
 
 Integers wrap around if you exceed their minimum/maximum values.
 For example, `(0 as byte) - (1 as byte)` produces `255 as byte`.
