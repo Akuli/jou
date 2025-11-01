@@ -1,28 +1,24 @@
-import "stdlib/limits.jou"
 import "stdlib/io.jou"
+import "stdlib/limits.jou"
+
 
 def main() -> int:
-    # Output: int8: -128 to 127
-    printf("int8: %d to %d\n", INT8_MIN, INT8_MAX)
+    # Output: -128 to 127
+    # Output: -32768 to 32767
+    # Output: -2147483648 to 2147483647
+    # Output: -9223372036854775808 to 9223372036854775807
+    printf("%d to %d\n", INT8_MIN, INT8_MAX)
+    printf("%d to %d\n", INT16_MIN, INT16_MAX)
+    printf("%d to %d\n", INT32_MIN, INT32_MAX)
+    printf("%lld to %lld\n", INT64_MIN, INT64_MAX)
 
-    # Output: int16: -32768 to 32767
-    printf("int16: %d to %d\n", INT16_MIN, INT16_MAX)
+    # Output: 255
+    # Output: 65535
+    # Output: 4294967295
+    # Output: 18446744073709551615
+    printf("%d\n", UINT8_MAX)
+    printf("%d\n", UINT16_MAX)
+    printf("%u\n", UINT32_MAX)
+    printf("%llu\n", UINT64_MAX)
 
-    # Output: int32: -2147483648 to 2147483647
-    printf("int32: %d to %d\n", INT32_MIN, INT32_MAX)
-
-    # Output: int64: -9223372036854775808 to 9223372036854775807
-    printf("int64: %lld to %lld\n", INT64_MIN, INT64_MAX)
-
-    # Output: uint8: 0 to 255
-    printf("uint8: %d to %d\n", UINT8_MIN, UINT8_MAX)
-
-    # Output: uint16: 0 to 65535
-    printf("uint16: %d to %d\n", UINT16_MIN, UINT16_MAX)
-
-    # Output: uint32: 0 to 4294967295
-    printf("uint32: %u to %u\n", UINT32_MIN, UINT32_MAX)
-
-    # Output: uint64: 0 to 18446744073709551615
-    printf("uint64: %llu to %llu\n", UINT64_MIN, UINT64_MAX)
     return 0
