@@ -5,6 +5,9 @@ This page documents all types in the Jou programming language.
 
 ## Integers
 
+The minimum and maximum values of all integer types are available in stdlib/limits.jou.
+For example, use `INT32_MIN`, `INT32_MAX`, `UINT8_MAX`, etc.
+
 Jou has the following signed integer types:
 
 | Name              | Size              | How to print  | Min value                     | Max value                     |
