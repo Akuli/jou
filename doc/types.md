@@ -29,6 +29,8 @@ For convenience, the most commonly used types have simpler names:
 Values of integers in Jou code may contain underscores.
 They are ignored, but they often make large numbers much more readable.
 
+The minimum and maximum values shown above are also in [stdlib/limits.jou](../stdlib/limits.jou).
+
 Integers wrap around if you exceed their minimum/maximum values.
 For example, `(0 as byte) - (1 as byte)` produces `255 as byte`.
 It is not possible to invoke [UB](ub.md) by overflowing integers.
