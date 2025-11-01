@@ -5,9 +5,6 @@ This page documents all types in the Jou programming language.
 
 ## Integers
 
-The minimum and maximum values of all integer types are available in stdlib/limits.jou.
-For example, use `INT32_MIN`, `INT32_MAX`, `UINT8_MAX`, etc.
-
 Jou has the following signed integer types:
 
 | Name              | Size              | How to print  | Min value                     | Max value                     |
@@ -28,6 +25,8 @@ And the following unsigned integer types:
 
 For convenience, the most commonly used types have simpler names:
 `byte` always means same as `uint8` and `int` always means same as `int32`.
+
+The minimum and maximum values shown above are also in [stdlib/limits.jou](../stdlib/limits.jou).
 
 Values of integers in Jou code may contain underscores.
 They are ignored, but they often make large numbers much more readable.
