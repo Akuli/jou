@@ -2,12 +2,19 @@ import "stdlib/io.jou"
 
 # Making these work requires some special-casing in the compiler, that's why
 # they are tested here.
-const INT_MIN: int = -0x8000_0000
 const INT8_MIN: int8 = -128
-const INT64_MIN: int64 = -0x8000_0000_0000_0000
+const INT_MIN: int = -2147483648
+const INT64_MIN: int64 = -9223372036854775808
+
+const INT8_MIN_HEX: int8 = -0x80
+const INT_MIN_HEX: int = -0x8000_0000
+const INT64_MIN_HEX: int64 = -0x8000_0000_0000_0000
 
 def main() -> int:
-    printf("%d\n", INT_MIN)     # Output: -2147483648
-    printf("%d\n", INT8_MIN)    # Output: -128
-    printf("%lld\n", INT64_MIN) # Output: -9223372036854775808
+    printf("%d\n", INT8_MIN)        # Output: -128
+    printf("%d\n", INT8_MIN_HEX)    # Output: -128
+    printf("%d\n", INT_MIN)         # Output: -2147483648
+    printf("%d\n", INT_MIN_HEX)     # Output: -2147483648
+    printf("%lld\n", INT64_MIN)     # Output: -9223372036854775808
+    printf("%lld\n", INT64_MIN_HEX) # Output: -9223372036854775808
     return 0
