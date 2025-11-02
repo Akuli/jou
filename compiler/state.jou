@@ -1,14 +1,33 @@
 import "stdlib/mem.jou"
+import "stdlib/list.jou"
+
+import "./ast.jou"
+import "./llvm.jou"
 import "./command_line_args.jou"
+
+
+@public
+class FileState:
+    path: byte*  # owned
+    ast: AstFile
+    module: LLVMModule*
+
+    def free(self) -> None:
+        self.ast.free()
+        free(self.path)
 
 
 @public
 class CompilerState:
     stdlib_path: byte*  # owned
     args: CommandLineArgs
+    files: List[FileState]
 
     def free(self) -> None:
         free(self.stdlib_path)
+        for p = self.files.ptr; p < self.files.end(); p++:
+            p.free()
+        free(self.files.ptr)
 
 
 # Yes, I know, everyone hates global variables, especially public global variables...
