@@ -279,23 +279,21 @@ def check_class_fields_before_methods(body: List[AstStatement]) -> None:
                     seen_other = True
 
 
-class CompileState:
-    files: List[FileState]
-
-    def free(self) -> None:
-        for fs = self.files.ptr; fs < self.files.end(); fs++:
-            fs.free()
-        free(self.files.ptr)
-
-    def find_file(self, path: byte*) -> FileState*:
-        for fs = self.files.ptr; fs < self.files.end(); fs++:
-            if strcmp(fs.path, path) == 0:
-                return fs
-        return NULL
+def find_file(files: List[FileState], path: byte*) -> FileState*:
+    for fs = files.ptr; fs < files.end(); fs++:
+        if strcmp(fs.path, path) == 0:
+            return fs
+    return NULL
 
 
-def tokenize_and_parse(state: CompileState*, filename: byte*, import_location: Location*) -> None:
-    if state.find_file(filename) != NULL:
+def free_file_list(files: List[FileState]) -> None:
+    for fs = files.ptr; fs < files.end(); fs++:
+        fs.free()
+    free(files.ptr)
+
+
+def tokenize_and_parse(files: List[FileState]*, filename: byte*, import_location: Location*) -> None:
+    if find_file(*files, filename) != NULL:
         # already parsed
         return
 
@@ -326,37 +324,36 @@ def tokenize_and_parse(state: CompileState*, filename: byte*, import_location: L
     check_imports_at_start_of_file(fs.ast.body)
     check_class_fields_before_methods(fs.ast.body)
 
-    state.files.append(fs)
+    files.append(fs)
 
     for stmt = fs.ast.body.ptr; stmt < fs.ast.body.end(); stmt++:
         if stmt.kind == AstStatementKind.Import:
-            tokenize_and_parse(state, stmt.import_statement.resolved_path, &stmt.location)  # recursive call
+            tokenize_and_parse(files, stmt.import_statement.resolved_path, &stmt.location)  # recursive call
 
-
-def tokenize_and_parse_all_files(state: CompileState*) -> None:
+def tokenize_and_parse_all_files(files: List[FileState]*) -> None:
     assert global_compiler_state.stdlib_path != NULL
     assert_fail_path: byte* = NULL
     asprintf(&assert_fail_path, "%s/_assert_fail.jou", global_compiler_state.stdlib_path)
     assert assert_fail_path != NULL
-    tokenize_and_parse(state, assert_fail_path, NULL)
+    tokenize_and_parse(files, assert_fail_path, NULL)
     free(assert_fail_path)
 
-    tokenize_and_parse(state, global_compiler_state.args.infile, NULL)
+    tokenize_and_parse(files, global_compiler_state.args.infile, NULL)
 
 
 # Each step of type checking produces exported symbols that other files can import.
 # This method hands them over to the importing files.
-def exports_to_imports(state: CompileState*, pending_exports: List[ExportSymbol]*) -> None:
-    for to = state.files.ptr; to < state.files.end(); to++:
+def exports_to_imports(files: List[FileState], pending_exports: List[ExportSymbol]*) -> None:
+    for to = files.ptr; to < files.end(); to++:
         seen_before = List[FileState*]{}
 
         for stmt = to.ast.body.ptr; stmt < to.ast.body.end(); stmt++:
             if stmt.kind != AstStatementKind.Import:
                 continue
 
-            from = state.find_file(stmt.import_statement.resolved_path)
+            from = find_file(files, stmt.import_statement.resolved_path)
             assert from != NULL
-            from_index = ((from as int64) - (state.files.ptr as int64)) / sizeof(state.files.ptr[0])
+            from_index = ((from as int64) - (files.ptr as int64)) / sizeof(files.ptr[0])
 
             if from == to:
                 fail(stmt.location, "the file itself cannot be imported")
@@ -388,47 +385,47 @@ def exports_to_imports(state: CompileState*, pending_exports: List[ExportSymbol]
 
         free(seen_before.ptr)
 
-    for i = 0; i < state.files.len; i++:
+    for i = 0; i < files.len; i++:
         for es = pending_exports[i].ptr; es < pending_exports[i].end(); es++:
             es.free()
         free(pending_exports[i].ptr)
         pending_exports[i] = List[ExportSymbol]{}
 
 
-def typecheck_all_files(state: CompileState*) -> None:
+def typecheck_all_files(files: List[FileState]) -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Type-checking...\n")
 
-    pending_exports: List[ExportSymbol]* = malloc(sizeof(pending_exports[0]) * state.files.len)
+    pending_exports: List[ExportSymbol]* = malloc(sizeof(pending_exports[0]) * files.len)
 
-    for i = 0; i < state.files.len; i++:
+    for i = 0; i < files.len; i++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("  step 1: %s\n", state.files.ptr[i].path)
-        pending_exports[i] = typecheck_step1_create_types(&state.files.ptr[i].ast)
+            printf("  step 1: %s\n", files.ptr[i].path)
+        pending_exports[i] = typecheck_step1_create_types(&files.ptr[i].ast)
 
-    exports_to_imports(state, pending_exports)
+    exports_to_imports(files, pending_exports)
 
-    for i = 0; i < state.files.len; i++:
+    for i = 0; i < files.len; i++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("  step 2: %s\n", state.files.ptr[i].path)
-        pending_exports[i] = typecheck_step2_populate_types(&state.files.ptr[i].ast)
+            printf("  step 2: %s\n", files.ptr[i].path)
+        pending_exports[i] = typecheck_step2_populate_types(&files.ptr[i].ast)
 
-    exports_to_imports(state, pending_exports)
+    exports_to_imports(files, pending_exports)
 
-    for i = 0; i < state.files.len; i++:
+    for i = 0; i < files.len; i++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("  step 3: %s\n", state.files.ptr[i].path)
-        typecheck_step3_function_and_method_bodies(&state.files.ptr[i].ast)
+            printf("  step 3: %s\n", files.ptr[i].path)
+        typecheck_step3_function_and_method_bodies(&files.ptr[i].ast)
         if global_compiler_state.args.verbosity >= 3:
             # AST now contains types. If very verbose, print them.
-            state.files.ptr[i].ast.print()
+            files.ptr[i].ast.print()
 
     free(pending_exports)
 
 
-def build_and_analyze_all_uvgs(state: CompileState*) -> None:
+def build_and_analyze_all_uvgs(files: List[FileState]) -> None:
     print_uvgs = global_compiler_state.args.verbosity >= 2
-    for f = state.files.ptr; f < state.files.end(); f++:
+    for f = files.ptr; f < files.end(); f++:
         if global_compiler_state.args.verbosity >= 1:
             printf("Building and analyzing UVGs for %s\n", f.path)
         build_and_analyze_uvgs(&f.ast, print_uvgs)
@@ -487,44 +484,44 @@ def parse_only() -> None:
 
 def uvg_only() -> None:
     global_compiler_state.stdlib_path = find_stdlib()
-    state = CompileState{}
-    tokenize_and_parse_all_files(&state)
-    typecheck_all_files(&state)
+    files = List[FileState]{}
+    tokenize_and_parse_all_files(&files)
+    typecheck_all_files(files)
 
-    mainfile = state.find_file(global_compiler_state.args.infile)
+    mainfile = find_file(files, global_compiler_state.args.infile)
     assert mainfile != NULL
     build_and_analyze_uvgs(&mainfile.ast, True)
 
-    state.free()
+    free_file_list(files)
 
 
 def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     global_compiler_state.stdlib_path = find_stdlib()
-    state = CompileState{}
-    tokenize_and_parse_all_files(&state)
-    typecheck_all_files(&state)
-    build_and_analyze_all_uvgs(&state)
+    files = List[FileState]{}
+    tokenize_and_parse_all_files(&files)
+    typecheck_all_files(files)
+    build_and_analyze_all_uvgs(files)
 
-    for f = state.files.ptr; f < state.files.end(); f++:
+    for f = files.ptr; f < files.end(); f++:
         warn_about_unused(&f.ast)
 
     init_target()
     objpaths = List[byte*]{}
-    for f = state.files.ptr; f < state.files.end(); f++:
+    for f = files.ptr; f < files.end(); f++:
         o_path = find_existing_object_file_or_compile_to_object_file(f)
         objpaths.append(o_path)
     cleanup_target()
 
-    *linker_flags = collect_linker_flags(state.files)
+    *linker_flags = collect_linker_flags(files)
 
     # Check for missing main() as late as possible, so that other errors come first.
     # This way Jou users can work on other functions before main() function is written.
-    mainfile = state.find_file(global_compiler_state.args.infile)
+    mainfile = find_file(files, global_compiler_state.args.infile)
     assert mainfile != NULL
     if not defines_main(&mainfile.ast):
         fail(Location{path=mainfile.path}, "missing `main` function to execute the program")
 
-    state.free()
+    free_file_list(files)
     fail_if_warnings_and_flag()
     return objpaths
 
