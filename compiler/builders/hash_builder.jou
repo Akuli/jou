@@ -390,12 +390,13 @@ def build_content_hash(ast: AstFile*) -> Hash:
     builder.hash.add_string(global_compiler_state.target.triple)
     builder.hash.add_string(global_compiler_state.target.data_layout)
 
-    # Compilation results depend on optimization level (-O0, -O1, -O2, -O3)
-    # TODO: this is also in paths.jou, probably doesn't need to be in two places...
-    builder.hash.add_byte(global_compiler_state.args.optlevel as byte)
-
     # Compilation results depend on the compiler that compiles them
     builder.hash.add_uint64(hash_of_compiler().hash)
+
+    # Compilation results depend on optimization level (-O0, -O1, -O2, -O3).
+    # However, we don't include it in the hash here, because compilation
+    # results for different optimization levels are separated anyway.
+    # See doc/lazy-recompile.md for details.
 
     builder_wrapper = AnyBuilder{hbuilder = &builder}
 

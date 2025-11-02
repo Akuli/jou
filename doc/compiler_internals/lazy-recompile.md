@@ -92,3 +92,14 @@ it deletes existing files whose name ends with `_5555666677778888.o`.
 This means that if you edit and recompile a file 1000 times,
 you don't end up with 1000 object files in the `jou_compiled` folder,
 because the identifier hash is the same every time.
+
+Here are some more examples of technical details
+to clarify how the two hashes are supposed to work.
+
+- The content hash depends on the Jou compiler binary,
+    but for most changes to the compiler, identifier hashes do not change.
+    This means that if you update the Jou compiler,
+    the new compiler will likely delete all `.o` files that the old compiler compiled.
+- The identifier hash depends on the optimization level,
+    so if you compile with `-O1` and with `-O2`,
+    you will end up with two `.o` files for each Jou file.
