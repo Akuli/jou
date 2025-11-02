@@ -6,13 +6,13 @@
 # files with LLVM is really slow.
 
 import "../ast.jou"
+import "../command_line_args.jou"
 import "../errors_and_warnings.jou"
 import "../hash.jou"
-import "../paths.jou"
-import "../state.jou"
+import "../target.jou"
 import "../types.jou"
-import "./any_builder.jou"
 import "./ast_to_builder.jou"
+import "./any_builder.jou"
 
 
 def hash_type(hash: Hash*, type: Type*) -> None:
@@ -385,14 +385,11 @@ class HBuilder:
 def build_content_hash(ast: AstFile*) -> Hash:
     builder = HBuilder{hash = new_hash()}
     builder.hash.add_string(ast.path)  # file path is given to LLVM, presumably will be included in .o file
-
-    assert global_compiler_state.target.ready
-    builder.hash.add_string(global_compiler_state.target.triple)
-    builder.hash.add_string(global_compiler_state.target.data_layout)
+    builder.hash.add_string(target.triple)
+    builder.hash.add_string(target.data_layout)
 
     # Compilation results depend on optimization level (-O0, -O1, -O2, -O3)
-    # TODO: this is also in paths.jou, probably doesn't need to be in two places...
-    builder.hash.add_byte(global_compiler_state.args.optlevel as byte)
+    builder.hash.add_byte(command_line_args.optlevel as byte)
 
     # Compilation results depend on the compiler that compiles them
     builder.hash.add_uint64(hash_of_compiler().hash)

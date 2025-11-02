@@ -1,36 +1,31 @@
 # LLVM makes a mess of how to define what kind of computer will run the
-# compiled programs. Sometimes it wants a global_compiler_state.target triple, sometimes a
+# compiled programs. Sometimes it wants a target triple, sometimes a
 # data layout. Sometimes it wants a string, sometimes an object
 # representing the thing.
 #
 # This file aims to provide everything you may ever need. Hopefully it
 # will make the mess slightly less miserable to you. Just use the global
-# "global_compiler_state.target" variable, it contains everything you will ever need.
+# "target" variable, it contains everything you will ever need.
 
+import "./command_line_args.jou"
+import "./llvm.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
-import "./llvm.jou"
-import "./state.jou"
-
-
-@public
 class Target:
-    ready: bool
     triple: byte[100]
     data_layout: byte[500]
     target: LLVMTarget*
     target_machine: LLVMTargetMachine*
     target_data: LLVMTargetData*
 
+@public
+global target: Target
+
 
 @public
 def init_target() -> None:
-    # Should be called only once because this affects LLVM's global state and
-    # there's no cleanup to some of the things this does.
-    assert not global_compiler_state.target.ready
-
     LLVMInitializeX86TargetInfo()
     LLVMInitializeX86Target()
     LLVMInitializeX86TargetMC()
@@ -49,42 +44,46 @@ def init_target() -> None:
 
     if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
-        global_compiler_state.target.triple = "x86_64-pc-windows-gnu"
+        target.triple = "x86_64-pc-windows-gnu"
     else:
         triple = LLVMGetDefaultTargetTriple()
-        assert strlen(triple) < sizeof global_compiler_state.target.triple
-        strcpy(global_compiler_state.target.triple, triple)
+        assert strlen(triple) < sizeof target.triple
+        strcpy(target.triple, triple)
         LLVMDisposeMessage(triple)
 
     error: byte* = NULL
-    if LLVMGetTargetFromTriple(global_compiler_state.target.triple, &global_compiler_state.target.target, &error) != 0:
+    if LLVMGetTargetFromTriple(target.triple, &target.target, &error) != 0:
         assert error != NULL
-        fprintf(get_stderr(), "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", global_compiler_state.target.triple, error)
+        fprintf(get_stderr(), "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", target.triple, error)
         exit(1)
     assert error == NULL
-    assert global_compiler_state.target.target != NULL
+    assert target.target != NULL
 
-    global_compiler_state.target.target_machine = LLVMCreateTargetMachine(
-        global_compiler_state.target.target,
-        global_compiler_state.target.triple,
+    target.target_machine = LLVMCreateTargetMachine(
+        target.target,
+        target.triple,
         "",
         "",
         LLVMCodeGenOptLevel.Default,
         LLVMRelocMode.PIC,
         LLVMCodeModel.Default,
     )
-    assert global_compiler_state.target.target_machine != NULL
+    assert target.target_machine != NULL
 
-    global_compiler_state.target.target_data = LLVMCreateTargetDataLayout(global_compiler_state.target.target_machine)
-    assert global_compiler_state.target.target_data != NULL
+    target.target_data = LLVMCreateTargetDataLayout(target.target_machine)
+    assert target.target_data != NULL
 
-    tmp = LLVMCopyStringRepOfTargetData(global_compiler_state.target.target_data)
-    assert strlen(tmp) < sizeof global_compiler_state.target.data_layout
-    strcpy(global_compiler_state.target.data_layout, tmp)
+    tmp = LLVMCopyStringRepOfTargetData(target.target_data)
+    assert strlen(tmp) < sizeof target.data_layout
+    strcpy(target.data_layout, tmp)
     LLVMDisposeMessage(tmp)
 
-    if global_compiler_state.args.verbosity >= 2:
-        printf("Target triple: %s\n", global_compiler_state.target.triple)
-        printf("Data layout: %s\n", global_compiler_state.target.data_layout)
+    if command_line_args.verbosity >= 2:
+        printf("Target triple: %s\n", target.triple)
+        printf("Data layout: %s\n", target.data_layout)
 
-    global_compiler_state.target.ready = True
+
+@public
+def cleanup_target() -> None:
+    LLVMDisposeTargetMachine(target.target_machine)
+    LLVMDisposeTargetData(target.target_data)
