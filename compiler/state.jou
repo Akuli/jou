@@ -42,7 +42,7 @@ class CompilerState:
         free(self.stdlib_path)
         for p = self.jou_files.ptr; p < self.jou_files.end(); p++:
             free(p.path)
-            p.ast.free()  # TODO: need this?
+            p.ast.free()
         free(self.jou_files.ptr)
         self.types.free()
 
