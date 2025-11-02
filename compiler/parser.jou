@@ -335,6 +335,7 @@ class Parser:
         path: byte*
         if starts_with(path_token.long_string, "stdlib/"):
             # Starts with stdlib --> import from where stdlib actually is
+            assert global_compiler_state.stdlib_path != NULL
             asprintf(&path, "%s/%s", global_compiler_state.stdlib_path, &path_token.long_string[7])
         elif starts_with(path_token.long_string, "."):
             # Relative to directory where the file is

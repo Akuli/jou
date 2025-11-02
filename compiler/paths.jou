@@ -172,13 +172,11 @@ def find_current_executable() -> byte*:
     exit(1)
 
 
-global cached_compiler_hash: Hash
-
 # Returns a value that changes when the compiler is recompiled.
 @public
 def hash_of_compiler() -> Hash:
-    if cached_compiler_hash.hash != 0:
-        return cached_compiler_hash
+    if global_compiler_state.cached_compiler_hash.hash != 0:
+        return global_compiler_state.cached_compiler_hash
 
     path = find_current_executable()
     f = fopen(path, "rb")
@@ -186,14 +184,14 @@ def hash_of_compiler() -> Hash:
     if f == NULL:
         ok = False
     else:
-        cached_compiler_hash = new_hash()
+        global_compiler_state.cached_compiler_hash = new_hash()
         buf: byte[4096]
         fail = False
         while True:
             n = fread(buf, 1, sizeof(buf), f)
             if n == 0:
                 break
-            cached_compiler_hash.add_bytes(buf, n)
+            global_compiler_state.cached_compiler_hash.add_bytes(buf, n)
         ok = (ferror(f) == 0)
         fclose(f)
 
@@ -201,7 +199,7 @@ def hash_of_compiler() -> Hash:
         fprintf(get_stderr(), "error: failed to calculate hash of the Jou compiler executable\n")
         exit(1)
 
-    return cached_compiler_hash
+    return global_compiler_state.cached_compiler_hash
 
 
 @public

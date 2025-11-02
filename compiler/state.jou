@@ -3,6 +3,7 @@ import "stdlib/mem.jou"
 
 import "./ast.jou"
 import "./command_line_args.jou"
+import "./hash.jou"
 import "./target.jou"
 import "./types.jou"
 
@@ -22,6 +23,8 @@ class JouFile:
 class CompilerState:
     args: CommandLineArgs
     stdlib_path: byte*  # owned
+    types: TypeState
+    cached_compiler_hash: Hash
 
     # Appending to this list happens only in the early stages of compilation,
     # so for most purposes, pointers into this list are stable and won't ever
@@ -33,8 +36,6 @@ class CompilerState:
 
     # Initialized somewhat late during compilation, not needed for a lot of things
     target: Target
-
-    types: TypeState
 
     # This method exists only to make valgrind happy. It is called only when
     # the compiler is exiting and the operating system is about to free all
