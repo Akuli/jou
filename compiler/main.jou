@@ -322,7 +322,7 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
             tokenize_and_parse(stmt.import_statement.resolved_path, &stmt.location)  # recursive call
 
 
-def parse_all_files() -> None:
+def tokenize_and_parse_all_files() -> None:
     assert global_compiler_state.stdlib_path != NULL
 
     assert_fail_path: byte* = NULL
@@ -475,7 +475,7 @@ def parse_only() -> None:
 
 
 def uvg_only() -> None:
-    parse_all_files()
+    tokenize_and_parse_all_files()
     typecheck_all_files()
 
     mainfile = find_file(global_compiler_state.args.infile)
@@ -484,7 +484,7 @@ def uvg_only() -> None:
 
 
 def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
-    parse_all_files()
+    tokenize_and_parse_all_files()
     typecheck_all_files()
     build_and_analyze_all_uvgs()
 
