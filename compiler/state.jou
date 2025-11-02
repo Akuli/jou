@@ -2,6 +2,7 @@ import "stdlib/mem.jou"
 import "stdlib/list.jou"
 
 import "./hash.jou"
+import "./target.jou"
 import "./ast.jou"
 import "./llvm.jou"
 import "./command_line_args.jou"
@@ -25,6 +26,7 @@ class CompilerState:
     files: List[FileState]
     warnings_shown: bool  # for the --fail-on-warnings compiler flag
     cached_compiler_hash: Hash
+    target: Target
 
     def free(self) -> None:
         free(self.stdlib_path)

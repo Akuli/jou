@@ -99,7 +99,7 @@ def optimize(module: LLVMModule*, level: int) -> None:
     sprintf(passes, "default<O%d>", level)
 
     options = LLVMCreatePassBuilderOptions()
-    error = LLVMRunPasses(module, passes, target.target_machine, options)
+    error = LLVMRunPasses(module, passes, global_compiler_state.target.target_machine, options)
     LLVMDisposePassBuilderOptions(options)
 
     if error != NULL:
@@ -126,7 +126,13 @@ def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
     asprintf(&o_path_2, "%.*s_temp.o", (strlen(o_path) - 2) as int, o_path)
 
     error: byte* = NULL
-    if LLVMTargetMachineEmitToFile(target.target_machine, mod, o_path_2, LLVMCodeGenFileType.ObjectFile, &error) != 0:
+    if LLVMTargetMachineEmitToFile(
+        global_compiler_state.target.target_machine,
+        mod,
+        o_path_2,
+        LLVMCodeGenFileType.ObjectFile,
+        &error,
+    ) != 0:
         assert error != NULL
         fprintf(get_stderr(), "failed to emit object file \"%s\": %s\n", o_path, error)
         exit(1)
@@ -490,7 +496,6 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     for f = global_compiler_state.files.ptr; f < global_compiler_state.files.end(); f++:
         o_path = find_existing_object_file_or_compile_to_object_file(f)
         objpaths.append(o_path)
-    cleanup_target()
 
     *linker_flags = collect_linker_flags()
 
