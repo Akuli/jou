@@ -493,7 +493,7 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         warn_about_unused(p)
 
-    init_target()
+    init_target(&global_compiler_state.target)
     objpaths = List[byte*]{}
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         o_path = find_existing_object_file_or_compile_to_object_file(p)
