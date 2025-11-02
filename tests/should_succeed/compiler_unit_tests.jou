@@ -7,6 +7,15 @@ import "stdlib/mem.jou"
 import "../../compiler/hash.jou"
 import "../../compiler/paths.jou"
 
+if not WINDOWS:
+    # Make sure we link with LLVM
+    import "../../config.jou"
+
+    # Avoid unused import warning
+    @public
+    def dummy_function() -> None:
+        puts(JOU_CLANG_PATH)
+
 
 if WINDOWS:
     def replace(s: byte*, old: byte, new: byte) -> None:
