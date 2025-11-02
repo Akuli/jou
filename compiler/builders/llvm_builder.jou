@@ -291,9 +291,9 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
 
     # Always treat enums as ints
     if from.kind == TypeKind.Enum:
-        from = intType
+        from = int_type(32)
     if to.kind == TypeKind.Enum:
-        to = intType
+        to = int_type(32)
 
     if from == to:
         return obj
@@ -327,7 +327,7 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
     if from.is_pointer_type() and to.is_integer_type():
         return LLVMBuildPtrToInt(builder, obj, type_to_llvm(to), "cast")
 
-    if from == boolType and to.is_integer_type():
+    if from == bool_type() and to.is_integer_type():
         return LLVMBuildIntCast2(builder, obj, type_to_llvm(to), False as int, "cast")
 
     printf("cast failed: %s -. %s\n", from.name, to.name)
@@ -414,7 +414,7 @@ class LBuilder:
     # Returns &ptr[index]
     def indexed_pointer(self, ptr: LBuilderValue, index: LBuilderValue) -> LBuilderValue:
         assert ptr.type.kind == TypeKind.Pointer
-        assert index.type == int64Type  # doesn't work right if it's other type
+        assert index.type == int_type(64)  # doesn't work right if it's other type
         llvm_result = LLVMBuildGEP2(
             self.llvm_builder,
             type_to_llvm(ptr.type.value_type),
@@ -509,7 +509,7 @@ class LBuilder:
         strcpy(padded, s)
         llvm_array = LLVMConstString(padded, array_size, True as int)
         free(padded)
-        return LBuilderValue{type = byteType.array_type(array_size), llvm_value = llvm_array}
+        return LBuilderValue{type = uint_type(8).array_type(array_size), llvm_value = llvm_array}
 
     # string as '\0' terminated pointer
     def pointer_string(self, s: byte*) -> LBuilderValue:
@@ -517,11 +517,11 @@ class LBuilder:
         llvm_string = LLVMAddGlobal(self.llvm_module, LLVMTypeOf(llvm_array), "string_literal")
         LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)
-        return LBuilderValue{type = byteType.pointer_type(), llvm_value = llvm_string}
+        return LBuilderValue{type = uint_type(8).pointer_type(), llvm_value = llvm_string}
 
     def boolean(self, b: bool) -> LBuilderValue:
         return LBuilderValue{
-            type = boolType,
+            type = bool_type(),
             llvm_value = LLVMConstInt(LLVMInt1Type(), b as int64, False as int),
         }
 
@@ -659,7 +659,7 @@ class LBuilder:
                 llvm_result = LLVMBuildFCmp(self.llvm_builder, LLVMRealPredicate.OEQ, a.llvm_value, b.llvm_value, "eq")
             case _:
                 assert False
-        return LBuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = bool_type(), llvm_value = llvm_result}
 
     # a < b
     def lt(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
@@ -673,12 +673,12 @@ class LBuilder:
                 llvm_result = LLVMBuildFCmp(self.llvm_builder, LLVMRealPredicate.OLT, a.llvm_value, b.llvm_value, "lt")
             case _:
                 assert False
-        return LBuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = bool_type(), llvm_value = llvm_result}
 
     # not value
     def not_(self, value: LBuilderValue) -> LBuilderValue:
         llvm_result = LLVMBuildXor(self.llvm_builder, value.llvm_value, LLVMConstInt(LLVMInt1Type(), 1, False as int), "not")
-        return LBuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = bool_type(), llvm_value = llvm_result}
 
     # ~value
     def bit_not(self, value: LBuilderValue) -> LBuilderValue:
@@ -688,7 +688,7 @@ class LBuilder:
 
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> LBuilderValue:
-        return LBuilderValue{type = int64Type, llvm_value = LLVMSizeOf(type_to_llvm(t))}
+        return LBuilderValue{type = int_type(64), llvm_value = LLVMSizeOf(type_to_llvm(t))}
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: LBuilderValue) -> None:

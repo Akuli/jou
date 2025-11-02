@@ -3,13 +3,14 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
+
 import "./token.jou"
+import "./state.jou"
 import "./ast.jou"
 import "./errors_and_warnings.jou"
 import "./paths.jou"
 import "./constants.jou"
 import "./types.jou"
-import "./state.jou"
 
 
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
@@ -698,7 +699,7 @@ class Parser:
                 self.tokens++
             case TokenKind.Byte:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = int_constant(byteType, self.tokens.integer_value as int64)
+                expr.constant = int_constant(uint_type(8), self.tokens.integer_value as int64)
                 self.tokens++
             case TokenKind.Float:
                 expr.kind = AstExpressionKind.Constant

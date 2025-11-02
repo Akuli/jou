@@ -3,9 +3,8 @@
 # data layout. Sometimes it wants a string, sometimes an object
 # representing the thing.
 #
-# This file aims to provide everything you may ever need. Hopefully it
-# will make the mess slightly less miserable to you. Just use the global
-# "target" variable, it contains everything you will ever need.
+# This file aims to provide everything you may ever need in one convenient
+# struct. Hopefully it will make the mess slightly less miserable to you.
 
 import "stdlib/str.jou"
 import "stdlib/io.jou"
@@ -17,18 +16,16 @@ import "./state.jou"
 
 @public
 class Target:
+    ready: bool
     triple: byte[100]
     data_layout: byte[500]
     target: LLVMTarget*
     target_machine: LLVMTargetMachine*
     target_data: LLVMTargetData*
-    ready: bool
 
 
 @public
-def init_target() -> None:
-    target: Target* = &global_compiler_state.target
-
+def init_target(target: Target*) -> None:
     # This should be called only once because this affects LLVM's global state and
     # there's no cleanup to some of the things this does.
     assert not target.ready

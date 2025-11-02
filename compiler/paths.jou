@@ -34,9 +34,7 @@ if WINDOWS:
         # here because jou adds a lot of padding.
         dummy: byte[320]
 
-    # TODO: this should be a `const`, but that creates compiler error
-    def INVALID_HANDLE_VALUE() -> int64:
-        return -1
+    const INVALID_HANDLE_VALUE: int64 = -1
 
     declare FindFirstFileA(FileName: byte*, FindFileData: WIN32_FIND_DATAA*) -> int64
     declare FindNextFileA(hFindFile: int64, FindFileData: WIN32_FIND_DATAA*) -> int
@@ -96,7 +94,7 @@ def listdir(path: byte*) -> List[byte[100]]:
         handle = FindFirstFileA(path, &find_data)
 
         # Seems like there's no easy way to distinguish empty directory and error.
-        if handle != INVALID_HANDLE_VALUE():
+        if handle != INVALID_HANDLE_VALUE:
             found_something = True
             while found_something:
                 cFileName = &(&find_data as byte*)[44]  # cFileName field is at offset 44
@@ -172,6 +170,36 @@ def find_current_executable() -> byte*:
     # TODO: show os error message? (GetLastError / errno)
     fprintf(get_stderr(), "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
     exit(1)
+
+
+# Returns a value that changes when the compiler is recompiled.
+@public
+def hash_of_compiler() -> Hash:
+    if global_compiler_state.cached_compiler_hash.hash != 0:
+        return global_compiler_state.cached_compiler_hash
+
+    path = find_current_executable()
+    f = fopen(path, "rb")
+    free(path)
+    if f == NULL:
+        ok = False
+    else:
+        global_compiler_state.cached_compiler_hash = new_hash()
+        buf: byte[4096]
+        fail = False
+        while True:
+            n = fread(buf, 1, sizeof(buf), f)
+            if n == 0:
+                break
+            global_compiler_state.cached_compiler_hash.add_bytes(buf, n)
+        ok = (ferror(f) == 0)
+        fclose(f)
+
+    if not ok:
+        fprintf(get_stderr(), "error: failed to calculate hash of the Jou compiler executable\n")
+        exit(1)
+
+    return global_compiler_state.cached_compiler_hash
 
 
 @public
@@ -346,14 +374,14 @@ def get_path_to_object_file_in_jou_compiled(jou_file_path: byte*, content_hash: 
     subfolder = get_path_to_jou_compiled_subfolder()
 
     simple_name = get_simple_name(jou_file_path)
-    file_path_hash = calculate_identifier_hash(jou_file_path)
+    identifier_hash = calculate_identifier_hash(jou_file_path)
 
     # See doc/lazy-recompile.md for an explaanation of the file naming.
     # Example file name: simple_name_0011223344556677_8899aabbccddeeff.o
 
     assert sizeof(simple_name) == 50
     filename: byte[200]
-    sprintf(filename, "%s_%016llx_%016llx.o", simple_name, content_hash.hash, file_path_hash.hash)
+    sprintf(filename, "%s_%016llx_%016llx.o", simple_name, content_hash.hash, identifier_hash.hash)
 
     full_path: byte*
     asprintf(&full_path, "%s/%s", subfolder, filename)

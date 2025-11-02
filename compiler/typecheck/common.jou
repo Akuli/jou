@@ -69,19 +69,19 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
         case AstTypeKind.Named:
             match asttype.name with strcmp:
                 case "int":
-                    return intType
+                    return int_type(32)
                 case "byte":
-                    return byteType
+                    return uint_type(8)
                 case "int8" | "int16" | "int32" | "int64":
                     return int_type(atoi(&asttype.name[3]))
                 case "uint8" | "uint16" | "uint32" | "uint64":
                     return uint_type(atoi(&asttype.name[4]))
                 case "bool":
-                    return boolType
+                    return bool_type()
                 case "float":
-                    return floatType
+                    return float_type()
                 case "double":
-                    return doubleType
+                    return double_type()
                 case _:
                     # Are we inside a generic class? When defining List[T], we want to find the T.
                     if containing_class != NULL:
@@ -116,7 +116,7 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
 
         case AstTypeKind.Pointer:
             if asttype.value_type.is_void():
-                return voidPtrType
+                return void_ptr_type()
             return type_from_ast(ft, containing_class, asttype.value_type).pointer_type()
 
         case AstTypeKind.Array:

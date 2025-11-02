@@ -10,13 +10,7 @@
 # compiler: if someone can place whatever they want into `jou_compiled`, you're
 # doomed anyway :)
 
-import "stdlib/io.jou"
-import "stdlib/mem.jou"
-import "stdlib/process.jou"
 import "stdlib/str.jou"
-
-import "./paths.jou"
-import "./state.jou"
 
 
 # Do not instantiate this as `Hash{}`, that uses wrong initial value.
@@ -57,33 +51,3 @@ class Hash:
 @public
 def new_hash() -> Hash:
     return Hash{hash = 0xcbf2_9ce4_8422_2325, created_correctly = True}
-
-
-# Returns a value that changes when the compiler is recompiled.
-@public
-def hash_of_compiler() -> Hash:
-    if global_compiler_state.cached_compiler_hash.hash != 0:
-        return global_compiler_state.cached_compiler_hash
-
-    path = find_current_executable()
-    f = fopen(path, "rb")
-    free(path)
-    if f == NULL:
-        ok = False
-    else:
-        global_compiler_state.cached_compiler_hash = new_hash()
-        buf: byte[4096]
-        fail = False
-        while True:
-            n = fread(buf, 1, sizeof(buf), f)
-            if n == 0:
-                break
-            global_compiler_state.cached_compiler_hash.add_bytes(buf, n)
-        ok = (ferror(f) == 0)
-        fclose(f)
-
-    if not ok:
-        fprintf(get_stderr(), "error: failed to calculate hash of the Jou compiler executable\n")
-        exit(1)
-
-    return global_compiler_state.cached_compiler_hash
