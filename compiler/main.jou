@@ -82,6 +82,7 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     len = 0 as int64
     filename = LLVMGetSourceFileName(module, &len)
     printf("===== %s LLVM IR for file \"%.*s\" =====\n", opt_or_unopt, len as int, filename)
+    LLVMDisposeMessage(filename)
 
     s = LLVMPrintModuleToString(module)
     puts(s)
@@ -89,12 +90,18 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
 
 
 def optimize(module: LLVMModule*, level: int) -> None:
+    if global_compiler_state.args.verbosity >= 1:
+        len = 0 as int64
+        filename = LLVMGetSourceFileName(module, &len)
+        LLVMDisposeMessage(filename)
+        printf("Optimizing %s (level %d)\n", filename, level)
+
     assert 1 <= level and level <= 3
     passes: byte[100]
     sprintf(passes, "default<O%d>", level)
 
     options = LLVMCreatePassBuilderOptions()
-    error = LLVMRunPasses(module, passes, target.target_machine, options)
+    error = LLVMRunPasses(module, passes, global_compiler_state.target.target_machine, options)
     LLVMDisposePassBuilderOptions(options)
 
     if error != NULL:
@@ -102,6 +109,9 @@ def optimize(module: LLVMModule*, level: int) -> None:
         fprintf(get_stderr(), "Optimizing with LLVM failed: %s\n", msg)
         fprintf(get_stderr(), "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
         exit(1)
+
+    if global_compiler_state.args.verbosity >= 2:
+        print_llvm_ir(module, True)
 
 
 declare rename(oldpath: byte*, newpath: byte*) -> int
@@ -118,7 +128,13 @@ def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
     asprintf(&o_path_2, "%.*s_temp.o", (strlen(o_path) - 2) as int, o_path)
 
     error: byte* = NULL
-    if LLVMTargetMachineEmitToFile(target.target_machine, mod, o_path_2, LLVMCodeGenFileType.ObjectFile, &error) != 0:
+    if LLVMTargetMachineEmitToFile(
+        global_compiler_state.target.target_machine,
+        mod,
+        o_path_2,
+        LLVMCodeGenFileType.ObjectFile,
+        &error,
+    ) != 0:
         assert error != NULL
         fprintf(get_stderr(), "failed to emit object file \"%s\": %s\n", o_path, error)
         exit(1)
@@ -218,13 +234,6 @@ def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
     # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
     LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
 
-    if global_compiler_state.args.optlevel != 0:
-        if global_compiler_state.args.verbosity >= 1:
-            printf("Optimizing %s (level %d)\n", jou_file.path, global_compiler_state.args.optlevel)
-        optimize(mod, global_compiler_state.args.optlevel)
-        if global_compiler_state.args.verbosity >= 2:
-            print_llvm_ir(mod, True)
-
     return mod
 
 
@@ -238,6 +247,8 @@ def find_existing_object_file_or_compile_to_object_file(jou_file: JouFile*) -> b
             printf("Reusing previously compiled file: %s\n", o_path)
     else:
         mod = build_and_verify_llvm_ir(jou_file)
+        if global_compiler_state.args.optlevel != 0:
+            optimize(mod, global_compiler_state.args.optlevel)
         write_llvm_ir_to_file(mod, o_path)
         LLVMDisposeModule(mod)
 
@@ -487,7 +498,6 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         o_path = find_existing_object_file_or_compile_to_object_file(p)
         objpaths.append(o_path)
-    cleanup_target()
 
     *linker_flags = collect_linker_flags()
 

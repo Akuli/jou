@@ -11,12 +11,12 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 
-import "../errors_and_warnings.jou"
 import "../ast.jou"
-import "./any_builder.jou"
+import "../errors_and_warnings.jou"
 import "../llvm.jou"
-import "../target.jou"
+import "../state.jou"
 import "../types.jou"
+import "./any_builder.jou"
 import "./ast_to_builder.jou"
 
 
@@ -44,8 +44,8 @@ def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
 
     sizeneeded = 0 as int64
     for i = 0; i < ntypes; i++:
-        size1 = LLVMABISizeOfType(target.target_data, types[i])
-        size2 = LLVMStoreSizeOfType(target.target_data, types[i])
+        size1 = LLVMABISizeOfType(global_compiler_state.target.target_data, types[i])
+        size2 = LLVMStoreSizeOfType(global_compiler_state.target.target_data, types[i])
 
         # If this assert fails, you need to figure out which of the size functions should be used.
         # I don't know what their difference is.
@@ -728,8 +728,11 @@ class LBuilder:
 @public
 def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     module = LLVMModuleCreateWithName(ast.path)
-    LLVMSetTarget(module, target.triple)
-    LLVMSetDataLayout(module, target.data_layout)
+
+    # TODO: these are in two places, do they really need to be?
+    assert global_compiler_state.target.ready
+    LLVMSetTarget(module, global_compiler_state.target.triple)
+    LLVMSetDataLayout(module, global_compiler_state.target.data_layout)
 
     builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
     builder_wrapper = AnyBuilder{lbuilder = &builder}

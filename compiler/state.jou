@@ -2,6 +2,7 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "./ast.jou"
+import "./target.jou"
 import "./command_line_args.jou"
 
 
@@ -25,6 +26,12 @@ class CompilerState:
     # so for most purposes, pointers into this list are stable and won't ever
     # become invalid.
     jou_files: List[JouFile]
+
+    # Used to fail compiling if there were any warnings.
+    warnings_shown: bool
+
+    # Initialized somewhat late during compilation, not needed for a lot of things
+    target: Target
 
     # This method exists only to make valgrind happy. It is called only when
     # the compiler is exiting and the operating system is about to free all
