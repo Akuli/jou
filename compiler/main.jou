@@ -82,7 +82,6 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     len = 0 as int64
     filename = LLVMGetSourceFileName(module, &len)
     printf("===== %s LLVM IR for file \"%.*s\" =====\n", opt_or_unopt, len as int, filename)
-    LLVMDisposeMessage(filename)
 
     s = LLVMPrintModuleToString(module)
     puts(s)
@@ -93,7 +92,6 @@ def optimize(module: LLVMModule*, level: int) -> None:
     if global_compiler_state.args.verbosity >= 1:
         len = 0 as int64
         filename = LLVMGetSourceFileName(module, &len)
-        LLVMDisposeMessage(filename)
         printf("Optimizing %s (level %d)\n", filename, level)
 
     assert 1 <= level and level <= 3
