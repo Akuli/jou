@@ -493,7 +493,7 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         warn_about_unused(p)
 
-    init_target(&global_compiler_state.target)
+    init_target()
     objpaths = List[byte*]{}
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         o_path = find_existing_object_file_or_compile_to_object_file(p)
@@ -560,6 +560,7 @@ def main(argc: int, argv: byte**) -> int:
     fail_if_warnings_and_flag()
 
     # not really necessary, but makes valgrind much happier
+    free_global_type_state()
     global_compiler_state.free()
 
     return 0

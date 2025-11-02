@@ -294,7 +294,7 @@ class AstToBuilder:
         lhstrue = self.builder.add_block()
         lhsfalse = self.builder.add_block()
         done = self.builder.add_block()
-        resultptr = self.builder.stack_alloc(bool_type(), NULL)
+        resultptr = self.builder.stack_alloc(boolType, NULL)
 
         # if lhs:
         self.builder.branch(self.build_expression(lhsexpr), lhstrue, lhsfalse)
@@ -324,7 +324,7 @@ class AstToBuilder:
         lhstrue = self.builder.add_block()
         lhsfalse = self.builder.add_block()
         done = self.builder.add_block()
-        resultptr = self.builder.stack_alloc(bool_type(), NULL)
+        resultptr = self.builder.stack_alloc(boolType, NULL)
 
         # if lhs:
         self.builder.branch(self.build_expression(lhsexpr), lhstrue, lhsfalse)
@@ -351,9 +351,9 @@ class AstToBuilder:
 
         t = inner.types.implicit_cast_type
         if t.is_number_type():
-            new_value = self.builder.add(old_value, self.builder.cast(self.builder.integer(int_type(32), diff), t))
+            new_value = self.builder.add(old_value, self.builder.cast(self.builder.integer(intType, diff), t))
         else:
-            new_value = self.builder.indexed_pointer(old_value, self.builder.integer(int_type(64), diff))
+            new_value = self.builder.indexed_pointer(old_value, self.builder.integer(int64Type, diff))
 
         self.builder.set_ptr(ptr, new_value)
 
@@ -370,7 +370,7 @@ class AstToBuilder:
         first_item_ptr = self.builder.cast(arr_ptr, t.array.item_type.pointer_type())
 
         for i = 0; i < items.len; i++:
-            i_built = self.builder.integer(int_type(64), i)
+            i_built = self.builder.integer(int64Type, i)
             item_ptr = self.builder.indexed_pointer(first_item_ptr, i_built)
             item_value = self.build_expression(&items.ptr[i])
             self.builder.set_ptr(item_ptr, item_value)
@@ -390,7 +390,7 @@ class AstToBuilder:
             case ConstantKind.Float | ConstantKind.Double:
                 return self.builder.float_or_double(constant.get_type(), constant.float_or_double_text)
             case ConstantKind.Null:
-                return self.builder.zero_of_type(void_ptr_type())
+                return self.builder.zero_of_type(voidPtrType)
             case ConstantKind.EnumMember:
                 return self.builder.enum_member(
                     constant.enum_member.enumtype,
@@ -691,9 +691,9 @@ class AstToBuilder:
         self.builder.set_current_block(error_block)
 
         sig_args = [
-            NameAndType{name = "assertion", type = uint_type(8).pointer_type()},
-            NameAndType{name = "path", type = uint_type(8).pointer_type()},
-            NameAndType{name = "lineno", type = int_type(32)},
+            NameAndType{name = "assertion", type = byteType.pointer_type()},
+            NameAndType{name = "path", type = byteType.pointer_type()},
+            NameAndType{name = "lineno", type = intType},
         ]
         sig = Signature{
             name = "_jou_assert_fail",
@@ -706,7 +706,7 @@ class AstToBuilder:
         args = [
             self.builder.pointer_string(assertion.condition_str),
             self.builder.pointer_string(assert_location.path),
-            self.builder.integer(int_type(32), assert_location.lineno),
+            self.builder.integer(intType, assert_location.lineno),
         ]
         self.builder.call_function(sig.to_funcptr_type(), func, args, 3)
 

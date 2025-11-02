@@ -209,7 +209,7 @@ class UBuilder:
         if to.is_pointer_type():
             # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
             return value
-        elif to == bool_type() and (value == TRUE_ID or value == FALSE_ID):
+        elif to == boolType and (value == TRUE_ID or value == FALSE_ID):
             # Thips helps with e.g. if statements and loops where condition is a literal "True".
             # There is an implicit cast from bool to bool.
             return value

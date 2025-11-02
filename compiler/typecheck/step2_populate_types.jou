@@ -117,14 +117,14 @@ def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type
         ft.add_function(&sig, usedptr)
 
     if sig.is_main_function():
-        if sig.return_type != int_type(32):
+        if sig.return_type != intType:
             fail(astsig.return_type.location, "the main() function must return int")
         if (
             sig.args.len != 0
             and not (
                 sig.args.len == 2
-                and sig.args.ptr[0].type == int_type(32)
-                and sig.args.ptr[1].type == uint_type(8).pointer_type().pointer_type()
+                and sig.args.ptr[0].type == intType
+                and sig.args.ptr[1].type == byteType.pointer_type().pointer_type()
             )
         ):
             fail(
