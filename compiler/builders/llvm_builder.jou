@@ -729,7 +729,6 @@ class LBuilder:
 def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     module = LLVMModuleCreateWithName(ast.path)
 
-    # TODO: these are in two places, do they really need to be?
     assert global_compiler_state.target.ready
     LLVMSetTarget(module, global_compiler_state.target.triple)
     LLVMSetDataLayout(module, global_compiler_state.target.data_layout)
