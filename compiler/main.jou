@@ -88,6 +88,11 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
 
 
 def optimize(module: LLVMModule*, level: int) -> None:
+    if command_line_args.verbosity >= 1:
+        len = 0 as int64
+        filename = LLVMGetSourceFileName(module, &len)
+        printf("Optimizing %s (level %d)\n", filename, command_line_args.optlevel)
+
     assert 1 <= level and level <= 3
     passes: byte[100]
     sprintf(passes, "default<O%d>", level)
@@ -101,6 +106,9 @@ def optimize(module: LLVMModule*, level: int) -> None:
         fprintf(get_stderr(), "Optimizing with LLVM failed: %s\n", msg)
         fprintf(get_stderr(), "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
         exit(1)
+
+    if command_line_args.verbosity >= 2:
+        print_llvm_ir(module, True)
 
 
 declare rename(oldpath: byte*, newpath: byte*) -> int
@@ -213,40 +221,37 @@ class FileState:
                 case _:
                     pass
 
-    def build_llvm_ir(self) -> LLVMModule*:
+
+def build_and_verify_llvm_ir(fs: FileState*) -> LLVMModule*:
+    if command_line_args.verbosity >= 1:
+        printf("Building LLVM IR: %s\n", fs.path)
+    mod = build_llvm_ir(&fs.ast)
+    if command_line_args.verbosity >= 2:
+        print_llvm_ir(mod, False)
+
+    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
+    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
+    LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
+
+    return mod
+
+
+def find_existing_object_file_or_compile_to_object_file(fs: FileState*) -> byte*:
+    content_hash = build_content_hash(&fs.ast)
+    exists: bool
+    o_path = get_path_to_object_file_in_jou_compiled(fs.path, content_hash, &exists)
+
+    if exists:
         if command_line_args.verbosity >= 1:
-            printf("Building LLVM IR: %s\n", self.path)
-        mod = build_llvm_ir(&self.ast)
-        if command_line_args.verbosity >= 2:
-            print_llvm_ir(mod, False)
-
-        # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
-        # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
-        LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
-
+            printf("Reusing previously compiled file: %s\n", o_path)
+    else:
+        mod = build_and_verify_llvm_ir(fs)
         if command_line_args.optlevel != 0:
-            if command_line_args.verbosity >= 1:
-                printf("Optimizing %s (level %d)\n", self.path, command_line_args.optlevel)
             optimize(mod, command_line_args.optlevel)
-            if command_line_args.verbosity >= 2:
-                print_llvm_ir(mod, True)
+        write_llvm_ir_to_file(mod, o_path)
+        LLVMDisposeModule(mod)
 
-        return mod
-
-    def find_existing_object_file_or_compile_to_object_file(self) -> byte*:
-        content_hash = build_content_hash(&self.ast)
-        exists: bool
-        o_path = get_path_to_object_file_in_jou_compiled(self.path, content_hash, &exists)
-
-        if exists:
-            if command_line_args.verbosity >= 1:
-                printf("Reusing previously compiled file: %s\n", o_path)
-        else:
-            mod = self.build_llvm_ir()
-            write_llvm_ir_to_file(mod, o_path)
-            LLVMDisposeModule(mod)
-
-        return o_path
+    return o_path
 
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
@@ -498,7 +503,7 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     init_target()
     objpaths = List[byte*]{}
     for f = compst.files.ptr; f < compst.files.end(); f++:
-        o_path = f.find_existing_object_file_or_compile_to_object_file()
+        o_path = find_existing_object_file_or_compile_to_object_file(f)
         objpaths.append(o_path)
     cleanup_target()
 
