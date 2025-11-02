@@ -85,7 +85,7 @@ This is implemented by feeding the AST to
 [the LLVM builder](../../compiler/builders/llvm_builder.jou)
 except that it builds a hash instead of LLVM IR.
 
-The **identifier hash** is basically a hash of the file path `"examples/hello.jou"`.
+The **identifier hash** is a hash of the file path `"examples/hello.jou"` and a few other things.
 It is used to delete old object files.
 Before the compiler creates `foo_1111222233334444_5555666677778888.o`,
 it deletes existing files whose name ends with `_5555666677778888.o`.
