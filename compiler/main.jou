@@ -280,11 +280,9 @@ def check_class_fields_before_methods(body: List[AstStatement]) -> None:
 
 
 class CompileState:
-    stdlib_path: byte*  # owned
     files: List[FileState]
 
     def free(self) -> None:
-        free(self.stdlib_path)
         for fs = self.files.ptr; fs < self.files.end(); fs++:
             fs.free()
         free(self.files.ptr)
@@ -312,7 +310,7 @@ def tokenize_and_parse(state: CompileState*, filename: byte*, import_location: L
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Parsing %s\n", filename)
-    fs.ast = parse(tokens, state.stdlib_path)
+    fs.ast = parse(tokens)
     free_tokens(tokens)
 
     if strcmp(filename, global_compiler_state.args.infile) == 0:
@@ -336,8 +334,9 @@ def tokenize_and_parse(state: CompileState*, filename: byte*, import_location: L
 
 
 def tokenize_and_parse_all_files(state: CompileState*) -> None:
+    assert global_compiler_state.stdlib_path != NULL
     assert_fail_path: byte* = NULL
-    asprintf(&assert_fail_path, "%s/_assert_fail.jou", state.stdlib_path)
+    asprintf(&assert_fail_path, "%s/_assert_fail.jou", global_compiler_state.stdlib_path)
     assert assert_fail_path != NULL
     tokenize_and_parse(state, assert_fail_path, NULL)
     free(assert_fail_path)
@@ -474,21 +473,21 @@ def tokenize_only() -> None:
 
 
 def parse_only() -> None:
-    stdlib = find_stdlib()
+    global_compiler_state.stdlib_path = find_stdlib()
     tokens = tokenize(global_compiler_state.args.infile, NULL)
-    ast = parse(tokens, stdlib)
+    ast = parse(tokens)
 
     ast.print()
 
     ast.free()
     free_tokens(tokens)
-    free(stdlib)
 
     fail_if_warnings_and_flag()
 
 
 def uvg_only() -> None:
-    state = CompileState{stdlib_path = find_stdlib()}
+    global_compiler_state.stdlib_path = find_stdlib()
+    state = CompileState{}
     tokenize_and_parse_all_files(&state)
     typecheck_all_files(&state)
 
@@ -500,7 +499,8 @@ def uvg_only() -> None:
 
 
 def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
-    state = CompileState{stdlib_path = find_stdlib()}
+    global_compiler_state.stdlib_path = find_stdlib()
+    state = CompileState{}
     tokenize_and_parse_all_files(&state)
     typecheck_all_files(&state)
     build_and_analyze_all_uvgs(&state)
@@ -577,5 +577,6 @@ def main(argc: int, argv: byte**) -> int:
 
     # not really necessary, but makes valgrind much happier
     free_global_type_state()
+    global_compiler_state.free()
 
     return 0

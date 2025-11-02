@@ -9,6 +9,7 @@ import "./errors_and_warnings.jou"
 import "./paths.jou"
 import "./constants.jou"
 import "./types.jou"
+import "./state.jou"
 
 
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
@@ -294,7 +295,6 @@ enum WhatAreWeParsing:
 
 class Parser:
     tokens: Token*
-    stdlib_path: byte*
     loop_vars: List[byte*]  # NULL means a loop that doesn't look like "for foo = bar; ..."
     what_are_we_parsing: WhatAreWeParsing
 
@@ -334,7 +334,8 @@ class Parser:
         path: byte*
         if starts_with(path_token.long_string, "stdlib/"):
             # Starts with stdlib --> import from where stdlib actually is
-            asprintf(&path, "%s/%s", self.stdlib_path, &path_token.long_string[7])
+            assert global_compiler_state.stdlib_path != NULL
+            asprintf(&path, "%s/%s", global_compiler_state.stdlib_path, &path_token.long_string[7])
         elif starts_with(path_token.long_string, "."):
             # Relative to directory where the file is
             tmp = strdup(path_token.location.path)
@@ -1577,8 +1578,8 @@ class Parser:
         return result
 
 @public
-def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
-    parser = Parser{tokens = tokens, stdlib_path = stdlib_path}
+def parse(tokens: Token*) -> AstFile:
+    parser = Parser{tokens = tokens}
     result = AstFile{path = tokens[0].location.path}
 
     while parser.tokens.kind != TokenKind.EndOfFile:

@@ -1,9 +1,14 @@
+import "stdlib/mem.jou"
 import "./command_line_args.jou"
 
 
 @public
 class CompilerState:
+    stdlib_path: byte*  # owned
     args: CommandLineArgs
+
+    def free(self) -> None:
+        free(self.stdlib_path)
 
 
 # Yes, I know, everyone hates global variables, especially public global variables...
