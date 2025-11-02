@@ -20,7 +20,12 @@ if WINDOWS:
     link "../mingw64/lib/libLLVMX86Desc.dll.a"
 else:
     # Linker commands are defined in config.jou, which is auto-generated.
-    pass
+    import "../config.jou"
+
+    # Prevent unused import warning
+    @public
+    def llvm_dummy_function() -> None:
+        assert JOU_CLANG_PATH[0] != 1234
 
 @public
 class LLVMModule:

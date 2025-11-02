@@ -26,7 +26,7 @@ def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
     assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
 
     value: Constant
-    if not evaluate_constant_expression(expr, &value, boolType):
+    if not evaluate_constant_expression(expr, &value, bool_type()):
         return -1
 
     if value.kind != ConstantKind.Bool:
@@ -51,7 +51,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
             if type_hint != NULL and type_hint.is_integer_type():
                 t = type_hint
             else:
-                t = intType
+                t = int_type(32)
 
             if expr.integer_value > t.max_value():
                 snprintf(msg, sizeof(msg), "value does not fit into %s", t.name)
@@ -89,7 +89,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
             return True
 
         case AstExpressionKind.Not:
-            if not evaluate_constant_expression(&expr.operands[0], result, boolType):
+            if not evaluate_constant_expression(&expr.operands[0], result, bool_type()):
                 return False
 
             if result.kind != ConstantKind.Bool:
@@ -147,7 +147,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
 def evaluate_array_length(expr: AstExpression*) -> int:
     # TODO: this should probably support int64
     c: Constant
-    if evaluate_constant_expression(expr, &c, intType) and c.get_type() == intType:
+    if evaluate_constant_expression(expr, &c, int_type(32)) and c.get_type() == int_type(32):
         return c.integer.value as int
     fail(expr.location, "cannot evaluate array length at compile time")
 
@@ -158,7 +158,7 @@ def choose_if_elif_branch(if_stmt: AstIfStatement*) -> List[AstStatement]*:
     # Return the first branch whose condition is true.
     # Return NULL if we fail to evaluate a condition and it must be checked at runtime.
     for p = if_stmt.if_and_elifs.ptr; p < if_stmt.if_and_elifs.end(); p++:
-        if (not evaluate_constant_expression(&p.condition, &cond, boolType)) or cond.kind != ConstantKind.Bool:
+        if (not evaluate_constant_expression(&p.condition, &cond, bool_type())) or cond.kind != ConstantKind.Bool:
             return NULL
 
         if cond.boolean:
