@@ -191,18 +191,18 @@ class HBuilder:
         self.hash.add_string("array_string")
         self.hash.add_int(array_size)
         self.hash.add_string(s)
-        return self.new_value(byteType.array_type(array_size))
+        return self.new_value(uint_type(8).array_type(array_size))
 
     # string as '\0' terminated pointer
     def pointer_string(self, s: byte*) -> HBuilderValue:
         self.hash.add_string("pointer_string")
         self.hash.add_string(s)
-        return self.new_value(byteType.pointer_type())
+        return self.new_value(uint_type(8).pointer_type())
 
     def boolean(self, b: bool) -> HBuilderValue:
         self.hash.add_string("bool")
         self.hash.add_bool(b)
-        return self.new_value(boolType)
+        return self.new_value(bool_type())
 
     def integer(self, t: Type*, value: int64) -> HBuilderValue:
         self.hash.add_string("integer")
@@ -310,20 +310,20 @@ class HBuilder:
         self.hash.add_string("eq")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        return self.new_value(boolType)
+        return self.new_value(bool_type())
 
     # a < b
     def lt(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("lt")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        return self.new_value(boolType)
+        return self.new_value(bool_type())
 
     # not value
     def not_(self, value: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("not")
         self.hash.add_int64(value.id)
-        return self.new_value(boolType)
+        return self.new_value(bool_type())
 
     # ~value
     def bit_not(self, value: HBuilderValue) -> HBuilderValue:
@@ -335,7 +335,7 @@ class HBuilder:
     def size_of(self, t: Type*) -> HBuilderValue:
         self.hash.add_string("sizeof")
         hash_type(&self.hash, t)
-        return self.new_value(int64Type)
+        return self.new_value(int_type(64))
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: HBuilderValue) -> None:
