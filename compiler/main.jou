@@ -144,8 +144,8 @@ def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
     free(o_path_2)
 
 
-def add_imported_symbol(jou_file: JouFile*, es: ExportSymbol*, imp: AstImport*) -> None:
-    for p = jou_file.ast.body.ptr; p < jou_file.ast.body.end(); p++:
+def add_imported_symbol(to: JouFile*, es: ExportSymbol*, imp: AstImport*) -> None:
+    for p = to.ast.body.ptr; p < to.ast.body.end(); p++:
         if statement_conflicts_with_an_import(p, es):
             match es.kind:
                 case ExportSymbolKind.Function:
@@ -165,15 +165,15 @@ def add_imported_symbol(jou_file: JouFile*, es: ExportSymbol*, imp: AstImport*) 
 
     match es.kind:
         case ExportSymbolKind.Function:
-            jou_file.ast.types.add_function(&es.funcsignature, &imp.used)
+            to.ast.types.add_function(&es.funcsignature, &imp.used)
         case ExportSymbolKind.Type:
-            jou_file.ast.types.add_type(es.type, &imp.used)
+            to.ast.types.add_type(es.type, &imp.used)
         case ExportSymbolKind.GenericClass:
-            jou_file.ast.types.add_generic_class(es.type, &imp.used)
+            to.ast.types.add_generic_class(es.type, &imp.used)
         case ExportSymbolKind.GlobalVar:
-            jou_file.ast.types.add_global_var(es.name, es.type, &imp.used)
+            to.ast.types.add_global_var(es.name, es.type, &imp.used)
         case ExportSymbolKind.Constant:
-            jou_file.ast.types.add_constant(es.name, &es.constant, &imp.used)
+            to.ast.types.add_constant(es.name, &es.constant, &imp.used)
 
 
 def warn_about_unused(ast: AstFile*) -> None:

@@ -24,15 +24,13 @@ class CompilerState:
     args: CommandLineArgs
     stdlib_path: byte*  # owned
     types: TypeState
+    warnings_shown: bool  # for the --fail-on-warnings compiler flag
     cached_compiler_hash: Hash
 
     # Appending to this list happens only in the early stages of compilation,
     # so for most purposes, pointers into this list are stable and won't ever
     # become invalid.
     jou_files: List[JouFile]
-
-    # Used to fail compiling if there were any warnings.
-    warnings_shown: bool
 
     # Initialized somewhat late during compilation, not needed for a lot of things
     target: Target
