@@ -11,7 +11,9 @@ if not WINDOWS:
     # Make sure we link with LLVM
     import "../../config.jou"
 
-    # Avoid unused import warning
+    # Avoid unused import warning. Can't use a comment to make test runner
+    # expect the unused import warning, because that would also affect the
+    # expected output on windows.
     @public
     def dummy_function() -> None:
         puts(JOU_CLANG_PATH)
