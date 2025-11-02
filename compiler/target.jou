@@ -14,19 +14,25 @@ import "stdlib/process.jou"
 import "./llvm.jou"
 import "./state.jou"
 
+
+@public
 class Target:
     triple: byte[100]
     data_layout: byte[500]
     target: LLVMTarget*
     target_machine: LLVMTargetMachine*
     target_data: LLVMTargetData*
-
-@public
-global target: Target
+    ready: bool
 
 
 @public
 def init_target() -> None:
+    target: Target* = &global_compiler_state.target
+
+    # This should be called only once because this affects LLVM's global state and
+    # there's no cleanup to some of the things this does.
+    assert not target.ready
+
     LLVMInitializeX86TargetInfo()
     LLVMInitializeX86Target()
     LLVMInitializeX86TargetMC()
@@ -83,8 +89,4 @@ def init_target() -> None:
         printf("Target triple: %s\n", target.triple)
         printf("Data layout: %s\n", target.data_layout)
 
-
-@public
-def cleanup_target() -> None:
-    LLVMDisposeTargetMachine(target.target_machine)
-    LLVMDisposeTargetData(target.target_data)
+    target.ready = True
