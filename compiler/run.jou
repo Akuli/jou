@@ -4,7 +4,7 @@ import "stdlib/mem.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
-import "./command_line_args.jou"
+import "./state.jou"
 
 if WINDOWS:
     import "./paths.jou"
@@ -59,7 +59,7 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
 
     free(quoted_object_files)
 
-    if command_line_args.verbosity >= 1:
+    if global_compiler_state.args.verbosity >= 1:
         printf("Running linker: %s\n", command)
 
     if system(command) != 0:
@@ -69,7 +69,7 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
 
 @public
 def run_exe(exepath: byte*) -> None:
-    if command_line_args.verbosity >= 1:
+    if global_compiler_state.args.verbosity >= 1:
         printf("Run: %s\n", exepath)
 
     command: byte*
@@ -78,7 +78,7 @@ def run_exe(exepath: byte*) -> None:
         while strstr(command, "/") != NULL:
             *strstr(command, "/") = '\\'
     else:
-        if command_line_args.valgrind:
+        if global_compiler_state.args.valgrind:
             asprintf(&command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath)
         else:
             asprintf(&command, "'%s'", exepath)

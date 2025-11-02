@@ -4,25 +4,26 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/process.jou"
 
+import "./ast.jou"
+import "./builders/hash_builder.jou"
 import "./builders/llvm_builder.jou"
 import "./builders/uvg_builder.jou"
-import "./builders/hash_builder.jou"
 import "./command_line_args.jou"
+import "./errors_and_warnings.jou"
 import "./evaluate.jou"
-import "./run.jou"
 import "./llvm.jou"
+import "./parser.jou"
+import "./paths.jou"
+import "./run.jou"
+import "./state.jou"
+import "./target.jou"
+import "./token.jou"
+import "./tokenizer.jou"
 import "./typecheck/common.jou"
 import "./typecheck/step1_create_types.jou"
 import "./typecheck/step2_populate_types.jou"
 import "./typecheck/step3_function_and_method_bodies.jou"
-import "./target.jou"
 import "./types.jou"
-import "./token.jou"
-import "./parser.jou"
-import "./paths.jou"
-import "./errors_and_warnings.jou"
-import "./tokenizer.jou"
-import "./ast.jou"
 
 
 def defines_main(ast: AstFile*) -> bool:
@@ -106,7 +107,7 @@ def optimize(module: LLVMModule*, level: int) -> None:
 declare rename(oldpath: byte*, newpath: byte*) -> int
 
 def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
-    if command_line_args.verbosity >= 1:
+    if global_compiler_state.args.verbosity >= 1:
         printf("Writing LLVM IR to %s\n", o_path)
 
     # If we want to create foo.o, first write to foo_temp.o.
@@ -213,22 +214,23 @@ class FileState:
                 case _:
                     pass
 
+    # TODO: shouldn't be a method...
     def build_llvm_ir(self) -> LLVMModule*:
-        if command_line_args.verbosity >= 1:
+        if global_compiler_state.args.verbosity >= 1:
             printf("Building LLVM IR: %s\n", self.path)
         mod = build_llvm_ir(&self.ast)
-        if command_line_args.verbosity >= 2:
+        if global_compiler_state.args.verbosity >= 2:
             print_llvm_ir(mod, False)
 
         # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
         # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
         LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
 
-        if command_line_args.optlevel != 0:
-            if command_line_args.verbosity >= 1:
-                printf("Optimizing %s (level %d)\n", self.path, command_line_args.optlevel)
-            optimize(mod, command_line_args.optlevel)
-            if command_line_args.verbosity >= 2:
+        if global_compiler_state.args.optlevel != 0:
+            if global_compiler_state.args.verbosity >= 1:
+                printf("Optimizing %s (level %d)\n", self.path, global_compiler_state.args.optlevel)
+            optimize(mod, global_compiler_state.args.optlevel)
+            if global_compiler_state.args.verbosity >= 2:
                 print_llvm_ir(mod, True)
 
         return mod
@@ -239,7 +241,7 @@ class FileState:
         o_path = get_path_to_object_file_in_jou_compiled(self.path, content_hash, &exists)
 
         if exists:
-            if command_line_args.verbosity >= 1:
+            if global_compiler_state.args.verbosity >= 1:
                 printf("Reusing previously compiled file: %s\n", o_path)
         else:
             mod = self.build_llvm_ir()
@@ -294,26 +296,26 @@ class CompileState:
 
         fs = FileState{path = strdup(filename)}
 
-        if command_line_args.verbosity >= 1:
+        if global_compiler_state.args.verbosity >= 1:
             printf("Tokenizing %s\n", filename)
         tokens = tokenize(fs.path, import_location)
 
-        if command_line_args.verbosity >= 2:
+        if global_compiler_state.args.verbosity >= 2:
             print_tokens(tokens)
 
-        if command_line_args.verbosity >= 1:
+        if global_compiler_state.args.verbosity >= 1:
             printf("Parsing %s\n", filename)
         fs.ast = parse(tokens, self.stdlib_path)
         free_tokens(tokens)
 
-        if strcmp(filename, command_line_args.infile) == 0:
+        if strcmp(filename, global_compiler_state.args.infile) == 0:
             fs.ast.is_main_file = True
 
-        if command_line_args.verbosity >= 1:
+        if global_compiler_state.args.verbosity >= 1:
             printf("Evaluating compile-time if statements in %s\n", filename)
         evaluate_compile_time_if_statements(&fs.ast)
 
-        if command_line_args.verbosity >= 2:
+        if global_compiler_state.args.verbosity >= 2:
             fs.ast.print()
 
         check_imports_at_start_of_file(fs.ast.body)
@@ -332,7 +334,7 @@ class CompileState:
         self.parse(assert_fail_path, NULL)
         free(assert_fail_path)
 
-        self.parse(command_line_args.infile, NULL)
+        self.parse(global_compiler_state.args.infile, NULL)
 
     # Each step of type checking produces exported symbols that other files can import.
     # This method hands them over to the importing files.
@@ -359,7 +361,7 @@ class CompileState:
                 seen_before.append(from)
 
                 for es = pending_exports[from_index].ptr; es < pending_exports[from_index].end(); es++:
-                    if command_line_args.verbosity >= 2:
+                    if global_compiler_state.args.verbosity >= 2:
                         match es.kind:
                             case ExportSymbolKind.Function:
                                 kindstr = "function"
@@ -385,39 +387,39 @@ class CompileState:
             pending_exports[i] = List[ExportSymbol]{}
 
     def typecheck_all_files(self) -> None:
-        if command_line_args.verbosity >= 1:
+        if global_compiler_state.args.verbosity >= 1:
             printf("Type-checking...\n")
 
         pending_exports: List[ExportSymbol]* = malloc(sizeof(pending_exports[0]) * self.files.len)
 
         for i = 0; i < self.files.len; i++:
-            if command_line_args.verbosity >= 1:
+            if global_compiler_state.args.verbosity >= 1:
                 printf("  step 1: %s\n", self.files.ptr[i].path)
             pending_exports[i] = typecheck_step1_create_types(&self.files.ptr[i].ast)
 
         self.exports_to_imports(pending_exports)
 
         for i = 0; i < self.files.len; i++:
-            if command_line_args.verbosity >= 1:
+            if global_compiler_state.args.verbosity >= 1:
                 printf("  step 2: %s\n", self.files.ptr[i].path)
             pending_exports[i] = typecheck_step2_populate_types(&self.files.ptr[i].ast)
 
         self.exports_to_imports(pending_exports)
 
         for i = 0; i < self.files.len; i++:
-            if command_line_args.verbosity >= 1:
+            if global_compiler_state.args.verbosity >= 1:
                 printf("  step 3: %s\n", self.files.ptr[i].path)
             typecheck_step3_function_and_method_bodies(&self.files.ptr[i].ast)
-            if command_line_args.verbosity >= 3:
+            if global_compiler_state.args.verbosity >= 3:
                 # AST now contains types. If very verbose, print them.
                 self.files.ptr[i].ast.print()
 
         free(pending_exports)
 
     def build_and_analyze_all_uvgs(self) -> None:
-        print_uvgs = command_line_args.verbosity >= 2
+        print_uvgs = global_compiler_state.args.verbosity >= 2
         for f = self.files.ptr; f < self.files.end(); f++:
-            if command_line_args.verbosity >= 1:
+            if global_compiler_state.args.verbosity >= 1:
                 printf("Building and analyzing UVGs for %s\n", f.path)
             build_and_analyze_uvgs(&f.ast, print_uvgs)
 
@@ -428,8 +430,8 @@ class CompileState:
 def collect_linker_flags(files: List[FileState]) -> byte*:
     maxlen = 0 as int64
     maxlen += strlen("-lm") + 1  # TODO: delete this
-    if command_line_args.linker_flags != NULL:
-        maxlen += strlen(command_line_args.linker_flags) + 1
+    if global_compiler_state.args.linker_flags != NULL:
+        maxlen += strlen(global_compiler_state.args.linker_flags) + 1
     for file = files.ptr; file < files.end(); file++:
         for stmt = file.ast.body.ptr; stmt < file.ast.body.end(); stmt++:
             if stmt.kind == AstStatementKind.Link:
@@ -440,8 +442,8 @@ def collect_linker_flags(files: List[FileState]) -> byte*:
     strcpy(result, "")
 
     strcat(result, "-lm ")  # TODO: delete this
-    if command_line_args.linker_flags != NULL:
-        strcat(result, command_line_args.linker_flags)
+    if global_compiler_state.args.linker_flags != NULL:
+        strcat(result, global_compiler_state.args.linker_flags)
         strcat(result, " ")
     for file = files.ptr; file < files.end(); file++:
         for stmt = file.ast.body.ptr; stmt < file.ast.body.end(); stmt++:
@@ -453,7 +455,7 @@ def collect_linker_flags(files: List[FileState]) -> byte*:
 
 
 def tokenize_only() -> None:
-    tokens = tokenize(command_line_args.infile, NULL)
+    tokens = tokenize(global_compiler_state.args.infile, NULL)
     print_tokens(tokens)
     free_tokens(tokens)
 
@@ -462,7 +464,7 @@ def tokenize_only() -> None:
 
 def parse_only() -> None:
     stdlib = find_stdlib()
-    tokens = tokenize(command_line_args.infile, NULL)
+    tokens = tokenize(global_compiler_state.args.infile, NULL)
     ast = parse(tokens, stdlib)
 
     ast.print()
@@ -479,7 +481,7 @@ def uvg_only() -> None:
     compst.parse_all_files()
     compst.typecheck_all_files()
 
-    mainfile = compst.find_file(command_line_args.infile)
+    mainfile = compst.find_file(global_compiler_state.args.infile)
     assert mainfile != NULL
     build_and_analyze_uvgs(&mainfile.ast, True)
 
@@ -506,7 +508,7 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
 
     # Check for missing main() as late as possible, so that other errors come first.
     # This way Jou users can work on other functions before main() function is written.
-    mainfile = compst.find_file(command_line_args.infile)
+    mainfile = compst.find_file(global_compiler_state.args.infile)
     assert mainfile != NULL
     if not defines_main(&mainfile.ast):
         fail(Location{path=mainfile.path}, "missing `main` function to execute the program")
@@ -532,12 +534,12 @@ def compile_to_jou_compiled_and_run() -> None:
 
 
 def compile_to_outfile() -> None:
-    assert command_line_args.outfile != NULL
+    assert global_compiler_state.args.outfile != NULL
 
     linker_flags: byte*
     objpaths = compile_to_object_files(&linker_flags)
 
-    run_linker(objpaths, command_line_args.outfile, linker_flags)
+    run_linker(objpaths, global_compiler_state.args.outfile, linker_flags)
 
     for p = objpaths.ptr; p < objpaths.end(); p++:
         free(*p)
@@ -546,16 +548,16 @@ def compile_to_outfile() -> None:
 
 
 def main(argc: int, argv: byte**) -> int:
-    parse_command_line_args(argc, argv)
+    global_compiler_state.args = parse_command_line_args(argc, argv)
     init_types()
 
-    if command_line_args.tokenize_only:
+    if global_compiler_state.args.tokenize_only:
         tokenize_only()
-    elif command_line_args.parse_only:
+    elif global_compiler_state.args.parse_only:
         parse_only()
-    elif command_line_args.uvg_only:
+    elif global_compiler_state.args.uvg_only:
         uvg_only()
-    elif command_line_args.outfile == NULL:
+    elif global_compiler_state.args.outfile == NULL:
         compile_to_jou_compiled_and_run()
     else:
         compile_to_outfile()
