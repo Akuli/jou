@@ -1579,8 +1579,6 @@ class Parser:
 
 @public
 def parse(tokens: Token*) -> AstFile:
-    assert global_compiler_state.stdlib_path != NULL  # will be baked into AST
-
     parser = Parser{tokens = tokens}
     result = AstFile{path = tokens[0].location.path}
 
