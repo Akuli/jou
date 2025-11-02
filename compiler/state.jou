@@ -22,6 +22,7 @@ class CompilerState:
     stdlib_path: byte*  # owned
     args: CommandLineArgs
     files: List[FileState]
+    warnings_shown: bool  # for the --fail-on-warnings compiler flag
 
     def free(self) -> None:
         free(self.stdlib_path)
