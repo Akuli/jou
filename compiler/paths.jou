@@ -5,7 +5,7 @@ import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
-import "./command_line_args.jou"
+import "./state.jou"
 import "./hash.jou"
 
 if WINDOWS:
@@ -259,7 +259,7 @@ def skip_slashes(name: byte*) -> byte*:
 def get_path_to_jou_compiled_subfolder() -> byte*:
     # Place jou_compiled into the same directory with the main file we are compiling.
     # No strong reason for doing this. Feel free to change this if it causes problems.
-    infile = strdup(command_line_args.infile)
+    infile = strdup(global_compiler_state.args.infile)
     jou_compiled: byte*
     asprintf(&jou_compiled, "%s/jou_compiled", dirname(infile))
     free(infile)
@@ -267,7 +267,7 @@ def get_path_to_jou_compiled_subfolder() -> byte*:
     simple_mkdir(jou_compiled)
     write_gitignore(jou_compiled)
 
-    name = skip_slashes(command_line_args.infile)
+    name = skip_slashes(global_compiler_state.args.infile)
     name_len = strlen(name)
     if name_len > 4 and ends_with(name, ".jou"):
         name_len -= 4
@@ -294,7 +294,7 @@ def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
             else:
                 ret = unlink(full_path)
 
-            if ret == 0 and command_line_args.verbosity >= 1:
+            if ret == 0 and global_compiler_state.args.verbosity >= 1:
                 printf("Deleted %s\n", full_path)
 
             free(full_path)
@@ -336,7 +336,7 @@ def get_simple_name(jou_file_path: byte*) -> byte[50]:
 # levels, and we always have it ready regardless of which level is used.
 def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
     h = new_hash()
-    h.add_byte(command_line_args.optlevel as byte)
+    h.add_byte(global_compiler_state.args.optlevel as byte)
     h.add_bytes(jou_file_path, strlen(jou_file_path))
     return h
 
@@ -373,9 +373,9 @@ def get_path_to_object_file_in_jou_compiled(jou_file_path: byte*, content_hash: 
 # Returns the path of compiled `.exe` when the Jou compiler runs it directly.
 @public
 def get_jou_compiled_exe_path() -> byte*:
-    assert command_line_args.outfile == NULL
+    assert global_compiler_state.args.outfile == NULL
 
-    name = skip_slashes(command_line_args.infile)
+    name = skip_slashes(global_compiler_state.args.infile)
     name_len = strlen(name)
     if name_len > 4 and ends_with(name, ".jou"):
         name_len -= 4

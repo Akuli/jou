@@ -7,11 +7,12 @@
 # will make the mess slightly less miserable to you. Just use the global
 # "target" variable, it contains everything you will ever need.
 
-import "./command_line_args.jou"
-import "./llvm.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
+
+import "./llvm.jou"
+import "./state.jou"
 
 class Target:
     triple: byte[100]
@@ -78,7 +79,7 @@ def init_target() -> None:
     strcpy(target.data_layout, tmp)
     LLVMDisposeMessage(tmp)
 
-    if command_line_args.verbosity >= 2:
+    if global_compiler_state.args.verbosity >= 2:
         printf("Target triple: %s\n", target.triple)
         printf("Data layout: %s\n", target.data_layout)
 
