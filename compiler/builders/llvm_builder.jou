@@ -42,6 +42,8 @@ def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
     #if ntypes == 1:
     #    return types[0]
 
+    assert global_compiler_state.target.ready
+
     sizeneeded = 0 as int64
     for i = 0; i < ntypes; i++:
         size1 = LLVMABISizeOfType(global_compiler_state.target.target_data, types[i])

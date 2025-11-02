@@ -176,10 +176,10 @@ def add_imported_symbol(jou_file: JouFile*, es: ExportSymbol*, imp: AstImport*) 
             jou_file.ast.types.add_constant(es.name, &es.constant, &imp.used)
 
 
-def warn_about_unused(jou_file: JouFile*) -> None:
+def warn_about_unused(ast: AstFile*) -> None:
     msg: byte[500]
 
-    for stmt = jou_file.ast.body.ptr; stmt < jou_file.ast.body.end(); stmt++:
+    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.Import:
                 if not stmt.import_statement.used:
@@ -489,7 +489,7 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     build_and_analyze_all_uvgs()
 
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
-        warn_about_unused(p)
+        warn_about_unused(&p.ast)
 
     init_target(&global_compiler_state.target)
     objpaths = List[byte*]{}
