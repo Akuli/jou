@@ -149,6 +149,12 @@ function post_process_output()
         # Hide most of the output. We really only care about whether it
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
+    elif [[ $joufile =~ compiler_unit_tests ]] && [[ "${OS:=$(uname)}" =~ Darwin ]]; then
+        # On MacOS, silence a linker warning that appears whenever linking
+        # with LLVM. I don't know what causes the warning.
+        #
+        # See: https://github.com/Akuli/jou/issues/1005
+        grep -v "ld: warning: reexported library with install name"
     else
         # Pass the output through unchanged.
         cat
