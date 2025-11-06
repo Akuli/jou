@@ -4,7 +4,7 @@ import "stdlib/str.jou"
 
 
 # Example: length_of_a_number(69420) == 5
-def length_of_a_number(x: long) -> int:
+def length_of_a_number(x: int64) -> int:
     assert x > 0
     result = 0
     while x != 0:
@@ -14,7 +14,7 @@ def length_of_a_number(x: long) -> int:
 
 
 # Example: concat(69, 420) == 69420
-def concat(a: long, b: long) -> long:
+def concat(a: int64, b: int64) -> int64:
     b_len = length_of_a_number(b)
     while b_len --> 0:
         a *= 10
@@ -22,22 +22,22 @@ def concat(a: long, b: long) -> long:
 
 
 class Equation:
-    expected_result: long
-    values: long[100]
+    expected_result: int64
+    values: int64[100]
     nvalues: int
 
     def is_satisfiable(self) -> bool:
-        assert self->nvalues > 0
-        results: long* = malloc(sizeof(results[0]) * 1)
+        assert self.nvalues > 0
+        results: int64* = malloc(sizeof(results[0]) * 1)
         assert results != NULL
-        results[0] = self->values[0]
+        results[0] = self.values[0]
         nresults = 1
 
-        for value = &self->values[1]; value < &self->values[self->nvalues]; value++:
+        for value = &self.values[1]; value < &self.values[self.nvalues]; value++:
             if nresults == 0:
                 break
 
-            new_results: long* = malloc(sizeof(new_results[0]) * (nresults * 3))
+            new_results: int64* = malloc(sizeof(new_results[0]) * (nresults * 3))
             assert new_results != NULL
             new_nresults = 0
 
@@ -46,7 +46,7 @@ class Equation:
                 r = results[i] + (*value)
                 assert r >= results[i]
                 # if too big already, no way it will be ok later
-                if r <= self->expected_result:
+                if r <= self.expected_result:
                     new_results[new_nresults++] = r
 
             # Let's try multiplying
@@ -54,7 +54,7 @@ class Equation:
                 r = results[i] * (*value)
                 assert r >= results[i]
                 # if too big already, no way it will be ok later
-                if r <= self->expected_result:
+                if r <= self.expected_result:
                     new_results[new_nresults++] = r
 
             # Let's try concatenating
@@ -62,7 +62,7 @@ class Equation:
                 r = concat(results[i], *value)
                 assert r >= results[i]
                 # if too big already, no way it will be ok later
-                if r <= self->expected_result:
+                if r <= self.expected_result:
                     new_results[new_nresults++] = r
 
             free(results)
@@ -71,7 +71,7 @@ class Equation:
 
         found = False
         for i = 0; i < nresults; i++:
-            if results[i] == self->expected_result:
+            if results[i] == self.expected_result:
                 found = True
                 break
 
@@ -83,7 +83,7 @@ def main() -> int:
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
-    result = 0L
+    result = 0 as int64
 
     line: byte[100]
     while fgets(line, sizeof(line) as int, f) != NULL:

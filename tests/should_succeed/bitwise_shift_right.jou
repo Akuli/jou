@@ -1,0 +1,132 @@
+# Tests for the bitwise shift right operator (a >> b)
+
+import "stdlib/io.jou"
+
+
+# These are used to fail compiling if a value is of the wrong type.
+#
+# Taking a pointer avoids implicit casts. For example, if b is a byte, then
+# b implicitly casts to int16, but &b doesn't implicitly cast to int16*.
+def check_uint8(x: uint8*) -> None:
+    pass
+def check_int16(x: int16*) -> None:
+    pass
+def check_int32(x: int32*) -> None:
+    pass
+def check_uint32(x: uint32*) -> None:
+    pass
+def check_int64(x: int64*) -> None:
+    pass
+
+
+def main() -> int:
+    # Type of right side shouldn't matter
+    i0 = 1234 >> 0
+    i1 = 1234 >> (1 as byte)
+    i2 = 1234 >> (2 as int8)
+    i3 = 1234 >> (3 as uint16)
+    i4 = 1234 >> (4 as int16)
+    i5 = 1234 >> (5 as uint32)
+    i6 = 1234 >> (6 as int32)  # Warning: unnecessary cast from int to int
+    i7 = 1234 >> (7 as uint64)
+    i8 = 1234 >> (8 as int64)
+
+    check_int32(&i0)
+    check_int32(&i1)
+    check_int32(&i2)
+    check_int32(&i3)
+    check_int32(&i4)
+    check_int32(&i5)
+    check_int32(&i6)
+    check_int32(&i7)
+    check_int32(&i8)
+
+    # Output: 1234 617 308 154 77 38 19 9 4
+    printf("%d %d %d %d %d %d %d %d %d\n", i0, i1, i2, i3, i4, i5, i6, i7, i8)
+
+    # Negative values get shifted as if they were unsigned.
+    # Example: -1 >> 4 = 0xFFFF_FFFF >> 4 = 0x0FFF_FFFF = 268435455
+    printf("%d\n", -1 >> 0)  # Output: -1
+    printf("%d\n", -1 >> 1)  # Output: 2147483647
+    printf("%d\n", -1 >> 2)  # Output: 1073741823
+    printf("%d\n", -1 >> 3)  # Output: 536870911
+    printf("%d\n", -1 >> 4)  # Output: 268435455
+
+    # This is not UB in Jou like it would be in C.
+    printf("%d\n", 123 >> 10000000)  # Output: 0
+
+    # Here -1 gets interpreted as an uint32, so a very large value, not UB
+    printf("%lld\n", 123 >> -1)  # Output: 0
+
+    # Other data types. Again, type of right side doesn't matter.
+    a1 = 'a' >> (1 as byte)
+    a2 = 'a' >> (2 as int16)
+    a3 = 'a' >> (3 as uint32)
+    a4 = 'a' >> (4 as int64)
+    b1 = (12345 as int16) >> (5 as byte)
+    b2 = (12345 as int16) >> (6 as int16)
+    b3 = (12345 as int16) >> (7 as uint32)
+    b4 = (12345 as int16) >> (8 as int64)
+    c1 = (123454321 as uint32) >> (9 as byte)
+    c2 = (123454321 as uint32) >> (10 as int16)
+    c3 = (123454321 as uint32) >> (11 as uint32)
+    c4 = (123454321 as uint32) >> (12 as int64)
+    d1 = (12345432123454321 as int64) >> (13 as byte)
+    d2 = (12345432123454321 as int64) >> (14 as int16)
+    d3 = (12345432123454321 as int64) >> (15 as uint32)
+    d4 = (12345432123454321 as int64) >> (16 as int64)
+
+    check_uint8(&a1)
+    check_uint8(&a2)
+    check_uint8(&a3)
+    check_uint8(&a4)
+    check_int16(&b1)
+    check_int16(&b2)
+    check_int16(&b3)
+    check_int16(&b4)
+    check_uint32(&c1)
+    check_uint32(&c2)
+    check_uint32(&c3)
+    check_uint32(&c4)
+    check_int64(&d1)
+    check_int64(&d2)
+    check_int64(&d3)
+    check_int64(&d4)
+
+    printf("%d %d %d %d\n", a1, a2, a3, a4)  # Output: 48 24 12 6
+    printf("%d %d %d %d\n", b1, b2, b3, b4)  # Output: 385 192 96 48
+    printf("%u %u %u %u\n", c1, c2, c3, c4)  # Output: 241121 120560 60280 30140
+    printf("%lld %lld %lld %lld\n", d1, d2, d3, d4)  # Output: 1507010757257 753505378628 376752689314 188376344657
+
+    # In-place
+    a: byte = 'a'
+    b: int16 = 12345
+    c: uint32 = 123454321
+    d: int64 = 12345432123454321
+    a >>= 0
+    b >>= 0
+    c >>= 0
+    d >>= 0
+    printf("%d %d %u %lld\n", a, b, c, d)  # Output: 97 12345 123454321 12345432123454321
+    a >>= 1
+    b >>= 2
+    c >>= 3
+    d >>= 4
+    printf("%d %d %u %lld\n", a, b, c, d)  # Output: 48 3086 15431790 771589507715895
+    a >>= -1
+    b >>= -2
+    c >>= -3
+    d >>= -4
+    printf("%d %d %u %lld\n", a, b, c, d)  # Output: 0 0 0 0
+
+    # Casting right side to uint8 is not a valid way to implement bitshifts.
+    # This would fail if bitshifts were implemented in that way.
+    printf("%d\n", 97 >> 257)  # Output: 0
+    printf("%d\n", 'a' >> 257)  # Output: 0
+
+    # Type hint on shift goes to the left side of shift, so compiler knows that
+    # the big number here is supposed to be a uint64, not int
+    big_number: uint64 = 12345432123454321 >> 1
+    printf("%llu\n", big_number)  # Output: 6172716061727160
+
+    return 0

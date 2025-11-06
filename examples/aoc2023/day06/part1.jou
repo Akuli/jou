@@ -39,17 +39,17 @@ def main() -> int:
     while fgets(line, sizeof(line) as int, f) != NULL:
         words = split_by_ascii_whitespace(line)
 
-        assert words[0] != NULL
-        if strcmp(words[0], "Time:") == 0:
+        assert words.len != 0
+        if strcmp(words.ptr[0], "Time:") == 0:
             dest = &times
         else:
             dest = &distances
 
-        for i = 0; words[i+1] != NULL; i++:
+        for i = 0; i+1 < words.len; i++:
             assert i < sizeof(*dest)/sizeof((*dest)[0]) - 1
-            (*dest)[i] = atoi(words[i+1])
+            (*dest)[i] = atoi(words.ptr[i+1])
 
-        free(words)
+        free(words.ptr)
     fclose(f)
 
     result = 1

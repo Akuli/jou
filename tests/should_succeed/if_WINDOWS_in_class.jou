@@ -3,7 +3,7 @@ if WINDOWS:
 else:
     import "stdlib/str.jou"
     # Low level function for writing to file. Does not exist on Windows.
-    declare write(fd: int, buf: byte*, count: long) -> long
+    declare write(fd: int, buf: byte*, count: int64) -> int64
 
 
 class EnterprisePrintWriterFactory:
@@ -11,19 +11,19 @@ class EnterprisePrintWriterFactory:
         windows_message: byte*
 
         def set_message(self, m: byte*) -> None:
-            self->windows_message = m
+            self.windows_message = m
 
         def show_message(self) -> None:
-            puts(self->windows_message)
+            puts(self.windows_message)
 
     else:
         posix_message: byte*
 
         def set_message(self, m: byte*) -> None:
-            self->posix_message = m
+            self.posix_message = m
 
         def show_message(self) -> None:
-            write(1, self->posix_message, strlen(self->posix_message))
+            write(1, self.posix_message, strlen(self.posix_message))
             write(1, "\n", 1)
 
 

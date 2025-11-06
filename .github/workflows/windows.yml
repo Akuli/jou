@@ -12,111 +12,88 @@ on:
   pull_request:
 
 jobs:
-  # I created a zip file that contains mingw64, but with some large files deleted.
-  # These large files are most of the time unnecessary for developing Jou.
-  # People with slow internet need the smaller zip file.
-  #
-  # This check fails if the zip file contains anything else than what's in the original/full zip file.
-  # It serves two purposes:
-  #   * People can trust the random zip file I have created locally on my system and committed.
-  #   * I can be sure that I didn't accidentally include something unnecessary or do something else dumb.
-  check-small-mingw64:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      # Same URLs as in windows_setup.sh
-      - name: Download the small mingw64
-        run: curl -L -o mingw64-small.zip https://akuli.github.io/mingw64-small.zip
-      - name: Download the full mingw64
-        run: curl -L -o mingw64.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/12.1.0-14.0.6-10.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-12.1.0-llvm-14.0.6-mingw-w64msvcrt-10.0.0-r3.zip
-      # Same SHA hashes as in windows_setup.sh
-      - name: Verify the small mingw64
-        run: |
-          if [ "$(sha256sum mingw64-small.zip | cut -d' ' -f1)" != "4d858bd22f084ae362ee6a22a52c2c5b5281d996f96693984a31336873b92686" ]; then
-            echo "verifying failed"
-            exit 1
-          fi
-      - name: Verify the full mingw64
-        run: |
-          if [ "$(sha256sum mingw64.zip | cut -d' ' -f1)" != "9ffef7f7a8dab893bd248085fa81a5a37ed6f775ae220ef673bea8806677836d" ]; then
-            echo "verifying failed"
-            exit 1
-          fi
-      - name: Make sure that all file paths start with mingw64
-        run: |
-          zipinfo -1 mingw64.zip > output.txt
-          zipinfo -1 mingw64-small.zip >> output.txt
-          cat output.txt
-          if [ "$(cut -d/ -f1 output.txt | uniq)" != "mingw64" ]; then
-            exit 1
-          fi
-      - run: ls -lh mingw64*.zip
-      - name: Extract mingw64.zip
-        run: mkdir full && cd full && unzip ../mingw64.zip
-      - name: Extract mingw64-small.zip
-        run: mkdir small && cd small && unzip ../mingw64-small.zip
-      - name: Compare files
-        run: |
-          # diff exits with status 1 because the folders differ.
-          # Put errors to output.txt as well, so that we notice if something goes wrong.
-          (diff -r full small || true) &> output.txt
-          cat output.txt
-          if [ "$(cut -d/ -f1 output.txt | uniq)" != "Only in full" ]; then
-            exit 1
-          fi
-
   build-zip:
     runs-on: windows-latest
-    timeout-minutes: 5
+    timeout-minutes: 10  # may need to bootstrap
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - uses: actions/cache@v4
         with:
-          path: |
-            jou_bootstrap.exe
-            libs/*.a
+          path: jou_bootstrap.exe
           key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe
-      # TODO: figure out why --small doesn't work here
+      # Do not use --small because it relies on a previously built zip
       - run: source activate && ./windows_setup.sh
         shell: bash
       - run: source activate && mingw32-make
         shell: bash
       # We don't need to copy all of mingw64. We only need the GNU linker.
       # The less we copy, the smaller the resulting zip becomes.
-      #
-      # gcc is needed only to run the linker. It would be possible to invoke ld.exe
-      # directly, but the command-line it wants is a bit complicated and it's just
-      # easier to let a C compiler figure it out. I also tried using clang instead
-      # of gcc, but it depends on many LLVM DLLs and the zip file became huge.
-      - name: Copy the linker from mingw64 to jou/mingw64
+      # Executables are copied without their DLLs (added later)
+      - name: Copy files from mingw64 to jou/mingw64
         shell: bash
         run: |
-          # Executables are copied without their DLLs (added later)
-          # Names of .a files figured out by deleting them all and looking at error message.
-          # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
-          for file in \
-              mingw64/version_info.txt \
-              $(find mingw64 -name 'crt*.o') \
-              mingw64/bin/gcc.exe \
-              mingw64/lib/gcc/x86_64-w64-mingw32/12.1.0/libgcc.a \
-              mingw64/lib/gcc/x86_64-w64-mingw32/12.1.0/libgcc_eh.a \
-              mingw64/libexec/gcc/x86_64-w64-mingw32/12.1.0/liblto_plugin.dll \
-              mingw64/x86_64-w64-mingw32/bin/ld.exe \
-              mingw64/x86_64-w64-mingw32/lib/libadvapi32.a \
-              mingw64/x86_64-w64-mingw32/lib/libkernel32.a \
-              mingw64/x86_64-w64-mingw32/lib/libm.a \
-              mingw64/x86_64-w64-mingw32/lib/libmingw32.a \
-              mingw64/x86_64-w64-mingw32/lib/libmingwex.a \
-              mingw64/x86_64-w64-mingw32/lib/libmoldname.a \
-              mingw64/x86_64-w64-mingw32/lib/libmsvcrt.a \
-              mingw64/x86_64-w64-mingw32/lib/libpthread.a \
-              mingw64/x86_64-w64-mingw32/lib/libshell32.a \
-              mingw64/x86_64-w64-mingw32/lib/libuser32.a
-          do
+          files=(
+            # Currently not used for anything, but very small, and may help someone to debug something.
+            mingw64/version_info.txt
+
+            # Let's copy the GNU linker.
+            #
+            # gcc is needed only to run the linker. It would be possible to invoke ld.exe
+            # directly, but the command-line it wants is a bit complicated and it's just
+            # easier to let a C compiler figure it out. I also tried using clang instead
+            # of gcc, but it depends on many LLVM DLLs and the zip file became huge.
+            mingw64/bin/gcc.exe
+            mingw64/x86_64-w64-mingw32/bin/ld.exe
+
+            # CRT (C RunTime) files are needed because the linker implicitly adds them to every executable.
+            $(find mingw64 -name 'crt*.o')
+
+            # Needed for gcc to act as a linker.
+            # Figured out by deleting all of these and looking at error messages.
+            mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/libgcc.a
+            mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/libgcc_eh.a
+            mingw64/libexec/gcc/x86_64-w64-mingw32/14.2.0/liblto_plugin.dll
+            mingw64/x86_64-w64-mingw32/lib/libadvapi32.a
+            mingw64/x86_64-w64-mingw32/lib/libkernel32.a
+            mingw64/x86_64-w64-mingw32/lib/libm.a
+            mingw64/x86_64-w64-mingw32/lib/libmingw32.a
+            mingw64/x86_64-w64-mingw32/lib/libmingwex.a
+            mingw64/x86_64-w64-mingw32/lib/libmsvcrt.a
+            mingw64/x86_64-w64-mingw32/lib/libpthread.a
+            mingw64/x86_64-w64-mingw32/lib/libshell32.a
+            mingw64/x86_64-w64-mingw32/lib/libuser32.a
+
+            # These .dll.a files are needed for compiling Jou code that uses LLVM.
+            # Without these, the compiler works but cannot compile itself.
+            # These are included here just for "./windows_setup.sh --small".
+            #
+            # These .a files don't contain actual code, so they are somewhat small.
+            # The DLLs still need to be present when running code that uses LLVM.
+            #
+            # The same list of files is in:
+            #   - compiler/llvm.jou
+            #   - bootstrap.sh
+            mingw64/lib/libLLVMCore.dll.a
+            mingw64/lib/libLLVMX86CodeGen.dll.a
+            mingw64/lib/libLLVMAnalysis.dll.a
+            mingw64/lib/libLLVMTarget.dll.a
+            mingw64/lib/libLLVMPasses.dll.a
+            mingw64/lib/libLLVMSupport.dll.a
+            mingw64/lib/libLLVMLinker.dll.a
+            mingw64/lib/libLTO.dll.a
+            mingw64/lib/libLLVMX86AsmParser.dll.a
+            mingw64/lib/libLLVMX86Info.dll.a
+            mingw64/lib/libLLVMX86Desc.dll.a
+
+            # Meant to be used only for developing Jou with "./windows_setup.sh --small".
+            mingw64/bin/mingw32-make.exe
+          )
+
+          for file in ${files[@]}; do
             mkdir -vp jou/$(dirname $file)
             cp -v $file jou/$file
           done
@@ -159,16 +136,14 @@ jobs:
 
   test:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 20  # may need to bootstrap
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - uses: actions/cache@v4
         with:
-          path: |
-            jou_bootstrap.exe
-            libs/*.a
+          path: jou_bootstrap.exe
           key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap.exe
@@ -203,8 +178,10 @@ jobs:
         shell: bash
       - run: cp -r repo/tests repo/runtests.sh "test dir"
         shell: bash
-      - name: "Delete a test that depends on the compiler and cannot work without it"
-        run: rm -v "test dir"/tests/should_succeed/compiler_unit_tests.jou
+      - name: "Delete tests that depend on the compiler and cannot work without it"
+        run: |
+          rm -v "test dir"/tests/should_succeed/compiler_unit_tests.jou
+          rm -v "test dir"/tests/should_succeed/keywords.jou
         shell: bash
       - run: cd "test dir" && ./jou.exe --verbose examples/hello.jou
         shell: bash

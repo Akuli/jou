@@ -6,33 +6,33 @@ import "../grid.jou"
 
 
 def prepend_blank_row(grid: Grid*) -> None:
-    assert strlen(grid->data) == (grid->width + 1)*grid->height
-    grid->data = realloc(grid->data, grid->width + 1 + strlen(grid->data) + 1)
-    memmove(&grid->data[grid->width + 1], grid->data, strlen(grid->data) + 1)
-    memset(grid->data, '.', grid->width)
-    grid->data[grid->width] = '\n'
-    grid->height++
-    assert strlen(grid->data) == (grid->width + 1)*grid->height
+    assert strlen(grid.data) == (grid.width + 1)*grid.height
+    grid.data = realloc(grid.data, grid.width + 1 + strlen(grid.data) + 1)
+    memmove(&grid.data[grid.width + 1], grid.data, strlen(grid.data) + 1)
+    memset(grid.data, '.', grid.width)
+    grid.data[grid.width] = '\n'
+    grid.height++
+    assert strlen(grid.data) == (grid.width + 1)*grid.height
 
 
 def append_blank_row(grid: Grid*) -> None:
-    assert strlen(grid->data) == (grid->width + 1)*grid->height
-    grid->data = realloc(grid->data, grid->width + 1 + strlen(grid->data) + 1)
-    p = &grid->data[strlen(grid->data)]
-    memset(p, '.', grid->width)
-    p[grid->width] = '\n'
-    p[grid->width + 1] = '\0'
-    grid->height++
-    assert strlen(grid->data) == (grid->width + 1)*grid->height
+    assert strlen(grid.data) == (grid.width + 1)*grid.height
+    grid.data = realloc(grid.data, grid.width + 1 + strlen(grid.data) + 1)
+    p = &grid.data[strlen(grid.data)]
+    memset(p, '.', grid.width)
+    p[grid.width] = '\n'
+    p[grid.width + 1] = '\0'
+    grid.height++
+    assert strlen(grid.data) == (grid.width + 1)*grid.height
 
 
 def surround_with_blanks(grid: Grid*) -> None:
     prepend_blank_row(grid)
     append_blank_row(grid)
-    grid->transpose()
+    grid.transpose()
     prepend_blank_row(grid)
     append_blank_row(grid)
-    grid->transpose()
+    grid.transpose()
 
 
 def read_input_to_grid(filename: byte*) -> Grid:
@@ -87,10 +87,10 @@ def fill_with_f(grid: Grid*) -> None:
 
     while todo.len > 0:
         point = todo.pop()
-        if not grid->is_in_bounds(point) or grid->get(point) != '.':
+        if not grid.is_in_bounds(point) or grid.get(point) != '.':
             continue
 
-        grid->set(point, 'f')
+        grid.set(point, 'f')
 
         # Append neighbors to todo list
         todo.append([point[0], point[1]-1])

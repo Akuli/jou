@@ -26,7 +26,7 @@ class Greeting:
     target: byte*
 
     def show(self) -> None:
-        printf("Hello %s\n", self->target)
+        printf("Hello %s\n", self.target)
 
 def main() -> int:
     g = Greeting{target="World"}
@@ -38,13 +38,12 @@ See the [examples](./examples/) and [tests](./tests/) directories for more examp
 or read [the Jou tutorial](./doc/tutorial.md).
 
 For now, Jou is great for writing small programs that don't have a lot of dependencies.
-For example, I solved all problems of
-[Advent of Code 2023](https://adventofcode.com/2023/) and
-[Advent of Code 2024](https://adventofcode.com/2024/) with Jou. See
-[examples/aoc2023](./examples/aoc2023/) and
-[examples/aoc2024](./examples/aoc2024/) for the code.
+Here are things I have written in Jou:
+- [Advent of Code 2023](https://adventofcode.com/2023/): [examples/aoc2023](./examples/aoc2023/)
+- [Advent of Code 2024](https://adventofcode.com/2024/): [examples/aoc2024](./examples/aoc2024/)
+- A klondike solitaire card game with curses UI: https://github.com/Akuli/curses-klondike/
 
-I think Jou will be useful for two kinds of people:
+I would recommend Jou for:
 - People who find C programming fun but like Python's syntax
 - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
 
@@ -120,27 +119,25 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
     so you need to use a full path (or `$HOME`) instead.
 
 These LLVM/clang versions are supported:
-- LLVM 14 with clang 14
 - LLVM 15 with clang 15
 - LLVM 16 with clang 16
 - LLVM 17 with clang 17
 - LLVM 18 with clang 18
 - LLVM 19 with clang 19
+- LLVM 20 with clang 20
 
 By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
 
 ```
-$ sudo apt install llvm-14-dev clang-14
+$ sudo apt install llvm-15-dev clang-15
 $ make clean    # Delete files that were compiled with previous LLVM version
-$ LLVM_CONFIG=llvm-config-14 make
+$ LLVM_CONFIG=llvm-config-15 make
 ```
 
 </details>
 
 <details> <summary>MacOS</summary>
-
-MacOS support is somewhat new. Please create an issue if something doesn't work.
 
 1. Install Git, make and LLVM 15.
     If you do software development on MacOS, you probably already have Git and make,
@@ -150,12 +147,12 @@ MacOS support is somewhat new. Please create an issue if something doesn't work.
     $ brew install llvm@15
     ```
     Instead of LLVM 15, you can also use any other supported LLVM version:
-    - `llvm@14`
     - `llvm@15`
     - `llvm@16`
     - `llvm@17`
     - `llvm@18`
     - `llvm@19`
+    - `llvm@20`
 2. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou
@@ -186,8 +183,6 @@ MacOS support is somewhat new. Please create an issue if something doesn't work.
 </details>
 
 <details> <summary>NetBSD</summary>
-Support for NetBSD is still experimental. Please report bugs and
-shortcomings.
 
 1. Install the dependencies:
     ```

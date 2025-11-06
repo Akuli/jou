@@ -1,0 +1,30 @@
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+import "stdlib/rand.jou"
+
+
+def main() -> int:
+    a = rand()
+    srand(1)  # Reset state to same as when program started
+    b = rand()
+    srand(123)
+    c = rand()
+    srand(123)
+    d = rand()
+    e = rand()
+    printf("%d%d%d%d\n", a == b, b == c, c == d, d == e)  # Output: 1010
+
+    # Check that RAND_MAX is set correctly. We call rand() 10000 times and
+    # check that the biggest value is between 99% and 100% of RAND_MAX.
+    #
+    # 10000 times is enough to be very sure that the biggest value is within 1%
+    # of the maximum. If `rand()` produces perfectly random values, then the
+    # probability of getting 10000 values in the top 1% is 0.99 ^ 10000. This
+    # is a very small number. See https://github.com/Akuli/jou/issues/916 for
+    # the math.
+    m = 0
+    for i = 0; i < 10000; i++:
+        m = max(m, rand())
+    printf("%d%d\n", RAND_MAX - RAND_MAX/100 < m, m <= RAND_MAX)  # Output: 11
+
+    return 0

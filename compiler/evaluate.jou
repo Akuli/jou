@@ -26,75 +26,118 @@ def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
     assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
 
     value: Constant
-    if not evaluate_constant_expression(expr, &value):
+    if not evaluate_constant_expression(expr, &value, bool_type()):
         return -1
 
     if value.kind != ConstantKind.Bool:
         # Use the same error message as typecheck
         msg: byte[500]
-        snprintf(msg, sizeof(msg), "'%s' only works with bools, not %s", and_or, value.get_type()->name)
-        fail(expr->location, msg)
+        snprintf(msg, sizeof(msg), "'%s' only works with bools, not %s", and_or, value.get_type().name)
+        fail(expr.location, msg)
 
     return value.boolean as int
 
 
 # Returns False if the expression is not a simple compile-time constant.
+#
+# As the naming suggests, the type hint is only a hint and result type may differ.
+# Set the type hint to NULL if you don't care about it.
 @public
-def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> bool:
+def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_hint: Type*) -> bool:
     msg: byte[500]
 
-    match expr->kind:
+    match expr.kind:
+        case AstExpressionKind.IntegerConstant:
+            if type_hint != NULL and type_hint.is_integer_type():
+                t = type_hint
+            else:
+                t = int_type(32)
+
+            if expr.integer_value > t.max_value():
+                snprintf(msg, sizeof(msg), "value does not fit into %s", t.name)
+                fail(expr.location, msg)
+
+            *result = int_constant(t, expr.integer_value as int64)
+            return True
+
         case AstExpressionKind.Constant:
-            *result = expr->constant.copy()
+            *result = expr.constant.copy()
             return True
 
         case AstExpressionKind.GetVariable:
             # Handle special constants like WINDOWS, MACOS, etc.
-            val = get_special_constant(expr->varname)
+            val = get_special_constant(expr.varname)
             if val == -1:
                 return False
             *result = Constant{kind = ConstantKind.Bool, boolean = (val == 1)}
             return True
 
         case AstExpressionKind.And:
-            lhs = evaluate_boolean_and_or(&expr->operands[0], "and")
-            rhs = evaluate_boolean_and_or(&expr->operands[1], "and")
+            lhs = evaluate_boolean_and_or(&expr.operands[0], "and")
+            rhs = evaluate_boolean_and_or(&expr.operands[1], "and")
             if lhs == -1 or rhs == -1:
                 return False
             *result = Constant{kind = ConstantKind.Bool, boolean = (lhs == 1 and rhs == 1)}
             return True
 
         case AstExpressionKind.Or:
-            lhs = evaluate_boolean_and_or(&expr->operands[0], "or")
-            rhs = evaluate_boolean_and_or(&expr->operands[1], "or")
+            lhs = evaluate_boolean_and_or(&expr.operands[0], "or")
+            rhs = evaluate_boolean_and_or(&expr.operands[1], "or")
             if lhs == -1 or rhs == -1:
                 return False
             *result = Constant{kind = ConstantKind.Bool, boolean = (lhs == 1 or rhs == 1)}
             return True
 
         case AstExpressionKind.Not:
-            if not evaluate_constant_expression(&expr->operands[0], result):
+            if not evaluate_constant_expression(&expr.operands[0], result, bool_type()):
                 return False
 
-            if result->kind != ConstantKind.Bool:
+            if result.kind != ConstantKind.Bool:
                 # Error message is same as during type checking
-                snprintf(msg, sizeof(msg), "value after 'not' must be a bool, not %s", result->get_type()->name)
-                fail(expr->location, msg)
+                snprintf(msg, sizeof(msg), "value after 'not' must be a bool, not %s", result.get_type().name)
+                fail(expr.location, msg)
 
-            result->boolean = not result->boolean
+            result.boolean = not result.boolean
             return True
 
         case AstExpressionKind.Negate:
-            if not evaluate_constant_expression(&expr->operands[0], result):
+            # Special-case e.g. "const foo: int8 = -128" because 128 is not a
+            # valid int8 but -128 is, so can't just evaluate 128 and add minus.
+            if (
+                type_hint != NULL
+                and type_hint.is_integer_type()
+                and expr.operands[0].kind == AstExpressionKind.IntegerConstant
+                and expr.operands[0].integer_value == (-type_hint.min_value()) as uint64
+            ):
+                *result = int_constant(type_hint, type_hint.min_value())
+                return True
+
+            if not evaluate_constant_expression(&expr.operands[0], result, type_hint):
                 return False
 
-            # TODO: make this more general
-            if result->get_type() != intType:
-                return False
-
-            # TODO: is casting to int and back necessary to get the right overflow behaviors?
-            result->integer.value = -(result->integer.value as int)
-            return True
+            match result.get_type().kind:
+                case TypeKind.SignedInteger:
+                    # Negating the smallest signed integer would overflow.
+                    # For example, int8 goes from -128 to +127.
+                    # TODO: test this when possible
+                    if result.integer.value == result.get_type().min_value():
+                        return False
+                    result.integer.value *= -1
+                    return True
+                case TypeKind.FloatingPoint:
+                    old_string: byte[100] = result.float_or_double_text
+                    if old_string[0] == '-':
+                        # Remove minus sign in beginning: -(-1.0) becomes 1.0
+                        strcpy(result.float_or_double_text, &old_string[1])
+                        return True
+                    elif strlen(old_string) + 1 < sizeof(result.float_or_double_text):
+                        # Add minus to beginning
+                        sprintf(result.float_or_double_text, "-%s", old_string)
+                        return True
+                    else:
+                        return False
+                case _:
+                    return False
 
         case _:
             return False
@@ -102,11 +145,11 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*) -> boo
 
 @public
 def evaluate_array_length(expr: AstExpression*) -> int:
-    # TODO: this should probably support longs
+    # TODO: this should probably support int64
     c: Constant
-    if evaluate_constant_expression(expr, &c) and c.get_type() == intType:
+    if evaluate_constant_expression(expr, &c, int_type(32)) and c.get_type() == int_type(32):
         return c.integer.value as int
-    fail(expr->location, "cannot evaluate array length at compile time")
+    fail(expr.location, "cannot evaluate array length at compile time")
 
 
 def choose_if_elif_branch(if_stmt: AstIfStatement*) -> List[AstStatement]*:
@@ -114,44 +157,44 @@ def choose_if_elif_branch(if_stmt: AstIfStatement*) -> List[AstStatement]*:
 
     # Return the first branch whose condition is true.
     # Return NULL if we fail to evaluate a condition and it must be checked at runtime.
-    for p = if_stmt->if_and_elifs.ptr; p < if_stmt->if_and_elifs.end(); p++:
-        if (not evaluate_constant_expression(&p->condition, &cond)) or cond.kind != ConstantKind.Bool:
+    for p = if_stmt.if_and_elifs.ptr; p < if_stmt.if_and_elifs.end(); p++:
+        if (not evaluate_constant_expression(&p.condition, &cond, bool_type())) or cond.kind != ConstantKind.Bool:
             return NULL
 
         if cond.boolean:
-            return &p->body
+            return &p.body
 
     # All conditions are known to be false.
-    return &if_stmt->else_body
+    return &if_stmt.else_body
 
 
-# Replaces the statement body->ptr[i] with statements from a given list.
+# Replaces the statement body.ptr[i] with statements from a given list.
 def replace(body: List[AstStatement]*, i: int, new: List[AstStatement]) -> None:
-    body->ptr[i].free()
-    body->grow(body->len + new.len, sizeof(body->ptr[0]))
+    body.ptr[i].free()
+    body.grow(body.len + new.len)
 
     # How many statements after index i we want to preserve
-    nkeep = body->len - (i+1)
+    nkeep = body.len - (i+1)
 
-    # Delete body->ptr[i] and shift everything after it to their new place
-    memmove(&body->ptr[i + new.len], &body->ptr[i+1], nkeep * sizeof(body->ptr[0]))
+    # Delete body.ptr[i] and shift everything after it to their new place
+    memmove(&body.ptr[i + new.len], &body.ptr[i+1], nkeep * sizeof(body.ptr[0]))
 
     # Put the new statements to their place.
-    memcpy(&body->ptr[i], new.ptr, new.len * sizeof(new.ptr[0]))
+    memcpy(&body.ptr[i], new.ptr, new.len * sizeof(new.ptr[0]))
 
-    body->len += new.len - 1  # -1 for index i which was removed
+    body.len += new.len - 1  # -1 for index i which was removed
 
 
 def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool) -> None:
     # Must use indexes, because mutating the body may reallocate it to different memory location.
-    for i = 0; i < body->len; i++:
-        match body->ptr[i].kind:
+    for i = 0; i < body.len; i++:
+        match body.ptr[i].kind:
             case AstStatementKind.If:
-                if_stmt = &body->ptr[i].if_statement
+                if_stmt = &body.ptr[i].if_statement
 
                 branch = choose_if_elif_branch(if_stmt)
                 if branch == NULL and must_succeed:
-                    fail(body->ptr[i].location, "cannot evaluate condition at compile time")
+                    fail(body.ptr[i].location, "cannot evaluate condition at compile time")
 
                 if branch != NULL:
                     # The if/elif statement always takes the same branch.
@@ -165,20 +208,20 @@ def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool
 
                 # Recurse into inner if statements. Needed when compile-time if
                 # statement is inside a runtime if statement.
-                for p = if_stmt->if_and_elifs.ptr; p < if_stmt->if_and_elifs.end(); p++:
-                    evaluate_if_statements_in_body(&p->body, False)
-                evaluate_if_statements_in_body(&if_stmt->else_body, False)
+                for p = if_stmt.if_and_elifs.ptr; p < if_stmt.if_and_elifs.end(); p++:
+                    evaluate_if_statements_in_body(&p.body, False)
+                evaluate_if_statements_in_body(&if_stmt.else_body, False)
 
             case AstStatementKind.WhileLoop:
-                evaluate_if_statements_in_body(&body->ptr[i].while_loop.body, False)
+                evaluate_if_statements_in_body(&body.ptr[i].while_loop.body, False)
             case AstStatementKind.ForLoop:
-                evaluate_if_statements_in_body(&body->ptr[i].for_loop.body, False)
+                evaluate_if_statements_in_body(&body.ptr[i].for_loop.body, False)
             case AstStatementKind.Class:
-                evaluate_if_statements_in_body(&body->ptr[i].classdef.body, True)
+                evaluate_if_statements_in_body(&body.ptr[i].classdef.body, True)
             case AstStatementKind.FunctionDef:
-                evaluate_if_statements_in_body(&body->ptr[i].function.body, False)
+                evaluate_if_statements_in_body(&body.ptr[i].function.body, False)
             case AstStatementKind.MethodDef:
-                evaluate_if_statements_in_body(&body->ptr[i].method.body, False)
+                evaluate_if_statements_in_body(&body.ptr[i].method.body, False)
             case (
                 AstStatementKind.ExpressionStatement
                 | AstStatementKind.Link
@@ -195,6 +238,11 @@ def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool
                 | AstStatementKind.InPlaceMul
                 | AstStatementKind.InPlaceDiv
                 | AstStatementKind.InPlaceMod
+                | AstStatementKind.InPlaceBitAnd
+                | AstStatementKind.InPlaceBitOr
+                | AstStatementKind.InPlaceBitXor
+                | AstStatementKind.InPlaceBitShiftLeft
+                | AstStatementKind.InPlaceBitShiftRight
                 | AstStatementKind.FunctionDeclare
                 | AstStatementKind.Enum
                 | AstStatementKind.GlobalVariableDeclare
@@ -210,4 +258,4 @@ def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool
 
 @public
 def evaluate_compile_time_if_statements(file: AstFile*) -> None:
-    evaluate_if_statements_in_body(&file->body, True)
+    evaluate_if_statements_in_body(&file.body, True)

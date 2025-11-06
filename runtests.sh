@@ -12,7 +12,7 @@ export LANG=C  # "Segmentation fault" must be in english for this script to work
 set -e -o pipefail
 
 function usage() {
-    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [FILE_FILTER]" >&2
+    echo "Usage: $0 [--valgrind] [--verbose] [--dont-run-make] [--jou-flags \"-O3 ...\"] [--no-colors] [FILE_FILTER]" >&2
     echo ""
     echo "If a FILE_FILTER is given, runs only test files whose path contains it."
     echo "For example, you can use \"$0 class\" to run class-related tests."
@@ -23,6 +23,7 @@ valgrind=no
 verbose=no
 run_make=yes
 jou_flags=""
+colors=yes
 file_filter=""
 
 while [ $# != 0 ]; do
@@ -45,6 +46,10 @@ while [ $# != 0 ]; do
             fi
             jou_flags="$jou_flags $2"
             shift 2
+            ;;
+        --no-colors)
+            colors=no
+            shift
             ;;
         -*)
             usage
@@ -103,7 +108,7 @@ if [[ "${OS:=$(uname)}" =~ NetBSD ]] && which gdiff >/dev/null; then
 else
     diff="diff"
 fi
-if $diff --help | grep -q -- --color; then
+if [ $colors = yes ] && $diff --help | grep -q -- --color; then
     diff="$diff --color=always"
 fi
 
@@ -144,16 +149,29 @@ function post_process_output()
         # Hide most of the output. We really only care about whether it
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
+    elif [[ $joufile =~ compiler_unit_tests ]] && [[ "${OS:=$(uname)}" =~ Darwin ]]; then
+        # On MacOS, silence a linker warning that appears whenever linking
+        # with LLVM. I don't know what causes the warning.
+        #
+        # See: https://github.com/Akuli/jou/issues/1005
+        grep -v "ld: warning: reexported library with install name"
     else
         # Pass the output through unchanged.
         cat
     fi
 }
 
-YELLOW="\x1b[33m"
-GREEN="\x1b[32m"
-RED="\x1b[31m"
-RESET="\x1b[0m"
+if [ $colors = yes ]; then
+    YELLOW="\x1b[33m"
+    GREEN="\x1b[32m"
+    RED="\x1b[31m"
+    RESET="\x1b[0m"
+else
+    YELLOW=""
+    GREEN=""
+    RED=""
+    RESET=""
+fi
 
 if [ $verbose = yes ]; then
     function show_run() { echo "run: $1"; }
@@ -186,14 +204,25 @@ function should_skip()
         return 0
     fi
 
+    # When running valgrind, skip compiler unit tests. They link with LLVM and
+    # LLVM leaks memory when the program starts, even if it is never called.
+    if [ $valgrind = yes ] &&  [ $joufile = tests/should_succeed/compiler_unit_tests.jou ]; then
+        return 0
+    fi
+
     # Skip special programs that don't interact nicely with automated tests
     if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/memory_leak.jou ]; then
         return 0
     fi
 
     # If liblzma is not installed in a pkg-config compatible way, skip tests that use it
-    if [[ $joufile =~ link_with_liblzma ]] && ! (pkg-config --exists liblzma 2>/dev/null); then
-        return 0
+    if [[ $joufile =~ link_with_liblzma ]]; then
+        if ! (pkg-config --exists liblzma 2>/dev/null); then
+            return 0
+        fi
+        if [[ $joufile =~ (relative|system)_path && ! -e "$(pkg-config --variable=libdir liblzma)/liblzma.a" ]]; then
+            return 0
+        fi
     fi
 
     return 1  # false, don't skip
@@ -215,13 +244,14 @@ function run_test()
     # jou flags start with space when non-empty
     command="$command$jou_flags"
 
-    if [[ "$joufile" =~ ^examples/aoc ]] || [[ $joufile == *double_dotdot_import* ]]; then
+    if [[ "$joufile" =~ ^examples/aoc ]] || [[ $joufile == *double_dotdot_import* ]] || [[ $joufile == *perlin* ]]; then
         # AoC files use fopen("sampleinput.txt", "r").
         # We don't do this for all files, because I like relative paths in error messages.
-        # jou_flags starts with a space whenever it isn't empty.
         #
-        # Also, double_dotdot_import test had a bug that was reproducible only with
-        # relative path.
+        # double_dotdot_import test had a bug that was reproducible only with relative path.
+        #
+        # Perlin noise example writes to a file. We want that file to end up in the examples
+        # folder, not in project root.
         command="cd $(dirname $joufile) && $command $(basename $joufile)"
     else
         command="$command $joufile"
@@ -237,7 +267,7 @@ function run_test()
     local diffpath
     diffpath=tmp/tests/diff$(printf "%04d" $counter).txt  # consistent alphabetical order
 
-    printf "\n\n\x1b[33m*** Command: %s ***\x1b[0m\n\n" "$command" > $diffpath
+    printf "\n\n${YELLOW}*** Command: %s ***${RESET}\n\n" "$command" > $diffpath
 
     if $diff --text -u <(
         generate_expected_output $joufile $correct_exit_code | tr -d '\r'

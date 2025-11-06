@@ -7,7 +7,7 @@ import "stdlib/str.jou"
 
 # count_digits(999) = 3
 # count_digits(1000) = 4
-def count_digits(n: long) -> int:
+def count_digits(n: int64) -> int:
     result = 0
     while n > 0:
         n /= 10
@@ -16,7 +16,7 @@ def count_digits(n: long) -> int:
 
 
 # split_digits(1234) == [12, 34]
-def split_digits(n: long) -> long[2]:
+def split_digits(n: int64) -> int64[2]:
     length = count_digits(n)
     assert length % 2 == 0
 
@@ -27,17 +27,17 @@ def split_digits(n: long) -> long[2]:
     return [n / power_of_10, n % power_of_10]
 
 
-def blink(stones: List[long]*) -> None:
-    old_len = stones->len
+def blink(stones: List[int64]*) -> None:
+    old_len = stones.len
     for i = 0; i < old_len; i++:
-        if stones->ptr[i] == 0:
-            stones->ptr[i] = 1
-        elif count_digits(stones->ptr[i]) % 2 == 0:
-            pair = split_digits(stones->ptr[i])
-            stones->ptr[i] = pair[0]
-            stones->append(pair[1])
+        if stones.ptr[i] == 0:
+            stones.ptr[i] = 1
+        elif count_digits(stones.ptr[i]) % 2 == 0:
+            pair = split_digits(stones.ptr[i])
+            stones.ptr[i] = pair[0]
+            stones.append(pair[1])
         else:
-            stones->ptr[i] *= 2024
+            stones.ptr[i] *= 2024
 
 
 def main() -> int:
@@ -49,11 +49,11 @@ def main() -> int:
 
     words = split_by_ascii_whitespace(line)
 
-    stones = List[long]{}
-    for i = 0; words[i] != NULL; i++:
-        stones.append(atoll(words[i]))
+    stones = List[int64]{}
+    for p = words.ptr; p < words.end(); p++:
+        stones.append(atoll(*p))
 
-    free(words)
+    free(words.ptr)
 
     for i = 0; i < 25; i++:
         blink(&stones)

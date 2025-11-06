@@ -27,10 +27,10 @@ def fail_update() -> noreturn:
 
 def confirm(prompt: byte*) -> None:
     printf("%s (y/n) ", prompt)
-    fflush(stdout)
+    fflush(get_stdout())
 
     line: byte[50] = ""
-    fgets(line, sizeof(line) as int, stdin)
+    fgets(line, sizeof(line) as int, get_stdin())
     trim_ascii_whitespace(line)
 
     if strcmp(line, "Y") != 0 and strcmp(line, "y") != 0:
@@ -45,7 +45,7 @@ def update_jou_compiler() -> None:
     printf("Installation directory: %s\n\n", exedir)
 
     if chdir(exedir) == -1:
-        fprintf(stderr, "chdir(\"%s\") failed: %s\n", exedir, strerror(get_errno()))
+        fprintf(get_stderr(), "chdir(\"%s\") failed: %s\n", exedir, strerror(get_errno()))
         fail_update()
 
     if WINDOWS:

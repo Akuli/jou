@@ -3,37 +3,43 @@
 # data layout. Sometimes it wants a string, sometimes an object
 # representing the thing.
 #
-# This file aims to provide everything you may ever need. Hopefully it
-# will make the mess slightly less miserable to you. Just use the global
-# "target" variable, it contains everything you will ever need.
+# This file aims to provide everything you may ever need in one convenient
+# struct. Hopefully it will make the mess slightly less miserable to you.
 
-import "./llvm.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
+import "./llvm.jou"
+import "./state.jou"
+
+
+@public
 class Target:
+    ready: bool
     triple: byte[100]
     data_layout: byte[500]
     target: LLVMTarget*
     target_machine: LLVMTargetMachine*
     target_data: LLVMTargetData*
 
-@public
-global target: Target
-
 
 @public
-def init_target() -> None:
+def init_target(target: Target*) -> None:
+    # This should be called only once because this affects LLVM's global state and
+    # there's no cleanup to some of the things this does.
+    assert not target.ready
+
     LLVMInitializeX86TargetInfo()
     LLVMInitializeX86Target()
     LLVMInitializeX86TargetMC()
     LLVMInitializeX86AsmParser()
     LLVMInitializeX86AsmPrinter()
 
-    if MACOS:
-        # Support the new M1 macs. This will enable the target also on x86_64
-        # macs, but it doesn't matter.
+    # Currently aarch64 is needed for:
+    #   - new M1 macs
+    #   - 64-bit raspberry pi
+    if not WINDOWS:
         LLVMInitializeAArch64TargetInfo()
         LLVMInitializeAArch64Target()
         LLVMInitializeAArch64TargetMC()
@@ -52,7 +58,7 @@ def init_target() -> None:
     error: byte* = NULL
     if LLVMGetTargetFromTriple(target.triple, &target.target, &error) != 0:
         assert error != NULL
-        fprintf(stderr, "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", target.triple, error)
+        fprintf(get_stderr(), "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", target.triple, error)
         exit(1)
     assert error == NULL
     assert target.target != NULL
@@ -76,7 +82,8 @@ def init_target() -> None:
     strcpy(target.data_layout, tmp)
     LLVMDisposeMessage(tmp)
 
-@public
-def cleanup_target() -> None:
-    LLVMDisposeTargetMachine(target.target_machine)
-    LLVMDisposeTargetData(target.target_data)
+    if global_compiler_state.args.verbosity >= 2:
+        printf("Target triple: %s\n", target.triple)
+        printf("Data layout: %s\n", target.data_layout)
+
+    target.ready = True

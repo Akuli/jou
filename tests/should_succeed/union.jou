@@ -3,26 +3,26 @@ import "stdlib/io.jou"
 class Foo:
     union:
         small: int
-        big: long
+        big: int64
 
 class TaggedFoo:
     is_big: bool
     union:
         small: int
-        big: long
+        big: int64
 
     def print(self) -> None:
-        if self->is_big:
-            printf("Big %lld\n", self->big)
+        if self.is_big:
+            printf("Big %lld\n", self.big)
         else:
-            printf("Small %d\n", self->small)
+            printf("Small %d\n", self.small)
 
 def main() -> int:
     tf = TaggedFoo{is_big = False, small = 123}
     tf.print()  # Output: Small 123
 
     tf.is_big = True
-    tf.big = 123123123123123L
+    tf.big = 123123123123123
     tf.print()  # Output: Big 123123123123123
 
     # Union is typically just large enough to hold its biggest element.

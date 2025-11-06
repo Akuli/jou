@@ -133,7 +133,7 @@ so in practice, any large Jou project needs libc anyway.
 With `declare`, we basically use things that the libc provides instead of reinventing the wheel.
 
 
-## `byte`, `int`, `long`
+## `byte`, `int`, `int64`
 
 From a programmer's point of view, a byte is an integer between 0 and 255 (inclusive).
 Alternatively, you can think of a `byte` as consisting of 8 bits, where a bit means 0 or 1.
@@ -161,6 +161,28 @@ def main() -> int:
 Bytes get converted to `int` implicitly when calling `printf()`,
 so it's fine to specify `%d` and pass in a `byte`.
 
+If the compiler expects the value to be a `byte`, you don't need to use `as`.
+For example, you can create a variable and specify its type as `byte`:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    b: byte = 255
+    printf("%d\n", b)  # Output: 255
+    return 0
+```
+
+If you don't use `as`, the value will not wrap around, and you will instead get a compiler error:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    b: byte = 1234  # Error: value does not fit into byte
+    return 0
+```
+
 Each byte has 256 different possible values (0 - 255),
 so with 2 bytes, you get `256 * 256` different values:
 for each first byte, you have 256 possible second bytes.
@@ -187,21 +209,28 @@ and the remaining 31 bits work more or less like you would expect.
 
 Sometimes `int` isn't big enough.
 When `int` wraps around, you usually get negative numbers when you expect things to be positive,
-and you should probably use `long` instead of `int`.
-**Jou's `long` is 8 bytes (64 bits)**, so twice the size of an `int` and hence much less likely to wrap around.
-To create a `long`, add `L` to the end of the number, as in `123L` or `-2000000000000L`.
-To print a `long`, use `%lld` instead of `%d`.
+and you should probably use [`int64`](types.md#integers) instead of `int`.
+Jou's `int64` is 8 bytes (64 bits), so twice the size of an `int` and hence much less likely to wrap around.
+You can use `as` to create an `int64`.
+To print an `int64`, use `%lld` instead of `%d`.
 
 ```python
 import "stdlib/io.jou"
 
 def main() -> int:
-    printf("%d\n", 1000 * 1000 * 1000 * 1000)        # Output: -727379968
-    printf("%lld\n", 1000L * 1000L * 1000L * 1000L)  # Output: 1000000000000
+    # Output: 123123123123123 is a big number
+    printf("%lld is a big number\n", 123123123123123 as int64)
+
+    # Output: -727379968
+    printf("%d\n", 1000 * 1000 * 1000 * 1000)
+
+    # Output: 1000000000000
+    printf("%lld\n", (1000 as int64) * (1000 as int64) * (1000 as int64) * (1000 as int64))
+
     return 0
 ```
 
-The range of `long` is from `-9223372036854775808` to `9223372036854775807`.
+The range of `int64` is from `-9223372036854775808` to `9223372036854775807`.
 Please create an issue on GitHub if you need an even larger range.
 
 
@@ -222,7 +251,7 @@ import "stdlib/io.jou"
 
 def main() -> int:
     b = 123 as byte
-    printf("%lld\n", &b as long)
+    printf("%lld\n", &b as int64)
     return 0
 ```
 
@@ -439,7 +468,7 @@ def main() -> int:
 Note that single quotes specify a byte and double quotes specify a string.
 
 This clearly cannot work for all characters,
-because there are thousands of different charaters, but only 256 different bytes.
+because there are thousands of different characters, but only 256 different bytes.
 For example, `'Ω'` doesn't work:
 
 ```python
@@ -469,11 +498,11 @@ def main() -> int:
     return 0
 ```
 
-We are using `%lld`, because `strlen()` returns a `long`.
+We are using `%lld`, because `strlen()` returns an `int64`.
 You can see it by looking at how [stdlib/str.jou](../stdlib/str.jou) declares `strlen()`:
 
 ```python
-declare strlen(s: byte*) -> long
+declare strlen(s: byte*) -> int64
 ```
 
 

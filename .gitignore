@@ -2,12 +2,14 @@
 /jou_bootstrap
 /jou
 /config.jou
-/libs
 /mingw64
 /mingw64.zip
-/mingw64-small.zip
+
+# "windows_setup.sh --small" downloads a Jou release instead of mingw64.zip
+/jou_windows_64bit_*.zip
 
 *.dll
+*.o
 *.exe
 
 # Jou update files
@@ -30,3 +32,15 @@
 
 # LibreOffice lock file
 .~lock.*#
+
+# State file of check-markdown-links.py, goes to GitHub Actions cache, not committed to Git
+links.json
+
+# Perlin noise example. File may easily end up in examples folder or in project root.
+perlin_noise.ppm
+
+# Stuff that is no longer a thing but someone might still have locally
+/libs
+stb_image_write.h
+out.png
+examples/thingy.ppm

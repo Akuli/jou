@@ -4,7 +4,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 
-def predict_next(nums: long*, len: int) -> long:
+def predict_next(nums: int64*, len: int) -> int64:
     all_zero = True
     for i = 0; i < len; i++:
         if nums[i] != 0:
@@ -14,7 +14,7 @@ def predict_next(nums: long*, len: int) -> long:
     if all_zero:
         return 0
 
-    diffs: long* = malloc(sizeof(diffs[0]) * len)
+    diffs: int64* = malloc(sizeof(diffs[0]) * len)
     for i = 1; i < len; i++:
         diffs[i-1] = nums[i]-nums[i-1]
 
@@ -23,7 +23,7 @@ def predict_next(nums: long*, len: int) -> long:
     return result
 
 
-def reverse(nums: long*, len: int) -> None:
+def reverse(nums: int64*, len: int) -> None:
     p = nums
     q = &nums[len-1]
     while p < q:
@@ -36,16 +36,16 @@ def main() -> int:
     assert f != NULL
 
     line: byte[1000]
-    result: long = 0
+    result: int64 = 0
 
     while fgets(line, sizeof(line) as int, f) != NULL:
-        nums: long[100]
+        nums: int64[100]
         nnums = 0
         parts = split_by_ascii_whitespace(line)
-        for p = parts; *p != NULL; p++:
+        for p = parts.ptr; p < parts.end(); p++:
             assert nnums < sizeof(nums)/sizeof(nums[0])
             nums[nnums++] = atoll(*p)
-        free(parts)
+        free(parts.ptr)
 
         reverse(nums, nnums)
         result += predict_next(nums, nnums)

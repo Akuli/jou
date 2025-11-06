@@ -8,8 +8,9 @@ import "stdlib/io.jou"
 class Person:
     name: byte*
 
+    # self is a pointer (Person*)
     def greet(self) -> None:
-        printf("Hello %s\n", self->name)   # self is a pointer (Person*)
+        printf("Hello %s\n", self.name)
 
 def main() -> int:
     instance = Person{name="world"}
@@ -127,7 +128,7 @@ class Point:
     y: int
 
 def increment_y(ptr: Point*) -> None:
-    ptr->y++
+    ptr.y++
 
 def main() -> int:
     p = Point{x = 12, y = 34}
@@ -136,11 +137,9 @@ def main() -> int:
     return 0
 ```
 
-Here `ptr->y` does the same thing as `(*ptr).y`:
+Here `ptr.y` does the same thing as `(*ptr).y`:
 it accesses the `y` member of the instance located wherever the pointer `ptr` is pointing.
-This arrow syntax feels weird at first,
-but it's convenient once you get used to it,
-and the C programming language uses the same syntax.
+For convenience, the `.` operator can also be applied to a pointer to an instance of a class.
 
 
 ## Methods
@@ -156,7 +155,7 @@ class Point:
     y: int
 
     def increment_y(self) -> None:
-        self->y++
+        self.y++
 
 def main() -> int:
     p = Point{x=12, y=34}
@@ -170,7 +169,7 @@ In the above example, the type of `self` is `Point*`,
 which means that `self` is a pointer to an instance of `Point`.
 
 To call a method on a pointer (such as `self`),
-use `->`, just like with accessing fields:
+you can simply use `.`, just like with accessing fields:
 
 ```python
 import "stdlib/io.jou"
@@ -180,14 +179,14 @@ class Point:
     y: int
 
     def increment_x(self) -> None:
-        self->x++
+        self.x++
 
     def increment_y(self) -> None:
-        self->y++
+        self.y++
 
     def increment_both(self) -> None:
-        self->increment_x()
-        self->increment_y()
+        self.increment_x()
+        self.increment_y()
 
 def main() -> int:
     p = Point{x=12, y=34}
@@ -195,6 +194,9 @@ def main() -> int:
     printf("%d %d\n", p.x, p.y)  # Output: 13 35
     return 0
 ```
+
+Here `self.increment_x()` is a shorthand for `(*self).increment_x()`:
+it accesses the instance through the `self` pointer and calls its `increment_x()` method.
 
 If, for some reason, you want to pass the instance by value instead of a pointer,
 so that the method gets a copy of it,
@@ -236,10 +238,10 @@ class Person:
     country: byte[50]
 
     def introduce(self) -> None:
-        if self->name == NULL:
-            printf("I'm an anonymous person from '%s'\n", self->country)
+        if self.name == NULL:
+            printf("I'm an anonymous person from '%s'\n", self.country)
         else:
-            printf("I'm %s from '%s'\n", self->name, self->country)
+            printf("I'm %s from '%s'\n", self.name, self.country)
 
 
 def main() -> int:
@@ -280,10 +282,10 @@ class Person:
     country: byte[50]
 
     def introduce(self) -> None:
-        if self->name == NULL:
-            printf("I'm an anonymous person from '%s'\n", self->country)
+        if self.name == NULL:
+            printf("I'm an anonymous person from '%s'\n", self.country)
         else:
-            printf("I'm %s from '%s'\n", self->name, self->country)
+            printf("I'm %s from '%s'\n", self.name, self.country)
 
 
 def main() -> int:

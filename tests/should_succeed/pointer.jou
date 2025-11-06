@@ -16,7 +16,7 @@ def myputs2(s: byte*) -> None:
     while *s != '\0':
         putchar(*s++)
 
-def foo(ptr: int*) -> None:
+def check_null(ptr: int*) -> None:
     if ptr == NULL:
         printf("Got NULL\n")
     else:
@@ -44,15 +44,16 @@ def main() -> int:
     # Make sure that unsigned indexes work. The compiler must
     # convert them to signed for LLVM to be happy.
     # Output: i
-    putchar("012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefghi"[128 as byte])
+    b: byte = 128
+    putchar("012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefghi"[b])
     putchar('\n')
 
     myputs1("asd\n")  # Output: asd
     myputs2("foo\n")  # Output: foo
 
     x = 123
-    foo(&x)  # Output: Got 123
-    foo(NULL)  # Output: Got NULL
+    check_null(&x)  # Output: Got 123
+    check_null(NULL)  # Output: Got NULL
 
     # comparing pointers
     my_string = "hello"

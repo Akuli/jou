@@ -10,17 +10,17 @@ class Computer:
     def connect(self, other: Computer*) -> None:
         assert other != NULL
 
-        for i = 0; i < sizeof(self->connections)/sizeof(self->connections[0]); i++:
-            if self->connections[i] == NULL:
-                self->connections[i] = other
+        for i = 0; i < sizeof(self.connections)/sizeof(self.connections[0]); i++:
+            if self.connections[i] == NULL:
+                self.connections[i] = other
                 return
 
         # array is full
         assert False
 
     def is_connected(self, other: Computer*) -> bool:
-        for i = 0; i < sizeof(self->connections)/sizeof(self->connections[0]); i++:
-            if self->connections[i] == other:
+        for i = 0; i < sizeof(self.connections)/sizeof(self.connections[0]); i++:
+            if self.connections[i] == other:
                 return True
         return False
 
@@ -32,8 +32,8 @@ def find_or_create_computer(computers: Computer*, ncomputers: int*, name: byte*)
 
     c = &computers[*ncomputers]
     assert strlen(name) == 2
-    strcpy(c->name, name)
-    memset(c->connections, 0, sizeof(c->connections))
+    strcpy(c.name, name)
+    memset(c.connections, 0, sizeof(c.connections))
 
     ++*ncomputers
     return c
@@ -54,8 +54,8 @@ def main() -> int:
         c1 = find_or_create_computer(computers, &ncomputers, name1)
         assert ncomputers < 5000
         c2 = find_or_create_computer(computers, &ncomputers, name2)
-        c1->connect(c2)
-        c2->connect(c1)
+        c1.connect(c2)
+        c2.connect(c1)
 
     fclose(f)
     printf("Got %d computers\n", ncomputers)  # Output: Got 16 computers

@@ -1,0 +1,139 @@
+# Jou strings are always represented as UTF-8. Most of the time you can simply
+# pass strings around and not worry about how UTF-8 works. But when you need
+# something more, this file likely does what you need. For the rare cases when
+# this file is not enough, please create an issue on GitHub.
+#
+# For example, this file can tell you that "ö" is one character, but it cannot
+# tell you that the name of the character is "LATIN SMALL LETTER O WITH DIAERESIS".
+
+
+# Check if b is a continuation byte. A UTF-8 multibyte (that is, non-ASCII)
+# character starts with a start byte and then has one or more continuation
+# bytes after it.
+@public
+def is_utf8_continuation(b: byte) -> bool:
+    # Continuation bytes look like 10xxxxxx, where x bits are data.
+    return b & 0b1100_0000 == 0b1000_0000
+
+
+# Count the number of characters in a UTF-8 string.
+#
+# For example, strlen("ö") == 2, but utf8_char_count("ö") == 1.
+#
+# This function returns a number between 0 and strlen(s) inclusive even if the
+# string s is not valid UTF-8.
+@public
+def utf8_char_count(s: byte*) -> int64:
+    n: int64 = 0
+    for p = s; *p != '\0'; p++:
+        if not is_utf8_continuation(*p):
+            n++
+    return n
+
+
+# Returns the number of bytes needed to represent a character (also known as
+# codepoint) in UTF-8. For example, utf8_char_size(246) returns 2, because the
+# ö character is 2 bytes in UTF-8 and its Unicode codepoint number is 246.
+@public
+def utf8_char_size(u: uint32) -> int:
+    if u <= 0x7f:
+        return 1  # ASCII
+    if u <= 0x7ff:
+        return 2
+    if u <= 0xffff:
+        if 0xD800 <= u and u <= 0xDFFF:
+            # invalid UTF-8: represents UTF-16 surrogate
+            return -1
+        return 3
+    if u <= 0x10ffff:
+        return 4
+    return -1  # too big, will never appear in text even if technically valid utf-8
+
+
+# Consumes one codepoint (character) from a UTF-8 string. For example, if
+# s = "örkki", then utf8_decode_char(&s) returns 246 (Unicode codepoint number
+# of the ö character) and advances s so that it appears as "rkki".
+#
+# Specifically, the return value is:
+#   positive    if the pointer was moved past a valid character
+#   0           if the string is empty (points at a '\0' end marker)
+#   -1          if the string starts with invalid UTF-8
+@public
+def utf8_decode_char(s: byte**) -> int32:
+    result: uint32
+
+    start_byte = **s
+    if start_byte & 0b1000_0000 == 0:  # 0xxx xxxx = plain old ASCII
+        num_bytes = 1
+        result = start_byte
+    elif start_byte & 0b1110_0000 == 0b1100_0000:  # 110x xxxx = start of two-byte character
+        num_bytes = 2
+        result = start_byte & 0b0001_1111
+    elif start_byte & 0b1111_0000 == 0b1110_0000:  # 1110 xxxx = start of 3-byte character
+        num_bytes = 3
+        result = start_byte & 0b0000_1111
+    elif start_byte & 0b1111_1000 == 0b1111_0000:  # 1111 0xxx = start of 4-byte character
+        num_bytes = 4
+        result = start_byte & 0b0000_0111
+    else:
+        # invalid UTF-8: bad start byte
+        return -1
+
+    for i = 1; i < num_bytes; i++:
+        b = (*s)[i]
+        if not is_utf8_continuation(b):
+            # invalid UTF-8: bad continuation byte
+            return -1
+
+        result <<= 6
+        result |= b & 0b0011_1111  # get the 6 data bits from continuation byte
+
+    if utf8_char_size(result) != num_bytes:
+        # invalid UTF-8: overlong encoding or surrogate
+        #
+        # It is important to reject overlong encodings! Otherwise we have
+        # security problems, because there are multiple ways to represent
+        # the same string.
+        return -1
+
+    if **s != '\0':
+        *s = &(*s)[num_bytes]
+    return result as int32
+
+
+# Converts a codepoint (character) to a UTF-8 string. For example,
+# utf8_encode_char(246) returns [195, 182, 0, 0, 0] which is the string "ö".
+# This has two bytes of UTF-8 and several '\0' (aka 0) terminators even though
+# just one would be enough.
+#
+# A codepoint is never more than 4 bytes in UTF-8, so the 5-byte return value
+# always has room for a '\0' terminator.
+#
+# If the given number is not a valid Unicode codepoint number, this function
+# returns [0, 0, 0, 0, 0], also known as the empty string.
+@public
+def utf8_encode_char(u: uint32) -> byte[5]:
+    result: byte[5] = [0, 0, 0, 0, 0]
+
+    match utf8_char_size(u):
+        case 1:
+            result[0] = u as byte
+        case 2:
+            result[0] = (0b1100_0000 | (u >> 6)) as byte
+            result[1] = (0b1000_0000 | (u & 0b0011_1111)) as byte
+        case 3:
+            result[0] = (0b1110_0000 | (u >> 12)) as byte
+            result[1] = (0b1000_0000 | ((u >> 6) & 0b0011_1111)) as byte
+            result[2] = (0b1000_0000 | (u & 0b0011_1111)) as byte
+        case 4:
+            result[0] = (0b1111_0000 | (u >> 18)) as byte
+            result[1] = (0b1000_0000 | ((u >> 12) & 0b0011_1111)) as byte
+            result[2] = (0b1000_0000 | ((u >> 6) & 0b0011_1111)) as byte
+            result[3] = (0b1000_0000 | (u & 0b0011_1111)) as byte
+        case -1:
+            # Invalid codepoint
+            pass
+        case _:
+            assert False
+
+    return result

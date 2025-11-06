@@ -16,44 +16,44 @@ class Box:
             return True
 
         for i = 0; i < 4; i++:
-            if box.mins[i] < self->mins[i] or box.maxs[i] > self->maxs[i]:
+            if box.mins[i] < self.mins[i] or box.maxs[i] > self.maxs[i]:
                 return False
         return True
 
     def intersect(self, other: Box) -> Box:
         result = Box{}
         for i = 0; i < 4; i++:
-            result.mins[i] = max(self->mins[i], other.mins[i])
-            result.maxs[i] = min(self->maxs[i], other.maxs[i])
+            result.mins[i] = max(self.mins[i], other.mins[i])
+            result.maxs[i] = min(self.maxs[i], other.maxs[i])
         return result
 
     def overlaps(self, other: Box) -> bool:
-        intersection = self->intersect(other)
+        intersection = self.intersect(other)
         return not intersection.is_empty()
 
     def is_empty(self) -> bool:
         for i = 0; i < 4; i++:
-            if self->mins[i] > self->maxs[i]:
+            if self.mins[i] > self.maxs[i]:
                 return True
         return False
 
-    def size(self) -> long:
-        if self->is_empty():
+    def size(self) -> int64:
+        if self.is_empty():
             return 0
 
-        result = 1L
+        result = 1 as int64
         for i = 0; i < 4; i++:
-            result *= self->maxs[i] - self->mins[i] + 1
+            result *= self.maxs[i] - self.mins[i] + 1
         return result
 
     def can_split(self, split_at: int, coord_idx: int) -> bool:
         assert 0 <= coord_idx and coord_idx < 4
         # Split must happen within the box.
         # For example if min=5 and max=10 (length = 6), then split can happen at 6,7,8,9,10.
-        return self->mins[coord_idx] < split_at and split_at <= self->maxs[coord_idx]
+        return self.mins[coord_idx] < split_at and split_at <= self.maxs[coord_idx]
 
     def split(self, split_at: int, coord_idx: int) -> Box[2]:
-        assert self->can_split(split_at, coord_idx)
+        assert self.can_split(split_at, coord_idx)
         result = [*self, *self]
         result[0].maxs[coord_idx] = split_at - 1
         result[1].mins[coord_idx] = split_at
@@ -65,15 +65,15 @@ class UnionOfBoxes:
 
     def copy(self) -> UnionOfBoxes:
         result = UnionOfBoxes{}
-        result.boxes.extend(self->boxes)
+        result.boxes.extend(self.boxes)
         return result
 
     def remove_box(self, box: Box) -> None:
         if box.is_empty():
             return
 
-        for k = self->boxes.len - 1; k >= 0; k--:
-            existing = self->boxes.ptr[k]
+        for k = self.boxes.len - 1; k >= 0; k--:
+            existing = self.boxes.ptr[k]
             assert not existing.is_empty()
 
             if not box.overlaps(existing):
@@ -100,30 +100,30 @@ class UnionOfBoxes:
                         if box.contains_box(have.ptr[i]):
                             have.ptr[i] = have.pop()
 
-            # Replace self->boxes[k] with "have"
-            self->boxes.ptr[k] = self->boxes.pop()
-            self->boxes.extend(have)
+            # Replace self.boxes[k] with "have"
+            self.boxes.ptr[k] = self.boxes.pop()
+            self.boxes.extend(have)
             free(have.ptr)
 
     def add_box(self, box: Box) -> None:
         if not box.is_empty():
-            self->remove_box(box)
-            self->boxes.append(box)
+            self.remove_box(box)
+            self.boxes.append(box)
 
     def add_union_of_boxes(self, u: UnionOfBoxes) -> None:
         for p = u.boxes.ptr; p < u.boxes.end(); p++:
-            self->add_box(*p)
+            self.add_box(*p)
 
     def intersect_with_box(self, box: Box) -> None:
-        for i = self->boxes.len - 1; i >= 0; i--:
-            self->boxes.ptr[i] = self->boxes.ptr[i].intersect(box)
-            if self->boxes.ptr[i].is_empty():
-                self->boxes.ptr[i] = self->boxes.pop()
+        for i = self.boxes.len - 1; i >= 0; i--:
+            self.boxes.ptr[i] = self.boxes.ptr[i].intersect(box)
+            if self.boxes.ptr[i].is_empty():
+                self.boxes.ptr[i] = self.boxes.pop()
 
-    def size(self) -> long:
-        result = 0L
-        for p = self->boxes.ptr; p < self->boxes.end(); p++:
-            result += p->size()
+    def size(self) -> int64:
+        result = 0 as int64
+        for p = self.boxes.ptr; p < self.boxes.end(); p++:
+            result += p.size()
         return result
 
 
@@ -174,7 +174,7 @@ def parse_workflow(s: byte*) -> Workflow:
         xmas = "xmas"
         ptr = strstr(xmas, var)
         assert ptr != NULL
-        var_index = (ptr as long) - (&xmas[0] as long)
+        var_index = (ptr as int64) - (&xmas[0] as int64)
 
         mins = [1, 1, 1, 1]
         maxs = [4000, 4000, 4000, 4000]
@@ -191,7 +191,7 @@ def parse_workflow(s: byte*) -> Workflow:
 
 def find_workflow(workflows: List[Workflow], name: byte*) -> Workflow*:
     for p = workflows.ptr; p < workflows.end(); p++:
-        if strcmp(p->name, name) == 0:
+        if strcmp(p.name, name) == 0:
             return p
     assert False
 
@@ -218,39 +218,39 @@ def main() -> int:
 
     start_bounds = UnionOfBoxes{}
     start_bounds.add_box(Box{mins=[1,1,1,1], maxs=[4000,4000,4000,4000]})
-    find_workflow(workflows, "in")->how_to_get_here = start_bounds
+    find_workflow(workflows, "in").how_to_get_here = start_bounds
 
     did_something = True
     while did_something:
         did_something = False
 
         for wf = workflows.ptr; wf < workflows.end(); wf++:
-            bounds = wf->how_to_get_here.copy()
+            bounds = wf.how_to_get_here.copy()
 
-            assert wf->ifs.len == wf->thens.len
-            for i = 0; i < wf->ifs.len; i++:
+            assert wf.ifs.len == wf.thens.len
+            for i = 0; i < wf.ifs.len; i++:
                 true_bounds = bounds.copy()
-                true_bounds.intersect_with_box(wf->ifs.ptr[i])
+                true_bounds.intersect_with_box(wf.ifs.ptr[i])
 
-                wf2 = find_workflow(workflows, wf->thens.ptr[i])
-                old = wf2->how_to_get_here.size()
-                wf2->how_to_get_here.add_union_of_boxes(true_bounds)
-                new = wf2->how_to_get_here.size()
+                wf2 = find_workflow(workflows, wf.thens.ptr[i])
+                old = wf2.how_to_get_here.size()
+                wf2.how_to_get_here.add_union_of_boxes(true_bounds)
+                new = wf2.how_to_get_here.size()
                 assert old <= new
                 if old < new:
                     did_something = True
 
                 free(true_bounds.boxes.ptr)
-                bounds.remove_box(wf->ifs.ptr[i])
+                bounds.remove_box(wf.ifs.ptr[i])
 
-            find_workflow(workflows, wf->the_else)->how_to_get_here.add_union_of_boxes(bounds)
+            find_workflow(workflows, wf.the_else).how_to_get_here.add_union_of_boxes(bounds)
             free(bounds.boxes.ptr)
 
-    printf("%lld\n", find_workflow(workflows, "A")->how_to_get_here.size())  # Output: 167409079868000
+    printf("%lld\n", find_workflow(workflows, "A").how_to_get_here.size())  # Output: 167409079868000
 
     for wf = workflows.ptr; wf < workflows.end(); wf++:
-        free(wf->ifs.ptr)
-        free(wf->thens.ptr)
-        free(wf->how_to_get_here.boxes.ptr)
+        free(wf.ifs.ptr)
+        free(wf.thens.ptr)
+        free(wf.how_to_get_here.boxes.ptr)
     free(workflows.ptr)
     return 0

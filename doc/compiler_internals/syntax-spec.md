@@ -35,29 +35,28 @@ For example, to see the tokens of the hello world program,
 run `jou --tokenize-only examples/hello.jou`.
 
 Jou has a few different kinds of tokens:
-- **Int literals** can be specified in base 10 (e.g. `123`), hex (`0x123abc` or `0x123ABC`), octal (`0o777`) or binary (`0b010101`).
+- **Integer literals** can be specified in base 10 (e.g. `123`),
+    [hex](../bitwise.md#hexadecimal-numbers) (`0x123abc` or `0x123ABC`),
+    octal (`0o777`) or
+    [binary](../bitwise.md#binary-numbers) (`0b010101`).
     The prefixes `0x`, `0o` and `0b` are case-sensitive.
-    A minus sign is never a part of an int literal token: `-10` tokenizes as two separate tokens.
-
-    It is an error if the value of an int literal does not fit in a signed 32-bit integer (Jou `int`);
-    that is, if its value is greater than or equal to 2<sup>31</sup>.
+    A minus sign is never a part of an integer literal token: `-10` tokenizes as two separate tokens.
 
     Unnecessary zeros in the beginning are allowed in hex, octal and binary (so `0x000f` is fine), but are not allowed in base 10.
     This is because in C, `0123` is somewhat surprisingly same as `83`, because the extra `0` makes it an octal number.
     Jou uses an explicit `0o` prefix for octal numbers, similarly to Python.
 
-- **Short literals** are just like in literals, except that they have an extra `S` at the end (e.g. `114S`),
-    The `S` must be uppercase.
+    It is an error if the value of an integer literal does not fit into
+    [the inferred type](../types.md#type-inference) of the integer literal.
 
-- **Long literals** are just like int literals, except that they have an extra `L` at the end (e.g. `123L`),
-    and they only need to fit in a signed 64-bit integer (Jou `long`).
-    The `L` must be uppercase.
 - **Double literals** look like `12.` or `12.34` or `123.456e5` or `1e-5`.
-    They consist of one or more digits (0-9), then `.`, then zero or more digits.
-    If `e` or `e-` occurs after that (the `e` must be lowercase),
-    after the `e` or `e-` there must be one or more digits.
-    The number after `e` basically tells how much to shift the decimal point:
-    `123.456e5` is same as `12345600.0` and `1e-5` is same as `0.00001`, for example.
+    There are two kinds of double literals: with and without `e`.
+    A double literal without `e` consists of one or more digits (0-9), then `.`, then one or more digits.
+    A double literal with `e` first has
+    a double literal without `e` or just one or more digits,
+    then `e`, then an optional minus sign, then one or more digits.
+    The number after `e` specifies how many places to move the decimal point and in which direction.
+    For example, `1.2e3` means `1200.0` and `1e-5` means `0.00001`.
 - **Float literals** are just like double literals except that they have an extra `F` or `f` at the end.
 - **Byte literals** (also known somewhat misleadingly as character literals)
     consist of a one-byte character placed between single quotes, as in `'a'`.
@@ -83,7 +82,6 @@ Jou has a few different kinds of tokens:
     - `enum`
     - `global`
     - `const`
-    - `return`
     - `if`
     - `elif`
     - `else`
@@ -92,29 +90,37 @@ Jou has a few different kinds of tokens:
     - `pass`
     - `break`
     - `continue`
+    - `match`
+    - `with`
+    - `case`
+    - `return`
     - `True`
     - `False`
     - `None`
     - `NULL`
-    - `void`
-    - `noreturn`
+    - `self`
     - `and`
     - `or`
     - `not`
-    - `self`
     - `as`
     - `sizeof`
     - `assert`
     - `bool`
-    - `byte`
-    - `short`
-    - `int`
-    - `long`
     - `float`
     - `double`
-    - `match`
-    - `with`
-    - `case`
+    - `byte`
+    - `int`
+    - `int8`
+    - `int16`
+    - `int32`
+    - `int64`
+    - `uint8`
+    - `uint16`
+    - `uint32`
+    - `uint64`
+    - `void`
+    - `noreturn`
+    - `funcptr`
 - **Newline tokens** occur at the end of a line of code.
     Lines that only contain spaces and comments do not produce a newline token;
     this ensures that blank lines are ignored as they should be.
@@ -123,8 +129,10 @@ Jou has a few different kinds of tokens:
     Indent tokens always occur just after newline tokens.
     It is an error if the code is indented with tabs or with some indentation size other than 4 spaces.
 - **Dedent tokens** are added whenever the amount of indentation decreases by 4 spaces.
-- **Operator tokens** are any of the following: `... == != -> <= >= ++ -- += -= *= /= %= . , : ; = ( ) { } [ ] & % * / + - < > |`
-    Note that `a = = b` and `a == b` do different things:
+- **Operator tokens** are any of the following: `... <<= >>= == != -> <= >= ++ -- += -= *= /= %= &= |= ^= << >> . , : ; = ( ) { } [ ] & % * / + - ^ < > | ~`
+    Note that `...` means literally three dots in the source code,
+    and is used, for example, when declaring the `printf()` function in [stdlib/io.jou](../../stdlib/io.jou).
+    Also note that `a = = b` and `a == b` do different things:
     `a = = b` tokenizes as 4 tokens (and the parser errors when it sees the tokens)
     while `a == b` tokenizes as 3 tokens.
 
@@ -145,6 +153,7 @@ The backslash character has a special meaning in string literals (e.g. `"hello\n
     because the ASCII value of the `j` character is 106,
     which is 6A in hexadecimal.
     Note that because `\x00` is equivalent to `\0`, it cannot be used inside strings.
+- `\\` means an actual backslash character.
 - `\` followed by anything else is an error.
 
 Before tokenizing, the compiler adds an imaginary newline character to the beginning of the file.

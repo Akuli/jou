@@ -7,7 +7,7 @@ on:
   workflow_dispatch:  # Can also be triggered manually from github UI
 
 jobs:
-  # Please keep in sync with macos.yml
+  # Please keep in sync with macos.yml and linux-aarch64.yml
   check-if-needed:
     timeout-minutes: 1
     runs-on: ubuntu-latest
@@ -38,20 +38,23 @@ jobs:
     strategy:
       matrix:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
-        # Please keep in sync with linux.yml
+        # Please keep in sync with linux.yml and macos.yml
         params:
-          - { llvm-version: 14, opt-level: '-O0' }
-          - { llvm-version: 14, opt-level: '-O1' }
-          - { llvm-version: 14, opt-level: '-O2' }
-          - { llvm-version: 14, opt-level: '-O3' }
+          # Oldest version: all opt levels
+          - { llvm-version: 15, opt-level: '-O0' }
           - { llvm-version: 15, opt-level: '-O1' }
+          - { llvm-version: 15, opt-level: '-O2' }
+          - { llvm-version: 15, opt-level: '-O3' }
+          # Most versions: just one opt level to save time
           - { llvm-version: 16, opt-level: '-O1' }
           - { llvm-version: 17, opt-level: '-O1' }
           - { llvm-version: 18, opt-level: '-O1' }
-          - { llvm-version: 19, opt-level: '-O0' }
           - { llvm-version: 19, opt-level: '-O1' }
-          - { llvm-version: 19, opt-level: '-O2' }
-          - { llvm-version: 19, opt-level: '-O3' }
+          # Latest version: all opt levels
+          - { llvm-version: 20, opt-level: '-O0' }
+          - { llvm-version: 20, opt-level: '-O1' }
+          - { llvm-version: 20, opt-level: '-O2' }
+          - { llvm-version: 20, opt-level: '-O3' }
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -63,13 +66,15 @@ jobs:
           key: bootstrap-valgrind-${{ runner.os }}-${{ matrix.params.llvm-version }}-${{ matrix.params.opt-level }}-${{ hashFiles('bootstrap.sh') }}
       - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
         run: touch -c jou_bootstrap
-      - run: sudo apt update
-      - run: sudo apt install -y llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind
+      - name: "Install apt packages"
+        run: |
+          PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind"
+          sudo apt install -y $PACKAGES || (sudo apt update && sudo apt install -y $PACKAGES)
       - run: LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }} make
       - name: "Test compiler with valgrind"
         run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.params.opt-level }}"
 
-  # Please keep in sync with macos.yml
+  # Please keep in sync with macos.yml and linux-aarch64.yml
   create-issue-on-failure:
     name: Create an issue if failed
     runs-on: ubuntu-latest

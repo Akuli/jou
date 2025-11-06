@@ -1,0 +1,15 @@
+# This file contains various if statements that should not confuse the compiler.
+
+if WINDOWS or not WINDOWS:
+    class Foo:
+        if WINDOWS:
+            def do_thing(self) -> None:
+                printf("%d\n", self.x)
+        else:
+            def do_other_thing(self) -> None:
+                pass
+
+        if MACOS or not MACOS:
+            union:  # Error: class fields must be defined before methods
+                y: int
+                z: int64

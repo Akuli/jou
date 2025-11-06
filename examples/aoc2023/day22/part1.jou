@@ -9,26 +9,26 @@ class Block:
     end: int[3]
 
     def print(self) -> None:
-        printf("%d,%d,%d~%d,%d,%d\n", self->start[0], self->start[1], self->start[2], self->end[0], self->end[1], self->end[2])
+        printf("%d,%d,%d~%d,%d,%d\n", self.start[0], self.start[1], self.start[2], self.end[0], self.end[1], self.end[2])
 
     # Return values: 0=x, 1=y, 2=z
     def direction(self) -> int:
-        if self->start[1] == self->end[1] and self->start[2] == self->end[2]:
+        if self.start[1] == self.end[1] and self.start[2] == self.end[2]:
             return 0
-        if self->start[0] == self->end[0] and self->start[2] == self->end[2]:
+        if self.start[0] == self.end[0] and self.start[2] == self.end[2]:
             return 1
-        if self->start[0] == self->end[0] and self->start[1] == self->end[1]:
+        if self.start[0] == self.end[0] and self.start[1] == self.end[1]:
             return 2
         assert False
 
     def intersects(self, other: Block*) -> bool:
         for i = 0; i < 3; i++:
-            assert self->start[i] <= self->end[i]
-            assert other->start[i] <= other->end[i]
+            assert self.start[i] <= self.end[i]
+            assert other.start[i] <= other.end[i]
 
             # Try to find out where the intersection would be, and see if it's empty
-            start = max(self->start[i], other->start[i])
-            end = min(self->end[i], other->end[i])
+            start = max(self.start[i], other.start[i])
+            end = min(self.end[i], other.end[i])
             if start > end:
                 return False
 
@@ -36,21 +36,21 @@ class Block:
 
 
 def block_can_fall(blocks: Block*, nblocks: int, b: Block*) -> bool:
-    assert 0 <= b->start[2] and b->start[2] <= b->end[2]
-    if b->start[2] == 0:
+    assert 0 <= b.start[2] and b.start[2] <= b.end[2]
+    if b.start[2] == 0:
         return False
 
-    b->start[2]--
-    b->end[2]--
+    b.start[2]--
+    b.end[2]--
 
     for i = 0; i < nblocks; i++:
         if &blocks[i] != b and blocks[i].intersects(b):
-            b->start[2]++
-            b->end[2]++
+            b.start[2]++
+            b.end[2]++
             return False
 
-    b->start[2]++
-    b->end[2]++
+    b.start[2]++
+    b.end[2]++
     return True
 
 

@@ -1,3 +1,4 @@
 class Foo:
     def bar(self) -> byte:
-        return 1  # Error: attempting to return a value of type int from method 'bar' defined with '-> byte'
+        x: int = 1
+        return x  # Error: attempting to return a value of type int from method 'bar' defined with '-> byte'

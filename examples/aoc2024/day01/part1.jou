@@ -1,18 +1,6 @@
 import "stdlib/io.jou"
 import "stdlib/math.jou"
-import "stdlib/mem.jou"
-
-
-def sort(array: int*, length: int) -> None:
-    # inefficient and dumb sorting algorithm
-    while length > 0:
-        smallest = 0
-        for i = 1; i < length; i++:
-            if array[i] < array[smallest]:
-                smallest = i
-        memswap(&array[0], &array[smallest], sizeof(array[0]))
-        array++
-        length--
+import "stdlib/sort.jou"
 
 
 def main() -> int:
@@ -27,10 +15,10 @@ def main() -> int:
 
     fclose(f)
 
-    sort(left_column, n)
-    sort(right_column, n)
+    sort_int32(left_column, n)
+    sort_int32(right_column, n)
 
-    result: long = 0
+    result: int64 = 0
     for i = 0; i < n; i++:
         result += abs(left_column[i] - right_column[i])
     printf("%lld\n", result)  # Output: 11

@@ -1,0 +1,55 @@
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+
+import "./ast.jou"
+import "./command_line_args.jou"
+import "./hash.jou"
+import "./target.jou"
+import "./types.jou"
+
+
+# Jou source code file (.jou)
+@public
+class JouFile:
+    path: byte*  # owned, always set, unique
+    ast: AstFile  # always set
+
+    def free(self) -> None:
+        self.ast.free()
+        free(self.path)
+
+
+@public
+class CompilerState:
+    args: CommandLineArgs
+    stdlib_path: byte*  # owned
+    types: TypeState
+    warnings_shown: bool  # for the --fail-on-warnings compiler flag
+    cached_compiler_hash: Hash
+
+    # Appending to this list happens only in the early stages of compilation,
+    # so for most purposes, pointers into this list are stable and won't ever
+    # become invalid.
+    jou_files: List[JouFile]
+
+    # Initialized somewhat late during compilation, not needed for a lot of things
+    target: Target
+
+    # This method exists only to make valgrind happy. It is called only when
+    # the compiler is exiting and the operating system is about to free all
+    # memory we used anyway.
+    def free(self) -> None:
+        free(self.stdlib_path)
+        for p = self.jou_files.ptr; p < self.jou_files.end(); p++:
+            free(p.path)
+            p.ast.free()
+        free(self.jou_files.ptr)
+        self.types.free()
+
+
+# Yes, I know, everyone hates global variables, especially public global variables...
+#
+# For now, there wouldn't be much advantage in passing this around.
+# Can be cleaned up later if needed.
+@public
+global global_compiler_state: CompilerState

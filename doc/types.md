@@ -5,25 +5,45 @@ This page documents all types in the Jou programming language.
 
 ## Integers
 
-| Name      | Example   | Size              | Signed?   | How to print  | Min value                     | Max value                     |
-|-----------|-----------|-------------------|-----------|---------------|-------------------------------|-------------------------------|
-| `byte`    | `'a'`     | 1 byte (8 bits)   | unsigned  | `%d`          | `0`                           | `255`                         |
-| `short`   | `1234S`   | 2 bytes (16 bits) | signed    | `%d`          | `-32_768`                     | `32_767`                      |
-| `int`     | `1234`    | 4 bytes (32 bits) | signed    | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
-| `long`    | `1234L`   | 8 bytes (64 bits) | signed    | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
+Jou has the following signed integer types:
 
-Integers in Jou code may contain underscores.
+| Name              | Size              | How to print  | Min value                     | Max value                     |
+|-------------------|-------------------|---------------|-------------------------------|-------------------------------|
+| `int8`            | 1 byte (8 bits)   | `%d`          | `-128`                        | `127`                         |
+| `int16`           | 2 bytes (16 bits) | `%d`          | `-32_768`                     | `32_767`                      |
+| `int32` or `int`  | 4 bytes (32 bits) | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
+| `int64`           | 8 bytes (64 bits) | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
+
+And the following unsigned integer types:
+
+| Name              | Size              | How to print  | Min value | Max value                     |
+|-------------------|-------------------|---------------|-----------|-------------------------------|
+| `uint8` or `byte` | 1 byte (8 bits)   | `%d`          | `0`       | `255`                         |
+| `uint16`          | 2 bytes (16 bits) | `%d`          | `0`       | `65_535`                      |
+| `uint32`          | 4 bytes (32 bits) | `%u`          | `0`       | `4_294_967_295`               |
+| `uint64`          | 8 bytes (64 bits) | `%llu`        | `0`       | `18_446_744_073_709_551_615`  |
+
+For convenience, the most commonly used types have simpler names:
+`byte` always means same as `uint8` and `int` always means same as `int32`.
+
+Values of integers in Jou code may contain underscores.
 They are ignored, but they often make large numbers much more readable.
+
+The minimum and maximum values shown above are also in [stdlib/limits.jou](../stdlib/limits.jou).
 
 Integers wrap around if you exceed their minimum/maximum values.
 For example, `(0 as byte) - (1 as byte)` produces `255 as byte`.
 It is not possible to invoke [UB](ub.md) by overflowing integers.
 
-When printing, `%d` can be used for anything smaller than `int`,
-because numbers smaller than `int` are automatically converted to `int`.
+When printing, `%d` can be used for anything smaller than 32 bits,
+because values smaller than `int` are automatically converted to `int`.
+With 32-bit and 64-bit values, you need to be more careful:
+use `u` for unsigned and add `ll` for 64-bit values.
 
-Support for other combinations of sizes and signed/unsigned is planned, but not implemented.
-See [issue #164](https://github.com/Akuli/jou/issues/164).
+The `ll` in `%lld` and `%llu` is short for "long long",
+which is basically C's way to say "64-bit number".
+Do not use `%ld` or `%lu`, because
+it prints a 32-bit value on Windows and a 64-bit value on most other systems.
 
 
 ## Floating-point numbers
@@ -50,9 +70,24 @@ See [pointers in the Jou tutorial](tutorial.md#pointers) if you are not already 
 An array is simply `n` instances of type `T` next to each other in memory.
 The array length `n` must be known at compile time,
 because in Jou, the compiler knows the sizes of all types.
-If you want a dynamic array size, use a heap allocation (`malloc` + `free`) instead.
-Unfortunately, heap allocations are currently not documented.
-See [issue #676](https://github.com/Akuli/jou/issues/676).
+Use [lists](lists.md) if you want an array that grows dynamically as items are added to it.
+
+Because of how arrays work, you can use `sizeof(array) / sizeof(array[0])`
+to access the array length:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    array: int[10]
+    printf("%lld\n", sizeof(array) / sizeof(array[0]))  # Output: 10
+    return 0
+```
+
+The size of `array[0]` is 4 bytes, because `array[0]` is an `int`.
+The size of the whole array is 40 bytes, because the array is 10 `int`s next to each other in memory.
+Therefore `sizeof(array) / sizeof(array[0])` becomes `40 / 4`, which is 10.
+This works the same way with any array.
 
 Pointers and arrays can be combined with each other.
 For example, `byte[100]*` means a pointer to an array of 100 bytes,
@@ -86,11 +121,11 @@ This doesn't matter as much as you might think, but as usual,
 please create an issue if this becomes a problem for you.
 
 
-# Casts
+## Casts
 
 Jou has two kinds of casts:
 - **Implicit casts** are done basically whenever a value must be of a specific type.
-    For example, you can pass an `int` to a function that expects a `long` argument,
+    For example, you can pass an `int` to a function that expects an `int64` argument,
     because function arguments are cast implicitly.
 - **Explicit casts** are done with the `as` keyword, e.g. `0 as byte`.
 
@@ -100,21 +135,114 @@ The allowed implicit casts are:
     if the size of `T1` is smaller than the size of `T2`,
     and this is not a "signed → unsigned" cast.
     For example, `byte` casts implicitly to `int` (8-bit unsigned → 32-bit signed),
-    and `int` casts implicitly to `long` (32-bit signed → 64-bit signed).
+    and `int` casts implicitly to `int64` (32-bit signed → 64-bit signed).
 - `float` casts implicitly to `double`.
 - Any integer type (signed or unsigned) casts implicitly to `float` or `double`.
 - Any pointer type casts implicitly to `void*`, and `void*` casts implicitly to any pointer type.
 
 Explicit casts are:
 - Array to pointer: `T[N]` (where `T` is a type and `N` is an integer) casts to `T*` or `void*`.
-    Note that `array_of_ints as long*` is a compiler error.
+    Note that `array_of_ints as int64*` is a compiler error.
 - Any pointer type casts to any other pointer type. This includes `void*` pointers.
-- Any number type casts to any other number type.
+- Any number type casts to any other number type. This is described in more detail below.
 - Any integer type casts to any enum.
 - Any enum casts to any integer type.
 - `bool` casts to any integer type and produces zero or one.
     For example, `True as int` is `1`.
     However, integers cannot be cast to `bool`.
     Use an explicit `foo == 1`, `foo != 0`, `foo > 0` or `match foo: ...` depending on what you need.
-- Any pointer type casts to `long`. (This gives the memory address as an integer.)
-- `long` casts to any pointer type.
+- Any pointer type casts to `int64`. (This gives the memory address as an integer.)
+- `int64` casts to any pointer type.
+- Anything that type inference is capable of doing (see below).
+    For example `123123123123123 as int64` or `"foo" as byte[10]`.
+
+
+### Casting number to number
+
+This section defines what exactly "any number type casts to any other number type" mentioned above does.
+
+Casting an integer to another integer [wraps around](tutorial.md#byte-int-int64):
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 260 as byte)  # Output: 4
+    return 0
+```
+
+Casting a `float` or `double` to an integer truncates away the fractional part.
+Out-of-range values become the smallest or largest value of the integer type.
+The result is zero if the `float` or `double` is [a NaN value](https://en.wikipedia.org/wiki/NaN).
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 1234.5 as byte)  # Output: 255
+    printf("%d\n", 24.68 as int)    # Output: 24
+    printf("%d\n", -24.68 as int)   # Output: -24
+
+    # Infinity and NaN
+    printf("%d\n", (1.0 / 0.0) as int)   # Output: 2147483647
+    printf("%d\n", (0.0 / 0.0) as int)   # Output: 0
+
+    return 0
+```
+
+
+### Type Inference
+
+When the Jou compiler is determining the type of a string or integer in the code,
+it considers how it is going to be used.
+
+For example, this is an error, because the type of `1000000000000000` is `int` by default:
+
+```python
+def main() -> int:
+    x = 1000000000000000  # Error: value does not fit into int
+    return 0
+```
+
+But if you specify a type for the `x` variable,
+the compiler *infers* the type of `1000000000000000` based on it:
+
+```python
+def main() -> int:
+    x: int64 = 1000000000000000  # This works, no errors
+    return 0
+```
+
+Jou's type inference is implemented in a very simple way
+compared to many other languages and compilers.
+For example, using the variable later does not affect the inference in any way:
+
+```python
+def main() -> int:
+    x = 1000000000000000  # Error: value does not fit into int
+    y: int64 = x  # Does not affect the type of x
+    return 0
+```
+
+Jou also uses type inference for strings.
+By default, strings are `byte*`, but they can also be inferred as arrays:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    string1 = "foo"             # Type of "foo" is byte* (the default)
+    string2: byte[100] = "foo"  # Type of "foo" is byte[100]
+    n = sizeof("foo")           # Type of "foo" is byte[4] (smallest possible)
+
+    # Output: 4 bytes are needed for "foo".
+    printf("%lld bytes are needed for \"%s\".\n", n, string1)
+
+    return 0
+```
+
+When the `sizeof` operator is applied to a string,
+the compiler chooses the smallest possible array size where the string fits.
+Above `"foo"` needs 4 bytes because of [the terminating zero byte](tutorial.md#more-about-strings):
+in this context, `"foo"` is same as `['f', 'o', 'o', '\0']`.

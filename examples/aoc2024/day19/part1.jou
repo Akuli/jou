@@ -1,18 +1,16 @@
+import "stdlib/list.jou"
 import "stdlib/ascii.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
 
-def is_available(towel: byte*, patterns: byte**) -> bool:
+def is_available(towel: byte*, patterns: List[byte*]) -> bool:
     if towel[0] == '\0':
         return True
 
-    for i = 0; patterns[i] != NULL; i++:
-        if (
-            starts_with(towel, patterns[i])
-            and is_available(&towel[strlen(patterns[i])], patterns)
-        ):
+    for p = patterns.ptr; p < patterns.end(); p++:
+        if starts_with(towel, *p) and is_available(&towel[strlen(*p)], patterns):
             return True
     return False
 
@@ -27,8 +25,8 @@ def main() -> int:
     patterns = split_by_ascii_whitespace(patterns_buf)
 
     # remove trailing commas
-    for i = 0; patterns[i] != NULL; i++:
-        patterns[i][strcspn(patterns[i], ",")] = '\0'
+    for p = patterns.ptr; p < patterns.end(); p++:
+        (*p)[strcspn(*p, ",")] = '\0'
 
     line: byte[1000]
     counter = 0
@@ -45,5 +43,5 @@ def main() -> int:
     printf("%d\n", counter)  # Output: 6
 
     fclose(f)
-    free(patterns)
+    free(patterns.ptr)
     return 0

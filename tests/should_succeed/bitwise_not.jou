@@ -1,0 +1,60 @@
+# Tests for the bitwise NOT operator (~)
+
+import "stdlib/io.jou"
+
+
+# These are used to fail compiling if a value is of the wrong type.
+#
+# Taking a pointer avoids implicit casts. For example, if b is a byte, then
+# b implicitly casts to int16, but &b doesn't implicitly cast to int16*.
+def check_byte(x: byte*) -> None:
+    pass
+def check_int(x: int*) -> None:
+    pass
+def check_int64(x: int64*) -> None:
+    pass
+def check_uint64(x: uint64*) -> None:
+    pass
+
+
+def main() -> int:
+    # Result type should always be same as input type
+    a = ~'a'
+    b = ~123
+    c = ~(12345432123454321 as int64)
+    d = ~(12345432123454321 as uint64)
+    check_byte(&a)
+    check_int(&b)
+    check_int64(&c)
+    check_uint64(&d)
+
+    # For signed values, ~x == -x-1 because x + (~x) == -1
+    printf("%d\n", ~0)  # Output: -1
+    printf("%d\n", ~123)  # Output: -124
+    printf("%d\n", ~(-123))  # Output: 122
+    printf("%lld\n", ~(12345432123454321 as uint64))  # Output: -12345432123454322
+
+    # For unsigned values (and actually for signed too), ~x flips all bits
+    printf("%d\n", ~'\0')  # Output: 255
+    printf("%d\n", ~'a')  # Output: 158
+    printf("%#x\n", ~(0xABCD as uint16))  # Output: 0x5432
+    printf("%#x\n", ~(0x1234ABCD as uint32))  # Output: 0xedcb5432
+    printf("%#llx\n", ~(0xABC123DEF4567890 as uint64))  # Output: 0x543edc210ba9876f
+
+    # In any case, doing ~ twice cancels away
+    printf("%d\n", ~(~'a'))  # Output: 97
+    printf("%d\n", ~(~123))  # Output: 123
+    printf("%d\n", ~(~(-123)))  # Output: -123
+    printf("%llu\n", ~(~(12345432123454321 as uint64)))  # Output: 12345432123454321
+
+    # Type hints are passed to the inner value, so the compiler knows that the
+    # number below is supposed to be an int64
+    h1: int64 = ~12345432123454321
+    printf("%lld\n", h1)  # Output: -12345432123454322
+    h2: uint64 = ~0xFFFF_FFFF_FFFF_FFFF
+    printf("%llu\n", h2)  # Output: 0
+
+    # This was a bug in the past
+    printf("%d\n", ~(3 as int8))  # Output: -4
+
+    return 0

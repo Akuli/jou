@@ -1,0 +1,425 @@
+# This file builds hashes that change whenever `.o` files would change.
+#
+# The resulting hashes are embedded into names of `.o` files. If a `.o` file
+# with a matching hash exists, we will reuse it directly instead of recompiling
+# it. This is good, because outputting optimized (or even non-optimized) `.o`
+# files with LLVM is really slow.
+
+import "../ast.jou"
+import "../errors_and_warnings.jou"
+import "../hash.jou"
+import "../paths.jou"
+import "../state.jou"
+import "../types.jou"
+import "./any_builder.jou"
+import "./ast_to_builder.jou"
+
+
+def hash_type(hash: Hash*, type: Type*) -> None:
+    hash.add_string("type")
+    hash.add_int(type.kind as int)
+    match type.kind:
+        case TypeKind.Array:
+            hash.add_int64(type.array.len)
+            hash_type(hash, type.array.item_type)
+        case (
+            # Treat all pointers the same, since they are the same LLVM type.
+            TypeKind.Pointer
+            | TypeKind.VoidPointer
+            | TypeKind.FuncPtr
+            # Treat all enums the same, they are int32.
+            | TypeKind.Enum
+            | TypeKind.Bool
+            | TypeKind.TypeVar
+        ):
+            pass
+        case TypeKind.FloatingPoint | TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+            hash.add_int(type.size_in_bits)
+        case TypeKind.Class:
+            # Ignore methods, because only the fields affect the LLVM type.
+            for f = type.classdata.fields.ptr; f < type.classdata.fields.end(); f++:
+                hash_type(hash, f.type)
+                hash.add_int(f.union_id)
+
+
+def hash_signature(hash: Hash*, sig: Signature*) -> None:
+    hash.add_string("signature")
+    hash.add_string(sig.name)
+
+    if sig.get_self_class() != NULL:
+        # Name of self class is included in function names
+        hash.add_string(sig.get_self_class().name)
+    else:
+        hash.add_string("not a method")
+
+    hash.add_int64(sig.args.len)
+    for p = sig.args.ptr; p < sig.args.end(); p++:
+        hash_type(hash, p.type)
+
+    if sig.return_type == NULL:
+        if sig.is_noreturn:
+            hash.add_string("noreturn")
+        else:
+            hash.add_string("None")
+    else:
+        hash_type(hash, sig.return_type)
+
+
+@public
+class HBuilderValue:
+    id: int64
+    type: Type*
+
+
+@public
+class HBuilder:
+    hash: Hash
+    id_counter: int64
+
+    def should_functions_marked_with_inline_be_inlined(self) -> bool:
+        return True  # same as LLVM builder
+
+    def begin_function(self, sig: Signature*, public: bool) -> None:
+        self.hash.add_string("begin func")
+        hash_signature(&self.hash, sig)
+        self.hash.add_bool(public)
+
+    def end_function(self) -> None:
+        pass
+
+    def begin_statement_in_a_body(self) -> None:
+        pass
+
+    # TODO: If in the future, location is used for debug info, we should do something with it.
+    def set_location(self, location: Location) -> None:
+        pass
+
+    # Hashes and returns a unique ID number that represents a value in code.
+    # Also hashes the type, because a changed type may be enough to need a recompile.
+    def new_value(self, t: Type*) -> HBuilderValue:
+        id = self.id_counter++
+        self.hash.add_int64(id)
+        if t == NULL:
+            self.hash.add_string("no type")
+        else:
+            hash_type(&self.hash, t)
+        return HBuilderValue{type = t, id = id}
+
+    def stack_alloc(self, t: Type*, varname: byte*) -> HBuilderValue:
+        # Do nothing with varname, so that renaming a local variable doesn't cause a rebuild
+        # TODO: Will need to be different if debug info is enabled
+        self.hash.add_string("stack_alloc")
+        hash_type(&self.hash, t)
+        return self.new_value(t.pointer_type())
+
+    # *ptr = value
+    def set_ptr(self, ptr: HBuilderValue, value: HBuilderValue) -> None:
+        self.hash.add_string("set_ptr")
+        self.hash.add_int64(ptr.id)
+        self.hash.add_int64(value.id)
+
+    # *ptr
+    def dereference(self, ptr: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("deref")
+        self.hash.add_int64(ptr.id)
+        assert ptr.type.kind == TypeKind.Pointer
+        return self.new_value(ptr.type.value_type)
+
+    # Returns &ptr[index]
+    def indexed_pointer(self, ptr: HBuilderValue, index: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("indexed_pointer")
+        self.hash.add_int64(ptr.id)
+        self.hash.add_int64(index.id)
+        return self.new_value(ptr.type)
+
+    # Returns &ptr.field
+    def class_field_pointer(self, ptr: HBuilderValue, field_name: byte*) -> HBuilderValue:
+        # Do not hash field name, renaming fields should not cause recompiling
+        assert ptr.type.kind == TypeKind.Pointer
+        classtype = ptr.type.value_type
+        assert classtype.kind == TypeKind.Class
+        field = classtype.find_class_field(field_name)
+        assert field != NULL
+
+        self.hash.add_string("class_field_pointer")
+        self.hash.add_int64(ptr.id)
+        self.hash.add_int(field.union_id)
+        return self.new_value(field.type.pointer_type())
+
+    # &global_variable
+    def global_var_ptr(self, name: byte*, var_type: Type*) -> HBuilderValue:
+        self.hash.add_string("global_var_ptr")
+        self.hash.add_string(name)
+        return self.new_value(var_type.pointer_type())
+
+    # some_function
+    def get_funcptr(self, signature: Signature*) -> HBuilderValue:
+        self.hash.add_string("funcptr")
+        self.hash.add_string(signature.name)
+        return self.new_value(signature.to_funcptr_type())
+
+    # i'th argument given to this function
+    def get_argument(self, i: int, argtype: Type*) -> HBuilderValue:
+        self.hash.add_string("arg")
+        self.hash.add_int(i)
+        return self.new_value(argtype)
+
+    def call_function(self, funcptr_type: Type*, func: HBuilderValue, args: HBuilderValue*, nargs: int) -> HBuilderValue:
+        self.hash.add_string("call_func")
+        self.hash.add_int64(func.id)
+        for p = args; p < &args[nargs]; p++:
+            self.hash.add_int64(p.id)
+
+        assert funcptr_type.kind == TypeKind.FuncPtr
+        if funcptr_type.func_ptr.return_type == NULL:
+            return self.new_value(funcptr_type.func_ptr.return_type)
+        else:
+            return HBuilderValue{id = -1}
+
+    def call_method(self, sig: Signature*, args: HBuilderValue*, nargs: int) -> HBuilderValue:
+        hash_signature(&self.hash, sig)
+        for p = args; p < &args[nargs]; p++:
+            self.hash.add_int64(p.id)
+
+        if sig.return_type == NULL:
+            return self.new_value(sig.return_type)
+        else:
+            return HBuilderValue{id = -1}
+
+    # string as array of bytes
+    def array_string(self, s: byte*, array_size: int) -> HBuilderValue:
+        self.hash.add_string("array_string")
+        self.hash.add_int(array_size)
+        self.hash.add_string(s)
+        return self.new_value(uint_type(8).array_type(array_size))
+
+    # string as '\0' terminated pointer
+    def pointer_string(self, s: byte*) -> HBuilderValue:
+        self.hash.add_string("pointer_string")
+        self.hash.add_string(s)
+        return self.new_value(uint_type(8).pointer_type())
+
+    def boolean(self, b: bool) -> HBuilderValue:
+        self.hash.add_string("bool")
+        self.hash.add_bool(b)
+        return self.new_value(bool_type())
+
+    def integer(self, t: Type*, value: int64) -> HBuilderValue:
+        self.hash.add_string("integer")
+        self.hash.add_int64(value)
+        return self.new_value(t)
+
+    def float_or_double(self, t: Type*, string: byte*) -> HBuilderValue:
+        self.hash.add_string("float_or_double")
+        self.hash.add_string(string)
+        return self.new_value(t)
+
+    def zero_of_type(self, t: Type*) -> HBuilderValue:
+        self.hash.add_string("zero")
+        return self.new_value(t)
+
+    def enum_member(self, t: Type*, name: byte*) -> HBuilderValue:
+        self.hash.add_string("enum")
+        int_value = t.find_enum_member(name)
+        assert int_value != -1
+        self.hash.add_int(int_value)
+        return self.new_value(t)
+
+    # a + b
+    def add(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("add")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        assert a.type == b.type
+        return self.new_value(a.type)
+
+    # a - b
+    def sub(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("sub")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        assert a.type == b.type
+        return self.new_value(a.type)
+
+    # a * b
+    def mul(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("mul")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        assert a.type == b.type
+        return self.new_value(a.type)
+
+    # a / b
+    def div(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("div")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        assert a.type == b.type
+        return self.new_value(a.type)
+
+    # a % b
+    def mod(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("mod")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        assert a.type == b.type
+        return self.new_value(a.type)
+
+    # a & b
+    def bit_and(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("and")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        assert a.type == b.type
+        return self.new_value(a.type)
+
+    # a | b
+    def bit_or(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("or")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        assert a.type == b.type
+        return self.new_value(a.type)
+
+    # a ^ b
+    def bit_xor(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("xor")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        assert a.type == b.type
+        return self.new_value(a.type)
+
+    # a << b
+    def bit_shift_left(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("shl")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        # Type of b doesn't matter. Result's type is always the type of a.
+        return self.new_value(a.type)
+
+    # a >> b
+    def bit_shift_right(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("shr")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        # Type of b doesn't matter. Result's type is always the type of a.
+        return self.new_value(a.type)
+
+    # a == b
+    def eq(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("eq")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        return self.new_value(bool_type())
+
+    # a < b
+    def lt(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("lt")
+        self.hash.add_int64(a.id)
+        self.hash.add_int64(b.id)
+        return self.new_value(bool_type())
+
+    # not value
+    def not_(self, value: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("not")
+        self.hash.add_int64(value.id)
+        return self.new_value(bool_type())
+
+    # ~value
+    def bit_not(self, value: HBuilderValue) -> HBuilderValue:
+        self.hash.add_string("bitnot")
+        self.hash.add_int64(value.id)
+        return self.new_value(value.type)
+
+    # sizeof(any value of given type)
+    def size_of(self, t: Type*) -> HBuilderValue:
+        self.hash.add_string("sizeof")
+        hash_type(&self.hash, t)
+        return self.new_value(int_type(64))
+
+    # memset(ptr, 0, sizeof(*ptr))
+    def memset_to_zero(self, ptr: HBuilderValue) -> None:
+        self.hash.add_string("memset0")
+        self.hash.add_int64(ptr.id)
+
+    # value as to
+    def cast(self, value: HBuilderValue, to: Type*) -> HBuilderValue:
+        self.hash.add_string("cast")
+        self.hash.add_int64(value.id)
+        return self.new_value(to)
+
+    def add_block(self) -> int64:
+        self.hash.add_string("add block")
+        block_id = self.id_counter++
+        self.hash.add_int64(block_id)
+        return block_id
+
+    # Decide which block will contain the resulting instructions.
+    def set_current_block(self, block_id: int64) -> None:
+        self.hash.add_string("set block")
+        self.hash.add_int64(block_id)
+
+    def branch(self, cond: HBuilderValue, then_block_id: int64, otherwise_block_id: int64) -> None:
+        self.hash.add_string("br")
+        self.hash.add_int64(cond.id)
+        self.hash.add_int64(then_block_id)
+        self.hash.add_int64(otherwise_block_id)
+
+    def jump(self, next_block_id: int64) -> None:
+        self.hash.add_string("jump")
+        self.hash.add_int64(next_block_id)
+
+    def unreachable(self) -> None:
+        self.hash.add_string("unreachable")
+
+    def ret(self, value: HBuilderValue*) -> None:
+        if value == NULL:
+            self.hash.add_string("ret null")
+        else:
+            self.hash.add_string("ret")
+            self.hash.add_int64(value.id)
+
+
+# Returned hash is different when LLVM IR should be recompiled.
+@public
+def build_content_hash(ast: AstFile*) -> Hash:
+    builder = HBuilder{hash = new_hash()}
+    builder.hash.add_string(ast.path)  # file path is given to LLVM, presumably will be included in .o file
+
+    assert global_compiler_state.target.ready
+    builder.hash.add_string(global_compiler_state.target.triple)
+    builder.hash.add_string(global_compiler_state.target.data_layout)
+
+    # Compilation results depend on the compiler that compiles them
+    builder.hash.add_uint64(hash_of_compiler().hash)
+
+    # Compilation results depend on optimization level (-O0, -O1, -O2, -O3).
+    # However, we don't include it in the hash here, because compilation
+    # results for different optimization levels are separated anyway.
+    # See doc/lazy-recompile.md for details.
+
+    builder_wrapper = AnyBuilder{hbuilder = &builder}
+
+    builder.hash.add_int64(ast.types.globals.len)
+    for g = ast.types.globals.ptr; g < ast.types.globals.end(); g++:
+        hash_type(&builder.hash, g.type)
+        builder.hash.add_string(g.name)
+
+    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
+        builder.hash.add_int(stmt.kind as int)
+        match stmt.kind:
+            case AstStatementKind.GlobalVariableDef:
+                # Note: Currently all global variables are zero-initialized, that may change in the future.
+                builder.hash.add_string("global")
+                builder.hash.add_string(stmt.global_var_def.name)
+                builder.hash.add_bool(stmt.global_var_def.public)
+            case AstStatementKind.FunctionDef:
+                feed_ast_to_builder(&stmt.function, stmt.location, ast.is_main_file, &builder_wrapper)
+            case AstStatementKind.Class:
+                for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
+                    if inner.kind == AstStatementKind.MethodDef:
+                        feed_ast_to_builder(&inner.method, inner.location, ast.is_main_file, &builder_wrapper)
+            case _:
+                pass
+
+    return builder.hash

@@ -67,7 +67,7 @@ import "stdlib/io.jou"
 def bar() -> None:                  # line 3
     a, b: int                       # line 4
     scanf("%d\n", &a)               # line 5
-    printf("%lld\n", &b as long)    # line 6
+    printf("%lld\n", &b as int64)   # line 6
 ```
 
 The UVG for this function is:

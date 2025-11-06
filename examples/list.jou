@@ -1,0 +1,34 @@
+# See doc/lists.md for documentation.
+
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+
+
+def main() -> int:
+    # Create empty list
+    foo = List[int]{}
+
+    # Add items to list
+    foo.append(7)
+    foo.append(8)
+    foo.append(9)
+
+    # Iterating with indexes
+    # Output: 7
+    # Output: 8
+    # Output: 9
+    for i = 0; i < foo.len; i++:
+        printf("%d\n", foo.ptr[i])
+
+    # Iterating with pointers
+    # Output: 7
+    # Output: 8
+    # Output: 9
+    for p = foo.ptr; p < foo.end(); p++:
+        printf("%d\n", *p)
+
+    # Free memory used by the list when you're done to avoid a memory leak.
+    free(foo.ptr)
+
+    return 0

@@ -54,32 +54,32 @@ class State:
     how_to_reach_anywhere: int
 
     def fill_cached_values(self) -> None:
-        dots = count_dots_at_even_and_odd_places(self->grid)
-        self->num_even_dots = dots[0]
-        self->num_odd_dots = dots[1]
+        dots = count_dots_at_even_and_odd_places(self.grid)
+        self.num_even_dots = dots[0]
+        self.num_odd_dots = dots[1]
 
-        assert self->grid.width == self->grid.height
-        side = self->grid.width
+        assert self.grid.width == self.grid.height
+        side = self.grid.width
         assert side % 2 == 1
-        self->how_to_reach_anywhere = 2 * how_to_reach_anywhere_from_given_point(self->grid, [side/2,side/2])
+        self.how_to_reach_anywhere = 2 * how_to_reach_anywhere_from_given_point(self.grid, [side/2,side/2])
 
 
 def count_reachables_in_square(state: State*, entry_point_of_grid: int[2], steps_remaining_at_entry: int) -> int:
     if steps_remaining_at_entry < 0:
         return 0
 
-    assert state->how_to_reach_anywhere != 0   # if this fails, cache is not ready
-    if steps_remaining_at_entry > state->how_to_reach_anywhere:
+    assert state.how_to_reach_anywhere != 0   # if this fails, cache is not ready
+    if steps_remaining_at_entry > state.how_to_reach_anywhere:
         # It will fill the whole grid
         initial_parity = (entry_point_of_grid[0] + entry_point_of_grid[1]) % 2
         final_parity = (initial_parity + steps_remaining_at_entry) % 2
         if final_parity == 0:
-            return state->num_even_dots
+            return state.num_even_dots
         else:
-            return state->num_odd_dots
+            return state.num_odd_dots
 
     # calculate it in the slow and boring way
-    grid = state->grid.copy()
+    grid = state.grid.copy()
     assert grid.count('S') == 0
     grid.set(entry_point_of_grid, 'S')
 
@@ -146,9 +146,9 @@ def count_reachables_in_square(state: State*, entry_point_of_grid: int[2], steps
 # where side/2 is actually (side-1)/2 because it uses Jou's floor division.
 # For example, for H we enter through the middle of its vertical left side.
 # Compared to its top left or bottom left corner, this saves (side-1)/2 steps up or down.
-def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> long:
-    assert state->grid.width == state->grid.height
-    side = state->grid.width
+def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> int64:
+    assert state.grid.width == state.grid.height
+    side = state.grid.width
     assert side % 2 == 1
 
     if radius == 0:
@@ -161,7 +161,7 @@ def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> lon
     steps_remaining_above_or_below = step_count - (side*radius - side/2)
 
     # Above with radius=4, there's three A's.
-    result = 0L
+    result = 0 as int64
     result += (radius-1) * count_reachables_in_square(state, [0,0], steps_remaining_diagonally)
     result += (radius-1) * count_reachables_in_square(state, [0,side-1], steps_remaining_diagonally)
     result += (radius-1) * count_reachables_in_square(state, [side-1,0], steps_remaining_diagonally)
@@ -174,7 +174,7 @@ def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> lon
 
 
 def replace_unreachable_points_with_walls(grid: Grid*) -> None:
-    grid2 = grid->copy()
+    grid2 = grid.copy()
 
     # Mark neighbors of S as S until we no longer mark anything
     did_something = True
@@ -192,7 +192,7 @@ def replace_unreachable_points_with_walls(grid: Grid*) -> None:
     for x = 0; x < grid2.width; x++:
         for y = 0; y < grid2.height; y++:
             if grid2.get([x, y]) == '.':
-                grid->set([x, y], '#')
+                grid.set([x, y], '#')
 
     free(grid2.data)
 
@@ -229,7 +229,7 @@ def main() -> int:
     step_count = 1000      # sample input
     #step_count = 26501365  # actual input
 
-    result = 0L
+    result = 0 as int64
 
     r = 0
     while True:

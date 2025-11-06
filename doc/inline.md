@@ -62,7 +62,7 @@ The `@inline` decorator is useful for small and performance critical functions.
 Usually inlining a long function is a bad idea.
 That causes the compiler to copy/paste a lot of code,
 which means that the compiled executable will be bigger.
-Also, it probably won't be noticably faster with `@inline`.
+Also, it probably won't be noticeably faster with `@inline`.
 
 For example, if you do game programming,
 you might have a function that adds two 3D vectors, represented as `float[3]` arrays
@@ -109,4 +109,3 @@ def main() -> int:
     Vec3{x=1, y=2, z=3}.add(Vec3{x=4, y=5, z=6}).print()  # Output: 5.00 7.00 9.00
     return 0
 ```
-

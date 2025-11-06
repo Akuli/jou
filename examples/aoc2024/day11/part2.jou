@@ -6,7 +6,7 @@ import "stdlib/str.jou"
 
 # count_digits(999) = 3
 # count_digits(1000) = 4
-def count_digits(n: long) -> int:
+def count_digits(n: int64) -> int:
     result = 0
     while n > 0:
         n /= 10
@@ -15,11 +15,11 @@ def count_digits(n: long) -> int:
 
 
 # split_digits(1234) == [12, 34]
-def split_digits(n: long) -> long[2]:
+def split_digits(n: int64) -> int64[2]:
     length = count_digits(n)
     assert length % 2 == 0
 
-    power_of_10 = 1L
+    power_of_10 = 1 as int64
     for i = 0; i < length/2; i++:
         power_of_10 *= 10
 
@@ -27,16 +27,16 @@ def split_digits(n: long) -> long[2]:
 
 
 # Usage: cache[a][b] == analyze_stone(a, b)
-global cache: long[100][100]
+global cache: int64[100][100]
 
 
 # Handles the blinking of one stone.
 # Returns how many stones it splits into once all the blinking is done.
-def analyze_stone(stone_number: long, remaining_blinks: int) -> long:
+def analyze_stone(stone_number: int64, remaining_blinks: int) -> int64:
     cache_stone_number_limit = sizeof(cache)/sizeof(cache[0])
     cache_remaining_blinks_limit = sizeof(cache[0])/sizeof(cache[0][0])
 
-    cacheptr: long* = NULL
+    cacheptr: int64* = NULL
     if stone_number < cache_stone_number_limit and remaining_blinks < cache_remaining_blinks_limit:
         cacheptr = &cache[stone_number][remaining_blinks]
         if *cacheptr != 0:
@@ -44,7 +44,7 @@ def analyze_stone(stone_number: long, remaining_blinks: int) -> long:
 
     while True:
         if remaining_blinks == 0:
-            result = 1L
+            result = 1 as int64
             break
 
         if stone_number == 0:
@@ -81,16 +81,16 @@ def main() -> int:
     words = split_by_ascii_whitespace(line)
 
     # First with 25 steps to make sure the rewritten code works
-    result25 = 0L
-    for i = 0; words[i] != NULL; i++:
-        result25 += analyze_stone(atoll(words[i]), 25)
+    result25 = 0 as int64
+    for i = 0; i < words.len; i++:
+        result25 += analyze_stone(atoll(words.ptr[i]), 25)
     printf("%lld\n", result25)  # Output: 55312
 
     # Then with 75 steps, this is the real part 2
-    result75 = 0L
-    for i = 0; words[i] != NULL; i++:
-        result75 += analyze_stone(atoll(words[i]), 75)
+    result75 = 0 as int64
+    for i = 0; i < words.len; i++:
+        result75 += analyze_stone(atoll(words.ptr[i]), 75)
     printf("%lld\n", result75)  # Output: 65601038650482
 
-    free(words)
+    free(words.ptr)
     return 0
