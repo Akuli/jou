@@ -628,6 +628,7 @@ enum AstStatementKind:
     MethodDef
     Class
     Enum
+    TypeDef
     GlobalVariableDeclare
     GlobalVariableDef
     Const           # const x: SomeType = y
@@ -653,6 +654,7 @@ class AstStatement:
         method: AstFunctionOrMethod
         classdef: AstClassDef
         enumdef: AstEnumDef
+        typedef_statement: AstTypeDef
         assertion: AstAssertion
         match_statement: AstMatchStatement
         import_statement: AstImport
@@ -670,6 +672,8 @@ class AstStatement:
                 self.expression.print_with_tree_printer(tp.print_prefix(True))
             case AstStatementKind.Link:
                 self.link_statement.print()
+            case AstStatementKind.TypeDef:
+                self.typedef_statement.print()
             case AstStatementKind.Assert:
                 printf("assert \"%s\"\n", self.assertion.condition_str)
                 self.assertion.condition.print_with_tree_printer(tp.print_prefix(True))
@@ -820,6 +824,8 @@ class AstStatement:
                 free(self.union_fields.ptr)
             case AstStatementKind.Const:
                 self.const_statement.free()
+            case AstStatementKind.TypeDef:
+                self.typedef_statement.free()
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
                 pass
 
@@ -1254,3 +1260,21 @@ class AstEnumDef:
 
     def free(self) -> None:
         free(self.members.ptr)
+
+
+# typedef Foo = int*
+@public
+class AstTypeDef:
+    name: byte[100]
+    ast_type: AstType
+    type: Type*  # populated in typecheck, NULL before typecheck runs
+    public: bool  # is it decorated with @public
+    used: bool  # used to detect unused typedefs
+
+    def print(self) -> None:
+        printf("typedef \"%s\" to be ", self.name)
+        self.ast_type.print(True)
+        putchar('\n')
+
+    def free(self) -> None:
+        self.ast_type.free()

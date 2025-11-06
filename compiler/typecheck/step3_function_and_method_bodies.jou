@@ -1624,6 +1624,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 "assertion must be a bool, not <from>",
             )
 
+        case AstStatementKind.TypeDef:
+            assert False  # TODO
+
         case (
             AstStatementKind.FunctionDeclare
             | AstStatementKind.FunctionDef
