@@ -7,7 +7,6 @@
 # anywhere in the project, e.g. later in the same file.
 
 import "stdlib/list.jou"
-import "stdlib/io.jou"
 
 import "../ast.jou"
 import "./common.jou"
@@ -18,17 +17,14 @@ def typecheck_step2_create_typedefs(ast: AstFile*) -> List[ExportSymbol]:
     exports = List[ExportSymbol]{}
 
     for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
-        if stmt.kind == AstStatementKind.TypeDef:
-            printf("I see the typedef at %p %s... public=%d\n", stmt, stmt.typedef_statement.name, stmt.typedef_statement.public as int)
-            t = type_from_ast(&ast.types, NULL, &stmt.typedef_statement.ast_type)
-            stmt.typedef_statement.type = t
-            ast.types.add_type(t, &stmt.typedef_statement.used)
+        if stmt.kind != AstStatementKind.TypeDef:
+            continue
+        tdef = &stmt.typedef_statement
 
-            if stmt.typedef_statement.public:
-                exports.append(ExportSymbol{
-                    kind = ExportSymbolKind.Type,
-                    type = t,
-                    name = stmt.typedef_statement.name,
-                })
+        t = type_from_ast(&ast.types, NULL, &tdef.ast_type)
+        tdef.type = t
+        ast.types.add_type_with_name(t, tdef.name, &tdef.used)
+        if tdef.public:
+            exports.append(ExportSymbol{kind = ExportSymbolKind.Type, type = t, name = tdef.name})
 
     return exports
