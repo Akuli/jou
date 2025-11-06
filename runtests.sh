@@ -149,6 +149,12 @@ function post_process_output()
         # Hide most of the output. We really only care about whether it
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
+    elif [[ $joufile =~ compiler_unit_tests ]] && [[ "${OS:=$(uname)}" =~ Darwin ]]; then
+        # On MacOS, silence a linker warning that appears whenever linking
+        # with LLVM. I don't know what causes the warning.
+        #
+        # See: https://github.com/Akuli/jou/issues/1005
+        grep -v "ld: warning: reexported library with install name"
     else
         # Pass the output through unchanged.
         cat
@@ -195,6 +201,12 @@ function should_skip()
     #   - in the Jou compiler, error handling is simple and not very likely to contain UB
     #   - valgrinding is slow, this means we valgrind a lot less
     if [ $valgrind = yes ] && [ $correct_exit_code != 0 ]; then
+        return 0
+    fi
+
+    # When running valgrind, skip compiler unit tests. They link with LLVM and
+    # LLVM leaks memory when the program starts, even if it is never called.
+    if [ $valgrind = yes ] &&  [ $joufile = tests/should_succeed/compiler_unit_tests.jou ]; then
         return 0
     fi
 
