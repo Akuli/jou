@@ -7,7 +7,7 @@ import "stdlib/mem.jou"
 
 class File:
     name: byte[100]  # relative to containing directory, no "/" characters
-    size: long
+    size: int64
 
 
 class Directory:
@@ -15,32 +15,32 @@ class Directory:
     files: List[File]
     subdirs: List[Directory]
 
-    def total_size(self) -> long:
-        result = 0L
-        for d = self->subdirs.ptr; d < self->subdirs.end(); d++:
-            result += d->total_size()
-        for f = self->files.ptr; f < self->files.end(); f++:
-            result += f->size
+    def total_size(self) -> int64:
+        result: int64 = 0
+        for d = self.subdirs.ptr; d < self.subdirs.end(); d++:
+            result += d.total_size()
+        for f = self.files.ptr; f < self.files.end(); f++:
+            result += f.size
         return result
 
-    def total_size_of_smallest_dir_at_least(self, min_size: long) -> long:
-        best = 100000000000000L
+    def total_size_of_smallest_dir_at_least(self, min_size: int64) -> int64:
+        best: int64 = 100000000000000
 
-        if self->total_size() >= min_size:
-            best = self->total_size()
+        if self.total_size() >= min_size:
+            best = self.total_size()
 
-        for d = self->subdirs.ptr; d < self->subdirs.end(); d++:
-            subdir_best = d->total_size_of_smallest_dir_at_least(min_size)
+        for d = self.subdirs.ptr; d < self.subdirs.end(); d++:
+            subdir_best = d.total_size_of_smallest_dir_at_least(min_size)
             if subdir_best < best:
                 best = subdir_best
 
         return best
 
     def free(self) -> None:
-        for d = self->subdirs.ptr; d < self->subdirs.end(); d++:
-            d->free()
-        free(self->subdirs.ptr)
-        free(self->files.ptr)
+        for d = self.subdirs.ptr; d < self.subdirs.end(); d++:
+            d.free()
+        free(self.subdirs.ptr)
+        free(self.files.ptr)
 
 
 def main() -> int:
@@ -65,8 +65,8 @@ def main() -> int:
         elif starts_with(line, "$ cd "):
             cwd = dirs.end()[-1]
             found = False
-            for d = cwd->subdirs.ptr; d < cwd->subdirs.end(); d++:
-                if strcmp(d->name, &line[5]) == 0:
+            for d = cwd.subdirs.ptr; d < cwd.subdirs.end(); d++:
+                if strcmp(d.name, &line[5]) == 0:
                     dirs.append(d)
                     found = True
                     break
@@ -76,7 +76,7 @@ def main() -> int:
             subdir_name = &line[4]
             assert strlen(subdir_name) < sizeof(subdir.name)
             strcpy(subdir.name, subdir_name)
-            dirs.end()[-1]->subdirs.append(subdir)
+            dirs.end()[-1].subdirs.append(subdir)
         else:
             # file with size
             filename = strstr(line, " ")
@@ -85,7 +85,7 @@ def main() -> int:
             file = File{size = atoll(line)}
             assert strlen(filename) < sizeof(file.name)
             strcpy(file.name, filename)
-            dirs.end()[-1]->files.append(file)
+            dirs.end()[-1].files.append(file)
 
     free(dirs.ptr)
     fclose(f)
