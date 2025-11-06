@@ -1,0 +1,34 @@
+# Second step of type checking is to handle `typedef` statements, which create
+# more names for existing types.
+#
+# After the first two steps, all types defined in Jou exist, but may not be
+# ready, e.g. classes don't contain any members yet. This way, when later steps
+# check function signatures, they can refer to classes that are defined
+# anywhere in the project, e.g. later in the same file.
+
+import "stdlib/list.jou"
+import "stdlib/io.jou"
+
+import "../ast.jou"
+import "./common.jou"
+
+
+@public
+def typecheck_step2_create_typedefs(ast: AstFile*) -> List[ExportSymbol]:
+    exports = List[ExportSymbol]{}
+
+    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
+        if stmt.kind == AstStatementKind.TypeDef:
+            printf("I see the typedef at %p %s... public=%d\n", stmt, stmt.typedef_statement.name, stmt.typedef_statement.public as int)
+            t = type_from_ast(&ast.types, NULL, &stmt.typedef_statement.ast_type)
+            stmt.typedef_statement.type = t
+            ast.types.add_type(t, &stmt.typedef_statement.used)
+
+            if stmt.typedef_statement.public:
+                exports.append(ExportSymbol{
+                    kind = ExportSymbolKind.Type,
+                    type = t,
+                    name = stmt.typedef_statement.name,
+                })
+
+    return exports

@@ -21,8 +21,9 @@ import "./token.jou"
 import "./tokenizer.jou"
 import "./typecheck/common.jou"
 import "./typecheck/step1_create_types.jou"
-import "./typecheck/step2_populate_types.jou"
-import "./typecheck/step3_function_and_method_bodies.jou"
+import "./typecheck/step2_create_typedefs.jou"
+import "./typecheck/step3_populate_types.jou"
+import "./typecheck/step4_function_and_method_bodies.jou"
 import "./types.jou"
 
 
@@ -61,6 +62,11 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
                 and strcmp(importsym.name, stmt.classdef.name) == 0
             )
         case AstStatementKind.Enum:
+            return (
+                importsym.kind == ExportSymbolKind.Type
+                and strcmp(importsym.name, stmt.enumdef.name) == 0
+            )
+        case AstStatementKind.TypeDef:
             return (
                 importsym.kind == ExportSymbolKind.Type
                 and strcmp(importsym.name, stmt.enumdef.name) == 0
@@ -404,14 +410,23 @@ def typecheck_all_files() -> None:
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         if global_compiler_state.args.verbosity >= 1:
             printf("  step 2: %s\n", p.path)
-        pending_exports[i++] = typecheck_step2_populate_types(&p.ast)
+        pending_exports[i++] = typecheck_step2_create_typedefs(&p.ast)
+        printf("    %d pending exports\n", pending_exports[i-1].len as int)
+
+    exports_to_imports(pending_exports)
+
+    i = 0
+    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
+        if global_compiler_state.args.verbosity >= 1:
+            printf("  step 3: %s\n", p.path)
+        pending_exports[i++] = typecheck_step3_populate_types(&p.ast)
 
     exports_to_imports(pending_exports)
 
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("  step 3: %s\n", p.path)
-        typecheck_step3_function_and_method_bodies(&p.ast)
+            printf("  step 4: %s\n", p.path)
+        typecheck_step4_function_and_method_bodies(&p.ast)
         if global_compiler_state.args.verbosity >= 3:
             # AST now contains types. If very verbose, print them.
             p.ast.print()

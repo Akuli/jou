@@ -218,6 +218,9 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 stmt.global_var_def.public = True
             case AstStatementKind.Const:
                 stmt.const_statement.public = True
+            case AstStatementKind.TypeDef:
+                printf("Marking typedef as public %p %s\n", stmt, stmt.typedef_statement.name)
+                stmt.typedef_statement.public = True
             case _:
                 fail(location, "the @public decorator cannot be used here")
 

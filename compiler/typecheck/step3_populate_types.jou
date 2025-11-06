@@ -196,7 +196,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                     t.classdata.fields.append(f)
 
             case AstStatementKind.MethodDef:
-                # Don't handle the method body yet: that is a part of step 3, not step 2
+                # Don't handle the method body yet: that is a part of step 4, not step 3
                 sig = handle_signature(ft, &stmt.method, t)
                 stmt.method.types.signature = sig
 
@@ -214,13 +214,11 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
+def typecheck_step3_populate_types(ast: AstFile*) -> List[ExportSymbol]:
     exports = List[ExportSymbol]{}
 
     for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
         match stmt.kind:
-            case AstStatementKind.Import | AstStatementKind.Pass | AstStatementKind.Assert:
-                pass
             case AstStatementKind.GlobalVariableDeclare:
                 exp = handle_global_var(&ast.types, stmt.location, stmt.global_var_declare.name, &stmt.global_var_declare.type, &stmt.global_var_declare.used)
                 if stmt.global_var_declare.public:
@@ -243,7 +241,14 @@ def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
                     exports.append(exp)
             case AstStatementKind.Class:
                 handle_class_members(&ast.types, &stmt.classdef)
-            case AstStatementKind.Enum | AstStatementKind.Link:
+            case (
+                AstStatementKind.Import
+                | AstStatementKind.Pass
+                | AstStatementKind.Assert
+                | AstStatementKind.Enum
+                | AstStatementKind.Link
+                | AstStatementKind.TypeDef
+            ):
                 pass  # Everything done in previous type-checking steps.
             case _:
                 assert False
