@@ -3,18 +3,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/list.jou"
 import "stdlib/ascii.jou"
-
-
-def sort(list: List[int]) -> None:
-    # bubble sort go brrrr
-    while True:
-        is_sorted = True
-        for i = 1; i < list.len; i++:
-            if list.ptr[i-1] > list.ptr[i]:
-                memswap(&list.ptr[i-1], &list.ptr[i], sizeof(list.ptr[i]))
-                is_sorted = False
-        if is_sorted:
-            return
+import "stdlib/sort.jou"
 
 
 def main() -> int:
@@ -35,7 +24,7 @@ def main() -> int:
     fclose(f)
     elfs.append(elf)  # file does not end with a blank line, so last elf is special
 
-    sort(elfs)
+    sort_int32(elfs.ptr, elfs.len)
 
     assert elfs.len >= 3
     # Output: 45000
