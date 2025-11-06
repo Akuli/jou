@@ -1,0 +1,55 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+import "stdlib/list.jou"
+
+
+def reverse(ptr: byte*, len: int64) -> None:
+    for i = 0; i < len/2; i++:
+        memswap(&ptr[i], &ptr[len - i - 1], sizeof(ptr[0]))
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    stacks: List[byte][9]
+    memset(stacks, 0, sizeof(stacks))
+
+    line: byte[100]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        if strstr(line, "[") == NULL:
+            assert starts_with(line, " 1   2   3")
+            break
+
+        for i = 1; i < strlen(line); i += 4:
+            if line[i] != ' ':
+                assert i/4 < sizeof(stacks)/sizeof(stacks[0])
+                stacks[i/4].append(line[i])
+
+    for i = 0; i < 9; i++:
+        reverse(stacks[i].ptr, stacks[i].len)
+
+    # skip blank line
+    fgets(line, sizeof(line) as int, f)
+    assert strcmp(line, "\n") == 0
+
+    n, src, dest: int
+    while fscanf(f, "move %d from %d to %d\n", &n, &src, &dest) == 3:
+        src--
+        dest--
+        assert 0 <= src and src < 9 and 0 <= dest and dest < 9
+        for i = 0; i < n; i++:
+            stacks[dest].append(stacks[src].pop())
+        reverse(&stacks[dest].end()[-n], n)
+
+    # Output: MCD
+    for i = 0; i < 9 and stacks[i].len > 0; i++:
+        printf("%c", stacks[i].end()[-1])
+    printf("\n")
+
+    fclose(f)
+    for i = 0; i < 9; i++:
+        free(stacks[i].ptr)
+
+    return 0

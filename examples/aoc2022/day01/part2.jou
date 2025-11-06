@@ -1,0 +1,34 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+import "stdlib/list.jou"
+import "stdlib/ascii.jou"
+import "stdlib/sort.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[100]
+    elf = 0
+    elfs = List[int]{}
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '\0':
+            elfs.append(elf)
+            elf = 0
+        else:
+            elf += atoi(line)
+    fclose(f)
+    elfs.append(elf)  # file does not end with a blank line, so last elf is special
+
+    sort_int32(elfs.ptr, elfs.len)
+
+    assert elfs.len >= 3
+    # Output: 45000
+    printf("%d\n", elfs.end()[-1] + elfs.end()[-2] + elfs.end()[-3])
+
+    free(elfs.ptr)
+    return 0
