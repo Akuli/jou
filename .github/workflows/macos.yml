@@ -22,7 +22,7 @@ jobs:
             echo "run=true" >> $GITHUB_OUTPUT
           elif [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
             echo "Pull request, checking PR title..."
-            if cat "$GITHUB_EVENT_PATH" | jq -r .pull_request.title | grep --color -i MacOS; then
+            if cat "$GITHUB_EVENT_PATH" | jq -r .pull_request.title | grep --color=always -i MacOS; then
               echo "It mentions MacOS, let's run MacOS tests on this pull request"
               echo "run=true" >> $GITHUB_OUTPUT
             else
