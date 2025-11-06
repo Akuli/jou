@@ -4,9 +4,7 @@ on:
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:  # Can also be triggered manually from github UI
-  pull_request:
-    paths:
-      - .github/workflows/macos.yml  # Run whenever this file is modified
+  pull_request:  # Usually doesn't run, checks if needed below
 
 jobs:
   # Please keep in sync with valgrind.yml and linux-aarch64.yml
@@ -22,14 +20,28 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
             echo "Triggered manually"
             echo "run=true" >> $GITHUB_OUTPUT
-          elif [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
-            echo "This is a fork of Jou, skipping"
-            echo "run=false" >> $GITHUB_OUTPUT
-          elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
-            echo "No recent commits, skipping"
-            echo "run=false" >> $GITHUB_OUTPUT
+          elif [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
+            echo "Pull request, checking PR title..."
+            cat -n "$GITHUB_EVENT_PATH"  # TODO: temp debug, remove
+            if cat "$GITHUB_EVENT_PATH" | jq -r .pull_request.title | grep -i MacOS; then
+              echo "It mentions MacOS, let's run MacOS tests on this pull request"
+              echo "run=true" >> $GITHUB_OUTPUT
+            else
+              echo "MacOS not mentioned, skipping"
+              echo "run=false" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "run=true" >> $GITHUB_OUTPUT
+            echo "This is a nightly run..."
+            if [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
+              echo "This is a fork of Jou, skipping"
+              echo "run=false" >> $GITHUB_OUTPUT
+            elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+              echo "No recent commits, skipping"
+              echo "run=false" >> $GITHUB_OUTPUT
+            else
+              echo "There are recent commits. Let's run it."
+              echo "run=true" >> $GITHUB_OUTPUT
+            fi
           fi
 
   test:
