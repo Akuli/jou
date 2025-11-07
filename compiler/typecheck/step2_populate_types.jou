@@ -48,7 +48,7 @@ def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> E
         fail(location, "cannot evaluate value of constant at compile time")
 
     # TODO: allow implicit casts?
-    if value.get_type().unwrap_typedef("const1") != expected_type.unwrap_typedef("const2"):
+    if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
         msg: byte[500]
         snprintf(
             msg, sizeof(msg),
@@ -117,7 +117,7 @@ def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type
         ft.add_function(&sig, usedptr)
 
     if sig.is_main_function():
-        if sig.return_type == NULL or sig.return_type.unwrap_typedef("mainret") != int_type(32):
+        if sig.return_type == NULL or sig.return_type.unwrap_typedef() != int_type(32):
             fail(astsig.return_type.location, "the main() function must return int")
         if (
             sig.args.len != 0
@@ -242,7 +242,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
             case AstStatementKind.Class:
                 handle_class_members(&ast.types, &stmt.classdef)
             case AstStatementKind.TypeDef:
-                actual_type = type_from_ast(&ast.types, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef("poppeli")
+                actual_type = type_from_ast(&ast.types, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef()
                 assert stmt.typedef_statement.type != NULL
                 stmt.typedef_statement.type.typedef_actual_type = actual_type
             case (
