@@ -218,6 +218,8 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 stmt.global_var_def.public = True
             case AstStatementKind.Const:
                 stmt.const_statement.public = True
+            case AstStatementKind.TypeDef:
+                stmt.typedef_statement.public = True
             case _:
                 fail(location, "the @public decorator cannot be used here")
 
@@ -526,6 +528,21 @@ class Parser:
                 }
 
         return result
+
+    def parse_typedef(self) -> AstTypeDef:
+        assert self.tokens.is_keyword("typedef")
+        self.tokens++
+
+        if self.tokens.kind != TokenKind.Name:
+            self.tokens.fail_expected_got("the name for a type")
+        name = self.tokens.short_string
+        self.tokens++
+
+        if not self.tokens.is_operator("="):
+            self.tokens.fail_expected_got("'=' between name and type")
+        self.tokens++
+
+        return AstTypeDef{name = name, ast_type = self.parse_type()}
 
     def parse_name_type_value(self, expected_what_for_name: byte*) -> AstNameTypeValue:
         if self.tokens.kind != TokenKind.Name:
@@ -1089,6 +1106,10 @@ class Parser:
             result.kind = AstStatementKind.Const
             result.const_statement = AstConstStatement{name = ntv.name, type = ntv.type, value = *ntv.value}
             free(ntv.value)
+        elif self.tokens.is_keyword("typedef"):
+            self.check_top_level("typedef statement")
+            result.kind = AstStatementKind.TypeDef
+            result.typedef_statement = self.parse_typedef()
         elif self.tokens.kind == TokenKind.Name and self.tokens[1].is_operator(":"):
             # e.g. "foo: int"
             match self.what_are_we_parsing:

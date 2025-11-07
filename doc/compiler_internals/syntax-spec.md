@@ -80,6 +80,7 @@ Jou has a few different kinds of tokens:
     - `class`
     - `union`
     - `enum`
+    - `typedef`
     - `global`
     - `const`
     - `if`
