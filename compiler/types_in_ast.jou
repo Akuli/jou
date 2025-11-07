@@ -66,8 +66,7 @@ class GlobalVariable:
     type: Type*
     usedptr: bool*  # If non-NULL, set to true when the variable is used. This is how we detect unused imports.
 
-class AvailableType:
-    name: byte[500]  # Usually name of type, but may differ
+class TypeAndUsedPtr:
     type: Type*
     usedptr: bool*  # used to detect unused imports
 
@@ -86,29 +85,23 @@ class NamedConstant:
 class FileTypes:
     globals: List[GlobalVariable]
     constants: List[NamedConstant]
-    available_types: List[AvailableType]
+    available_types: List[TypeAndUsedPtr]
     functions: List[SignatureAndUsedPtr]
 
     def add_function(self, signature: Signature*, usedptr: bool*) -> None:
         self.functions.append(SignatureAndUsedPtr{signature = signature.copy(), usedptr = usedptr})
 
-    def _add_type_internal(self, t: Type*, name: byte*, usedptr: bool*) -> None:
-        avail = AvailableType{type = t, usedptr = usedptr}
-        snprintf(avail.name, sizeof(avail.name), "%s", name)
-        self.available_types.append(avail)
+    def _add_type_internal(self, t: Type*, usedptr: bool*) -> None:
+        self.available_types.append(TypeAndUsedPtr{type = t, usedptr = usedptr})
 
     def add_type(self, t: Type*, usedptr: bool*) -> None:
         assert strstr(t.name, "[") == NULL  # must be able to find the types by name
-        self._add_type_internal(t, t.name, usedptr)
-
-    def add_type_with_name(self, t: Type*, name: byte*, usedptr: bool*) -> None:
-        assert strstr(name, "[") == NULL  # must be able to find the types by name
-        self._add_type_internal(t, name, usedptr)
+        self._add_type_internal(t, usedptr)
 
     def add_generic_class(self, t: Type*, usedptr: bool*) -> None:
         assert t.kind == TypeKind.Class
         assert strstr(t.name, "[") != NULL  # e.g. List[T]
-        self._add_type_internal(t, t.name, usedptr)
+        self._add_type_internal(t, usedptr)
 
     def add_global_var(self, name: byte*, type: Type*, usedptr: bool*) -> GlobalVariable*:
         g = GlobalVariable{type = type, usedptr = usedptr}
@@ -138,7 +131,7 @@ class FileTypes:
     def find_type(self, name: byte*) -> Type*:
         assert strstr(name, "[") == NULL
         for t = self.available_types.ptr; t < self.available_types.end(); t++:
-            if strcmp(t.name, name) == 0:
+            if strcmp(t.type.name, name) == 0:
                 if t.usedptr != NULL:
                     *t.usedptr = True
                 return t.type
@@ -149,8 +142,8 @@ class FileTypes:
             # If looking for "List", check if it starts with "List[" as in "List[T]"
             if (
                 t.type.kind == TypeKind.Class
-                and starts_with(t.name, name)
-                and t.name[strlen(name)] == '['
+                and starts_with(t.type.name, name)
+                and t.type.name[strlen(name)] == '['
             ):
                 if t.usedptr != NULL:
                     *t.usedptr = True

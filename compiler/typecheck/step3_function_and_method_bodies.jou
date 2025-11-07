@@ -299,21 +299,14 @@ def cast_array_to_pointer(fom: FunctionOrMethodTypes*, expr: AstExpression*) -> 
     do_implicit_cast(fom, expr, expr.types.orig_type.array.item_type.pointer_type(), Location{}, NULL)
 
 
-def do_explicit_cast(
-    fom: FunctionOrMethodTypes*,
-    expr: AstExpression*,
-    to: Type*,
-    uses_type_aliases: bool,
-    location: Location,
-) -> None:
+def do_explicit_cast(fom: FunctionOrMethodTypes*, expr: AstExpression*, to: Type*, location: Location) -> None:
     assert expr.types.orig_type != NULL
     assert expr.types.implicit_cast_type == expr.types.orig_type
     from = expr.types.orig_type
 
     msg: byte[500]
 
-    # Do not complain about using 'as' with type aliases
-    if from == to and not uses_type_aliases:
+    if from == to:
         snprintf(msg, sizeof(msg), "unnecessary cast from %s to %s", from.name, to.name)
         show_warning(location, msg)
 
@@ -1280,7 +1273,6 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             result = check_increment_or_decrement(state, expr)
 
         case AstExpressionKind.As:
-            uses_type_aliases = False  # TODO: No way to set this reasonably!!!...
             result = type_from_ast(state.file_types, state.fom_types.signature.get_self_class(), &expr.as_.type)
 
             # The `foo as SomeType` operation usually doesn't specify how the
@@ -1316,7 +1308,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 typecheck_expression_not_void(state, &expr.as_.value, result)
             else:
                 typecheck_expression_not_void(state, &expr.as_.value, NULL)
-                do_explicit_cast(state.fom_types, &expr.as_.value, result, uses_type_aliases, expr.location)
+                do_explicit_cast(state.fom_types, &expr.as_.value, result, expr.location)
 
     assert result != NULL
     expr.types.orig_type = result

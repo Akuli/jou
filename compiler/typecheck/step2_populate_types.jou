@@ -196,7 +196,7 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
                     t.classdata.fields.append(f)
 
             case AstStatementKind.MethodDef:
-                # Don't handle the method body yet: that is a part of step 4, not step 3
+                # Don't handle the method body yet: that is a part of step 3, not step 2
                 sig = handle_signature(ft, &stmt.method, t)
                 stmt.method.types.signature = sig
 
