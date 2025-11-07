@@ -16,9 +16,13 @@ import "./ast_to_builder.jou"
 
 
 def hash_type(hash: Hash*, type: Type*) -> None:
+    type = type.unwrap_typedef("hash_type")
+
     hash.add_string("type")
     hash.add_int(type.kind as int)
     match type.kind:
+        case TypeKind.TypeDef:
+            assert False  # already handled
         case TypeKind.Array:
             hash.add_int64(type.array.len)
             hash_type(hash, type.array.item_type)

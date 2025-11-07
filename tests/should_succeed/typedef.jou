@@ -2,11 +2,18 @@ import "stdlib/io.jou"
 import "./imported/typedef.jou"
 
 if WINDOWS:
-    typedef THINGY = int64
-    const THINGY_FORMAT: StringyString = "%lld\n"
+    typedef Thingy1 = int64
+    # TODO: this doesn't work yet
+    #const THINGY_FORMAT: StringyString = "%lld\n"
+    const THINGY_FORMAT: byte* = "%lld\n"
 else:
-    typedef Thingy = int
-    const THINGY_FORMAT: StringyString = "%d\n"
+    typedef Thingy1 = int
+    # TODO: this doesn't work yet
+    #const THINGY_FORMAT: StringyString = "%d\n"
+    const THINGY_FORMAT: byte* = "%d\n"
+
+typedef Thingy2 = Thingy1
+typedef Thingy = Thingy2
 
 
 def get_the_zero(t: Thingy) -> Thingy:
@@ -15,10 +22,11 @@ def get_the_zero(t: Thingy) -> Thingy:
 
 
 def main() -> int:
-    printf(THINGY_FORMAT, 12.34 as Thingy)  # Output: 12
+    fmt: StringyString = THINGY_FORMAT
+    printf(fmt, 12.34 as Thingy)  # Output: 12
 
     # No unnecessary cast warning on any platform even if it is the same type.
-    printf(THINGY_FORMAT, 12 as Thingy)  # Output: 12
+    printf(fmt, 12 as Thingy)  # Output: 12
 
     zero: Thingy = 0
     assert get_the_zero(1234) == zero

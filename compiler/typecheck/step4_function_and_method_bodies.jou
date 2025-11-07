@@ -223,6 +223,9 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
 
 
 def can_cast_implicitly(from: Type*, to: Type*) -> bool:
+    from = from.unwrap_typedef("can_cast_imp")
+    to = to.unwrap_typedef("can_cast_imp")
+
     # Please keep doc/types.md up to date if you modify this
     return (
         from == to
@@ -241,6 +244,9 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
 
 
 def can_cast_explicitly(from: Type*, to: Type*) -> bool:
+    from = from.unwrap_typedef("can_cast_exp")
+    to = to.unwrap_typedef("can_cast_exp")
+
     # Please keep doc/types.md up to date if you modify this.
     #
     # This does not take into account things that type inference does, see docs.
@@ -467,8 +473,8 @@ def check_binop(
         case _:
             assert False
 
-    ltype = lhs.types.orig_type
-    rtype = rhs.types.orig_type
+    ltype = lhs.types.orig_type.unwrap_typedef("ltype")
+    rtype = rhs.types.orig_type.unwrap_typedef("rtype")
 
     got_bools = ltype == bool_type() and rtype == bool_type()
     got_integers = ltype.is_integer_type() and rtype.is_integer_type()

@@ -1,4 +1,5 @@
 import "stdlib/mem.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 
@@ -88,6 +89,7 @@ enum TypeKind:
     Array
     Class
     TypeVar  # the unknown type "T" of "class List[T]"
+    TypeDef  # "typedef MyInt = int" creates a new type MyInt
     Enum
 
 
@@ -101,7 +103,16 @@ class Type:
         func_ptr: FuncPtrType
         classdata: ClassData  # Class
         array: ArrayType  # Array
+        typedef_actual_type: Type*  # TypeDef
         enum_members: List[byte[100]]
+
+    def unwrap_typedef(self, debug: byte*) -> Type*:
+        if self.kind == TypeKind.TypeDef:
+            if self.typedef_actual_type == NULL:
+                printf("IT FAILS! Debug %s\n", debug)
+            assert self.typedef_actual_type != NULL
+            return self.typedef_actual_type
+        return self
 
     def is_integer_type(self) -> bool:
         return self.kind == TypeKind.SignedInteger or self.kind == TypeKind.UnsignedInteger
@@ -217,7 +228,7 @@ class Type:
             assert from[i].kind == TypeKind.TypeVar
 
         match self.kind:
-            case TypeKind.TypeVar:
+            case TypeKind.TypeVar | TypeKind.TypeDef:
                 # the T of List[T] becomes the int of List[int]
                 for i = 0; i < n; i++:
                     if from[i] == self:
@@ -350,6 +361,10 @@ class Type:
                 return "the built-in bool type"
             case TypeKind.TypeVar:
                 return "an unknown type"
+            case TypeKind.TypeDef:
+                if self.typedef_actual_type != NULL:
+                    return self.typedef_actual_type.short_description()
+                return "a typedef"
 
     def find_class_field(self, name: byte*) -> ClassField*:
         if self.kind != TypeKind.Class:
@@ -625,6 +640,13 @@ def create_empty_class(name: byte*) -> Type*:
 @public
 def create_typevar(name: byte*) -> Type*:
     return create_simple_type(name, TypeKind.TypeVar)
+
+
+# Used for typedef statements. This creates a type that implicitly casts to
+# some other type and back. The other, actual type is set later.
+@public
+def create_typedef_type(name: byte*) -> Type*:
+    return create_simple_type(name, TypeKind.TypeDef)
 
 
 @public

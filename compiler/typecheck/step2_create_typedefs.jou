@@ -14,17 +14,5 @@ import "./common.jou"
 
 @public
 def typecheck_step2_create_typedefs(ast: AstFile*) -> List[ExportSymbol]:
-    exports = List[ExportSymbol]{}
-
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
-        if stmt.kind != AstStatementKind.TypeDef:
-            continue
-        tdef = &stmt.typedef_statement
-
-        t = type_from_ast(&ast.types, NULL, &tdef.ast_type)
-        tdef.type = t
-        ast.types.add_type_with_name(t, tdef.name, &tdef.used)
-        if tdef.public:
-            exports.append(ExportSymbol{kind = ExportSymbolKind.Type, type = t, name = tdef.name})
-
-    return exports
+    # TODO: dummy stage -- must go back to three stages!!!
+    return List[ExportSymbol]{}

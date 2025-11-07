@@ -84,6 +84,8 @@ def class_type_to_llvm(type: Type*) -> LLVMType*:
 
 def type_to_llvm(type: Type*) -> LLVMType*:
     match type.kind:
+        case TypeKind.TypeDef:
+            return type_to_llvm(type.typedef_actual_type)
         case TypeKind.Array:
             return LLVMArrayType(type_to_llvm(type.array.item_type), type.array.len)
         case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
@@ -289,6 +291,9 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
     assert from != NULL
     assert to != NULL
 
+    from = from.unwrap_typedef("build_llvm_case")
+    to = to.unwrap_typedef("build_llvm_case")
+
     # Always treat enums as ints
     if from.kind == TypeKind.Enum:
         from = int_type(32)
@@ -330,7 +335,7 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
     if from == bool_type() and to.is_integer_type():
         return LLVMBuildIntCast2(builder, obj, type_to_llvm(to), False as int, "cast")
 
-    printf("cast failed: %s -. %s\n", from.name, to.name)
+    printf("cast failed: %s -> %s\n", from.name, to.name)
     assert False
 
 
