@@ -291,8 +291,8 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
     assert from != NULL
     assert to != NULL
 
-    from = from.unwrap_typedef()
-    to = to.unwrap_typedef()
+    from = from.unwrap_typedef(NULL)
+    to = to.unwrap_typedef(NULL)
 
     # Always treat enums as ints
     if from.kind == TypeKind.Enum:

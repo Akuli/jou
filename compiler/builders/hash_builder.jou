@@ -16,7 +16,7 @@ import "./ast_to_builder.jou"
 
 
 def hash_type(hash: Hash*, type: Type*) -> None:
-    type = type.unwrap_typedef()
+    type = type.unwrap_typedef(NULL)
 
     hash.add_string("type")
     hash.add_int(type.kind as int)

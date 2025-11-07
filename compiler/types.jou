@@ -3,6 +3,7 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "./ast.jou"
+import "./errors_and_warnings.jou"
 import "./state.jou"
 
 
@@ -105,12 +106,22 @@ class Type:
         typedef_actual_type: Type*  # TypeDef
         enum_members: List[byte[100]]
 
-    def unwrap_typedef(self) -> Type*:
-        if self.kind == TypeKind.TypeDef:
-            assert self.typedef_actual_type != NULL
-            assert self.typedef_actual_type.kind != TypeKind.TypeDef
-            return self.typedef_actual_type
-        return self
+    def unwrap_typedef(self, location: Location*) -> Type*:
+        if self.kind != TypeKind.TypeDef:
+            return self
+
+        if self.typedef_actual_type == NULL:
+            assert location != NULL
+            msg: byte[500]
+            snprintf(
+                msg, sizeof(msg),
+                "sorry, typedef '%s' cannot be used here yet :( please create an issue on GitHub: https://github.com/Akuli/jou/issues/new",
+                self.name,
+            )
+            fail(*location, msg)
+
+        assert self.typedef_actual_type.kind != TypeKind.TypeDef
+        return self.typedef_actual_type
 
     def is_integer_type(self) -> bool:
         return self.kind == TypeKind.SignedInteger or self.kind == TypeKind.UnsignedInteger
