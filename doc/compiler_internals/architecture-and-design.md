@@ -50,13 +50,12 @@ Here's what each step does:
     Whenever one file influences another file, that is done explicitly between the steps.
     For example, suppose that functions `foo()` and `bar()` call each other recursively,
     and they are in different files.
-    During step 4, the compiler goes through the body of `foo()`, and it sees a call to `bar()`.
-    It already knows about the `bar()` function, because discovering functions is part of step 3.
+    During step 3, the compiler goes through the body of `foo()`, and it sees a call to `bar()`.
+    It already knows about the `bar()` function, because discovering functions is part of step 2.
     To understand what each step does, see the comments at the start of
     [compiler/typecheck/step1_create_types.jou](../../compiler/typecheck/step1_create_types.jou),
-    [compiler/typecheck/step2_create_typedefs.jou](../../compiler/typecheck/step2_create_typedefs.jou),
-    [compiler/typecheck/step3_populate_types.jou](../../compiler/typecheck/step3_populate_types.jou) and
-    [compiler/typecheck/step4_function_and_method_bodies.jou](../../compiler/typecheck/step4_function_and_method_bodies.jou).
+    [compiler/typecheck/step2_populate_types.jou](../../compiler/typecheck/step2_populate_types.jou) and
+    [compiler/typecheck/step3_function_and_method_bodies.jou](../../compiler/typecheck/step3_function_and_method_bodies.jou).
 - **UVGs** are used only to show error messages and warnings.
     They are used to detect undefined variables and a few other common mistakes.
     See [uvg.md](uvg.md) for details.
