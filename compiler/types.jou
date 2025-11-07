@@ -108,6 +108,7 @@ class Type:
     def unwrap_typedef(self) -> Type*:
         if self.kind == TypeKind.TypeDef:
             assert self.typedef_actual_type != NULL
+            assert self.typedef_actual_type.kind != TypeKind.TypeDef
             return self.typedef_actual_type
         return self
 
