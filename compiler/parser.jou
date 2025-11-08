@@ -206,23 +206,15 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 if strcmp(stmt.function.ast_signature.name, "main") == 0:
                     fail(location, "the main() function cannot be @public")
-                stmt.symbol().public = True
             case AstStatementKind.MethodDef:
                 fail(location, "methods cannot be decorated with @public, a class is either fully public or fully private")
-            case AstStatementKind.Class:
-                stmt.symbol().public = True
-            case AstStatementKind.Enum:
-                stmt.symbol().public = True
-            case AstStatementKind.GlobalVariableDeclare:
-                stmt.symbol().public = True
-            case AstStatementKind.GlobalVariableDef:
-                stmt.symbol().public = True
-            case AstStatementKind.Const:
-                stmt.symbol().public = True
-            case AstStatementKind.TypeDef:
-                stmt.symbol().public = True
             case _:
-                fail(location, "the @public decorator cannot be used here")
+                pass
+
+        symbol = stmt.symbol()
+        if symbol == NULL:
+            fail(location, "the @public decorator cannot be used here")
+        symbol.public = True
 
     elif strcmp(decor, "@inline") == 0:
         match stmt.kind:
