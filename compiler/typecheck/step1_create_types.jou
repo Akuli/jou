@@ -14,7 +14,6 @@ import "stdlib/list.jou"
 import "../ast.jou"
 import "../global_symbols.jou"
 import "../state.jou"
-import "../errors_and_warnings.jou"
 import "../types.jou"
 
 
@@ -39,11 +38,6 @@ def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
                 continue
 
         stmt.symbol().type = t
-
-        existing = jou_file.types.find_type(stmt.symbol().name)
-        if existing != NULL:
-            fail(stmt.location, "blub")
-
         if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():
             jou_file.types.add_generic_class(t, &stmt.symbol().used)
         else:
