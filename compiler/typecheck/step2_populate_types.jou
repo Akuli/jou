@@ -238,6 +238,7 @@ def typecheck_step2_populate_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
                     exports.append(stmt.symbol())
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(&jou_file.types, &stmt.function, NULL)
+                # TODO: shouldn't need copying into two places
                 stmt.function.types.signature = sig.copy()
                 stmt.symbol().funcsignature = sig
                 if stmt.symbol().public:
