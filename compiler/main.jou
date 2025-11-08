@@ -238,6 +238,8 @@ def check_class_fields_before_methods(body: List[AstStatement]) -> None:
 
 
 def check_duplicate_defining(body: List[AstStatement]) -> None:
+    msg: byte[300]
+
     for stmt1 = body.ptr; stmt1 < body.end(); stmt1++:
         for stmt2 = &stmt1[1]; stmt2 < body.end(); stmt2++:
             if (
@@ -245,7 +247,6 @@ def check_duplicate_defining(body: List[AstStatement]) -> None:
                 and stmt2.symbol() != NULL
                 and strcmp(stmt1.symbol().name, stmt2.symbol().name) == 0
             ):
-                msg: byte[500]
                 snprintf(
                     msg,
                     sizeof(msg),
@@ -254,7 +255,13 @@ def check_duplicate_defining(body: List[AstStatement]) -> None:
                     stmt1.symbol().name,
                     stmt1.location.lineno,
                 )
-                #fail(stmt2.location, msg)  # TODO: enable this
+                fail(stmt2.location, msg)
+
+    # Special-casing for the special constants
+    for stmt = body.ptr; stmt < body.end(); stmt++:
+        if stmt.symbol() != NULL and get_special_constant(stmt.symbol().name) != -1:
+            snprintf(msg, sizeof(msg), "a constant named '%s' already exists", stmt.symbol().name)
+            fail(stmt.location, msg)
 
 
 def find_file(path: byte*) -> JouFile*:
@@ -356,7 +363,7 @@ def make_imported_statements_available() -> None:
                             the_import.import_statement.specified_path,
                             imported_stmt.symbol().name,
                         )
-                        #fail(the_import.location, msg)  # TODO: enable this
+                        fail(the_import.location, msg)
 
                 importer.imported_from_other_files.append(Imported{
                     statement_in_other_file = imported_stmt,
@@ -380,7 +387,7 @@ def make_imported_statements_available() -> None:
                         old_imported.the_import.specified_path,
                         old_imported.import_location.lineno,
                     )
-                    #fail(stmt.location, msg)  # TODO: enable this
+                    fail(stmt.location, msg)
 
     free(seen_before.ptr)
 
