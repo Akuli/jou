@@ -66,7 +66,7 @@ def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> E
 def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
     if self_class == NULL:
         function_or_method = "function"
-        usedptr = &ast.used
+        usedptr = &ast.symbol.used
     else:
         function_or_method = "method"
         usedptr = NULL  # No warnings for unused methods :( Would be harder to implement.
@@ -237,7 +237,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(&ast.types, &stmt.function, NULL)
                 stmt.function.types.signature = sig
-                if stmt.function.public:
+                if stmt.symbol().public:
                     exp = ExportSymbol{kind = ExportSymbolKind.Function, name = sig.name, funcsignature = sig.copy()}
                     exports.append(exp)
             case AstStatementKind.Class:

@@ -808,7 +808,7 @@ def feed_ast_to_builder(func_ast: AstFunctionOrMethod*, func_location: Location,
         return
 
     public = (
-        func_ast.public
+        func_ast.symbol.public
         or func_ast.types.signature.get_self_class() != NULL
         or (is_main_file and func_ast.types.signature.is_main_function())
     )

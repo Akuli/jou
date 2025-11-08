@@ -197,7 +197,7 @@ def warn_about_unused(ast: AstFile*) -> None:
                     did_what = "defined"
 
                 f = &stmt.function
-                if not f.public and not f.used and not f.types.signature.is_main_function():
+                if not stmt.symbol().public and not stmt.symbol().used and not f.types.signature.is_main_function():
                     sigstr = f.types.signature.to_string(False, False)
                     snprintf(msg, sizeof msg, "function %s %s but not used", sigstr, did_what)
                     free(sigstr)

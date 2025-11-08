@@ -860,10 +860,9 @@ class AstStatement:
                 | AstStatementKind.MethodDef
             ):
                 return NULL
-            case AstStatementKind.FunctionDeclare:
-                assert False  # TODO
-            case AstStatementKind.FunctionDef:
-                assert False  # TODO
+            case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
+                assert self.function.symbol.kind == GlobalSymbolKind.Function
+                return &self.function.symbol
             case AstStatementKind.Class:
                 assert self.classdef.symbol.kind == GlobalSymbolKind.Type
                 return &self.classdef.symbol
@@ -1240,12 +1239,11 @@ class AstFile:
 #     ...
 @public
 class AstFunctionOrMethod:
+    symbol: GlobalSymbol
     ast_signature: AstSignature
     body: List[AstStatement]
     types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
-    public: bool  # is it decorated with @public
     inline: bool  # is it decorated with @inline
-    used: bool  # used to detect unused functions
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
