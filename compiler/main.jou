@@ -299,12 +299,65 @@ def tokenize_and_parse_all_files() -> None:
     tokenize_and_parse(global_compiler_state.args.infile, NULL)
 
 
+# Stores pointers to public statements from imported files into the file where
+# they should now be accessible due to import.
+#
+# Must be done after parsing all files and evaluating compile-time if statements:
+#   - This assumes that no more Jou files will be discovered afterwards.
+#   - This doesn't e.g. look inside `if` statements when looping through @public things.
+def make_imported_statements_available() -> None:
+    msg: byte[500]
+    seen_before = List[JouFile*]{}
+
+    for importer = global_compiler_state.jou_files.ptr; importer < global_compiler_state.jou_files.end(); importer++:
+        seen_before.len = 0
+
+        for the_import = importer.ast.ptr; the_import < importer.ast.end(); the_import++:
+            if the_import.kind != AstStatementKind.Import:
+                continue
+
+            imported = find_file(the_import.import_statement.resolved_path)
+            assert imported != NULL
+
+            if importer == imported:
+                fail(the_import.location, "the file itself cannot be imported")
+
+            for i = 0; i < seen_before.len; i++:
+                if seen_before.ptr[i] == imported:
+                    snprintf(msg, sizeof msg, "file \"%s\" is imported twice", the_import.import_statement.specified_path)
+                    fail(the_import.location, msg)
+            seen_before.append(imported)
+
+            for imported_stmt = imported.ast.ptr; imported_stmt < imported.ast.end(); imported_stmt++:
+                if imported_stmt.symbol() == NULL or not imported_stmt.symbol().public:
+                    continue
+
+                for old_imported = importer.imported_from_other_files.ptr; old_imported < importer.imported_from_other_files.end(); old_imported++:
+                    if strcmp(old_imported.statement_in_other_file.symbol().name, imported_stmt.symbol().name) == 0:
+                        snprintf(
+                            msg,
+                            sizeof(msg),
+                            "files \"%s\" and \"%s\" cannot be imported into the same file, because they both define '%s'",
+                            old_imported.the_import.specified_path,
+                            the_import.import_statement.specified_path,
+                            imported_stmt.symbol().name,
+                        )
+                        fail(the_import.location, msg)
+
+                importer.imported_from_other_files.append(Imported{
+                    statement_in_other_file = imported_stmt,
+                    the_import = &the_import.import_statement,
+                })
+
+    free(seen_before.ptr)
+
+
 # Each step of type checking produces exported symbols that other files can import.
 # This method hands them over to the importing files.
+#
+# TODO: This is dumb, migrate to JouFile.imported_from_other_files
 def exports_to_imports(pending_exports: List[GlobalSymbol*]*) -> None:
     for to = global_compiler_state.jou_files.ptr; to < global_compiler_state.jou_files.end(); to++:
-        seen_before = List[JouFile*]{}
-
         for stmt = to.ast.ptr; stmt < to.ast.end(); stmt++:
             if stmt.kind != AstStatementKind.Import:
                 continue
@@ -312,16 +365,6 @@ def exports_to_imports(pending_exports: List[GlobalSymbol*]*) -> None:
             from = find_file(stmt.import_statement.resolved_path)
             assert from != NULL
             from_index = ((from as int64) - (global_compiler_state.jou_files.ptr as int64)) / sizeof(global_compiler_state.jou_files.ptr[0])
-
-            if from == to:
-                fail(stmt.location, "the file itself cannot be imported")
-
-            for p = seen_before.ptr; p < seen_before.end(); p++:
-                if *p == from:
-                    msg: byte[500]
-                    snprintf(msg, sizeof msg, "file \"%s\" is imported twice", stmt.import_statement.specified_path)
-                    fail(stmt.location, msg)
-            seen_before.append(from)
 
             for es = pending_exports[from_index].ptr; es < pending_exports[from_index].end(); es++:
                 if global_compiler_state.args.verbosity >= 2:
@@ -331,8 +374,6 @@ def exports_to_imports(pending_exports: List[GlobalSymbol*]*) -> None:
                     )
 
                 add_imported_symbol(to, *es, &stmt.import_statement)
-
-        free(seen_before.ptr)
 
     for i = 0; i < global_compiler_state.jou_files.len; i++:
         free(pending_exports[i].ptr)
@@ -436,6 +477,7 @@ def parse_only() -> None:
 
 def uvg_only() -> None:
     tokenize_and_parse_all_files()
+    make_imported_statements_available()
     typecheck_all_files()
 
     mainfile = find_file(global_compiler_state.args.infile)
@@ -445,6 +487,7 @@ def uvg_only() -> None:
 
 def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     tokenize_and_parse_all_files()
+    make_imported_statements_available()
     typecheck_all_files()
     build_and_analyze_all_uvgs()
 
