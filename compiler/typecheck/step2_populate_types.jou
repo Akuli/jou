@@ -37,10 +37,9 @@ def check_no_global_var_or_const(ft: FileTypes*, location: Location, name: byte*
 def handle_global_var(ft: FileTypes*, location: Location, type: AstType*, symbol: GlobalSymbol*) -> None:
     assert symbol.kind == GlobalSymbolKind.GlobalVar
     check_no_global_var_or_const(ft, location, symbol.name)
-    t = type_from_ast(ft, NULL, type)
-    ft.add_global_var(symbol.name, t, &symbol.used)
     assert symbol.type == NULL
-    symbol.type = t
+    symbol.type = type_from_ast(ft, NULL, type)
+    ft.add_global_var(symbol.name, symbol.type, &symbol.used)
 
 
 def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> None:
