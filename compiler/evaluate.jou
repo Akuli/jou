@@ -71,8 +71,7 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
             if jou_file != NULL:
                 return find_and_typecheck_constant(jou_file, expr.varname, result, True)
 
-            # We can still Handle special constants like WINDOWS, MACOS, etc.
-            # TODO: get rid of this case by always passing a Jou file
+            # We can still handle special constants like WINDOWS, MACOS, etc.
             val = get_special_constant(expr.varname)
             if val == -1:
                 return False
