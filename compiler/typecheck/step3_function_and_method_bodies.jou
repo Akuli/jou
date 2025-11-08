@@ -1057,7 +1057,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     match expr.kind:
         case AstExpressionKind.IntegerConstant:
             c: Constant
-            ok = evaluate_constant_expression(expr, &c, type_hint)
+            ok = evaluate_constant_expression(state.jou_file, expr, &c, type_hint)
             assert ok  # Should fail with a compiler error if there is a problem
             result = c.get_type()
             expr.kind = AstExpressionKind.Constant
@@ -1669,7 +1669,7 @@ def typecheck_step3_function_and_method_bodies(jou_file: JouFile*) -> None:
                         typecheck_function_or_method_body(&state, &inner.method)
             case AstStatementKind.Assert:
                 c: Constant
-                if not evaluate_constant_expression(&stmt.assertion.condition, &c, bool_type()):
+                if not evaluate_constant_expression(jou_file, &stmt.assertion.condition, &c, bool_type()):
                     fail(stmt.location, "cannot evaluate assertion at compile time")
                 if c.get_type() != bool_type():
                     msg: byte[500]

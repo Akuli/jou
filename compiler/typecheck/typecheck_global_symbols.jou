@@ -17,7 +17,7 @@ def typecheck_const(jou_file: JouFile*, location: Location, c: AstConstStatement
     expected_type = type_from_ast(&jou_file.types, NULL, &c.type)
 
     value: Constant
-    if not evaluate_constant_expression(&c.value, &value, expected_type):
+    if not evaluate_constant_expression(jou_file, &c.value, &value, expected_type):
         fail(location, "cannot evaluate value of constant at compile time")
 
     # TODO: allow implicit casts?
