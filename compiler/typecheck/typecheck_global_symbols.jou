@@ -2,6 +2,7 @@ import "stdlib/assert.jou"
 import "stdlib/str.jou"
 
 import "../global_symbols.jou"
+import "../types.jou"
 import "../errors_and_warnings.jou"
 import "../ast.jou"
 import "../constants.jou"
@@ -34,6 +35,16 @@ def typecheck_const(jou_file: JouFile*, location: Location, c: AstConstStatement
     c.symbol.constant = value
     assert c.symbol.status == GlobalSymbolStatus.TypeChecking
     c.symbol.status = GlobalSymbolStatus.Ready
+
+
+def typecheck_global_var(jou_file: JouFile*, symbol: GlobalSymbol*, ast_type: AstType*) -> None:
+    assert symbol.status == GlobalSymbolStatus.NotTypeChecked
+    symbol.status = GlobalSymbolStatus.TypeChecking
+
+    symbol.type = type_from_ast(&jou_file.types, NULL, ast_type)
+
+    assert symbol.status == GlobalSymbolStatus.TypeChecking
+    symbol.status = GlobalSymbolStatus.Ready
 
 
 # Returns True for found, False for not found. If found, constant is placed
@@ -74,3 +85,33 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Consta
         stmt.symbol().used = True
     *out_ptr = stmt.symbol().constant
     return True
+
+
+# Returns type of global variable for found, NULL for not found.
+# TODO: refactor copy/pasta
+@public
+def find_and_typecheck_global_var(jou_file: JouFile*, name: byte*, mark_used: bool) -> Type*:
+    stmt = find_global_symbol_statement(jou_file, name, mark_used)
+    if stmt == NULL:
+        return NULL
+
+    match stmt.kind:
+        case AstStatementKind.GlobalVariableDeclare:
+            ast_type = &stmt.global_var_declare.type
+        case AstStatementKind.GlobalVariableDef:
+            ast_type = &stmt.global_var_def.type
+        case _:
+            return NULL
+
+    match stmt.symbol().status:
+        case GlobalSymbolStatus.NotTypeChecked:
+            typecheck_global_var(jou_file, stmt.symbol(), ast_type)
+        case GlobalSymbolStatus.TypeChecking:
+            assert False
+        case GlobalSymbolStatus.Ready:
+            pass
+
+    assert stmt.symbol().status == GlobalSymbolStatus.Ready
+    if mark_used:
+        stmt.symbol().used = True
+    return stmt.symbol().type

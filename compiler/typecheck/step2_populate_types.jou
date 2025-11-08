@@ -23,13 +23,6 @@ import "./common.jou"
 import "./typecheck_global_symbols.jou"
 
 
-def handle_global_var(ft: FileTypes*, location: Location, type: AstType*, symbol: GlobalSymbol*) -> None:
-    assert symbol.kind == GlobalSymbolKind.GlobalVar
-    assert symbol.type == NULL
-    symbol.type = type_from_ast(ft, NULL, type)
-    ft.add_global_var(symbol.name, symbol.type, &symbol.used)
-
-
 def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
     if self_class == NULL:
         function_or_method = "function"
@@ -184,13 +177,9 @@ def typecheck_step2_populate_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.GlobalVariableDeclare:
-                handle_global_var(&jou_file.types, stmt.location, &stmt.global_var_declare.type, stmt.symbol())
-                if stmt.symbol().public:
-                    exports.append(stmt.symbol())
+                find_and_typecheck_global_var(jou_file, stmt.symbol().name, False)
             case AstStatementKind.GlobalVariableDef:
-                handle_global_var(&jou_file.types, stmt.location, &stmt.global_var_def.type, stmt.symbol())
-                if stmt.symbol().public:
-                    exports.append(stmt.symbol())
+                find_and_typecheck_global_var(jou_file, stmt.symbol().name, False)
             case AstStatementKind.Const:
                 c: Constant
                 find_and_typecheck_constant(jou_file, stmt.symbol().name, &c, False)
