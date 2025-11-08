@@ -869,7 +869,8 @@ class AstStatement:
             case AstStatementKind.Enum:
                 assert False  # TODO
             case AstStatementKind.TypeDef:
-                assert False  # TODO
+                assert self.typedef_statement.symbol.kind == GlobalSymbolKind.Type
+                return &self.typedef_statement.symbol
             case AstStatementKind.GlobalVariableDeclare:
                 assert self.global_var_declare.symbol.kind == GlobalSymbolKind.GlobalVar
                 return &self.global_var_declare.symbol
@@ -1314,16 +1315,15 @@ class AstEnumDef:
 # typedef Foo = int*
 @public
 class AstTypeDef:
-    name: byte[100]
+    symbol: GlobalSymbol
     ast_type: AstType
     type: Type*  # populated in typecheck, NULL before typecheck runs
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused typedefs
 
     def print(self) -> None:
-        printf("typedef \"%s\" to be ", self.name)
+        printf("typedef \"%s\" to be ", self.symbol.name)
         self.ast_type.print(True)
         putchar('\n')
 
     def free(self) -> None:
+        self.symbol.free()
         self.ast_type.free()

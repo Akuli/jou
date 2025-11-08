@@ -220,7 +220,7 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.Const:
                 stmt.symbol().public = True
             case AstStatementKind.TypeDef:
-                stmt.typedef_statement.public = True
+                stmt.symbol().public = True
             case _:
                 fail(location, "the @public decorator cannot be used here")
 
@@ -543,7 +543,10 @@ class Parser:
             self.tokens.fail_expected_got("'=' between name and type")
         self.tokens++
 
-        return AstTypeDef{name = name, ast_type = self.parse_type()}
+        return AstTypeDef{
+            symbol = GlobalSymbol{name = name, kind = GlobalSymbolKind.Type},
+            ast_type = self.parse_type(),
+        }
 
     def parse_name_type_value(self, expected_what_for_name: byte*) -> AstNameTypeValue:
         if self.tokens.kind != TokenKind.Name:
@@ -1106,10 +1109,7 @@ class Parser:
                 fail(location, "constants must have an initial value")
             result.kind = AstStatementKind.Const
             result.const_statement = AstConstStatement{
-                symbol = GlobalSymbol{
-                    name = ntv.name,
-                    kind = GlobalSymbolKind.Const,
-                },
+                symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.Const},
                 type = ntv.type,
                 value = *ntv.value,
             }
@@ -1381,10 +1381,7 @@ class Parser:
                     location = location,
                     kind = AstStatementKind.GlobalVariableDeclare,
                     global_var_declare = AstGlobalVarDeclare{
-                        symbol = GlobalSymbol{
-                            name = ntv.name,
-                            kind = GlobalSymbolKind.GlobalVar,
-                        },
+                        symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
                         type = ntv.type,
                     },
                 }
@@ -1408,10 +1405,7 @@ class Parser:
                 location = location,
                 kind = AstStatementKind.GlobalVariableDef,
                 global_var_def = AstGlobalVarDef{
-                    symbol = GlobalSymbol{
-                        name = ntv.name,
-                        kind = GlobalSymbolKind.GlobalVar,
-                    },
+                    symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
                     type = ntv.type,
                 },
             }
