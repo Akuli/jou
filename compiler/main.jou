@@ -229,7 +229,7 @@ def check_duplicate_defining(body: List[AstStatement]) -> None:
                 )
                 fail(stmt2.location, msg)
 
-    # Special-casing for the special constants
+    # Special-casing for the special constants, because they don't come from anything in AST
     for stmt = body.ptr; stmt < body.end(); stmt++:
         if stmt.symbol() != NULL and get_special_constant(stmt.symbol().name) != -1:
             snprintf(msg, sizeof(msg), "a special constant named '%s' already exists", stmt.symbol().name)
