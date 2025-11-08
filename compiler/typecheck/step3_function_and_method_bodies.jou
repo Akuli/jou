@@ -22,9 +22,11 @@ import "../evaluate.jou"
 import "../types.jou"
 import "../types_in_ast.jou"
 import "./common.jou"
+import "./typecheck_global_symbols.jou"
 
 
 class State:
+    jou_file: JouFile*
     file_types: FileTypes*
     fom_types: FunctionOrMethodTypes*
 
@@ -34,19 +36,14 @@ class State:
             return local.type
         return self.file_types.find_global_var(name)
 
-    def find_any_constant(self, name: byte*) -> Type*:
-        if get_special_constant(name) != -1:
-            return bool_type()
-        c = self.file_types.find_constant(name)
-        if c != NULL:
-            return c.get_type()
-        return NULL
-
     def find_any_var_or_constant(self, name: byte*) -> Type*:
         vartype = self.find_any_var(name)
         if vartype != NULL:
             return vartype
-        return self.find_any_constant(name)
+        c: Constant
+        if find_and_typecheck_constant(self.jou_file, name, &c, True):
+            return c.get_type()
+        return NULL
 
 
 # Intended for errors. Returned string can be overwritten in next call.
@@ -1161,19 +1158,11 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             ensure_can_take_address(state.fom_types, &expr.operands[0], "the '&' operator cannot be applied to %s")
 
         case AstExpressionKind.GetVariable:
-            result = state.find_any_constant(expr.varname)
-            if result != NULL:
+            if find_and_typecheck_constant(state.jou_file, expr.varname, &c, True):
                 # Transform the expression into a constant
                 expr.kind = AstExpressionKind.Constant
-                match get_special_constant(expr.varname):
-                    case 1:
-                        expr.constant = Constant{kind = ConstantKind.Bool, boolean = True}
-                    case 0:
-                        expr.constant = Constant{kind = ConstantKind.Bool, boolean = False}
-                    case -1:
-                        expr.constant = state.file_types.find_constant(expr.varname).copy()
-                    case _:
-                        assert False
+                expr.constant = c.copy()
+                result = c.get_type()
             else:
                 # Not a constant, proceed with normal variable lookup
                 result = state.find_any_var(expr.varname)
@@ -1611,7 +1600,8 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 snprintf(msg, sizeof(msg), "a variable named '%s' already exists", varname)
                 fail(stmt.location, msg)
 
-            if state.find_any_constant(varname) != NULL:
+            c: Constant
+            if find_and_typecheck_constant(state.jou_file, varname, &c, False):
                 snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
                 fail(stmt.location, msg)
 
@@ -1667,7 +1657,7 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
 
 @public
 def typecheck_step3_function_and_method_bodies(jou_file: JouFile*) -> None:
-    state = State{file_types = &jou_file.types}
+    state = State{jou_file = jou_file, file_types = &jou_file.types}
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:

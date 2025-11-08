@@ -11,7 +11,6 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "./types.jou"
-import "./constants.jou"
 
 
 @public
@@ -77,15 +76,8 @@ class SignatureAndUsedPtr:
 
 
 @public
-class NamedConstant:
-    name: byte[100]
-    value: Constant
-    usedptr: bool*
-
-@public
 class FileTypes:
     globals: List[GlobalVariable]
-    constants: List[NamedConstant]
     available_types: List[TypeAndUsedPtr]
     functions: List[SignatureAndUsedPtr]
 
@@ -115,12 +107,6 @@ class FileTypes:
         self.globals.append(g)
         return &self.globals.end()[-1]
 
-    def add_constant(self, name: byte*, value: Constant*, usedptr: bool*) -> None:
-        c = NamedConstant{value = value.copy(), usedptr = usedptr}
-        assert strlen(name) < sizeof(c.name)
-        strcpy(c.name, name)
-        self.constants.append(c)
-
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:
         free(self.globals.ptr)
@@ -128,9 +114,6 @@ class FileTypes:
         for func = self.functions.ptr; func < self.functions.end(); func++:
             func.signature.free()
         free(self.functions.ptr)
-        for p = self.constants.ptr; p < self.constants.end(); p++:
-            p.value.free()
-        free(self.constants.ptr)
 
     def find_type(self, name: byte*) -> Type*:
         assert strstr(name, "[") == NULL
@@ -168,13 +151,4 @@ class FileTypes:
                 if var.usedptr != NULL:
                     *var.usedptr = True
                 return var.type
-        return NULL
-
-    # Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
-    def find_constant(self, name: byte*) -> Constant*:
-        for c = self.constants.ptr; c < self.constants.end(); c++:
-            if strcmp(c.name, name) == 0:
-                if c.usedptr != NULL:
-                    *c.usedptr = True
-                return &c.value
         return NULL
