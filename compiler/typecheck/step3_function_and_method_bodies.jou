@@ -1611,7 +1611,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 snprintf(msg, sizeof(msg), "a variable named '%s' already exists", varname)
                 fail(stmt.location, msg)
 
-            if state.find_any_constant(varname) != NULL:
+            if get_special_constant(varname) != -1:
                 snprintf(msg, sizeof(msg), "%s is a special constant, so making a variable named '%s' is not allowed", varname, varname)
                 fail(stmt.location, msg)
 
