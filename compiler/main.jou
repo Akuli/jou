@@ -34,30 +34,6 @@ def defines_main(jou_file: JouFile*) -> bool:
     return False
 
 
-def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: GlobalSymbol*) -> bool:
-    # TODO: rework these rules https://github.com/Akuli/jou/issues/952
-    return (
-        stmt.symbol() != NULL
-        and (
-            stmt.symbol().kind == importsym.kind
-            or (
-                stmt.symbol().kind == GlobalSymbolKind.Type
-                and importsym.kind == GlobalSymbolKind.GenericClass
-            ) or (
-                stmt.symbol().kind == GlobalSymbolKind.GenericClass
-                and importsym.kind == GlobalSymbolKind.Type
-            ) or (
-                stmt.symbol().kind == GlobalSymbolKind.GlobalVar
-                and importsym.kind == GlobalSymbolKind.Const
-            ) or (
-                stmt.symbol().kind == GlobalSymbolKind.Const
-                and importsym.kind == GlobalSymbolKind.GlobalVar
-            )
-        )
-        and strcmp(stmt.symbol().name, importsym.name) == 0
-    )
-
-
 def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     if is_optimized:
         opt_or_unopt = "Optimized"
@@ -130,12 +106,6 @@ def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
 
 
 def add_imported_symbol(to: JouFile*, es: GlobalSymbol*, imp: AstImport*) -> None:
-    for stmt = to.ast.ptr; stmt < to.ast.end(); stmt++:
-        if statement_conflicts_with_an_import(stmt, es):
-            msg: byte[500]
-            snprintf(msg, sizeof msg, "a %s named '%s' already exists", es.short_description(), es.name)
-            fail(stmt.location, msg)
-
     match es.kind:
         case GlobalSymbolKind.Function:
             to.types.add_function(&es.funcsignature, &imp.used)
@@ -239,6 +209,33 @@ def check_class_fields_before_methods(body: List[AstStatement]) -> None:
                     seen_other = True
 
 
+def check_duplicate_defining(body: List[AstStatement]) -> None:
+    msg: byte[300]
+
+    for stmt1 = body.ptr; stmt1 < body.end(); stmt1++:
+        for stmt2 = &stmt1[1]; stmt2 < body.end(); stmt2++:
+            if (
+                stmt1.symbol() != NULL
+                and stmt2.symbol() != NULL
+                and strcmp(stmt1.symbol().name, stmt2.symbol().name) == 0
+            ):
+                snprintf(
+                    msg,
+                    sizeof(msg),
+                    "a %s named '%s' already exists (defined on line %d)",
+                    stmt1.symbol().short_description(),
+                    stmt1.symbol().name,
+                    stmt1.location.lineno,
+                )
+                fail(stmt2.location, msg)
+
+    # Special-casing for the special constants, because they don't come from anything in AST
+    for stmt = body.ptr; stmt < body.end(); stmt++:
+        if stmt.symbol() != NULL and get_special_constant(stmt.symbol().name) != -1:
+            snprintf(msg, sizeof(msg), "a special constant named '%s' already exists", stmt.symbol().name)
+            fail(stmt.location, msg)
+
+
 def find_file(path: byte*) -> JouFile*:
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         if strcmp(p.path, path) == 0:
@@ -280,6 +277,7 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
 
     check_imports_at_start_of_file(jou_file.ast)
     check_class_fields_before_methods(jou_file.ast)
+    check_duplicate_defining(jou_file.ast)
 
     global_compiler_state.jou_files.append(jou_file)
 
@@ -326,6 +324,7 @@ def make_imported_statements_available() -> None:
                 if imported_stmt.symbol() == NULL or not imported_stmt.symbol().public:
                     continue
 
+                # Check if two imported files define something conflicting
                 for old_imported = importer.imported_from_other_files.ptr; old_imported < importer.imported_from_other_files.end(); old_imported++:
                     if strcmp(old_imported.statement_in_other_file.symbol().name, imported_stmt.symbol().name) == 0:
                         snprintf(
@@ -341,7 +340,26 @@ def make_imported_statements_available() -> None:
                 importer.imported_from_other_files.append(Imported{
                     statement_in_other_file = imported_stmt,
                     the_import = &the_import.import_statement,
+                    import_location = the_import.location,
                 })
+
+        # Check if this file defines something that conflicts with an import
+        for stmt = importer.ast.ptr; stmt < importer.ast.end(); stmt++:
+            if stmt.symbol() == NULL:
+                continue
+
+            for old_imported = importer.imported_from_other_files.ptr; old_imported < importer.imported_from_other_files.end(); old_imported++:
+                if strcmp(old_imported.statement_in_other_file.symbol().name, stmt.symbol().name) == 0:
+                    snprintf(
+                        msg,
+                        sizeof(msg),
+                        "a %s named '%s' already exists (imported from \"%s\" on line %d)",
+                        old_imported.statement_in_other_file.symbol().short_description(),
+                        stmt.symbol().name,
+                        old_imported.the_import.specified_path,
+                        old_imported.import_location.lineno,
+                    )
+                    fail(stmt.location, msg)
 
     free(seen_before.ptr)
 

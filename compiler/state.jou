@@ -3,6 +3,7 @@ import "stdlib/mem.jou"
 
 import "./ast.jou"
 import "./command_line_args.jou"
+import "./errors_and_warnings.jou"
 import "./hash.jou"
 import "./target.jou"
 import "./types.jou"
@@ -16,6 +17,9 @@ class Imported:
 
     # Import statement in AST of the file that imports
     the_import: AstImport*
+
+    # Location of the import statement
+    import_location: Location
 
 
 # Jou source code file (.jou)

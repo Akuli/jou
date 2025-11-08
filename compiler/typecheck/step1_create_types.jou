@@ -9,13 +9,11 @@
 # Enums are simple. The first step creates them and also fills in their members,
 # although it doesn't really matter whether that's done in step 1 or 2.
 
-import "stdlib/str.jou"
 import "stdlib/list.jou"
 
 import "../ast.jou"
 import "../global_symbols.jou"
 import "../state.jou"
-import "../errors_and_warnings.jou"
 import "../types.jou"
 
 
@@ -40,13 +38,6 @@ def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
                 continue
 
         stmt.symbol().type = t
-
-        existing = jou_file.types.find_type(stmt.symbol().name)
-        if existing != NULL:
-            msg: byte[500]
-            snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing.short_description(), stmt.symbol().name)
-            fail(stmt.location, msg)
-
         if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():
             jou_file.types.add_generic_class(t, &stmt.symbol().used)
         else:

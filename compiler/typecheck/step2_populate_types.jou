@@ -23,29 +23,14 @@ import "../constants.jou"
 import "./common.jou"
 
 
-def check_no_global_var_or_const(ft: FileTypes*, location: Location, name: byte*) -> None:
-    msg: byte[500]
-
-    if ft.find_global_var(name) != NULL:
-        snprintf(msg, sizeof(msg), "a global variable named '%s' already exists", name)
-        fail(location, msg)
-
-    if ft.find_constant(name) != NULL or get_special_constant(name) != -1:
-        snprintf(msg, sizeof(msg), "a global constant named '%s' already exists", name)
-        fail(location, msg)
-
-
 def handle_global_var(ft: FileTypes*, location: Location, type: AstType*, symbol: GlobalSymbol*) -> None:
     assert symbol.kind == GlobalSymbolKind.GlobalVar
-    check_no_global_var_or_const(ft, location, symbol.name)
     assert symbol.type == NULL
     symbol.type = type_from_ast(ft, NULL, type)
     ft.add_global_var(symbol.name, symbol.type, &symbol.used)
 
 
 def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> None:
-    check_no_global_var_or_const(ft, location, c.symbol.name)
-
     expected_type = type_from_ast(ft, NULL, &c.type)
 
     value: Constant
@@ -81,10 +66,6 @@ def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type
     sig = Signature{name = astsig.name, takes_varargs = astsig.takes_varargs}
     if ast.inline:
         sig.ast_to_inline = ast
-
-    if self_class == NULL and ft.find_function(astsig.name) != NULL:
-        snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig.name)
-        fail(astsig.name_location, msg)
 
     for astarg = astsig.args.ptr; astarg < astsig.args.end(); astarg++:
         arg = NameAndType{name = astarg.name}
