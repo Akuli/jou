@@ -152,39 +152,36 @@ def warn_about_unused(jou_file: JouFile*) -> None:
     msg: byte[500]
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        match stmt.kind:
-            case AstStatementKind.Import:
-                if not stmt.import_statement.used:
-                    snprintf(msg, sizeof msg, "\"%s\" imported but not used", stmt.import_statement.specified_path)
-                    show_warning(stmt.location, msg)
-                continue
-            case AstStatementKind.FunctionDef:
-                if stmt.function.types.signature.is_main_function():
-                    continue
-                template = "function '%s' defined but not used"
-            case AstStatementKind.FunctionDeclare:
-                if stmt.function.types.signature.is_main_function():
-                    continue
-                template = "function '%s' declared but not used"
-            case AstStatementKind.Enum:
-                template = "enum %s defined but not used"
-            case AstStatementKind.GlobalVariableDef:
-                template = "global variable '%s' defined but not used"
-            case AstStatementKind.GlobalVariableDeclare:
-                template = "global variable '%s' declared but not used"
-            case AstStatementKind.Class:
-                template = "class '%s' defined but not used"
-            case AstStatementKind.Const:
-                template = "constant '%s' defined but not used"
-            case AstStatementKind.TypeDef:
-                template = "type '%s' defined but not used"
-            case _:
-                continue
-
-        assert stmt.symbol() != NULL
-        if not stmt.symbol().public and not stmt.symbol().used:
-            snprintf(msg, sizeof msg, template, stmt.symbol().name)
+        if stmt.kind == AstStatementKind.Import and not stmt.import_statement.used:
+            snprintf(msg, sizeof msg, "\"%s\" imported but not used", stmt.import_statement.specified_path)
             show_warning(stmt.location, msg)
+            continue
+
+        if (
+            stmt.kind == AstStatementKind.FunctionDef
+            and stmt.function.types.signature.is_main_function()
+        ):
+            continue
+
+        symbol = stmt.symbol()
+        if symbol == NULL or symbol.public or symbol.used:
+            continue
+
+        match stmt.kind:
+            case AstStatementKind.Enum:
+                short_desc = "enum"
+            case AstStatementKind.Class:
+                short_desc = "class"
+            case _:
+                short_desc = symbol.short_description()
+
+        match stmt.kind:
+            case AstStatementKind.FunctionDeclare | AstStatementKind.GlobalVariableDeclare:
+                snprintf(msg, sizeof(msg), "%s '%s' declared but not used", short_desc, symbol.name)
+            case _:
+                snprintf(msg, sizeof(msg), "%s '%s' defined but not used", short_desc, symbol.name)
+
+        show_warning(stmt.location, msg)
 
 
 def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
