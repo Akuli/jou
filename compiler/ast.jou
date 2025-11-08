@@ -1266,6 +1266,7 @@ class AstClassDef:
         print_body(self.body, tp)
 
     def free(self) -> None:
+        self.symbol.free()
         free(self.generic_typevar_names.ptr)
         free_body(self.body)
 
