@@ -864,7 +864,10 @@ class AstStatement:
                 assert self.function.symbol.kind == GlobalSymbolKind.Function
                 return &self.function.symbol
             case AstStatementKind.Class:
-                assert self.classdef.symbol.kind == GlobalSymbolKind.Type
+                assert (
+                    self.classdef.symbol.kind == GlobalSymbolKind.Type
+                    or self.classdef.symbol.kind == GlobalSymbolKind.GenericClass
+                )
                 return &self.classdef.symbol
             case AstStatementKind.Enum:
                 assert self.enumdef.symbol.kind == GlobalSymbolKind.Type

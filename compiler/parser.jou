@@ -1560,7 +1560,10 @@ class Parser:
         self.what_are_we_parsing = old
 
         return AstClassDef{
-            symbol = GlobalSymbol{name = name, kind = GlobalSymbolKind.Type},
+            symbol = GlobalSymbol{
+                name = name,
+                kind = (GlobalSymbolKind.GenericClass if generics.len > 0 else GlobalSymbolKind.Type),
+            },
             generic_typevar_names = generics,
             body = body,
         }
