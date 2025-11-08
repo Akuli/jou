@@ -65,7 +65,7 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Consta
         case GlobalSymbolStatus.NotTypeChecked:
             typecheck_const(jou_file, stmt.location, &stmt.const_statement)
         case GlobalSymbolStatus.TypeChecking:
-            assert False  # TODO: nice error
+            fail(stmt.location, "value of constant depends on itself")
         case GlobalSymbolStatus.Ready:
             pass
 
