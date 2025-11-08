@@ -1,0 +1,76 @@
+import "stdlib/assert.jou"
+import "stdlib/str.jou"
+
+import "../global_symbols.jou"
+import "../errors_and_warnings.jou"
+import "../ast.jou"
+import "../constants.jou"
+import "../state.jou"
+import "../evaluate.jou"
+import "./common.jou"
+
+
+def typecheck_const(jou_file: JouFile*, location: Location, c: AstConstStatement*) -> None:
+    assert c.symbol.status == GlobalSymbolStatus.NotTypeChecked
+    c.symbol.status = GlobalSymbolStatus.TypeChecking
+
+    expected_type = type_from_ast(&jou_file.types, NULL, &c.type)
+
+    value: Constant
+    if not evaluate_constant_expression(jou_file, &c.value, &value, expected_type):
+        fail(location, "cannot evaluate value of constant at compile time")
+
+    # TODO: allow implicit casts?
+    if value.get_type().unwrap_typedef(&location) != expected_type.unwrap_typedef(&location):
+        msg: byte[500]
+        snprintf(
+            msg, sizeof(msg),
+            "constant of type %s cannot have a value of type %s",
+            expected_type.name,
+            value.get_type().name
+        )
+        fail(location, msg)
+
+    c.symbol.constant = value
+    assert c.symbol.status == GlobalSymbolStatus.TypeChecking
+    c.symbol.status = GlobalSymbolStatus.Ready
+
+
+# Returns True for found, False for not found. If found, constant is placed
+# into the given pointer without copying.
+#
+# This cannot simply return a pointer to the constant, because WINDOWS and
+# other such special constants are not in memory.
+#
+# TODO: just return pointer to constant, use global compiler state...
+@public
+def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Constant*, mark_used: bool) -> bool:
+    match get_special_constant(name):
+        case 1:
+            *out_ptr = Constant{kind = ConstantKind.Bool, boolean = True}
+            return True
+        case 0:
+            *out_ptr = Constant{kind = ConstantKind.Bool, boolean = False}
+            return True
+        case -1:
+            pass  # not a special constant, proceed to normal lookup below
+        case _:
+            assert False
+
+    stmt = find_global_symbol_statement(jou_file, name, mark_used)
+    if stmt == NULL or stmt.kind != AstStatementKind.Const:
+        return False
+
+    match stmt.symbol().status:
+        case GlobalSymbolStatus.NotTypeChecked:
+            typecheck_const(jou_file, stmt.location, &stmt.const_statement)
+        case GlobalSymbolStatus.TypeChecking:
+            fail(stmt.location, "value of constant depends on itself")
+        case GlobalSymbolStatus.Ready:
+            pass
+
+    assert stmt.symbol().status == GlobalSymbolStatus.Ready
+    if mark_used:
+        stmt.symbol().used = True
+    *out_ptr = stmt.symbol().constant
+    return True

@@ -18,9 +18,9 @@ import "../state.jou"
 import "../types.jou"
 import "../types_in_ast.jou"
 import "../errors_and_warnings.jou"
-import "../evaluate.jou"
 import "../constants.jou"
 import "./common.jou"
+import "./typecheck_global_symbols.jou"
 
 
 def handle_global_var(ft: FileTypes*, location: Location, type: AstType*, symbol: GlobalSymbol*) -> None:
@@ -28,28 +28,6 @@ def handle_global_var(ft: FileTypes*, location: Location, type: AstType*, symbol
     assert symbol.type == NULL
     symbol.type = type_from_ast(ft, NULL, type)
     ft.add_global_var(symbol.name, symbol.type, &symbol.used)
-
-
-def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> None:
-    expected_type = type_from_ast(ft, NULL, &c.type)
-
-    value: Constant
-    if not evaluate_constant_expression(&c.value, &value, expected_type):
-        fail(location, "cannot evaluate value of constant at compile time")
-
-    # TODO: allow implicit casts?
-    if value.get_type().unwrap_typedef(&location) != expected_type.unwrap_typedef(&location):
-        msg: byte[500]
-        snprintf(
-            msg, sizeof(msg),
-            "constant of type %s cannot have a value of type %s",
-            expected_type.name,
-            value.get_type().name
-        )
-        fail(location, msg)
-
-    ft.add_constant(c.symbol.name, &value, &c.symbol.used)
-    c.symbol.constant = value
 
 
 def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
@@ -214,9 +192,8 @@ def typecheck_step2_populate_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
                 if stmt.symbol().public:
                     exports.append(stmt.symbol())
             case AstStatementKind.Const:
-                handle_const(&jou_file.types, stmt.location, &stmt.const_statement)
-                if stmt.symbol().public:
-                    exports.append(stmt.symbol())
+                c: Constant
+                find_and_typecheck_constant(jou_file, stmt.symbol().name, &c, False)
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(&jou_file.types, &stmt.function, NULL)
                 # TODO: shouldn't need copying into two places

@@ -116,7 +116,7 @@ def add_imported_symbol(to: JouFile*, es: GlobalSymbol*, imp: AstImport*) -> Non
         case GlobalSymbolKind.GlobalVar:
             to.types.add_global_var(es.name, es.type, &imp.used)
         case GlobalSymbolKind.Const:
-            to.types.add_constant(es.name, &es.constant, &imp.used)
+            pass
 
 
 def warn_about_unused(jou_file: JouFile*) -> None:
