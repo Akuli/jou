@@ -239,6 +239,26 @@ def check_class_fields_before_methods(body: List[AstStatement]) -> None:
                     seen_other = True
 
 
+def check_duplicate_defining(body: List[AstStatement]) -> None:
+    for stmt1 = body.ptr; stmt1 < body.end(); stmt1++:
+        for stmt2 = &stmt1[1]; stmt2 < body.end(); stmt2++:
+            if (
+                stmt1.symbol() != NULL
+                and stmt2.symbol() != NULL
+                and strcmp(stmt1.symbol().name, stmt2.symbol().name) == 0
+            ):
+                msg: byte[500]
+                snprintf(
+                    msg,
+                    sizeof(msg),
+                    "a %s named '%s' already exists (defined on line %d)",
+                    stmt1.symbol().short_description(),
+                    stmt1.symbol().name,
+                    stmt1.location.lineno,
+                )
+                fail(stmt2.location, msg)
+
+
 def find_file(path: byte*) -> JouFile*:
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         if strcmp(p.path, path) == 0:
@@ -280,6 +300,7 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
 
     check_imports_at_start_of_file(jou_file.ast)
     check_class_fields_before_methods(jou_file.ast)
+    check_duplicate_defining(jou_file.ast)
 
     global_compiler_state.jou_files.append(jou_file)
 
