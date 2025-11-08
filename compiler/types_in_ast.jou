@@ -104,6 +104,9 @@ class FileTypes:
         self._add_type_internal(t, usedptr)
 
     def add_global_var(self, name: byte*, type: Type*, usedptr: bool*) -> GlobalVariable*:
+        assert name != NULL
+        assert type != NULL
+
         g = GlobalVariable{type = type, usedptr = usedptr}
         assert strlen(name) < sizeof g.name
         strcpy(g.name, name)
