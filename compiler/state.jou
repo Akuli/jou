@@ -6,16 +6,22 @@ import "./command_line_args.jou"
 import "./hash.jou"
 import "./target.jou"
 import "./types.jou"
+import "./types_in_ast.jou"
 
 
 # Jou source code file (.jou)
 @public
 class JouFile:
     path: byte*  # owned, always set, unique
-    ast: AstFile  # always set
+    is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
+    ast: List[AstStatement]
+    types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     def free(self) -> None:
-        self.ast.free()
+        for p = self.ast.ptr; p < self.ast.end(); p++:
+            p.free()
+        free(self.ast.ptr)
+        self.types.free()
         free(self.path)
 
 
@@ -41,8 +47,7 @@ class CompilerState:
     def free(self) -> None:
         free(self.stdlib_path)
         for p = self.jou_files.ptr; p < self.jou_files.end(); p++:
-            free(p.path)
-            p.ast.free()
+            p.free()
         free(self.jou_files.ptr)
         self.types.free()
 

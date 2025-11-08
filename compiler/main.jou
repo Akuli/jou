@@ -1,3 +1,9 @@
+#def print(self) -> None:
+#    printf("===== AST for file \"%s\" =====\n", self.path)
+#    for p = self.body.ptr; p < self.body.end(); p++:
+#        p.print()
+
+
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
@@ -26,9 +32,9 @@ import "./typecheck/step3_function_and_method_bodies.jou"
 import "./types.jou"
 
 
-def defines_main(ast: AstFile*) -> bool:
-    for p = ast.body.ptr; p < ast.body.end(); p++:
-        if p.kind == AstStatementKind.FunctionDef and p.function.types.signature.is_main_function():
+def defines_main(jou_file: JouFile*) -> bool:
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+        if stmt.kind == AstStatementKind.FunctionDef and stmt.function.types.signature.is_main_function():
             return True
     return False
 
@@ -150,8 +156,8 @@ def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
 
 
 def add_imported_symbol(to: JouFile*, es: ExportSymbol*, imp: AstImport*) -> None:
-    for p = to.ast.body.ptr; p < to.ast.body.end(); p++:
-        if statement_conflicts_with_an_import(p, es):
+    for stmt = to.ast.ptr; stmt < to.ast.end(); stmt++:
+        if statement_conflicts_with_an_import(stmt, es):
             match es.kind:
                 case ExportSymbolKind.Function:
                     wat = "function"
@@ -166,25 +172,25 @@ def add_imported_symbol(to: JouFile*, es: ExportSymbol*, imp: AstImport*) -> Non
 
             msg: byte[500]
             snprintf(msg, sizeof msg, "a %s named '%s' already exists", wat, es.name)
-            fail(p.location, msg)
+            fail(stmt.location, msg)
 
     match es.kind:
         case ExportSymbolKind.Function:
-            to.ast.types.add_function(&es.funcsignature, &imp.used)
+            to.types.add_function(&es.funcsignature, &imp.used)
         case ExportSymbolKind.Type:
-            to.ast.types.add_type(es.type, &imp.used)
+            to.types.add_type(es.type, &imp.used)
         case ExportSymbolKind.GenericClass:
-            to.ast.types.add_generic_class(es.type, &imp.used)
+            to.types.add_generic_class(es.type, &imp.used)
         case ExportSymbolKind.GlobalVar:
-            to.ast.types.add_global_var(es.name, es.type, &imp.used)
+            to.types.add_global_var(es.name, es.type, &imp.used)
         case ExportSymbolKind.Constant:
-            to.ast.types.add_constant(es.name, &es.constant, &imp.used)
+            to.types.add_constant(es.name, &es.constant, &imp.used)
 
 
-def warn_about_unused(ast: AstFile*) -> None:
+def warn_about_unused(jou_file: JouFile*) -> None:
     msg: byte[500]
 
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.Import:
                 if not stmt.import_statement.used:
@@ -233,7 +239,7 @@ def warn_about_unused(ast: AstFile*) -> None:
 def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
     if global_compiler_state.args.verbosity >= 1:
         printf("Building LLVM IR: %s\n", jou_file.path)
-    mod = build_llvm_ir(&jou_file.ast)
+    mod = build_llvm_ir(jou_file)
     if global_compiler_state.args.verbosity >= 2:
         print_llvm_ir(mod, False)
 
@@ -245,7 +251,7 @@ def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
 
 
 def find_existing_object_file_or_compile_to_object_file(jou_file: JouFile*) -> byte*:
-    content_hash = build_content_hash(&jou_file.ast)
+    content_hash = build_content_hash(jou_file)
     exists: bool
     o_path = get_path_to_object_file_in_jou_compiled(jou_file.path, content_hash, &exists)
 
@@ -264,10 +270,10 @@ def find_existing_object_file_or_compile_to_object_file(jou_file: JouFile*) -> b
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
     seen_other = False
-    for p = body.ptr; p < body.end(); p++:
-        if p.kind == AstStatementKind.Import:
+    for stmt = body.ptr; stmt < body.end(); stmt++:
+        if stmt.kind == AstStatementKind.Import:
             if seen_other:
-                fail(p.location, "imports must be in the beginning of the file")
+                fail(stmt.location, "imports must be in the beginning of the file")
         else:
             seen_other = True
 
@@ -296,7 +302,10 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
         # already parsed
         return
 
-    jou_file = JouFile{path = strdup(path)}
+    jou_file = JouFile{
+        path = strdup(path),
+        is_main_file = (strcmp(path, global_compiler_state.args.infile) == 0),
+    }
     assert jou_file.path != NULL
 
     if global_compiler_state.args.verbosity >= 1:
@@ -311,22 +320,21 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
     jou_file.ast = parse(tokens)
     free_tokens(tokens)
 
-    if strcmp(path, global_compiler_state.args.infile) == 0:
-        jou_file.ast.is_main_file = True
-
     if global_compiler_state.args.verbosity >= 1:
         printf("Evaluating compile-time if statements in %s\n", path)
-    evaluate_compile_time_if_statements(&jou_file.ast)
+    evaluate_compile_time_if_statements(&jou_file)
 
     if global_compiler_state.args.verbosity >= 2:
-        jou_file.ast.print()
+        printf("===== AST for file \"%s\" =====\n", path)
+        for p = jou_file.ast.ptr; p < jou_file.ast.end(); p++:
+            p.print()
 
-    check_imports_at_start_of_file(jou_file.ast.body)
-    check_class_fields_before_methods(jou_file.ast.body)
+    check_imports_at_start_of_file(jou_file.ast)
+    check_class_fields_before_methods(jou_file.ast)
 
     global_compiler_state.jou_files.append(jou_file)
 
-    for stmt = jou_file.ast.body.ptr; stmt < jou_file.ast.body.end(); stmt++:
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         if stmt.kind == AstStatementKind.Import:
             tokenize_and_parse(stmt.import_statement.resolved_path, &stmt.location)  # recursive call
 
@@ -349,7 +357,7 @@ def exports_to_imports(pending_exports: List[ExportSymbol]*) -> None:
     for to = global_compiler_state.jou_files.ptr; to < global_compiler_state.jou_files.end(); to++:
         seen_before = List[JouFile*]{}
 
-        for stmt = to.ast.body.ptr; stmt < to.ast.body.end(); stmt++:
+        for stmt = to.ast.ptr; stmt < to.ast.end(); stmt++:
             if stmt.kind != AstStatementKind.Import:
                 continue
 
@@ -402,38 +410,40 @@ def typecheck_all_files() -> None:
     assert pending_exports != NULL
 
     i = 0
-    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("  step 1: %s\n", p.path)
-        pending_exports[i++] = typecheck_step1_create_types(&p.ast)
+            printf("  step 1: %s\n", jou_file.path)
+        pending_exports[i++] = typecheck_step1_create_types(jou_file)
 
     exports_to_imports(pending_exports)
 
     i = 0
-    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("  step 2: %s\n", p.path)
-        pending_exports[i++] = typecheck_step2_populate_types(&p.ast)
+            printf("  step 2: %s\n", jou_file.path)
+        pending_exports[i++] = typecheck_step2_populate_types(jou_file)
 
     exports_to_imports(pending_exports)
 
-    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("  step 3: %s\n", p.path)
-        typecheck_step3_function_and_method_bodies(&p.ast)
+            printf("  step 3: %s\n", jou_file.path)
+        typecheck_step3_function_and_method_bodies(jou_file)
         if global_compiler_state.args.verbosity >= 3:
             # AST now contains types. If very verbose, print them.
-            p.ast.print()
+            printf("===== AST for file \"%s\" =====\n", jou_file.path)
+            for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+                stmt.print()
 
     free(pending_exports)
 
 
 def build_and_analyze_all_uvgs() -> None:
     print_uvgs = global_compiler_state.args.verbosity >= 2
-    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("Building and analyzing UVGs for %s\n", p.path)
-        build_and_analyze_uvgs(&p.ast, print_uvgs)
+            printf("Building and analyzing UVGs for %s\n", jou_file.path)
+        build_and_analyze_uvgs(jou_file, print_uvgs)
 
 
 # Linker flags come from:
@@ -444,8 +454,8 @@ def collect_linker_flags() -> byte*:
     maxlen += strlen("-lm") + 1  # TODO: delete this
     if global_compiler_state.args.linker_flags != NULL:
         maxlen += strlen(global_compiler_state.args.linker_flags) + 1
-    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
-        for stmt = p.ast.body.ptr; stmt < p.ast.body.end(); stmt++:
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
             if stmt.kind == AstStatementKind.Link:
                 maxlen += strlen(stmt.link_statement.resolved_flags) + 1
 
@@ -457,8 +467,8 @@ def collect_linker_flags() -> byte*:
     if global_compiler_state.args.linker_flags != NULL:
         strcat(result, global_compiler_state.args.linker_flags)
         strcat(result, " ")
-    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
-        for stmt = p.ast.body.ptr; stmt < p.ast.body.end(); stmt++:
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
             if stmt.kind == AstStatementKind.Link:
                 strcat(result, stmt.link_statement.resolved_flags)
                 strcat(result, " ")
@@ -477,8 +487,12 @@ def tokenize_only() -> None:
 def parse_only() -> None:
     tokens = tokenize(global_compiler_state.args.infile, NULL)
     ast = parse(tokens)
-    ast.print()
-    ast.free()
+    printf("===== AST for file \"%s\" =====\n", global_compiler_state.args.infile)
+    for p = ast.ptr; p < ast.end(); p++:
+        p.print()
+    for p = ast.ptr; p < ast.end(); p++:
+        p.free()
+    free(ast.ptr)
     free_tokens(tokens)
     fail_if_warnings_and_flag()
 
@@ -489,7 +503,7 @@ def uvg_only() -> None:
 
     mainfile = find_file(global_compiler_state.args.infile)
     assert mainfile != NULL
-    build_and_analyze_uvgs(&mainfile.ast, True)
+    build_and_analyze_uvgs(mainfile, True)
 
 
 def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
@@ -497,13 +511,13 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     typecheck_all_files()
     build_and_analyze_all_uvgs()
 
-    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
-        warn_about_unused(&p.ast)
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        warn_about_unused(jou_file)
 
     init_target(&global_compiler_state.target)
     objpaths = List[byte*]{}
-    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
-        o_path = find_existing_object_file_or_compile_to_object_file(p)
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        o_path = find_existing_object_file_or_compile_to_object_file(jou_file)
         objpaths.append(o_path)
 
     *linker_flags = collect_linker_flags()
@@ -512,7 +526,7 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     # This way Jou users can work on other functions before main() function is written.
     mainfile = find_file(global_compiler_state.args.infile)
     assert mainfile != NULL
-    if not defines_main(&mainfile.ast):
+    if not defines_main(mainfile):
         fail(Location{path=mainfile.path}, "missing `main` function to execute the program")
 
     fail_if_warnings_and_flag()

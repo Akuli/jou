@@ -12,6 +12,7 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "../ast.jou"
+import "../state.jou"
 import "../types.jou"
 import "../types_in_ast.jou"
 import "../errors_and_warnings.jou"
@@ -214,35 +215,35 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
+def typecheck_step2_populate_types(jou_file: JouFile*) -> List[ExportSymbol]:
     exports = List[ExportSymbol]{}
 
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.GlobalVariableDeclare:
-                exp = handle_global_var(&ast.types, stmt.location, stmt.global_var_declare.name, &stmt.global_var_declare.type, &stmt.global_var_declare.used)
+                exp = handle_global_var(&jou_file.types, stmt.location, stmt.global_var_declare.name, &stmt.global_var_declare.type, &stmt.global_var_declare.used)
                 if stmt.global_var_declare.public:
                     exports.append(exp)
             case AstStatementKind.GlobalVariableDef:
-                exp = handle_global_var(&ast.types, stmt.location, stmt.global_var_def.name, &stmt.global_var_def.type, &stmt.global_var_def.used)
+                exp = handle_global_var(&jou_file.types, stmt.location, stmt.global_var_def.name, &stmt.global_var_def.type, &stmt.global_var_def.used)
                 if stmt.global_var_def.public:
                     exports.append(exp)
             case AstStatementKind.Const:
-                exp = handle_const(&ast.types, stmt.location, &stmt.const_statement)
+                exp = handle_const(&jou_file.types, stmt.location, &stmt.const_statement)
                 if stmt.const_statement.public:
                     exports.append(exp)
                 else:
                     exp.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-                sig = handle_signature(&ast.types, &stmt.function, NULL)
+                sig = handle_signature(&jou_file.types, &stmt.function, NULL)
                 stmt.function.types.signature = sig
                 if stmt.function.public:
                     exp = ExportSymbol{kind = ExportSymbolKind.Function, name = sig.name, funcsignature = sig.copy()}
                     exports.append(exp)
             case AstStatementKind.Class:
-                handle_class_members(&ast.types, &stmt.classdef)
+                handle_class_members(&jou_file.types, &stmt.classdef)
             case AstStatementKind.TypeDef:
-                actual_type = type_from_ast(&ast.types, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef(&stmt.location)
+                actual_type = type_from_ast(&jou_file.types, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef(&stmt.location)
                 assert stmt.typedef_statement.type != NULL
                 stmt.typedef_statement.type.typedef_actual_type = actual_type
             case (
