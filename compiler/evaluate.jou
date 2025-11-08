@@ -3,6 +3,7 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "./ast.jou"
+import "./state.jou"
 import "./errors_and_warnings.jou"
 import "./constants.jou"
 import "./types.jou"
@@ -258,5 +259,5 @@ def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool
 
 
 @public
-def evaluate_compile_time_if_statements(file: AstFile*) -> None:
-    evaluate_if_statements_in_body(&file.body, True)
+def evaluate_compile_time_if_statements(jou_file: JouFile*) -> None:
+    evaluate_if_statements_in_body(&jou_file.ast, True)

@@ -1217,24 +1217,6 @@ class AstLink:
         free(self.resolved_flags)
 
 
-# Represents the AST of one Jou file.
-@public
-class AstFile:
-    path: byte*  # not owned
-    is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
-    body: List[AstStatement]
-    types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
-
-    def print(self) -> None:
-        printf("===== AST for file \"%s\" =====\n", self.path)
-        for p = self.body.ptr; p < self.body.end(); p++:
-            p.print()
-
-    def free(self) -> None:
-        free_body(self.body)
-        self.types.free()  # also works if self.types is zero-initialized
-
-
 # def foo() -> bar:
 #     ...
 @public

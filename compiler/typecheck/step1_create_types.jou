@@ -13,6 +13,7 @@ import "stdlib/str.jou"
 import "stdlib/list.jou"
 
 import "../ast.jou"
+import "../state.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
 import "./common.jou"
@@ -31,10 +32,10 @@ def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step1_create_types(ast: AstFile*) -> List[ExportSymbol]:
+def typecheck_step1_create_types(jou_file: JouFile*) -> List[ExportSymbol]:
     exports = List[ExportSymbol]{}
 
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.Class:
                 # TODO: clean up!! lots of spaghetti
@@ -60,16 +61,16 @@ def typecheck_step1_create_types(ast: AstFile*) -> List[ExportSymbol]:
             case _:
                 continue
 
-        existing = ast.types.find_type(name)
+        existing = jou_file.types.find_type(name)
         if existing != NULL:
             msg: byte[500]
             snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing.short_description(), name)
             fail(stmt.location, msg)
 
         if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():
-            ast.types.add_generic_class(t, usedptr)
+            jou_file.types.add_generic_class(t, usedptr)
         else:
-            ast.types.add_type(t, usedptr)
+            jou_file.types.add_type(t, usedptr)
 
         if public:
             if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():

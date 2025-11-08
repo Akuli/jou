@@ -386,9 +386,9 @@ class HBuilder:
 
 # Returned hash is different when LLVM IR should be recompiled.
 @public
-def build_content_hash(ast: AstFile*) -> Hash:
+def build_content_hash(jou_file: JouFile*) -> Hash:
     builder = HBuilder{hash = new_hash()}
-    builder.hash.add_string(ast.path)  # file path is given to LLVM, presumably will be included in .o file
+    builder.hash.add_string(jou_file.path)  # file path is given to LLVM, presumably will be included in .o file
 
     assert global_compiler_state.target.ready
     builder.hash.add_string(global_compiler_state.target.triple)
@@ -404,12 +404,12 @@ def build_content_hash(ast: AstFile*) -> Hash:
 
     builder_wrapper = AnyBuilder{hbuilder = &builder}
 
-    builder.hash.add_int64(ast.types.globals.len)
-    for g = ast.types.globals.ptr; g < ast.types.globals.end(); g++:
+    builder.hash.add_int64(jou_file.types.globals.len)
+    for g = jou_file.types.globals.ptr; g < jou_file.types.globals.end(); g++:
         hash_type(&builder.hash, g.type)
         builder.hash.add_string(g.name)
 
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         builder.hash.add_int(stmt.kind as int)
         match stmt.kind:
             case AstStatementKind.GlobalVariableDef:
@@ -418,11 +418,11 @@ def build_content_hash(ast: AstFile*) -> Hash:
                 builder.hash.add_string(stmt.symbol().name)
                 builder.hash.add_bool(stmt.symbol().public)
             case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt.function, stmt.location, ast.is_main_file, &builder_wrapper)
+                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
             case AstStatementKind.Class:
                 for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
                     if inner.kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner.method, inner.location, ast.is_main_file, &builder_wrapper)
+                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, &builder_wrapper)
             case _:
                 pass
 

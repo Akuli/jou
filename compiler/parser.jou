@@ -1614,12 +1614,12 @@ class Parser:
         return result
 
 @public
-def parse(tokens: Token*) -> AstFile:
+def parse(tokens: Token*) -> List[AstStatement]:
     parser = Parser{tokens = tokens}
-    result = AstFile{path = tokens[0].location.path}
+    result = List[AstStatement]{}
 
     while parser.tokens.kind != TokenKind.EndOfFile:
-        result.body.append(parser.parse_statement())
+        result.append(parser.parse_statement())
 
     assert parser.loop_vars.len == 0
     free(parser.loop_vars.ptr)
