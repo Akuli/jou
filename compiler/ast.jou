@@ -873,7 +873,8 @@ class AstStatement:
             case AstStatementKind.GlobalVariableDeclare:
                 assert False  # TODO
             case AstStatementKind.GlobalVariableDef:
-                assert False  # TODO
+                assert self.global_var_def.symbol.kind == GlobalSymbolKind.GlobalVar
+                return &self.global_var_def.symbol
             case AstStatementKind.Const:
                 assert self.const_statement.symbol.kind == GlobalSymbolKind.Const
                 return &self.const_statement.symbol
@@ -1116,17 +1117,16 @@ class AstGlobalVarDeclare:
 # TODO: support specifying an initial value
 @public
 class AstGlobalVarDef:
-    name: byte[100]
+    symbol: GlobalSymbol
     type: AstType
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused global variables
 
     def print(self) -> None:
-        printf("%s: ", self.name)
+        printf("%s: ", self.symbol.name)
         self.type.print(True)
         printf("\n")
 
     def free(self) -> None:
+        self.symbol.free()
         self.type.free()
 
 

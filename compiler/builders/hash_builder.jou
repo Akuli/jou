@@ -415,8 +415,8 @@ def build_content_hash(ast: AstFile*) -> Hash:
             case AstStatementKind.GlobalVariableDef:
                 # Note: Currently all global variables are zero-initialized, that may change in the future.
                 builder.hash.add_string("global")
-                builder.hash.add_string(stmt.global_var_def.name)
-                builder.hash.add_bool(stmt.global_var_def.public)
+                builder.hash.add_string(stmt.symbol().name)
+                builder.hash.add_bool(stmt.symbol().public)
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt.function, stmt.location, ast.is_main_file, &builder_wrapper)
             case AstStatementKind.Class:

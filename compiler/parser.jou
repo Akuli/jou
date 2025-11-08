@@ -216,7 +216,7 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.GlobalVariableDeclare:
                 stmt.global_var_declare.public = True
             case AstStatementKind.GlobalVariableDef:
-                stmt.global_var_def.public = True
+                stmt.symbol().public = True
             case AstStatementKind.Const:
                 stmt.symbol().public = True
             case AstStatementKind.TypeDef:
@@ -1401,7 +1401,13 @@ class Parser:
             result = AstStatement{
                 location = location,
                 kind = AstStatementKind.GlobalVariableDef,
-                global_var_def = AstGlobalVarDef{name = ntv.name, type = ntv.type},
+                global_var_def = AstGlobalVarDef{
+                    symbol = GlobalSymbol{
+                        name = ntv.name,
+                        kind = GlobalSymbolKind.GlobalVar,
+                    },
+                    type = ntv.type,
+                },
             }
             self.eat_newline()
         elif self.tokens.is_keyword("class"):

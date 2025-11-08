@@ -225,8 +225,8 @@ def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
                 if stmt.global_var_declare.public:
                     exports.append(exp)
             case AstStatementKind.GlobalVariableDef:
-                exp = handle_global_var(&ast.types, stmt.location, stmt.global_var_def.name, &stmt.global_var_def.type, &stmt.global_var_def.used)
-                if stmt.global_var_def.public:
+                exp = handle_global_var(&ast.types, stmt.location, stmt.symbol().name, &stmt.global_var_def.type, &stmt.symbol().used)
+                if stmt.symbol().public:
                     exports.append(exp)
             case AstStatementKind.Const:
                 exp = handle_const(&ast.types, stmt.location, &stmt.const_statement)

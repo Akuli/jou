@@ -749,16 +749,16 @@ def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
     for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.GlobalVariableDef:
-                globalptr = LLVMGetNamedGlobal(module, stmt.global_var_def.name)
+                globalptr = LLVMGetNamedGlobal(module, stmt.symbol().name)
                 assert globalptr != NULL
                 vartype: Type* = NULL
                 for g = ast.types.globals.ptr; g < ast.types.globals.end(); g++:
-                    if strcmp(g.name, stmt.global_var_def.name) == 0:
+                    if strcmp(g.name, stmt.symbol().name) == 0:
                         vartype = g.type
                         break
                 assert vartype != NULL
                 LLVMSetInitializer(globalptr, LLVMConstNull(type_to_llvm(vartype)))
-                if not stmt.global_var_def.public:
+                if not stmt.symbol().public:
                     LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt.function, stmt.location, ast.is_main_file, &builder_wrapper)
