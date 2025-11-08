@@ -45,11 +45,11 @@ def typecheck_step1_create_types(ast: AstFile*) -> List[ExportSymbol]:
                     handle_generics(t, &stmt.classdef)
                 stmt.classdef.type = t
             case AstStatementKind.Enum:
-                name = stmt.enumdef.name
-                public = stmt.enumdef.public
-                usedptr = &stmt.enumdef.used
+                name = stmt.symbol().name
+                public = stmt.symbol().public
+                usedptr = &stmt.symbol().used
                 t = create_enum(name, stmt.enumdef.members)
-                stmt.enumdef.type = t
+                stmt.symbol().type = t
             case AstStatementKind.TypeDef:
                 name = stmt.symbol().name
                 public = stmt.symbol().public

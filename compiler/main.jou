@@ -63,7 +63,7 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
         case AstStatementKind.Enum:
             return (
                 importsym.kind == ExportSymbolKind.Type
-                and strcmp(importsym.name, stmt.enumdef.name) == 0
+                and strcmp(importsym.name, stmt.symbol().name) == 0
             )
         case AstStatementKind.TypeDef:
             return (
@@ -203,8 +203,8 @@ def warn_about_unused(ast: AstFile*) -> None:
                     free(sigstr)
                     show_warning(stmt.location, msg)
             case AstStatementKind.Enum:
-                if not stmt.enumdef.public and not stmt.enumdef.used:
-                    snprintf(msg, sizeof msg, "enum %s defined but not used", stmt.enumdef.name)
+                if not stmt.symbol().public and not stmt.symbol().used:
+                    snprintf(msg, sizeof msg, "enum %s defined but not used", stmt.symbol().name)
                     show_warning(stmt.location, msg)
             case AstStatementKind.GlobalVariableDef:
                 if not stmt.symbol().public and not stmt.symbol().used:

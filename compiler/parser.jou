@@ -212,7 +212,7 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.Class:
                 stmt.classdef.public = True
             case AstStatementKind.Enum:
-                stmt.enumdef.public = True
+                stmt.symbol().public = True
             case AstStatementKind.GlobalVariableDeclare:
                 stmt.symbol().public = True
             case AstStatementKind.GlobalVariableDef:
@@ -1589,7 +1589,7 @@ class Parser:
             self.tokens.fail_expected_got("a name for the enum")
 
         result = AstEnumDef{
-            name = self.tokens.short_string,
+            symbol = GlobalSymbol{name = self.tokens.short_string, kind = GlobalSymbolKind.Type},
             name_location = self.tokens.location,
         }
         self.tokens++
