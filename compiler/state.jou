@@ -9,6 +9,15 @@ import "./types.jou"
 import "./types_in_ast.jou"
 
 
+@public
+class Imported:
+    # The statement that defines the thing, e.g. public function definition in other file
+    statement_in_other_file: AstStatement*
+
+    # Import statement in AST of the file that imports
+    the_import: AstImport*
+
+
 # Jou source code file (.jou)
 @public
 class JouFile:
@@ -17,12 +26,18 @@ class JouFile:
     ast: List[AstStatement]
     types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
 
+    # Points to @public things in ASTS of other files that have been imported
+    # into this file. Used when figuring out whether something comes in from
+    # another file.
+    imported_from_other_files: List[Imported]
+
     def free(self) -> None:
         for p = self.ast.ptr; p < self.ast.end(); p++:
             p.free()
         free(self.ast.ptr)
         self.types.free()
         free(self.path)
+        free(self.imported_from_other_files.ptr)
 
 
 @public
