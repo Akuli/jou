@@ -163,7 +163,7 @@ def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> N
 
 def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
     # Previous type-checking step created an empty class.
-    t = classdef.type
+    t = classdef.symbol.type
     assert t != NULL
     assert t.kind == TypeKind.Class
 

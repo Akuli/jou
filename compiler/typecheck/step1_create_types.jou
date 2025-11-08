@@ -37,13 +37,14 @@ def typecheck_step1_create_types(ast: AstFile*) -> List[ExportSymbol]:
     for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.Class:
-                name = stmt.classdef.name
-                public = stmt.classdef.public
-                usedptr = &stmt.classdef.used
+                # TODO: clean up!! lots of spaghetti
+                name = stmt.symbol().name
+                public = stmt.symbol().public
+                usedptr = &stmt.symbol().used
                 t = create_empty_class(name)
                 if stmt.classdef.is_generic():
                     handle_generics(t, &stmt.classdef)
-                stmt.classdef.type = t
+                stmt.symbol().type = t
             case AstStatementKind.Enum:
                 name = stmt.symbol().name
                 public = stmt.symbol().public
@@ -55,7 +56,7 @@ def typecheck_step1_create_types(ast: AstFile*) -> List[ExportSymbol]:
                 public = stmt.symbol().public
                 usedptr = &stmt.symbol().used
                 t = create_typedef_type(name)
-                stmt.typedef_statement.type = t
+                stmt.typedef_statement.type = t  # TODO: should use the `type` field in the symbol
             case _:
                 continue
 

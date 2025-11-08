@@ -210,7 +210,7 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.MethodDef:
                 fail(location, "methods cannot be decorated with @public, a class is either fully public or fully private")
             case AstStatementKind.Class:
-                stmt.classdef.public = True
+                stmt.symbol().public = True
             case AstStatementKind.Enum:
                 stmt.symbol().public = True
             case AstStatementKind.GlobalVariableDeclare:
@@ -1552,7 +1552,7 @@ class Parser:
         self.what_are_we_parsing = old
 
         return AstClassDef{
-            name = name,
+            symbol = GlobalSymbol{name = name, kind = GlobalSymbolKind.Type},
             generic_typevar_names = generics,
             body = body,
         }
