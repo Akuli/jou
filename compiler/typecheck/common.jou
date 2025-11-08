@@ -22,8 +22,7 @@ def plural_s(n: int64) -> byte*:
         return "s"
 
 
-# Type checking steps 1 and 2 return export symbols to be passed on to the next
-# step. That's how the next step accesses the results of the previous step.
+# TODO: delete and combine with global_symbols.jou
 @public
 enum ExportSymbolKind:
     Function
@@ -32,6 +31,7 @@ enum ExportSymbolKind:
     GlobalVar
     Constant
 
+# TODO: delete and combine with global_symbols.jou
 @public
 class ExportSymbol:
     kind: ExportSymbolKind

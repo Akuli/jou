@@ -11,6 +11,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./errors_and_warnings.jou"
+import "./global_symbols.jou"
 import "./constants.jou"
 import "./types.jou"
 import "./types_in_ast.jou"
@@ -573,15 +574,12 @@ class AstAssertion:
 # const name: type = value
 @public
 class AstConstStatement:
-    name: byte[100]
+    symbol: GlobalSymbol
     type: AstType
     value: AstExpression
 
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused constants
-
     def print(self) -> None:
-        printf("%s: ", self.name)
+        printf("%s: ", self.symbol.name)
         self.type.print(True)
         printf("\n")
 
@@ -591,6 +589,7 @@ class AstConstStatement:
         self.value.print_with_tree_printer(sub)
 
     def free(self) -> None:
+        self.symbol.free()
         self.type.free()
         self.value.free()
 
@@ -828,6 +827,56 @@ class AstStatement:
                 self.typedef_statement.free()
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
                 pass
+
+    def symbol(self) -> GlobalSymbol*:
+        match self.kind:
+            case (
+                AstStatementKind.Import
+                | AstStatementKind.Link
+                | AstStatementKind.ExpressionStatement
+                | AstStatementKind.Assert
+                | AstStatementKind.Pass
+                | AstStatementKind.Return
+                | AstStatementKind.If
+                | AstStatementKind.Match
+                | AstStatementKind.WhileLoop
+                | AstStatementKind.ForLoop
+                | AstStatementKind.Break
+                | AstStatementKind.Continue
+                | AstStatementKind.DeclareLocalVar
+                | AstStatementKind.ClassField
+                | AstStatementKind.ClassUnion
+                | AstStatementKind.Assign
+                | AstStatementKind.InPlaceAdd
+                | AstStatementKind.InPlaceSub
+                | AstStatementKind.InPlaceMul
+                | AstStatementKind.InPlaceDiv
+                | AstStatementKind.InPlaceMod
+                | AstStatementKind.InPlaceBitAnd
+                | AstStatementKind.InPlaceBitOr
+                | AstStatementKind.InPlaceBitXor
+                | AstStatementKind.InPlaceBitShiftLeft
+                | AstStatementKind.InPlaceBitShiftRight
+                | AstStatementKind.MethodDef
+            ):
+                return NULL
+            case AstStatementKind.FunctionDeclare:
+                assert False  # TODO
+            case AstStatementKind.FunctionDef:
+                assert False  # TODO
+            case AstStatementKind.Class:
+                assert False  # TODO
+            case AstStatementKind.Enum:
+                assert False  # TODO
+            case AstStatementKind.TypeDef:
+                assert False  # TODO
+            case AstStatementKind.GlobalVariableDeclare:
+                assert False  # TODO
+            case AstStatementKind.GlobalVariableDef:
+                assert False  # TODO
+            case AstStatementKind.Const:
+                assert self.const_statement.symbol.kind == GlobalSymbolKind.Const
+                return &self.const_statement.symbol
 
 
 # Useful for e.g. "while condition: body", "if condition: body"

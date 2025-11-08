@@ -5,6 +5,7 @@ import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
 import "./token.jou"
+import "./global_symbols.jou"
 import "./state.jou"
 import "./ast.jou"
 import "./errors_and_warnings.jou"
@@ -217,7 +218,7 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.GlobalVariableDef:
                 stmt.global_var_def.public = True
             case AstStatementKind.Const:
-                stmt.const_statement.public = True
+                stmt.symbol().public = True
             case AstStatementKind.TypeDef:
                 stmt.typedef_statement.public = True
             case _:
@@ -1104,7 +1105,14 @@ class Parser:
             if ntv.value == NULL:
                 fail(location, "constants must have an initial value")
             result.kind = AstStatementKind.Const
-            result.const_statement = AstConstStatement{name = ntv.name, type = ntv.type, value = *ntv.value}
+            result.const_statement = AstConstStatement{
+                symbol = GlobalSymbol{
+                    name = ntv.name,
+                    kind = GlobalSymbolKind.Const,
+                },
+                type = ntv.type,
+                value = *ntv.value,
+            }
             free(ntv.value)
         elif self.tokens.is_keyword("typedef"):
             self.check_top_level("typedef statement")

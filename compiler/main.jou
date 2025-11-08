@@ -47,7 +47,7 @@ def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSym
                     and strcmp(importsym.name, stmt.global_var_declare.name) == 0
                 ) or (
                     importsym.kind == ExportSymbolKind.Constant
-                    and strcmp(importsym.name, stmt.const_statement.name) == 0
+                    and strcmp(importsym.name, stmt.symbol().name) == 0
                 )
             )
         case AstStatementKind.GlobalVariableDef:
@@ -219,8 +219,8 @@ def warn_about_unused(ast: AstFile*) -> None:
                     snprintf(msg, sizeof msg, "class '%s' defined but not used", stmt.classdef.name)
                     show_warning(stmt.location, msg)
             case AstStatementKind.Const:
-                if not stmt.const_statement.public and not stmt.const_statement.used:
-                    snprintf(msg, sizeof msg, "constant '%s' defined but not used", stmt.const_statement.name)
+                if not stmt.symbol().public and not stmt.symbol().used:
+                    snprintf(msg, sizeof msg, "constant '%s' defined but not used", stmt.symbol().name)
                     show_warning(stmt.location, msg)
             case AstStatementKind.TypeDef:
                 if not stmt.typedef_statement.public and not stmt.typedef_statement.used:

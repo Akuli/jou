@@ -39,7 +39,7 @@ def handle_global_var(ft: FileTypes*, location: Location, name: byte*, type: Ast
 
 
 def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> ExportSymbol:
-    check_no_global_var_or_const(ft, location, c.name)
+    check_no_global_var_or_const(ft, location, c.symbol.name)
 
     expected_type = type_from_ast(ft, NULL, &c.type)
 
@@ -58,8 +58,9 @@ def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> E
         )
         fail(location, msg)
 
-    ft.add_constant(c.name, &value, &c.used)
-    return ExportSymbol{kind = ExportSymbolKind.Constant, constant = value, name = c.name}
+    ft.add_constant(c.symbol.name, &value, &c.symbol.used)
+    c.symbol.constant = value.copy()
+    return ExportSymbol{kind = ExportSymbolKind.Constant, constant = value, name = c.symbol.name}
 
 
 def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
@@ -229,7 +230,7 @@ def typecheck_step2_populate_types(ast: AstFile*) -> List[ExportSymbol]:
                     exports.append(exp)
             case AstStatementKind.Const:
                 exp = handle_const(&ast.types, stmt.location, &stmt.const_statement)
-                if stmt.const_statement.public:
+                if stmt.symbol().public:
                     exports.append(exp)
                 else:
                     exp.free()
