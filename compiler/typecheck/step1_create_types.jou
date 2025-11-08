@@ -19,18 +19,6 @@ import "../errors_and_warnings.jou"
 import "../types.jou"
 
 
-# When defining a generic class Foo[T], this function creates the T and
-# attaches it to the Foo type. It also renames the type from "Foo" to "Foo[T]".
-def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
-    assert t.kind == TypeKind.Class
-    assert classdef.is_generic()
-    for nameptr = classdef.generic_typevar_names.ptr; nameptr < classdef.generic_typevar_names.end(); nameptr++:
-        t.classdata.generic_params.append(create_typevar(*nameptr))
-
-    old_name: byte[500] = t.name
-    t.name = create_type_name_with_params(old_name, t.classdata.generic_params)
-
-
 @public
 def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
     exports = List[GlobalSymbol*]{}
@@ -38,48 +26,33 @@ def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.Class:
-                # TODO: clean up!! lots of spaghetti
-                name = stmt.symbol().name
-                public = stmt.symbol().public
-                usedptr = &stmt.symbol().used
-                t = create_empty_class(name)
+                t = create_empty_class(stmt.symbol().name)
                 if stmt.classdef.is_generic():
-                    handle_generics(t, &stmt.classdef)
-                stmt.symbol().type = t
+                    for nameptr = stmt.classdef.generic_typevar_names.ptr; nameptr < stmt.classdef.generic_typevar_names.end(); nameptr++:
+                        t.classdata.generic_params.append(create_typevar(*nameptr))
+                    old_name: byte[500] = t.name
+                    t.name = create_type_name_with_params(old_name, t.classdata.generic_params)
             case AstStatementKind.Enum:
-                name = stmt.symbol().name
-                public = stmt.symbol().public
-                usedptr = &stmt.symbol().used
-                t = create_enum(name, stmt.enumdef.members)
-                stmt.symbol().type = t
+                t = create_enum(stmt.symbol().name, stmt.enumdef.members)
             case AstStatementKind.TypeDef:
-                name = stmt.symbol().name
-                public = stmt.symbol().public
-                usedptr = &stmt.symbol().used
-                t = create_typedef_type(name)
-                stmt.symbol().type = t
+                t = create_typedef_type(stmt.symbol().name)
             case _:
                 continue
 
-        existing = jou_file.types.find_type(name)
+        stmt.symbol().type = t
+
+        existing = jou_file.types.find_type(stmt.symbol().name)
         if existing != NULL:
             msg: byte[500]
-            snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing.short_description(), name)
+            snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing.short_description(), stmt.symbol().name)
             fail(stmt.location, msg)
 
         if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():
-            jou_file.types.add_generic_class(t, usedptr)
+            jou_file.types.add_generic_class(t, &stmt.symbol().used)
         else:
-            jou_file.types.add_type(t, usedptr)
+            jou_file.types.add_type(t, &stmt.symbol().used)
 
-        if public:
-            if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():
-                k = GlobalSymbolKind.GenericClass
-            else:
-                k = GlobalSymbolKind.Type
-            assert stmt.symbol().kind == k
-            assert stmt.symbol().type == t
-            assert strcmp(stmt.symbol().name, name) == 0
+        if stmt.symbol().public:
             exports.append(stmt.symbol())
 
     return exports
