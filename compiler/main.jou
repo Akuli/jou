@@ -132,9 +132,7 @@ def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
 def add_imported_symbol(to: JouFile*, es: GlobalSymbol*, imp: AstImport*) -> None:
     for stmt = to.ast.ptr; stmt < to.ast.end(); stmt++:
         if statement_conflicts_with_an_import(stmt, es):
-            msg: byte[500]
-            snprintf(msg, sizeof msg, "a %s named '%s' already exists", es.short_description(), es.name)
-            fail(stmt.location, msg)
+            fail(stmt.location, "blub")
 
     match es.kind:
         case GlobalSymbolKind.Function:
@@ -256,7 +254,7 @@ def check_duplicate_defining(body: List[AstStatement]) -> None:
                     stmt1.symbol().name,
                     stmt1.location.lineno,
                 )
-                fail(stmt2.location, msg)
+                #fail(stmt2.location, msg)  # TODO: enable this
 
 
 def find_file(path: byte*) -> JouFile*:
@@ -358,7 +356,7 @@ def make_imported_statements_available() -> None:
                             the_import.import_statement.specified_path,
                             imported_stmt.symbol().name,
                         )
-                        fail(the_import.location, msg)
+                        #fail(the_import.location, msg)  # TODO: enable this
 
                 importer.imported_from_other_files.append(Imported{
                     statement_in_other_file = imported_stmt,
@@ -382,7 +380,7 @@ def make_imported_statements_available() -> None:
                         old_imported.the_import.specified_path,
                         old_imported.import_location.lineno,
                     )
-                    fail(stmt.location, msg)
+                    #fail(stmt.location, msg)  # TODO: enable this
 
     free(seen_before.ptr)
 

@@ -43,9 +43,7 @@ def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
 
         existing = jou_file.types.find_type(stmt.symbol().name)
         if existing != NULL:
-            msg: byte[500]
-            snprintf(msg, sizeof(msg), "%s named '%s' already exists", existing.short_description(), stmt.symbol().name)
-            fail(stmt.location, msg)
+            fail(stmt.location, "blub")
 
         if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():
             jou_file.types.add_generic_class(t, &stmt.symbol().used)

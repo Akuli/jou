@@ -27,12 +27,10 @@ def check_no_global_var_or_const(ft: FileTypes*, location: Location, name: byte*
     msg: byte[500]
 
     if ft.find_global_var(name) != NULL:
-        snprintf(msg, sizeof(msg), "a global variable named '%s' already exists", name)
-        fail(location, msg)
+        fail(location, "blub")
 
     if ft.find_constant(name) != NULL or get_special_constant(name) != -1:
-        snprintf(msg, sizeof(msg), "a global constant named '%s' already exists", name)
-        fail(location, msg)
+        fail(location, "blub")
 
 
 def handle_global_var(ft: FileTypes*, location: Location, type: AstType*, symbol: GlobalSymbol*) -> None:
@@ -83,8 +81,7 @@ def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type
         sig.ast_to_inline = ast
 
     if self_class == NULL and ft.find_function(astsig.name) != NULL:
-        snprintf(msg, sizeof(msg), "a function named '%s' already exists", astsig.name)
-        fail(astsig.name_location, msg)
+        fail(astsig.name_location, "blub")
 
     for astarg = astsig.args.ptr; astarg < astsig.args.end(); astarg++:
         arg = NameAndType{name = astarg.name}
