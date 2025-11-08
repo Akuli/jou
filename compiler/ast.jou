@@ -859,6 +859,7 @@ class AstStatement:
                 | AstStatementKind.InPlaceBitShiftRight
                 | AstStatementKind.MethodDef
             ):
+                # These things can't e.g. be imported to other file, no global symbol here
                 return NULL
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 assert self.function.symbol.kind == GlobalSymbolKind.Function
