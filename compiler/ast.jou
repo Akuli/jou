@@ -11,6 +11,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./errors_and_warnings.jou"
+import "./global_symbols.jou"
 import "./constants.jou"
 import "./types.jou"
 import "./types_in_ast.jou"
@@ -573,15 +574,12 @@ class AstAssertion:
 # const name: type = value
 @public
 class AstConstStatement:
-    name: byte[100]
+    symbol: GlobalSymbol
     type: AstType
     value: AstExpression
 
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused constants
-
     def print(self) -> None:
-        printf("%s: ", self.name)
+        printf("%s: ", self.symbol.name)
         self.type.print(True)
         printf("\n")
 
@@ -591,6 +589,7 @@ class AstConstStatement:
         self.value.print_with_tree_printer(sub)
 
     def free(self) -> None:
+        self.symbol.free()
         self.type.free()
         self.value.free()
 
@@ -829,6 +828,64 @@ class AstStatement:
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
                 pass
 
+    def symbol(self) -> GlobalSymbol*:
+        match self.kind:
+            case (
+                AstStatementKind.Import
+                | AstStatementKind.Link
+                | AstStatementKind.ExpressionStatement
+                | AstStatementKind.Assert
+                | AstStatementKind.Pass
+                | AstStatementKind.Return
+                | AstStatementKind.If
+                | AstStatementKind.Match
+                | AstStatementKind.WhileLoop
+                | AstStatementKind.ForLoop
+                | AstStatementKind.Break
+                | AstStatementKind.Continue
+                | AstStatementKind.DeclareLocalVar
+                | AstStatementKind.ClassField
+                | AstStatementKind.ClassUnion
+                | AstStatementKind.Assign
+                | AstStatementKind.InPlaceAdd
+                | AstStatementKind.InPlaceSub
+                | AstStatementKind.InPlaceMul
+                | AstStatementKind.InPlaceDiv
+                | AstStatementKind.InPlaceMod
+                | AstStatementKind.InPlaceBitAnd
+                | AstStatementKind.InPlaceBitOr
+                | AstStatementKind.InPlaceBitXor
+                | AstStatementKind.InPlaceBitShiftLeft
+                | AstStatementKind.InPlaceBitShiftRight
+                | AstStatementKind.MethodDef
+            ):
+                # These things can't e.g. be imported to other file, no global symbol here
+                return NULL
+            case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
+                assert self.function.symbol.kind == GlobalSymbolKind.Function
+                return &self.function.symbol
+            case AstStatementKind.Class:
+                assert (
+                    self.classdef.symbol.kind == GlobalSymbolKind.Type
+                    or self.classdef.symbol.kind == GlobalSymbolKind.GenericClass
+                )
+                return &self.classdef.symbol
+            case AstStatementKind.Enum:
+                assert self.enumdef.symbol.kind == GlobalSymbolKind.Type
+                return &self.enumdef.symbol
+            case AstStatementKind.TypeDef:
+                assert self.typedef_statement.symbol.kind == GlobalSymbolKind.Type
+                return &self.typedef_statement.symbol
+            case AstStatementKind.GlobalVariableDeclare:
+                assert self.global_var_declare.symbol.kind == GlobalSymbolKind.GlobalVar
+                return &self.global_var_declare.symbol
+            case AstStatementKind.GlobalVariableDef:
+                assert self.global_var_def.symbol.kind == GlobalSymbolKind.GlobalVar
+                return &self.global_var_def.symbol
+            case AstStatementKind.Const:
+                assert self.const_statement.symbol.kind == GlobalSymbolKind.Const
+                return &self.const_statement.symbol
+
 
 # Useful for e.g. "while condition: body", "if condition: body"
 @public
@@ -1049,17 +1106,16 @@ class AstNameTypeValue:
 # declare global foo: int
 @public
 class AstGlobalVarDeclare:
-    name: byte[100]
+    symbol: GlobalSymbol
     type: AstType
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused global variables
 
     def print(self) -> None:
-        printf("%s: ", self.name)
+        printf("%s: ", self.symbol.name)
         self.type.print(True)
         printf("\n")
 
     def free(self) -> None:
+        self.symbol.free()
         self.type.free()
 
 
@@ -1067,17 +1123,16 @@ class AstGlobalVarDeclare:
 # TODO: support specifying an initial value
 @public
 class AstGlobalVarDef:
-    name: byte[100]
+    symbol: GlobalSymbol
     type: AstType
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused global variables
 
     def print(self) -> None:
-        printf("%s: ", self.name)
+        printf("%s: ", self.symbol.name)
         self.type.print(True)
         printf("\n")
 
     def free(self) -> None:
+        self.symbol.free()
         self.type.free()
 
 
@@ -1170,12 +1225,11 @@ class AstLink:
 #     ...
 @public
 class AstFunctionOrMethod:
+    symbol: GlobalSymbol
     ast_signature: AstSignature
     body: List[AstStatement]
     types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
-    public: bool  # is it decorated with @public
     inline: bool  # is it decorated with @inline
-    used: bool  # used to detect unused functions
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
@@ -1185,6 +1239,7 @@ class AstFunctionOrMethod:
         print_body(self.body, tp)
 
     def free(self) -> None:
+        self.symbol.free()
         self.ast_signature.free()
         free_body(self.body)
         if self.types.signature.name[0] != '\0':
@@ -1196,12 +1251,9 @@ class AstFunctionOrMethod:
 #     ...members...
 @public
 class AstClassDef:
-    name: byte[100]
+    symbol: GlobalSymbol
     generic_typevar_names: List[byte[100]]  # the "T1" and "T2" of "class Foo[T1, T2]", empty means not generic
     body: List[AstStatement]
-    type: Type*  # populated in typecheck, NULL before typecheck runs
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused classes
 
     def is_generic(self) -> bool:
         return self.generic_typevar_names.len > 0
@@ -1210,10 +1262,11 @@ class AstClassDef:
         self.print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("class \"%s\"\n", self.name)
+        printf("class \"%s\"\n", self.symbol.name)
         print_body(self.body, tp)
 
     def free(self) -> None:
+        self.symbol.free()
         free(self.generic_typevar_names.ptr)
         free_body(self.body)
 
@@ -1224,39 +1277,35 @@ class AstClassDef:
 #     Member3
 @public
 class AstEnumDef:
-    name: byte[100]
+    symbol: GlobalSymbol
     name_location: Location
     members: List[byte[100]]
-    type: Type*  # populated in typecheck, NULL before typecheck runs
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused enums
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("enum \"%s\" with %d members\n", self.name, self.members.len)
+        printf("enum \"%s\" with %d members\n", self.symbol.name, self.members.len)
         for p = self.members.ptr; p < self.members.end(); p++:
             tp.print_prefix(p == &self.members.end()[-1])
             puts(*p)
 
     def free(self) -> None:
+        self.symbol.free()
         free(self.members.ptr)
 
 
 # typedef Foo = int*
 @public
 class AstTypeDef:
-    name: byte[100]
+    symbol: GlobalSymbol
     ast_type: AstType
-    type: Type*  # populated in typecheck, NULL before typecheck runs
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused typedefs
 
     def print(self) -> None:
-        printf("typedef \"%s\" to be ", self.name)
+        printf("typedef \"%s\" to be ", self.symbol.name)
         self.ast_type.print(True)
         putchar('\n')
 
     def free(self) -> None:
+        self.symbol.free()
         self.ast_type.free()

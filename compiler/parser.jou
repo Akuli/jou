@@ -5,6 +5,7 @@ import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
 import "./token.jou"
+import "./global_symbols.jou"
 import "./state.jou"
 import "./ast.jou"
 import "./errors_and_warnings.jou"
@@ -205,23 +206,15 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 if strcmp(stmt.function.ast_signature.name, "main") == 0:
                     fail(location, "the main() function cannot be @public")
-                stmt.function.public = True
             case AstStatementKind.MethodDef:
                 fail(location, "methods cannot be decorated with @public, a class is either fully public or fully private")
-            case AstStatementKind.Class:
-                stmt.classdef.public = True
-            case AstStatementKind.Enum:
-                stmt.enumdef.public = True
-            case AstStatementKind.GlobalVariableDeclare:
-                stmt.global_var_declare.public = True
-            case AstStatementKind.GlobalVariableDef:
-                stmt.global_var_def.public = True
-            case AstStatementKind.Const:
-                stmt.const_statement.public = True
-            case AstStatementKind.TypeDef:
-                stmt.typedef_statement.public = True
             case _:
-                fail(location, "the @public decorator cannot be used here")
+                pass
+
+        symbol = stmt.symbol()
+        if symbol == NULL:
+            fail(location, "the @public decorator cannot be used here")
+        symbol.public = True
 
     elif strcmp(decor, "@inline") == 0:
         match stmt.kind:
@@ -542,7 +535,10 @@ class Parser:
             self.tokens.fail_expected_got("'=' between name and type")
         self.tokens++
 
-        return AstTypeDef{name = name, ast_type = self.parse_type()}
+        return AstTypeDef{
+            symbol = GlobalSymbol{name = name, kind = GlobalSymbolKind.Type},
+            ast_type = self.parse_type(),
+        }
 
     def parse_name_type_value(self, expected_what_for_name: byte*) -> AstNameTypeValue:
         if self.tokens.kind != TokenKind.Name:
@@ -1104,7 +1100,11 @@ class Parser:
             if ntv.value == NULL:
                 fail(location, "constants must have an initial value")
             result.kind = AstStatementKind.Const
-            result.const_statement = AstConstStatement{name = ntv.name, type = ntv.type, value = *ntv.value}
+            result.const_statement = AstConstStatement{
+                symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.Const},
+                type = ntv.type,
+                value = *ntv.value,
+            }
             free(ntv.value)
         elif self.tokens.is_keyword("typedef"):
             self.check_top_level("typedef statement")
@@ -1372,13 +1372,20 @@ class Parser:
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.GlobalVariableDeclare,
-                    global_var_declare = AstGlobalVarDeclare{name = ntv.name, type = ntv.type},
+                    global_var_declare = AstGlobalVarDeclare{
+                        symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
+                        type = ntv.type,
+                    },
                 }
             else:
+                astsig = self.parse_function_or_method_signature(False)
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.FunctionDeclare,
-                    function = AstFunctionOrMethod{ast_signature = self.parse_function_or_method_signature(False)},
+                    function = AstFunctionOrMethod{
+                        symbol = GlobalSymbol{name = astsig.name, kind = GlobalSymbolKind.Function},
+                        ast_signature = astsig,
+                    },
                 }
             self.eat_newline()
         elif self.tokens.is_keyword("global"):
@@ -1393,7 +1400,10 @@ class Parser:
             result = AstStatement{
                 location = location,
                 kind = AstStatementKind.GlobalVariableDef,
-                global_var_def = AstGlobalVarDef{name = ntv.name, type = ntv.type},
+                global_var_def = AstGlobalVarDef{
+                    symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
+                    type = ntv.type,
+                },
             }
             self.eat_newline()
         elif self.tokens.is_keyword("class"):
@@ -1498,7 +1508,11 @@ class Parser:
         body = self.parse_body()
         self.what_are_we_parsing = old
 
-        return AstFunctionOrMethod{ast_signature = signature, body = body}
+        return AstFunctionOrMethod{
+            symbol = GlobalSymbol{name = signature.name, kind = GlobalSymbolKind.Function},
+            ast_signature = signature,
+            body = body,
+        }
 
     def parse_class(self) -> AstClassDef:
         assert self.tokens.is_keyword("class")
@@ -1538,7 +1552,10 @@ class Parser:
         self.what_are_we_parsing = old
 
         return AstClassDef{
-            name = name,
+            symbol = GlobalSymbol{
+                name = name,
+                kind = (GlobalSymbolKind.GenericClass if generics.len > 0 else GlobalSymbolKind.Type),
+            },
             generic_typevar_names = generics,
             body = body,
         }
@@ -1575,7 +1592,7 @@ class Parser:
             self.tokens.fail_expected_got("a name for the enum")
 
         result = AstEnumDef{
-            name = self.tokens.short_string,
+            symbol = GlobalSymbol{name = self.tokens.short_string, kind = GlobalSymbolKind.Type},
             name_location = self.tokens.location,
         }
         self.tokens++

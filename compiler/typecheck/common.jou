@@ -5,7 +5,6 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
-import "../constants.jou"
 import "../evaluate.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
@@ -20,35 +19,6 @@ def plural_s(n: int64) -> byte*:
     else:
         # e.g. "0 arguments", "2 arguments"
         return "s"
-
-
-# Type checking steps 1 and 2 return export symbols to be passed on to the next
-# step. That's how the next step accesses the results of the previous step.
-@public
-enum ExportSymbolKind:
-    Function
-    Type
-    GenericClass  # similar to Type, contains something like List[T] where T is a type variable
-    GlobalVar
-    Constant
-
-@public
-class ExportSymbol:
-    kind: ExportSymbolKind
-    name: byte[100]
-    union:
-        funcsignature: Signature  # ExportSymbolKind.Function
-        type: Type*  # ExportSymbolKind.Type, ExportSymbolKind.GlobalVar, ExportSymbolKind.GenericClass
-        constant: Constant  # ExportSymbolKind.Const
-
-    def free(self) -> None:
-        match self.kind:
-            case ExportSymbolKind.Function:
-                self.funcsignature.free()
-            case ExportSymbolKind.Constant:
-                self.constant.free()
-            case _:
-                pass
 
 
 @public
