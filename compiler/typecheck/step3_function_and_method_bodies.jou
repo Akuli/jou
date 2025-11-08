@@ -14,6 +14,7 @@ import "stdlib/math.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
+import "../state.jou"
 import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../evaluate.jou"
@@ -1662,10 +1663,10 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
 
 
 @public
-def typecheck_step3_function_and_method_bodies(ast: AstFile*) -> None:
-    state = State{file_types = &ast.types}
+def typecheck_step3_function_and_method_bodies(jou_file: JouFile*) -> None:
+    state = State{file_types = &jou_file.types}
 
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.FunctionDef:
                 typecheck_function_or_method_body(&state, &stmt.function)
