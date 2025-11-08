@@ -10,13 +10,14 @@
 # although it doesn't really matter whether that's done in step 1 or 2.
 
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 
 import "../ast.jou"
+import "../global_symbols.jou"
 import "../state.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
-import "./common.jou"
 
 
 # When defining a generic class Foo[T], this function creates the T and
@@ -32,8 +33,8 @@ def handle_generics(t: Type*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step1_create_types(jou_file: JouFile*) -> List[ExportSymbol]:
-    exports = List[ExportSymbol]{}
+def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
+    exports = List[GlobalSymbol*]{}
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
@@ -74,9 +75,12 @@ def typecheck_step1_create_types(jou_file: JouFile*) -> List[ExportSymbol]:
 
         if public:
             if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():
-                k = ExportSymbolKind.GenericClass
+                k = GlobalSymbolKind.GenericClass
             else:
-                k = ExportSymbolKind.Type
-            exports.append(ExportSymbol{kind = k, type = t, name = name})
+                k = GlobalSymbolKind.Type
+            assert stmt.symbol().kind == k
+            assert stmt.symbol().type == t
+            assert strcmp(stmt.symbol().name, name) == 0
+            exports.append(stmt.symbol())
 
     return exports

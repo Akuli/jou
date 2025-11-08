@@ -11,6 +11,7 @@ import "./builders/uvg_builder.jou"
 import "./command_line_args.jou"
 import "./errors_and_warnings.jou"
 import "./evaluate.jou"
+import "./global_symbols.jou"
 import "./llvm.jou"
 import "./parser.jou"
 import "./paths.jou"
@@ -19,7 +20,6 @@ import "./state.jou"
 import "./target.jou"
 import "./token.jou"
 import "./tokenizer.jou"
-import "./typecheck/common.jou"
 import "./typecheck/step1_create_types.jou"
 import "./typecheck/step2_populate_types.jou"
 import "./typecheck/step3_function_and_method_bodies.jou"
@@ -33,49 +33,12 @@ def defines_main(jou_file: JouFile*) -> bool:
     return False
 
 
-def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: ExportSymbol*) -> bool:
-    match stmt.kind:
-        case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-            return (
-                importsym.kind == ExportSymbolKind.Function
-                and strcmp(importsym.name, stmt.function.ast_signature.name) == 0
-            )
-        case AstStatementKind.GlobalVariableDeclare | AstStatementKind.Const:
-            return (
-                (
-                    importsym.kind == ExportSymbolKind.GlobalVar
-                    and strcmp(importsym.name, stmt.symbol().name) == 0
-                ) or (
-                    importsym.kind == ExportSymbolKind.Constant
-                    and strcmp(importsym.name, stmt.symbol().name) == 0
-                )
-            )
-        case AstStatementKind.GlobalVariableDef:
-            return (
-                importsym.kind == ExportSymbolKind.GlobalVar
-                and strcmp(importsym.name, stmt.symbol().name) == 0
-            )
-        case AstStatementKind.Class:
-            return (
-                (importsym.kind == ExportSymbolKind.Type or importsym.kind == ExportSymbolKind.GenericClass)
-                and strcmp(importsym.name, stmt.symbol().name) == 0
-            )
-        case AstStatementKind.Enum:
-            return (
-                importsym.kind == ExportSymbolKind.Type
-                and strcmp(importsym.name, stmt.symbol().name) == 0
-            )
-        case AstStatementKind.TypeDef:
-            return (
-                importsym.kind == ExportSymbolKind.Type
-                and strcmp(importsym.name, stmt.symbol().name) == 0
-            )
-        case AstStatementKind.Import | AstStatementKind.Link | AstStatementKind.Pass | AstStatementKind.Assert:
-            return False
-        case _:
-            printf("%d\n", stmt.kind as int)
-            stmt.print()
-            assert False
+def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: GlobalSymbol*) -> bool:
+    return (
+        stmt.symbol() != NULL
+        and stmt.symbol().kind == importsym.kind
+        and strcmp(stmt.symbol().name, importsym.name) == 0
+    )
 
 
 def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
@@ -149,19 +112,19 @@ def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
     free(o_path_2)
 
 
-def add_imported_symbol(to: JouFile*, es: ExportSymbol*, imp: AstImport*) -> None:
+def add_imported_symbol(to: JouFile*, es: GlobalSymbol*, imp: AstImport*) -> None:
     for stmt = to.ast.ptr; stmt < to.ast.end(); stmt++:
         if statement_conflicts_with_an_import(stmt, es):
             match es.kind:
-                case ExportSymbolKind.Function:
+                case GlobalSymbolKind.Function:
                     wat = "function"
-                case ExportSymbolKind.GlobalVar:
+                case GlobalSymbolKind.GlobalVar:
                     wat = "global variable"
-                case ExportSymbolKind.Type:
+                case GlobalSymbolKind.Type:
                     wat = "type"
-                case ExportSymbolKind.GenericClass:
+                case GlobalSymbolKind.GenericClass:
                     wat = "generic class"
-                case ExportSymbolKind.Constant:
+                case GlobalSymbolKind.Const:
                     wat = "constant"
 
             msg: byte[500]
@@ -169,15 +132,15 @@ def add_imported_symbol(to: JouFile*, es: ExportSymbol*, imp: AstImport*) -> Non
             fail(stmt.location, msg)
 
     match es.kind:
-        case ExportSymbolKind.Function:
+        case GlobalSymbolKind.Function:
             to.types.add_function(&es.funcsignature, &imp.used)
-        case ExportSymbolKind.Type:
+        case GlobalSymbolKind.Type:
             to.types.add_type(es.type, &imp.used)
-        case ExportSymbolKind.GenericClass:
+        case GlobalSymbolKind.GenericClass:
             to.types.add_generic_class(es.type, &imp.used)
-        case ExportSymbolKind.GlobalVar:
+        case GlobalSymbolKind.GlobalVar:
             to.types.add_global_var(es.name, es.type, &imp.used)
-        case ExportSymbolKind.Constant:
+        case GlobalSymbolKind.Const:
             to.types.add_constant(es.name, &es.constant, &imp.used)
 
 
@@ -347,7 +310,7 @@ def tokenize_and_parse_all_files() -> None:
 
 # Each step of type checking produces exported symbols that other files can import.
 # This method hands them over to the importing files.
-def exports_to_imports(pending_exports: List[ExportSymbol]*) -> None:
+def exports_to_imports(pending_exports: List[GlobalSymbol*]*) -> None:
     for to = global_compiler_state.jou_files.ptr; to < global_compiler_state.jou_files.end(); to++:
         seen_before = List[JouFile*]{}
 
@@ -371,36 +334,34 @@ def exports_to_imports(pending_exports: List[ExportSymbol]*) -> None:
 
             for es = pending_exports[from_index].ptr; es < pending_exports[from_index].end(); es++:
                 if global_compiler_state.args.verbosity >= 2:
-                    match es.kind:
-                        case ExportSymbolKind.Function:
+                    match (*es).kind:
+                        case GlobalSymbolKind.Function:
                             kindstr = "function"
-                        case ExportSymbolKind.GlobalVar:
+                        case GlobalSymbolKind.GlobalVar:
                             kindstr = "global var"
-                        case ExportSymbolKind.Type:
+                        case GlobalSymbolKind.Type:
                             kindstr = "type"
-                        case ExportSymbolKind.GenericClass:
+                        case GlobalSymbolKind.GenericClass:
                             kindstr = "generic class"
-                        case ExportSymbolKind.Constant:
+                        case GlobalSymbolKind.Const:
                             kindstr = "constant"
                     printf("Adding imported %s %s: %s --> %s\n",
-                        kindstr, es.name, from.path, to.path)
+                        kindstr, (*es).name, from.path, to.path)
 
-                add_imported_symbol(to, es, &stmt.import_statement)
+                add_imported_symbol(to, *es, &stmt.import_statement)
 
         free(seen_before.ptr)
 
     for i = 0; i < global_compiler_state.jou_files.len; i++:
-        for es = pending_exports[i].ptr; es < pending_exports[i].end(); es++:
-            es.free()
         free(pending_exports[i].ptr)
-        pending_exports[i] = List[ExportSymbol]{}
+        pending_exports[i] = List[GlobalSymbol*]{}
 
 
 def typecheck_all_files() -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Type-checking...\n")
 
-    pending_exports: List[ExportSymbol]* = malloc(sizeof(pending_exports[0]) * global_compiler_state.jou_files.len)
+    pending_exports: List[GlobalSymbol*]* = malloc(sizeof(pending_exports[0]) * global_compiler_state.jou_files.len)
     assert pending_exports != NULL
 
     i = 0

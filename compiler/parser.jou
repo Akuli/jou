@@ -1386,10 +1386,14 @@ class Parser:
                     },
                 }
             else:
+                astsig = self.parse_function_or_method_signature(False)
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.FunctionDeclare,
-                    function = AstFunctionOrMethod{ast_signature = self.parse_function_or_method_signature(False)},
+                    function = AstFunctionOrMethod{
+                        symbol = GlobalSymbol{name = astsig.name, kind = GlobalSymbolKind.Function},
+                        ast_signature = astsig,
+                    },
                 }
             self.eat_newline()
         elif self.tokens.is_keyword("global"):
@@ -1512,7 +1516,11 @@ class Parser:
         body = self.parse_body()
         self.what_are_we_parsing = old
 
-        return AstFunctionOrMethod{ast_signature = signature, body = body}
+        return AstFunctionOrMethod{
+            symbol = GlobalSymbol{name = signature.name, kind = GlobalSymbolKind.Function},
+            ast_signature = signature,
+            body = body,
+        }
 
     def parse_class(self) -> AstClassDef:
         assert self.tokens.is_keyword("class")

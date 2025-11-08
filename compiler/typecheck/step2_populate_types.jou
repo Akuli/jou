@@ -9,9 +9,11 @@
 # and methods each class has.
 
 import "stdlib/list.jou"
+import "stdlib/io.jou"
 import "stdlib/str.jou"
 
 import "../ast.jou"
+import "../global_symbols.jou"
 import "../state.jou"
 import "../types.jou"
 import "../types_in_ast.jou"
@@ -33,13 +35,13 @@ def check_no_global_var_or_const(ft: FileTypes*, location: Location, name: byte*
         fail(location, msg)
 
 
-def handle_global_var(ft: FileTypes*, location: Location, name: byte*, type: AstType*, usedptr: bool*) -> ExportSymbol:
-    check_no_global_var_or_const(ft, location, name)
-    g = ft.add_global_var(name, type_from_ast(ft, NULL, type), usedptr)
-    return ExportSymbol{kind = ExportSymbolKind.GlobalVar, type = g.type, name = g.name}
+def handle_global_var(ft: FileTypes*, location: Location, type: AstType*, symbol: GlobalSymbol*) -> None:
+    assert symbol.kind == GlobalSymbolKind.GlobalVar
+    check_no_global_var_or_const(ft, location, symbol.name)
+    ft.add_global_var(symbol.name, type_from_ast(ft, NULL, type), &symbol.used)
 
 
-def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> ExportSymbol:
+def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> None:
     check_no_global_var_or_const(ft, location, c.symbol.name)
 
     expected_type = type_from_ast(ft, NULL, &c.type)
@@ -60,8 +62,7 @@ def handle_const(ft: FileTypes*, location: Location, c: AstConstStatement*) -> E
         fail(location, msg)
 
     ft.add_constant(c.symbol.name, &value, &c.symbol.used)
-    c.symbol.constant = value.copy()
-    return ExportSymbol{kind = ExportSymbolKind.Constant, constant = value, name = c.symbol.name}
+    c.symbol.constant = value
 
 
 def handle_signature(ft: FileTypes*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
@@ -216,31 +217,27 @@ def handle_class_members(ft: FileTypes*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step2_populate_types(jou_file: JouFile*) -> List[ExportSymbol]:
-    exports = List[ExportSymbol]{}
+def typecheck_step2_populate_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
+    exports = List[GlobalSymbol*]{}
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.GlobalVariableDeclare:
-                exp = handle_global_var(&jou_file.types, stmt.location, stmt.symbol().name, &stmt.global_var_declare.type, &stmt.symbol().used)
+                handle_global_var(&jou_file.types, stmt.location, &stmt.global_var_declare.type, stmt.symbol())
                 if stmt.symbol().public:
-                    exports.append(exp)
+                    exports.append(stmt.symbol())
             case AstStatementKind.GlobalVariableDef:
-                exp = handle_global_var(&jou_file.types, stmt.location, stmt.symbol().name, &stmt.global_var_def.type, &stmt.symbol().used)
+                handle_global_var(&jou_file.types, stmt.location, &stmt.global_var_def.type, stmt.symbol())
                 if stmt.symbol().public:
-                    exports.append(exp)
+                    exports.append(stmt.symbol())
             case AstStatementKind.Const:
-                exp = handle_const(&jou_file.types, stmt.location, &stmt.const_statement)
-                if stmt.symbol().public:
-                    exports.append(exp)
-                else:
-                    exp.free()
+                handle_const(&jou_file.types, stmt.location, &stmt.const_statement)
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(&jou_file.types, &stmt.function, NULL)
-                stmt.function.types.signature = sig
+                stmt.function.types.signature = sig.copy()
+                stmt.symbol().funcsignature = sig
                 if stmt.symbol().public:
-                    exp = ExportSymbol{kind = ExportSymbolKind.Function, name = sig.name, funcsignature = sig.copy()}
-                    exports.append(exp)
+                    exports.append(stmt.symbol())
             case AstStatementKind.Class:
                 handle_class_members(&jou_file.types, &stmt.classdef)
             case AstStatementKind.TypeDef:
