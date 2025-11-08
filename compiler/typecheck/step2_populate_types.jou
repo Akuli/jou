@@ -231,6 +231,8 @@ def typecheck_step2_populate_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
                     exports.append(stmt.symbol())
             case AstStatementKind.Const:
                 handle_const(&jou_file.types, stmt.location, &stmt.const_statement)
+                if stmt.symbol().public:
+                    exports.append(stmt.symbol())
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(&jou_file.types, &stmt.function, NULL)
                 stmt.function.types.signature = sig.copy()
@@ -241,8 +243,8 @@ def typecheck_step2_populate_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
                 handle_class_members(&jou_file.types, &stmt.classdef)
             case AstStatementKind.TypeDef:
                 actual_type = type_from_ast(&jou_file.types, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef(&stmt.location)
-                assert stmt.typedef_statement.type != NULL
-                stmt.typedef_statement.type.typedef_actual_type = actual_type
+                assert stmt.symbol().type != NULL
+                stmt.symbol().type.typedef_actual_type = actual_type
             case (
                 AstStatementKind.Import
                 | AstStatementKind.Pass

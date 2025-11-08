@@ -36,7 +36,22 @@ def defines_main(jou_file: JouFile*) -> bool:
 def statement_conflicts_with_an_import(stmt: AstStatement*, importsym: GlobalSymbol*) -> bool:
     return (
         stmt.symbol() != NULL
-        and stmt.symbol().kind == importsym.kind
+        and (
+            stmt.symbol().kind == importsym.kind
+            or (
+                stmt.symbol().kind == GlobalSymbolKind.Type
+                and importsym.kind == GlobalSymbolKind.GenericClass
+            ) or (
+                stmt.symbol().kind == GlobalSymbolKind.GenericClass
+                and importsym.kind == GlobalSymbolKind.Type
+            ) or (
+                stmt.symbol().kind == GlobalSymbolKind.GlobalVar
+                and importsym.kind == GlobalSymbolKind.Const
+            ) or (
+                stmt.symbol().kind == GlobalSymbolKind.Const
+                and importsym.kind == GlobalSymbolKind.GlobalVar
+            )
+        )
         and strcmp(stmt.symbol().name, importsym.name) == 0
     )
 

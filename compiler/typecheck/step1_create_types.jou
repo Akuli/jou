@@ -57,7 +57,7 @@ def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
                 public = stmt.symbol().public
                 usedptr = &stmt.symbol().used
                 t = create_typedef_type(name)
-                stmt.typedef_statement.type = t  # TODO: should use the `type` field in the symbol
+                stmt.symbol().type = t
             case _:
                 continue
 
