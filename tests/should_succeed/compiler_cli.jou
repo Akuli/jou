@@ -69,9 +69,9 @@ def main() -> int:
     print_reusing_compiled_file_lines("tmp/hello_out_v.txt")
 
     # Test treating compiler warnings as errors
-    # Output: compiler warning for file "unused_enum.jou", line 3: enum Foo defined but not used
+    # Output: compiler warning for file "unused_enum.jou", line 3: enum 'Foo' defined but not used
     # Output: compiler error: there were warnings and --fail-on-warnings was given
-    # Output: compiler warning for file "unused_enum.jou", line 3: enum Foo defined but not used
+    # Output: compiler warning for file "unused_enum.jou", line 3: enum 'Foo' defined but not used
     # Output: compiler error: there were warnings and --fail-on-warnings was given
     if WINDOWS:
         system("cd tests\\should_succeed && ..\\..\\jou.exe --fail-on-warnings unused_enum.jou && echo This should not be shown")
