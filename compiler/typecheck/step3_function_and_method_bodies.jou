@@ -8,6 +8,7 @@
 # already exist and are fully populated, so that we e.g. know what methods each
 # class has and what parameter types they take.
 
+import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/math.jou"
@@ -1626,6 +1627,8 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             typecheck_expression(state, &stmt.expression, NULL)
 
         case AstStatementKind.Assert:
+            if state.file_types.find_function("_jou_assert_fail") == NULL:
+                fail(stmt.location, "you must import \"stdlib/assert.jou\" to use the assert keyword")
             typecheck_expression_with_implicit_cast(
                 state, &stmt.assertion.condition, bool_type(),
                 "assertion must be a bool, not <from>",

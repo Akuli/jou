@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
@@ -288,14 +289,7 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
 
 
 def tokenize_and_parse_all_files() -> None:
-    assert global_compiler_state.stdlib_path != NULL
-
-    assert_fail_path: byte* = NULL
-    asprintf(&assert_fail_path, "%s/_assert_fail.jou", global_compiler_state.stdlib_path)
-    assert assert_fail_path != NULL
-    tokenize_and_parse(assert_fail_path, NULL)
-    free(assert_fail_path)
-
+    assert global_compiler_state.args.infile != NULL
     tokenize_and_parse(global_compiler_state.args.infile, NULL)
 
 
