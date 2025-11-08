@@ -326,6 +326,7 @@ def make_imported_statements_available() -> None:
                 if imported_stmt.symbol() == NULL or not imported_stmt.symbol().public:
                     continue
 
+                # Check if two imported files define something conflicting
                 for old_imported = importer.imported_from_other_files.ptr; old_imported < importer.imported_from_other_files.end(); old_imported++:
                     if strcmp(old_imported.statement_in_other_file.symbol().name, imported_stmt.symbol().name) == 0:
                         snprintf(
@@ -341,7 +342,26 @@ def make_imported_statements_available() -> None:
                 importer.imported_from_other_files.append(Imported{
                     statement_in_other_file = imported_stmt,
                     the_import = &the_import.import_statement,
+                    import_location = the_import.location,
                 })
+
+        # Check if this file defines something that conflicts with an import
+        for stmt = importer.ast.ptr; stmt < importer.ast.end(); stmt++:
+            if stmt.symbol() == NULL:
+                continue
+
+            for old_imported = importer.imported_from_other_files.ptr; old_imported < importer.imported_from_other_files.end(); old_imported++:
+                if strcmp(old_imported.statement_in_other_file.symbol().name, stmt.symbol().name) == 0:
+                    snprintf(
+                        msg,
+                        sizeof(msg),
+                        "a %s named '%s' already exists (imported from \"%s\" on line %d)",
+                        old_imported.statement_in_other_file.symbol().short_description(),
+                        stmt.symbol().name,
+                        old_imported.the_import.specified_path,
+                        old_imported.import_location.lineno,
+                    )
+                    fail(stmt.location, msg)
 
     free(seen_before.ptr)
 
