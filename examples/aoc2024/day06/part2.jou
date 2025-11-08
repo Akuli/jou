@@ -1,6 +1,7 @@
-import "../../aoc2023/grid.jou"
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
+import "../../aoc2023/grid.jou"
 
 
 def we_gonna_get_stuck(grid: Grid*) -> bool:
@@ -38,6 +39,7 @@ def we_gonna_get_stuck(grid: Grid*) -> bool:
 
 def main() -> int:
     f = fopen("sampleinput.txt", "r")
+    assert f != NULL
     grid = read_grid_from_file(f)
     fclose(f)
 
