@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/process.jou"
@@ -18,7 +19,7 @@ def run_jou(command: byte*) -> None:
 
 # Find and print things like the following...
 #
-#   Reusing previously compiled file: examples/jou_compiled/hello/_assert_fail_36494a390f444fbd_c836422383205631.o
+#   Reusing previously compiled file: examples/jou_compiled/hello/hello_36494a390f444fbd_c836422383205631.o
 #
 # ...but replace things like 36494a390f444fbd with "<hash>" as they are platform-specific.
 def print_reusing_compiled_file_lines(path: byte*) -> None:
@@ -62,7 +63,6 @@ def main() -> int:
 
     # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
     #
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/_assert_fail_<hash>_<hash>.o
     # Output: Reusing previously compiled file: examples/jou_compiled/hello/hello_<hash>_<hash>.o
     # Output: Reusing previously compiled file: examples/jou_compiled/hello/io_<hash>_<hash>.o
     run_jou("-v examples/hello.jou > tmp/hello_out_v.txt")
@@ -104,10 +104,9 @@ def main() -> int:
     # Test that double-verbose kinda works, without asserting the output in too much detail.
     # Usually stdlib/_... files are compiled, but not necessarily, so hide them.
     # Showing LLVM IR is not consistent because of caching compiled files.
-    run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v stdlib/_ | grep -v jou_startup | grep -v \"LLVM IR\"")
+    run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v \"LLVM IR\"")
     # Output: ===== Tokens for file "examples/hello.jou" =====
     # Output: ===== AST for file "examples/hello.jou" =====
-    # Output: ===== UVG for _jou_assert_fail(assertion: byte*, path: byte*, lineno: int) -> noreturn =====
     # Output: ===== UVG for main() -> int =====
     # Output: ===== UVG for get_stdin() -> FILE* =====
     # Output: ===== UVG for get_stdout() -> FILE* =====

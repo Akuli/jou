@@ -1,10 +1,2 @@
-# We could import more stdlib stuff but I prefer to keep this minimal.
-# This simplifies debugging the compiler, because this is always added implicitly when compiling.
-declare printf(pattern: byte*, ...) -> int
-declare exit(status: int) -> noreturn
-
-@public
-def _jou_assert_fail(assertion: byte*, path: byte*, lineno: int) -> noreturn:
-    # TODO: print to stderr
-    printf("Assertion '%s' failed in file \"%s\", line %d.\n", assertion, path, lineno)
-    exit(1)
+# TODO: Delete this file. It exists only for legacy reasons.
+import "stdlib/assert.jou"
