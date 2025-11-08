@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"  # Warning: "stdlib/assert.jou" imported but not used
 import "./imported/public_global.jou"  # Only a global variable used
 import "stdlib/str.jou"  # Only a function used
 import "./imported/bar.jou"  # Only a class used
@@ -10,8 +11,4 @@ def main() -> int:
     z = Point{x=1, y=2}
 
     # prevent unused variable warnings
-    assert x != -1
-    assert y != 0
-    assert z.x != 0
-
-    return 0
+    return x + y + z.x + (-1)*(x + y + z.x)
