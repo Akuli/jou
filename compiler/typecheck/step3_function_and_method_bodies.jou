@@ -1611,8 +1611,8 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 snprintf(msg, sizeof(msg), "a variable named '%s' already exists", varname)
                 fail(stmt.location, msg)
 
-            if get_special_constant(varname) != -1:
-                snprintf(msg, sizeof(msg), "%s is a special constant, so making a variable named '%s' is not allowed", varname, varname)
+            if state.find_any_constant(varname) != NULL:
+                snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
                 fail(stmt.location, msg)
 
             type = type_from_ast(state.file_types, state.fom_types.signature.get_self_class(), &stmt.local_var_declare.type)
