@@ -1238,6 +1238,7 @@ class AstFunctionOrMethod:
         print_body(self.body, tp)
 
     def free(self) -> None:
+        self.symbol.free()
         self.ast_signature.free()
         free_body(self.body)
         if self.types.signature.name[0] != '\0':
