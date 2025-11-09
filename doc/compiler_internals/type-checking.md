@@ -1,6 +1,6 @@
 # Type Checking
 
-Type checking means figuring out what type each thing in a Jou program is,
+Type checking means figuring out what the type each thing in a Jou program is,
 whether the code tries to access something that doesn't exist,
 and also evaluating some values such as `const` statements and array sizes.
 
@@ -29,18 +29,18 @@ Currently there are three type-checking steps, but in the future there might be 
 first everything else, then function and method bodies.
 
 This separation also helps with recursive functions.
-For example, suppose that function `A()` calls function `bar()`,
-and function `bar()` calls function `A()`.
-Before realizing that, the compiler checks the **signatures** of these functions.
+For example, suppose that function `foo()` calls function `bar()`,
+and function `bar()` calls function `foo()`.
+The compiler first checks the **signatures** of these functions.
 In other words, it figures out what parameters they take and what they return.
 When it goes through the bodies and sees the calls,
 it only needs the signatures to check whether the functions are being called correctly,
 so it can simply check one function body at a time without caring about bodies of other functions.
 
-To better understand what each step does, see the comments at the start of
-[compiler/typecheck/step1_create_types.jou](../../compiler/typecheck/step1_create_types.jou),
-[compiler/typecheck/step2_populate_types.jou](../../compiler/typecheck/step2_populate_types.jou) and
-[compiler/typecheck/step3_function_and_method_bodies.jou](../../compiler/typecheck/step3_function_and_method_bodies.jou).
+To better understand what each step does, see the comments at the start of:
+- [compiler/typecheck/step1_create_types.jou](../../compiler/typecheck/step1_create_types.jou)
+- [compiler/typecheck/step2_populate_types.jou](../../compiler/typecheck/step2_populate_types.jou)
+- [compiler/typecheck/step3_function_and_method_bodies.jou](../../compiler/typecheck/step3_function_and_method_bodies.jou)
 
 
 ## Cyclic and out-of-order definitions
