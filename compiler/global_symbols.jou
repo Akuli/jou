@@ -34,14 +34,14 @@ class GlobalSymbol:
 
     union:
         # These are zero initialized at first, populated during type checking.
-        funcsignature: Signature  # GlobalSymbolKind.Function
+        signature: Signature  # GlobalSymbolKind.Function
         type: Type*  # GlobalSymbolKind.Type, GlobalSymbolKind.GlobalVar, GlobalSymbolKind.GenericClass
         constant: Constant  # GlobalSymbolKind.Const
 
     def free(self) -> None:
         match self.kind:
             case GlobalSymbolKind.Function:
-                self.funcsignature.free()
+                self.signature.free()
             case GlobalSymbolKind.Const:
                 self.constant.free()
             case _:

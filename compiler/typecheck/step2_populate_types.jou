@@ -9,85 +9,14 @@
 # and methods each class has.
 
 import "stdlib/assert.jou"
-import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "../ast.jou"
-import "../global_symbols.jou"
 import "../state.jou"
 import "../types.jou"
 import "../errors_and_warnings.jou"
 import "./common.jou"
 import "./typecheck_global_symbols.jou"
-
-
-def handle_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
-    if self_class == NULL:
-        function_or_method = "function"
-        usedptr = &ast.symbol.used
-    else:
-        function_or_method = "method"
-        usedptr = NULL  # No warnings for unused methods :( Would be harder to implement.
-
-    msg: byte[500]
-
-    astsig = &ast.ast_signature
-    sig = Signature{name = astsig.name, takes_varargs = astsig.takes_varargs}
-    if ast.inline:
-        sig.ast_to_inline = ast
-
-    for astarg = astsig.args.ptr; astarg < astsig.args.end(); astarg++:
-        arg = NameAndType{name = astarg.name}
-        if (
-            strcmp(astarg.name, "self") == 0
-            and astarg.type.kind == AstTypeKind.Named
-            and astarg.type.name[0] == '\0'
-        ):
-            # just "self" without a type after it --> default to "self: Foo*" in class Foo
-            assert self_class != NULL
-            arg.type = self_class.pointer_type()
-        else:
-            arg.type = type_from_ast(jou_file, self_class, &astarg.type)
-
-        if strcmp(arg.name, "self") == 0 and arg.type != self_class and arg.type != self_class.pointer_type():
-            snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class.name, self_class.name)
-            fail(astarg.type.location, msg)
-
-        sig.args.append(arg)
-
-    sig.is_noreturn = astsig.return_type.is_noreturn()
-    if astsig.return_type.is_none() or astsig.return_type.is_noreturn():
-        sig.return_type = NULL
-    elif astsig.return_type.is_void():
-        snprintf(
-            msg, sizeof(msg),
-            "void is not a valid return type, use '-> None' if the %s does not return a value",
-            function_or_method,
-        )
-        fail(astsig.return_type.location, msg)
-    else:
-        sig.return_type = type_from_ast(jou_file, self_class, &astsig.return_type)
-
-    if self_class == NULL:
-        jou_file.types.add_function(&sig, usedptr)
-
-    if sig.is_main_function():
-        if sig.return_type == NULL or sig.return_type.unwrap_typedef() != int_type(32):
-            fail(astsig.return_type.location, "the main() function must return int")
-        if (
-            sig.args.len != 0
-            and not (
-                sig.args.len == 2
-                and sig.args.ptr[0].type == int_type(32)
-                and sig.args.ptr[1].type == uint_type(8).pointer_type().pointer_type()
-            )
-        ):
-            fail(
-                astsig.args.ptr[0].type.location,
-                "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
-            )
-
-    return sig
 
 
 def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> None:
@@ -152,8 +81,8 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
 
             case AstStatementKind.MethodDef:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
-                sig = handle_signature(jou_file, &stmt.method, t)
-                stmt.method.types.signature = sig
+                sig = typecheck_signature(jou_file, &stmt.method, t)
+                stmt.method.symbol.signature = sig
 
                 check_class_member_not_exist(t, sig.name, stmt.location)
                 t.classdata.methods.append(sig.copy())
@@ -169,9 +98,7 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step2_populate_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
-    exports = List[GlobalSymbol*]{}
-
+def typecheck_step2_populate_types(jou_file: JouFile*) -> None:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case (
@@ -179,26 +106,11 @@ def typecheck_step2_populate_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
                 | AstStatementKind.GlobalVariableDef
                 | AstStatementKind.Const
                 | AstStatementKind.TypeDef
+                | AstStatementKind.FunctionDeclare
+                | AstStatementKind.FunctionDef
             ):
                 typecheck_statement_with_symbol(jou_file, stmt)
-            case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-                sig = handle_signature(jou_file, &stmt.function, NULL)
-                # TODO: shouldn't need copying into two places
-                stmt.function.types.signature = sig.copy()
-                stmt.symbol().funcsignature = sig
-                if stmt.symbol().public:
-                    exports.append(stmt.symbol())
             case AstStatementKind.Class:
                 handle_class_members(jou_file, &stmt.classdef)
-            case (
-                AstStatementKind.Import
-                | AstStatementKind.Pass
-                | AstStatementKind.Assert
-                | AstStatementKind.Enum
-                | AstStatementKind.Link
-            ):
-                pass  # Everything done in previous type-checking steps.
             case _:
-                assert False
-
-    return exports
+                pass

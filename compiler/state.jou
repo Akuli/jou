@@ -8,7 +8,6 @@ import "./errors_and_warnings.jou"
 import "./hash.jou"
 import "./target.jou"
 import "./types.jou"
-import "./types_in_ast.jou"
 
 
 @public
@@ -29,7 +28,6 @@ class JouFile:
     path: byte*  # owned, always set, unique
     is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
     ast: List[AstStatement]
-    types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
 
     # Points to @public things in ASTS of other files that have been imported
     # into this file. Used when figuring out whether something comes in from
@@ -40,7 +38,6 @@ class JouFile:
         for p = self.ast.ptr; p < self.ast.end(); p++:
             p.free()
         free(self.ast.ptr)
-        self.types.free()
         free(self.path)
         free(self.imported_from_other_files.ptr)
 
