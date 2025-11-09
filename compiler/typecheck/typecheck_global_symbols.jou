@@ -60,8 +60,10 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
             stmt.symbol().type = create_typedef_type(stmt.symbol().name, actual_type)
 
         case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
-            # TODO: type checking the signature should happen here
-            pass
+            sig = typecheck_signature(jou_file, &stmt.function, NULL)
+            # TODO: shouldn't need copying into two places
+            stmt.function.types.signature = sig.copy()
+            stmt.symbol().funcsignature = sig
 
         case AstStatementKind.Class:
             # TODO: should be created somehow lazily, don't yet know how
