@@ -14,17 +14,14 @@ import "./common.jou"
 @public
 def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> None:
     assert stmt.symbol() != NULL
+    msg: byte[500]
 
     match stmt.symbol().status:
         case GlobalSymbolStatus.NotTypeChecked:
             pass
         case GlobalSymbolStatus.TypeChecking:
-            match stmt.symbol().kind:
-                case GlobalSymbolKind.Const:
-                    fail(stmt.location, "value of constant depends on itself")
-                case _:
-                    # TODO: do the rest
-                    assert False
+            snprintf(msg, sizeof(msg), "%s '%s' depends on itself", stmt.symbol().short_description(), stmt.symbol().name)
+            fail(stmt.location, msg)
         case GlobalSymbolStatus.Ready:
             return
 
@@ -40,7 +37,6 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
 
             # TODO: allow implicit casts?
             if value.get_type().unwrap_typedef(&stmt.location) != expected_type.unwrap_typedef(&stmt.location):
-                msg: byte[500]
                 snprintf(
                     msg, sizeof(msg),
                     "constant of type %s cannot have a value of type %s",
@@ -59,7 +55,11 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
         case AstStatementKind.Enum:
             stmt.symbol().type = create_enum(stmt.symbol().name, stmt.enumdef.members)
 
-        case AstStatementKind.Class | AstStatementKind.TypeDef:
+        case AstStatementKind.TypeDef:
+            actual_type = type_from_ast(jou_file, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef(&stmt.location)
+            stmt.symbol().type = create_typedef_type(stmt.symbol().name, actual_type)
+
+        case AstStatementKind.Class:
             # TODO: should be created somehow lazily, don't yet know how
             pass
 

@@ -655,8 +655,11 @@ def create_typevar(name: byte*) -> Type*:
 # Used for typedef statements. This creates a type that implicitly casts to
 # some other type and back. The other, actual type is set later.
 @public
-def create_typedef_type(name: byte*) -> Type*:
-    return create_simple_type(name, TypeKind.TypeDef)
+def create_typedef_type(name: byte*, actual_type: Type*) -> Type*:
+    assert actual_type != NULL
+    result = create_simple_type(name, TypeKind.TypeDef)
+    result.typedef_actual_type = actual_type
+    return result
 
 
 @public
