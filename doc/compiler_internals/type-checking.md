@@ -53,7 +53,7 @@ For example, consider the following Jou file:
 
 ```python
 const A: int = B
-const B: int = C  # Error: type 'B' depends on itself
+const B: int = C  # Error: constant 'B' depends on itself
 const C: int = B
 ```
 
