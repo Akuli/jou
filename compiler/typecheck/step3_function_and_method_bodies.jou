@@ -840,7 +840,7 @@ def typecheck_class_field(
 
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
-    t = type_from_ast(state.file_types, state.fom_types.signature.get_self_class(), &inst.type)
+    t = type_from_ast(state.jou_file, state.fom_types.signature.get_self_class(), &inst.type)
 
     msg: byte[500]
 
@@ -1264,7 +1264,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             result = check_increment_or_decrement(state, expr)
 
         case AstExpressionKind.As:
-            result = type_from_ast(state.file_types, state.fom_types.signature.get_self_class(), &expr.as_.type)
+            result = type_from_ast(state.jou_file, state.fom_types.signature.get_self_class(), &expr.as_.type)
 
             # The `foo as SomeType` operation usually doesn't specify how the
             # type of `foo` should be inferred. The intent is that `foo` can be
@@ -1605,7 +1605,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
                 fail(stmt.location, msg)
 
-            type = type_from_ast(state.file_types, state.fom_types.signature.get_self_class(), &stmt.local_var_declare.type)
+            type = type_from_ast(state.jou_file, state.fom_types.signature.get_self_class(), &stmt.local_var_declare.type)
             state.fom_types.add_variable(type, varname)
 
             if stmt.local_var_declare.value != NULL:

@@ -32,7 +32,7 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
 
     match stmt.kind:
         case AstStatementKind.Const:
-            expected_type = type_from_ast(&jou_file.types, NULL, &stmt.const_statement.type)
+            expected_type = type_from_ast(jou_file, NULL, &stmt.const_statement.type)
 
             value: Constant
             if not evaluate_constant_expression(jou_file, &stmt.const_statement.value, &value, expected_type):
@@ -52,9 +52,9 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
             stmt.symbol().constant = value
 
         case AstStatementKind.GlobalVariableDeclare:
-            stmt.symbol().type = type_from_ast(&jou_file.types, NULL, &stmt.global_var_declare.type)
+            stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_declare.type)
         case AstStatementKind.GlobalVariableDef:
-            stmt.symbol().type = type_from_ast(&jou_file.types, NULL, &stmt.global_var_def.type)
+            stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_def.type)
 
         case AstStatementKind.Enum:
             stmt.symbol().type = create_enum(stmt.symbol().name, stmt.enumdef.members)
