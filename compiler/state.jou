@@ -2,6 +2,7 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "./ast.jou"
+import "./constants.jou"
 import "./command_line_args.jou"
 import "./errors_and_warnings.jou"
 import "./hash.jou"
@@ -45,12 +46,20 @@ class JouFile:
 
 
 @public
+class SpecialConstant:
+    name: byte*
+    constant: Constant
+
+
+@public
 class CompilerState:
     args: CommandLineArgs
     stdlib_path: byte*  # owned
     types: TypeState
     warnings_shown: bool  # for the --fail-on-warnings compiler flag
     cached_compiler_hash: Hash
+
+    special_constants: SpecialConstant[3]
 
     # Appending to this list happens only in the early stages of compilation,
     # so for most purposes, pointers into this list are stable and won't ever
