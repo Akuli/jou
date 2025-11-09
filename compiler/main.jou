@@ -12,7 +12,6 @@ import "./builders/uvg_builder.jou"
 import "./command_line_args.jou"
 import "./errors_and_warnings.jou"
 import "./evaluate.jou"
-import "./global_symbols.jou"
 import "./llvm.jou"
 import "./parser.jou"
 import "./paths.jou"
@@ -21,7 +20,6 @@ import "./state.jou"
 import "./target.jou"
 import "./token.jou"
 import "./tokenizer.jou"
-import "./typecheck/step1_create_types.jou"
 import "./typecheck/step2_populate_types.jou"
 import "./typecheck/step3_function_and_method_bodies.jou"
 import "./types.jou"
@@ -353,14 +351,6 @@ def make_imported_statements_available() -> None:
 def typecheck_all_files() -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Type-checking...\n")
-
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        if global_compiler_state.args.verbosity >= 1:
-            printf("  step 1: %s\n", jou_file.path)
-        typecheck_step1_create_types(jou_file)
-
-    pending_exports: List[GlobalSymbol*]* = malloc(sizeof(pending_exports[0]) * global_compiler_state.jou_files.len)
-    assert pending_exports != NULL
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
