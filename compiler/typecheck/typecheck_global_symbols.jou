@@ -69,12 +69,11 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
 # This also finds things defined in the same file.
 #
 # Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
-def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSymbolKind, mark_used: bool) -> AstStatement*:
+def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSymbolKind) -> AstStatement*:
     # Defined in this file?
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         if stmt.symbol() != NULL and strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:
-            if mark_used:
-                stmt.symbol().used = True
+            stmt.symbol().used = True
             return stmt
 
     # Imported?
@@ -82,9 +81,8 @@ def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSy
         stmt = imported.statement_in_other_file
         assert stmt.symbol() != NULL
         if strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:
-            if mark_used:
-                stmt.symbol().used = True
-                imported.the_import.used = True
+            stmt.symbol().used = True
+            imported.the_import.used = True
             return stmt
 
     return NULL
@@ -98,7 +96,7 @@ def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSy
 #
 # TODO: just return pointer to constant, use global compiler state...
 @public
-def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Constant*, mark_used: bool) -> bool:
+def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Constant*) -> bool:
     match get_special_constant(name):
         case 1:
             *out_ptr = Constant{kind = ConstantKind.Bool, boolean = True}
@@ -111,7 +109,7 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Consta
         case _:
             assert False
 
-    stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Const, mark_used)
+    stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Const)
     if stmt == NULL:
         return False
     typecheck_statement_with_symbol(jou_file, stmt)
@@ -121,8 +119,8 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Consta
 
 # Returns type of global variable for found, NULL for not found.
 @public
-def find_and_typecheck_global_var(jou_file: JouFile*, name: byte*, mark_used: bool) -> Type*:
-    stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GlobalVar, mark_used)
+def find_and_typecheck_global_var(jou_file: JouFile*, name: byte*) -> Type*:
+    stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GlobalVar)
     if stmt == NULL:
         return NULL
     typecheck_statement_with_symbol(jou_file, stmt)

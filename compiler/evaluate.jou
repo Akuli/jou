@@ -69,7 +69,7 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
 
         case AstExpressionKind.GetVariable:
             if jou_file != NULL:
-                return find_and_typecheck_constant(jou_file, expr.varname, result, True)
+                return find_and_typecheck_constant(jou_file, expr.varname, result)
 
             # We can still handle special constants like WINDOWS, MACOS, etc.
             val = get_special_constant(expr.varname)
