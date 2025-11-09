@@ -68,7 +68,7 @@ Here's what happens when the compiler tries to compile this file:
 7. The compiler looks for `B` and finds `const B = C`.
 8. Processing the second `const` statement is about to begin again,
     but the compiler notices that it is already being processed,
-    and it shows the error message `type 'B' depends on itself`.
+    and it shows the error message `constant 'B' depends on itself`.
 
 The same mechanism is used for `typedef` statements.
 It also allows us to use things defined later in the file.
