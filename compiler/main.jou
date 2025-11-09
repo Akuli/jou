@@ -20,8 +20,8 @@ import "./state.jou"
 import "./target.jou"
 import "./token.jou"
 import "./tokenizer.jou"
-import "./typecheck/step2_populate_types.jou"
-import "./typecheck/step3_function_and_method_bodies.jou"
+import "./typecheck/typecheck_global_symbols.jou"
+import "./typecheck/typecheck_function_and_method_bodies.jou"
 import "./types.jou"
 
 
@@ -354,13 +354,15 @@ def typecheck_all_files() -> None:
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("  step 2: %s\n", jou_file.path)
-        typecheck_step2_populate_types(jou_file)
+            printf("  global symbols: %s\n", jou_file.path)
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+            if stmt.symbol() != NULL:
+                typecheck_statement_with_symbol(stmt)
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
-            printf("  step 3: %s\n", jou_file.path)
-        typecheck_step3_function_and_method_bodies(jou_file)
+            printf("  function and method bodies: %s\n", jou_file.path)
+        typecheck_function_and_method_bodies(jou_file)
         if global_compiler_state.args.verbosity >= 3:
             # AST now contains types. If very verbose, print them.
             printf("===== AST for file \"%s\" =====\n", jou_file.path)

@@ -1,5 +1,6 @@
 import "stdlib/assert.jou"
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 
 import "../global_symbols.jou"
 import "../types.jou"
@@ -153,6 +154,9 @@ def populate_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
 
 @public
 def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
+    assert stmt.symbol() != NULL
+    msg: byte[500]
+
     # Find the file where the symbol was defined (not necessarily same as where
     # we're trying to use it right now)
     jou_file: JouFile* = NULL
@@ -162,9 +166,6 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
             break
     assert jou_file != NULL
 
-    assert stmt.symbol() != NULL
-    msg: byte[500]
-
     match stmt.symbol().status:
         case GlobalSymbolStatus.NotTypeChecked:
             pass
@@ -173,6 +174,9 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
             fail(stmt.location, msg)
         case GlobalSymbolStatus.Ready:
             return
+
+    if global_compiler_state.args.verbosity >= 2:
+        printf("    typecheck global symbol %s in %s\n", stmt.symbol().name, jou_file.path)
 
     stmt.symbol().status = GlobalSymbolStatus.TypeChecking
 
