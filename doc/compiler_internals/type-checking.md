@@ -9,7 +9,7 @@ For source code, see [the `compiler/typecheck` directory](../../compiler/typeche
 
 ## Data Structures (or the lack thereof)
 
-Type-checking results are mostly stored directly into the AST.
+Type checking results are mostly stored directly into the AST.
 While this may seem dirty to some programmers, it is the simplest way to do this I know.
 For example, there is no mapping where the keys are AST expressions and the values are their types;
 that information is stored directly into the `AstExpression` data structure.
@@ -19,13 +19,13 @@ that information is stored directly into the `AstExpression` data structure.
 
 (The explanation below talks about function bodies, but the same applies to bodies of methods.)
 
-Type-checking is split into a few steps mostly because
+Type checking is split into a few steps mostly because
 going through the bodies of functions and methods is quite different from everything else.
 When going through the body of a function,
 the compiler doesn't discover new types or functions or global constants:
 all that is handled before looking inside any function bodies at all.
 
-Currently there are three type-checking steps, but in the future there might be just two:
+Currently there are three type checking steps, but in the future there might be just two:
 first everything else, then function and method bodies.
 
 This separation also helps with recursive functions.
