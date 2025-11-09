@@ -36,7 +36,7 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
                 fail(stmt.location, "cannot evaluate value of constant at compile time")
 
             # TODO: allow implicit casts?
-            if value.get_type().unwrap_typedef(&stmt.location) != expected_type.unwrap_typedef(&stmt.location):
+            if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
                 snprintf(
                     msg, sizeof(msg),
                     "constant of type %s cannot have a value of type %s",
@@ -56,7 +56,7 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
             stmt.symbol().type = create_enum(stmt.symbol().name, stmt.enumdef.members)
 
         case AstStatementKind.TypeDef:
-            actual_type = type_from_ast(jou_file, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef(&stmt.location)
+            actual_type = type_from_ast(jou_file, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef()
             stmt.symbol().type = create_typedef_type(stmt.symbol().name, actual_type)
 
         case AstStatementKind.Class:
