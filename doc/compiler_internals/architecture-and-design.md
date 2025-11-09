@@ -45,6 +45,9 @@ Here's what each step does:
 - **Evaluating compile-time if statements** must be done before looking at what other files are imported.
     For example, if there is a Windows-specific `import` statement under `if WINDOWS:`,
     we want to ignore it when not compiling for Windows.
+- **Making imported statements available** means
+    finding `@public`-decorated statements in imported files and collecting them to a list.
+    There is one list per source file.
 - **Type checking** means figuring out what type everything in the code is,
     whether the code tries to access something that doesn't exist,
     and a few other things.

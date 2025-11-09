@@ -38,8 +38,8 @@ it only needs the signatures to check whether the functions are being called cor
 so it can simply check one function body at a time without caring about bodies of other functions.
 
 To better understand what each step does, see the comments at the start of:
-- [compiler/typecheck/step1_create_types.jou](../../compiler/typecheck/step1_create_types.jou)
-- [compiler/typecheck/step2_populate_types.jou](../../compiler/typecheck/step2_populate_types.jou)
+- [compiler/typecheck/step1_global_symbols.jou](../../compiler/typecheck/step1_global_symbols.jou)
+- [compiler/typecheck/step2_class_members.jou](../../compiler/typecheck/step2_class_members.jou)
 - [compiler/typecheck/step3_function_and_method_bodies.jou](../../compiler/typecheck/step3_function_and_method_bodies.jou)
 
 
@@ -117,7 +117,7 @@ Examples:
 To make sure that importing anything `@public`-decorated works smoothly,
 the compiler handles imported symbols very similarly to symbols defined in the same file:
 it just does things with the `AstStatement` data structures.
-The only difference is that imported `AstStatement` data structures
+The only difference is that imported `AstStatement`s
 come from parsing the imported file instead of the current file.
 For most things, this makes no difference.
 
