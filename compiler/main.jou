@@ -113,9 +113,7 @@ def add_imported_symbol(to: JouFile*, es: GlobalSymbol*, imp: AstImport*) -> Non
             to.types.add_type(es.type, &imp.used)
         case GlobalSymbolKind.GenericClass:
             to.types.add_generic_class(es.type, &imp.used)
-        case GlobalSymbolKind.GlobalVar:
-            pass
-        case GlobalSymbolKind.Const:
+        case GlobalSymbolKind.GlobalVar | GlobalSymbolKind.Const:
             pass
 
 

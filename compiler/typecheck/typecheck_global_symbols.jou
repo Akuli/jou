@@ -69,10 +69,10 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
 # This also finds things defined in the same file.
 #
 # Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
-def find_global_symbol_statement(jou_file: JouFile*, name: byte*, mark_used: bool) -> AstStatement*:
+def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSymbolKind, mark_used: bool) -> AstStatement*:
     # Defined in this file?
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        if stmt.symbol() != NULL and strcmp(stmt.symbol().name, name) == 0:
+        if stmt.symbol() != NULL and strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:
             if mark_used:
                 stmt.symbol().used = True
             return stmt
@@ -81,7 +81,7 @@ def find_global_symbol_statement(jou_file: JouFile*, name: byte*, mark_used: boo
     for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
         stmt = imported.statement_in_other_file
         assert stmt.symbol() != NULL
-        if strcmp(stmt.symbol().name, name) == 0:
+        if strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:
             if mark_used:
                 stmt.symbol().used = True
                 imported.the_import.used = True
@@ -111,26 +111,19 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Consta
         case _:
             assert False
 
-    stmt = find_global_symbol_statement(jou_file, name, mark_used)
-    if stmt == NULL or stmt.kind != AstStatementKind.Const:
+    stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Const, mark_used)
+    if stmt == NULL:
         return False
-
     typecheck_statement_with_symbol(jou_file, stmt)
-
-    assert stmt.symbol().status == GlobalSymbolStatus.Ready
-    if mark_used:
-        stmt.symbol().used = True
     *out_ptr = stmt.symbol().constant
     return True
 
 
 # Returns type of global variable for found, NULL for not found.
-# TODO: refactor copy/pasta
 @public
 def find_and_typecheck_global_var(jou_file: JouFile*, name: byte*, mark_used: bool) -> Type*:
-    stmt = find_global_symbol_statement(jou_file, name, mark_used)
-    if stmt == NULL or stmt.symbol().kind != GlobalSymbolKind.GlobalVar:
+    stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GlobalVar, mark_used)
+    if stmt == NULL:
         return NULL
-
     typecheck_statement_with_symbol(jou_file, stmt)
     return stmt.symbol().type
