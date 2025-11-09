@@ -10,6 +10,7 @@ import "../state.jou"
 import "../evaluate.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
+import "./typecheck_global_symbols.jou"
 
 
 @public
@@ -62,7 +63,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
                             if strcmp((*p).name, asttype.name) == 0:
                                 return *p
 
-                    found = jou_file.types.find_type(asttype.name)
+                    found = find_and_typecheck_type(jou_file, asttype.name)
                     if found != NULL:
                         return found
 
@@ -101,7 +102,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             name = asttype.generic.class_name
             gclass = jou_file.types.find_generic_class(name)
             if gclass == NULL:
-                if jou_file.types.find_type(name) != NULL:
+                if find_and_typecheck_type(jou_file, name) != NULL:
                     snprintf(msg, sizeof(msg), "%s is not generic, use just %s instead of %s[something]", name, name, name)
                 else:
                     snprintf(msg, sizeof(msg), "there is no generic class named '%s'", name)

@@ -81,10 +81,6 @@ class FileTypes:
     def _add_type_internal(self, t: Type*, usedptr: bool*) -> None:
         self.available_types.append(TypeAndUsedPtr{type = t, usedptr = usedptr})
 
-    def add_type(self, t: Type*, usedptr: bool*) -> None:
-        assert strstr(t.name, "[") == NULL  # must be able to find the types by name
-        self._add_type_internal(t, usedptr)
-
     def add_generic_class(self, t: Type*, usedptr: bool*) -> None:
         assert t.kind == TypeKind.Class
         assert strstr(t.name, "[") != NULL  # e.g. List[T]
@@ -96,15 +92,6 @@ class FileTypes:
         for func = self.functions.ptr; func < self.functions.end(); func++:
             func.signature.free()
         free(self.functions.ptr)
-
-    def find_type(self, name: byte*) -> Type*:
-        assert strstr(name, "[") == NULL
-        for t = self.available_types.ptr; t < self.available_types.end(); t++:
-            if strcmp(t.type.name, name) == 0:
-                if t.usedptr != NULL:
-                    *t.usedptr = True
-                return t.type
-        return NULL
 
     def find_generic_class(self, name: byte*) -> Type*:
         for t = self.available_types.ptr; t < self.available_types.end(); t++:

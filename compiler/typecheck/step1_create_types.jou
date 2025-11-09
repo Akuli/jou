@@ -42,8 +42,8 @@ def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
 
         if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():
             jou_file.types.add_generic_class(stmt.symbol().type, &stmt.symbol().used)
-        else:
-            jou_file.types.add_type(stmt.symbol().type, &stmt.symbol().used)
+#        else:
+#            jou_file.types.add_type(stmt.symbol().type, &stmt.symbol().used)
 
         if stmt.symbol().public:
             exports.append(stmt.symbol())

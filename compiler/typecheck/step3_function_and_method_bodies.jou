@@ -1019,7 +1019,7 @@ def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
         # there is a variable named "foo", use that
         return
 
-    t = state.file_types.find_type(expr.class_field.instance.varname)
+    t = find_and_typecheck_type(state.jou_file, expr.class_field.instance.varname)
     if t == NULL:
         # no enum or variable, show variable not found error
         return
@@ -1087,7 +1087,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 result = expr.constant.get_type()
 
         case AstExpressionKind.GetEnumMember:
-            result = state.file_types.find_type(expr.enum_member.enum_name)
+            result = find_and_typecheck_type(state.jou_file, expr.enum_member.enum_name)
             # AstExpressionKind.GetEnumMember is only created if the enum exists
             assert result != NULL
             assert result.kind == TypeKind.Enum
