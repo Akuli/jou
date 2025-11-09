@@ -11,40 +11,83 @@ import "../evaluate.jou"
 import "./common.jou"
 
 
-def typecheck_const(jou_file: JouFile*, location: Location, c: AstConstStatement*) -> None:
-    assert c.symbol.status == GlobalSymbolStatus.NotTypeChecked
-    c.symbol.status = GlobalSymbolStatus.TypeChecking
+@public
+def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> None:
+    assert stmt.symbol() != NULL
 
-    expected_type = type_from_ast(&jou_file.types, NULL, &c.type)
+    match stmt.symbol().status:
+        case GlobalSymbolStatus.NotTypeChecked:
+            pass
+        case GlobalSymbolStatus.TypeChecking:
+            match stmt.symbol().kind:
+                case GlobalSymbolKind.Const:
+                    fail(stmt.location, "value of constant depends on itself")
+                case _:
+                    # TODO: do the rest
+                    assert False
+        case GlobalSymbolStatus.Ready:
+            return
 
-    value: Constant
-    if not evaluate_constant_expression(jou_file, &c.value, &value, expected_type):
-        fail(location, "cannot evaluate value of constant at compile time")
+    stmt.symbol().status = GlobalSymbolStatus.TypeChecking
 
-    # TODO: allow implicit casts?
-    if value.get_type().unwrap_typedef(&location) != expected_type.unwrap_typedef(&location):
-        msg: byte[500]
-        snprintf(
-            msg, sizeof(msg),
-            "constant of type %s cannot have a value of type %s",
-            expected_type.name,
-            value.get_type().name
-        )
-        fail(location, msg)
+    match stmt.kind:
+        case AstStatementKind.Const:
+            expected_type = type_from_ast(&jou_file.types, NULL, &stmt.const_statement.type)
 
-    c.symbol.constant = value
-    assert c.symbol.status == GlobalSymbolStatus.TypeChecking
-    c.symbol.status = GlobalSymbolStatus.Ready
+            value: Constant
+            if not evaluate_constant_expression(jou_file, &stmt.const_statement.value, &value, expected_type):
+                fail(stmt.location, "cannot evaluate value of constant at compile time")
+
+            # TODO: allow implicit casts?
+            if value.get_type().unwrap_typedef(&stmt.location) != expected_type.unwrap_typedef(&stmt.location):
+                msg: byte[500]
+                snprintf(
+                    msg, sizeof(msg),
+                    "constant of type %s cannot have a value of type %s",
+                    expected_type.name,
+                    value.get_type().name
+                )
+                fail(stmt.location, msg)
+
+            stmt.symbol().constant = value
+
+        case AstStatementKind.GlobalVariableDeclare:
+            stmt.symbol().type = type_from_ast(&jou_file.types, NULL, &stmt.global_var_declare.type)
+        case AstStatementKind.GlobalVariableDef:
+            stmt.symbol().type = type_from_ast(&jou_file.types, NULL, &stmt.global_var_def.type)
+        case _:
+            assert False
+
+    assert stmt.symbol().status == GlobalSymbolStatus.TypeChecking
+    stmt.symbol().status = GlobalSymbolStatus.Ready
 
 
-def typecheck_global_var(jou_file: JouFile*, symbol: GlobalSymbol*, ast_type: AstType*) -> None:
-    assert symbol.status == GlobalSymbolStatus.NotTypeChecked
-    symbol.status = GlobalSymbolStatus.TypeChecking
+# If you have a Jou file that has access to printf() function from stdlib/io.jou,
+# then this function returns the `declare` statement in stdlib/io.jou when you
+# call this with the file and the string "printf".
+#
+# This also finds things defined in the same file.
+#
+# Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
+def find_global_symbol_statement(jou_file: JouFile*, name: byte*, mark_used: bool) -> AstStatement*:
+    # Defined in this file?
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+        if stmt.symbol() != NULL and strcmp(stmt.symbol().name, name) == 0:
+            if mark_used:
+                stmt.symbol().used = True
+            return stmt
 
-    symbol.type = type_from_ast(&jou_file.types, NULL, ast_type)
+    # Imported?
+    for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
+        stmt = imported.statement_in_other_file
+        assert stmt.symbol() != NULL
+        if strcmp(stmt.symbol().name, name) == 0:
+            if mark_used:
+                stmt.symbol().used = True
+                imported.the_import.used = True
+            return stmt
 
-    assert symbol.status == GlobalSymbolStatus.TypeChecking
-    symbol.status = GlobalSymbolStatus.Ready
+    return NULL
 
 
 # Returns True for found, False for not found. If found, constant is placed
@@ -72,13 +115,7 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Consta
     if stmt == NULL or stmt.kind != AstStatementKind.Const:
         return False
 
-    match stmt.symbol().status:
-        case GlobalSymbolStatus.NotTypeChecked:
-            typecheck_const(jou_file, stmt.location, &stmt.const_statement)
-        case GlobalSymbolStatus.TypeChecking:
-            fail(stmt.location, "value of constant depends on itself")
-        case GlobalSymbolStatus.Ready:
-            pass
+    typecheck_statement_with_symbol(jou_file, stmt)
 
     assert stmt.symbol().status == GlobalSymbolStatus.Ready
     if mark_used:
@@ -92,26 +129,8 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Consta
 @public
 def find_and_typecheck_global_var(jou_file: JouFile*, name: byte*, mark_used: bool) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, mark_used)
-    if stmt == NULL:
+    if stmt == NULL or stmt.symbol().kind != GlobalSymbolKind.GlobalVar:
         return NULL
 
-    match stmt.kind:
-        case AstStatementKind.GlobalVariableDeclare:
-            ast_type = &stmt.global_var_declare.type
-        case AstStatementKind.GlobalVariableDef:
-            ast_type = &stmt.global_var_def.type
-        case _:
-            return NULL
-
-    match stmt.symbol().status:
-        case GlobalSymbolStatus.NotTypeChecked:
-            typecheck_global_var(jou_file, stmt.symbol(), ast_type)
-        case GlobalSymbolStatus.TypeChecking:
-            assert False
-        case GlobalSymbolStatus.Ready:
-            pass
-
-    assert stmt.symbol().status == GlobalSymbolStatus.Ready
-    if mark_used:
-        stmt.symbol().used = True
+    typecheck_statement_with_symbol(jou_file, stmt)
     return stmt.symbol().type

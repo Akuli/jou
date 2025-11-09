@@ -18,7 +18,6 @@ import "../state.jou"
 import "../types.jou"
 import "../types_in_ast.jou"
 import "../errors_and_warnings.jou"
-import "../constants.jou"
 import "./common.jou"
 import "./typecheck_global_symbols.jou"
 
@@ -176,13 +175,12 @@ def typecheck_step2_populate_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
-            case AstStatementKind.GlobalVariableDeclare:
-                find_and_typecheck_global_var(jou_file, stmt.symbol().name, False)
-            case AstStatementKind.GlobalVariableDef:
-                find_and_typecheck_global_var(jou_file, stmt.symbol().name, False)
-            case AstStatementKind.Const:
-                c: Constant
-                find_and_typecheck_constant(jou_file, stmt.symbol().name, &c, False)
+            case (
+                AstStatementKind.GlobalVariableDeclare
+                | AstStatementKind.GlobalVariableDef
+                | AstStatementKind.Const
+            ):
+                typecheck_statement_with_symbol(jou_file, stmt)
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 sig = handle_signature(&jou_file.types, &stmt.function, NULL)
                 # TODO: shouldn't need copying into two places
