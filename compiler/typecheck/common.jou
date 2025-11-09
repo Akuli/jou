@@ -6,10 +6,11 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
+import "../state.jou"
 import "../evaluate.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
-import "../types_in_ast.jou"
+import "./typecheck_global_symbols.jou"
 
 
 @public
@@ -23,7 +24,7 @@ def plural_s(n: int64) -> byte*:
 
 
 @public
-def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) -> Type*:
+def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*) -> Type*:
     if containing_class != NULL:
         assert containing_class.kind == TypeKind.Class
         for p = containing_class.classdata.generic_params.ptr; p < containing_class.classdata.generic_params.end(); p++:
@@ -62,12 +63,12 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
                             if strcmp((*p).name, asttype.name) == 0:
                                 return *p
 
-                    found = ft.find_type(asttype.name)
+                    found = find_and_typecheck_type(jou_file, asttype.name)
                     if found != NULL:
                         return found
 
                     # At this point we will show an error for sure.
-                    generic = ft.find_generic_class(asttype.name)
+                    generic = find_and_typecheck_generic_class(jou_file, asttype.name)
                     if generic == NULL:
                         snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype.name)
                     else:
@@ -88,10 +89,10 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
         case AstTypeKind.Pointer:
             if asttype.value_type.is_void():
                 return void_ptr_type()
-            return type_from_ast(ft, containing_class, asttype.value_type).pointer_type()
+            return type_from_ast(jou_file, containing_class, asttype.value_type).pointer_type()
 
         case AstTypeKind.Array:
-            tmp = type_from_ast(ft, containing_class, asttype.array.member_type)
+            tmp = type_from_ast(jou_file, containing_class, asttype.array.member_type)
             len = evaluate_array_length(asttype.array.length)
             if len <= 0:
                 fail(asttype.array.length.location, "array length must be positive")
@@ -99,9 +100,9 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
 
         case AstTypeKind.Generic:
             name = asttype.generic.class_name
-            gclass = ft.find_generic_class(name)
+            gclass = find_and_typecheck_generic_class(jou_file, name)
             if gclass == NULL:
-                if ft.find_type(name) != NULL:
+                if find_and_typecheck_type(jou_file, name) != NULL:
                     snprintf(msg, sizeof(msg), "%s is not generic, use just %s instead of %s[something]", name, name, name)
                 else:
                     snprintf(msg, sizeof(msg), "there is no generic class named '%s'", name)
@@ -127,7 +128,7 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             to: Type** = malloc(sizeof(to[0]) * n)
             assert to != NULL
             for i = 0; i < n; i++:
-                to[i] = type_from_ast(ft, containing_class, &asttype.generic.param_types.ptr[i])
+                to[i] = type_from_ast(jou_file, containing_class, &asttype.generic.param_types.ptr[i])
 
             result = gclass.substitute_generic_params(from, to, n)
             free(to)
@@ -142,11 +143,11 @@ def type_from_ast(ft: FileTypes*, containing_class: Type*, asttype: AstType*) ->
             argtypes: Type*[100]
 
             for i = 0; i < nargs; i++:
-                argtypes[i] = type_from_ast(ft, containing_class, &fp.argtypes.ptr[i])
+                argtypes[i] = type_from_ast(jou_file, containing_class, &fp.argtypes.ptr[i])
 
             if fp.return_type.is_none() or fp.return_type.is_noreturn():
                 return_type = NULL
             else:
-                return_type = type_from_ast(ft, containing_class, fp.return_type)
+                return_type = type_from_ast(jou_file, containing_class, fp.return_type)
 
             return funcptr_type(argtypes, nargs, fp.takes_varargs, return_type, fp.return_type.is_noreturn())

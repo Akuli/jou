@@ -61,10 +61,6 @@ class FunctionOrMethodTypes:
         self.signature.free()
 
 
-class TypeAndUsedPtr:
-    type: Type*
-    usedptr: bool*  # used to detect unused imports
-
 class SignatureAndUsedPtr:
     signature: Signature
     usedptr: bool*  # used to detect unused imports
@@ -72,52 +68,16 @@ class SignatureAndUsedPtr:
 
 @public
 class FileTypes:
-    available_types: List[TypeAndUsedPtr]
     functions: List[SignatureAndUsedPtr]
 
     def add_function(self, signature: Signature*, usedptr: bool*) -> None:
         self.functions.append(SignatureAndUsedPtr{signature = signature.copy(), usedptr = usedptr})
 
-    def _add_type_internal(self, t: Type*, usedptr: bool*) -> None:
-        self.available_types.append(TypeAndUsedPtr{type = t, usedptr = usedptr})
-
-    def add_type(self, t: Type*, usedptr: bool*) -> None:
-        assert strstr(t.name, "[") == NULL  # must be able to find the types by name
-        self._add_type_internal(t, usedptr)
-
-    def add_generic_class(self, t: Type*, usedptr: bool*) -> None:
-        assert t.kind == TypeKind.Class
-        assert strstr(t.name, "[") != NULL  # e.g. List[T]
-        self._add_type_internal(t, usedptr)
-
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:
-        free(self.available_types.ptr)
         for func = self.functions.ptr; func < self.functions.end(); func++:
             func.signature.free()
         free(self.functions.ptr)
-
-    def find_type(self, name: byte*) -> Type*:
-        assert strstr(name, "[") == NULL
-        for t = self.available_types.ptr; t < self.available_types.end(); t++:
-            if strcmp(t.type.name, name) == 0:
-                if t.usedptr != NULL:
-                    *t.usedptr = True
-                return t.type
-        return NULL
-
-    def find_generic_class(self, name: byte*) -> Type*:
-        for t = self.available_types.ptr; t < self.available_types.end(); t++:
-            # If looking for "List", check if it starts with "List[" as in "List[T]"
-            if (
-                t.type.kind == TypeKind.Class
-                and starts_with(t.type.name, name)
-                and t.type.name[strlen(name)] == '['
-            ):
-                if t.usedptr != NULL:
-                    *t.usedptr = True
-                return t.type
-        return NULL
 
     def find_function(self, name: byte*) -> Signature*:
         for f = self.functions.ptr; f < self.functions.end(); f++:

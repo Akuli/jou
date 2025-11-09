@@ -4,7 +4,6 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "./ast.jou"
-import "./errors_and_warnings.jou"
 import "./state.jou"
 
 
@@ -107,22 +106,12 @@ class Type:
         typedef_actual_type: Type*  # TypeDef
         enum_members: List[byte[100]]
 
-    def unwrap_typedef(self, location: Location*) -> Type*:
-        if self.kind != TypeKind.TypeDef:
-            return self
-
-        if self.typedef_actual_type == NULL:
-            assert location != NULL
-            msg: byte[500]
-            snprintf(
-                msg, sizeof(msg),
-                "sorry, typedef '%s' cannot be used here yet :( please create an issue on GitHub: https://github.com/Akuli/jou/issues/new",
-                self.name,
-            )
-            fail(*location, msg)
-
-        assert self.typedef_actual_type.kind != TypeKind.TypeDef
-        return self.typedef_actual_type
+    def unwrap_typedef(self) -> Type*:
+        if self.kind == TypeKind.TypeDef:
+            assert self.typedef_actual_type != NULL
+            assert self.typedef_actual_type.kind != TypeKind.TypeDef
+            return self.typedef_actual_type
+        return self
 
     def is_integer_type(self) -> bool:
         return self.kind == TypeKind.SignedInteger or self.kind == TypeKind.UnsignedInteger
@@ -655,8 +644,11 @@ def create_typevar(name: byte*) -> Type*:
 # Used for typedef statements. This creates a type that implicitly casts to
 # some other type and back. The other, actual type is set later.
 @public
-def create_typedef_type(name: byte*) -> Type*:
-    return create_simple_type(name, TypeKind.TypeDef)
+def create_typedef_type(name: byte*, actual_type: Type*) -> Type*:
+    assert actual_type != NULL
+    result = create_simple_type(name, TypeKind.TypeDef)
+    result.typedef_actual_type = actual_type
+    return result
 
 
 @public

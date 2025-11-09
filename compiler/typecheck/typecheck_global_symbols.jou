@@ -14,17 +14,14 @@ import "./common.jou"
 @public
 def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> None:
     assert stmt.symbol() != NULL
+    msg: byte[500]
 
     match stmt.symbol().status:
         case GlobalSymbolStatus.NotTypeChecked:
             pass
         case GlobalSymbolStatus.TypeChecking:
-            match stmt.symbol().kind:
-                case GlobalSymbolKind.Const:
-                    fail(stmt.location, "value of constant depends on itself")
-                case _:
-                    # TODO: do the rest
-                    assert False
+            snprintf(msg, sizeof(msg), "%s '%s' depends on itself", stmt.symbol().short_description(), stmt.symbol().name)
+            fail(stmt.location, msg)
         case GlobalSymbolStatus.Ready:
             return
 
@@ -32,15 +29,14 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
 
     match stmt.kind:
         case AstStatementKind.Const:
-            expected_type = type_from_ast(&jou_file.types, NULL, &stmt.const_statement.type)
+            expected_type = type_from_ast(jou_file, NULL, &stmt.const_statement.type)
 
             value: Constant
             if not evaluate_constant_expression(jou_file, &stmt.const_statement.value, &value, expected_type):
                 fail(stmt.location, "cannot evaluate value of constant at compile time")
 
             # TODO: allow implicit casts?
-            if value.get_type().unwrap_typedef(&stmt.location) != expected_type.unwrap_typedef(&stmt.location):
-                msg: byte[500]
+            if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
                 snprintf(
                     msg, sizeof(msg),
                     "constant of type %s cannot have a value of type %s",
@@ -52,9 +48,21 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
             stmt.symbol().constant = value
 
         case AstStatementKind.GlobalVariableDeclare:
-            stmt.symbol().type = type_from_ast(&jou_file.types, NULL, &stmt.global_var_declare.type)
+            stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_declare.type)
         case AstStatementKind.GlobalVariableDef:
-            stmt.symbol().type = type_from_ast(&jou_file.types, NULL, &stmt.global_var_def.type)
+            stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_def.type)
+
+        case AstStatementKind.Enum:
+            stmt.symbol().type = create_enum(stmt.symbol().name, stmt.enumdef.members)
+
+        case AstStatementKind.TypeDef:
+            actual_type = type_from_ast(jou_file, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef()
+            stmt.symbol().type = create_typedef_type(stmt.symbol().name, actual_type)
+
+        case AstStatementKind.Class:
+            # TODO: should be created somehow lazily, don't yet know how
+            pass
+
         case _:
             assert False
 
@@ -111,6 +119,26 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*) -> Constant*:
 @public
 def find_and_typecheck_global_var(jou_file: JouFile*, name: byte*) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GlobalVar)
+    if stmt == NULL:
+        return NULL
+    typecheck_statement_with_symbol(jou_file, stmt)
+    return stmt.symbol().type
+
+
+# Returns type if found, NULL if not found.
+@public
+def find_and_typecheck_type(jou_file: JouFile*, name: byte*) -> Type*:
+    stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Type)
+    if stmt == NULL:
+        return NULL
+    typecheck_statement_with_symbol(jou_file, stmt)
+    return stmt.symbol().type
+
+
+# Returns type representing List[T] or similar (with dummy typevars) if found, NULL if not found.
+@public
+def find_and_typecheck_generic_class(jou_file: JouFile*, name: byte*) -> Type*:
+    stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GenericClass)
     if stmt == NULL:
         return NULL
     typecheck_statement_with_symbol(jou_file, stmt)
