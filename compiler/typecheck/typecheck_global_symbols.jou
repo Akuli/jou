@@ -12,10 +12,18 @@ import "./common.jou"
 
 
 @public
-def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> None:
-    assert stmt.symbol() != NULL
+def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
     msg: byte[500]
 
+    # Find the Jou file where the statement is defined
+    jou_file: JouFile* = NULL
+    for j = global_compiler_state.jou_files.ptr; j < global_compiler_state.jou_files.end(); j++:
+        if j.ast.ptr <= stmt and stmt < j.ast.end():
+            jou_file = j
+            break
+    assert jou_file != NULL
+
+    assert stmt.symbol() != NULL
     match stmt.symbol().status:
         case GlobalSymbolStatus.NotTypeChecked:
             pass
@@ -111,11 +119,10 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*) -> Constant*:
         return special_constant
 
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Const)
-    if stmt != NULL:
-        typecheck_statement_with_symbol(jou_file, stmt)
-        return &stmt.symbol().constant
-
-    return NULL
+    if stmt == NULL:
+        return NULL
+    typecheck_statement_with_symbol(stmt)
+    return &stmt.symbol().constant
 
 
 # Returns type of global variable for found, NULL for not found.
@@ -124,7 +131,7 @@ def find_and_typecheck_global_var(jou_file: JouFile*, name: byte*) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GlobalVar)
     if stmt == NULL:
         return NULL
-    typecheck_statement_with_symbol(jou_file, stmt)
+    typecheck_statement_with_symbol(stmt)
     return stmt.symbol().type
 
 
@@ -134,7 +141,7 @@ def find_and_typecheck_function(jou_file: JouFile*, name: byte*) -> Signature*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Function)
     if stmt == NULL:
         return NULL
-    typecheck_statement_with_symbol(jou_file, stmt)
+    typecheck_statement_with_symbol(stmt)
     return &stmt.symbol().signature
 
 
@@ -144,7 +151,7 @@ def find_and_typecheck_type(jou_file: JouFile*, name: byte*) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Type)
     if stmt == NULL:
         return NULL
-    typecheck_statement_with_symbol(jou_file, stmt)
+    typecheck_statement_with_symbol(stmt)
     return stmt.symbol().type
 
 
@@ -154,5 +161,5 @@ def find_and_typecheck_generic_class(jou_file: JouFile*, name: byte*) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GenericClass)
     if stmt == NULL:
         return NULL
-    typecheck_statement_with_symbol(jou_file, stmt)
+    typecheck_statement_with_symbol(stmt)
     return stmt.symbol().type
