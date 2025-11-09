@@ -152,12 +152,16 @@ def populate_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> None:
-    # TODO: delete jou_file parameter
+def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
+    # Find the file where the symbol was defined (not necessarily same as where
+    # we're trying to use it right now)
+    jou_file: JouFile* = NULL
     for j = global_compiler_state.jou_files.ptr; j < global_compiler_state.jou_files.end(); j++:
         if j.ast.ptr <= stmt and stmt < j.ast.end():
             jou_file = j
             break
+    assert jou_file != NULL
+
     assert stmt.symbol() != NULL
     msg: byte[500]
 
@@ -256,7 +260,7 @@ def find_and_typecheck_constant(jou_file: JouFile*, name: byte*) -> Constant*:
 
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Const)
     if stmt != NULL:
-        typecheck_statement_with_symbol(jou_file, stmt)
+        typecheck_statement_with_symbol(stmt)
         return &stmt.symbol().constant
 
     return NULL
@@ -268,7 +272,7 @@ def find_and_typecheck_global_var(jou_file: JouFile*, name: byte*) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GlobalVar)
     if stmt == NULL:
         return NULL
-    typecheck_statement_with_symbol(jou_file, stmt)
+    typecheck_statement_with_symbol(stmt)
     return stmt.symbol().type
 
 
@@ -278,7 +282,7 @@ def find_and_typecheck_function(jou_file: JouFile*, name: byte*) -> Signature*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Function)
     if stmt == NULL:
         return NULL
-    typecheck_statement_with_symbol(jou_file, stmt)
+    typecheck_statement_with_symbol(stmt)
     return &stmt.symbol().signature
 
 
@@ -292,7 +296,7 @@ def find_and_typecheck_type(jou_file: JouFile*, name: byte*, needs_to_be_populat
     if stmt == NULL:
         return NULL
     if stmt.kind != AstStatementKind.Class or needs_to_be_populated:
-        typecheck_statement_with_symbol(jou_file, stmt)
+        typecheck_statement_with_symbol(stmt)
     assert stmt.symbol().type != NULL
     return stmt.symbol().type
 
@@ -304,6 +308,6 @@ def find_and_typecheck_generic_class(jou_file: JouFile*, name: byte*, needs_to_b
     if stmt == NULL:
         return NULL
     if needs_to_be_populated:
-        typecheck_statement_with_symbol(jou_file, stmt)
+        typecheck_statement_with_symbol(stmt)
     assert stmt.symbol().type != NULL
     return stmt.symbol().type

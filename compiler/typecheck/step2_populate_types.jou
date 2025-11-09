@@ -16,4 +16,4 @@ import "./typecheck_global_symbols.jou"
 def typecheck_step2_populate_types(jou_file: JouFile*) -> None:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         if stmt.symbol() != NULL:
-            typecheck_statement_with_symbol(jou_file, stmt)
+            typecheck_statement_with_symbol(stmt)
