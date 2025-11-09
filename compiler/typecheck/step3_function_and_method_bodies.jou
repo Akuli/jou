@@ -20,19 +20,18 @@ import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../evaluate.jou"
 import "../types.jou"
-import "../types_in_ast.jou"
 import "./common.jou"
 import "./typecheck_global_symbols.jou"
 
 
 class State:
     jou_file: JouFile*
-    fom_types: FunctionOrMethodTypes*
+    fom: AstFunctionOrMethod*
 
     def find_any_var(self, name: byte*) -> Type*:
-        local = self.fom_types.find_local_var(name)
-        if local != NULL:
-            return local.type
+        for local = self.fom.locals.ptr; local < self.fom.locals.end(); local++:
+            if strcmp(local.name, name) == 0:
+                return local.type
         return find_and_typecheck_global_var(self.jou_file, name)
 
     def find_any_var_or_constant(self, name: byte*) -> Type*:
@@ -138,7 +137,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
 # value of the pointer &foo to bar.
 #
 # errmsg_template can be e.g. "cannot take address of %s" or "cannot assign to %s"
-def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, errmsg_template: byte*) -> None:
+def ensure_can_take_address(fom: AstFunctionOrMethod*, expr: AstExpression*, errmsg_template: byte*) -> None:
     assert fom != NULL
 
     # If this assertion fails, it means you called ensure_can_take_address()
@@ -183,7 +182,7 @@ def ensure_can_take_address(fom: FunctionOrMethodTypes*, expr: AstExpression*, e
     # This lets you e.g. write methods that return a modified instance.
     if (
         expr.kind == AstExpressionKind.Self
-        and fom.signature.args.ptr[0].type.kind == TypeKind.Class
+        and fom.symbol.signature.args.ptr[0].type.kind == TypeKind.Class
     ):
         return
 
@@ -263,7 +262,7 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
 
 
 def do_implicit_cast(
-    fom: FunctionOrMethodTypes*,
+    fom: AstFunctionOrMethod*,
     expr: AstExpression*,
     to: Type*,
     location: Location,
@@ -291,13 +290,13 @@ def do_implicit_cast(
         )
 
 
-def cast_array_to_pointer(fom: FunctionOrMethodTypes*, expr: AstExpression*) -> None:
+def cast_array_to_pointer(fom: AstFunctionOrMethod*, expr: AstExpression*) -> None:
     assert expr.types.orig_type != NULL
     assert expr.types.orig_type.kind == TypeKind.Array
     do_implicit_cast(fom, expr, expr.types.orig_type.array.item_type.pointer_type(), Location{}, NULL)
 
 
-def do_explicit_cast(fom: FunctionOrMethodTypes*, expr: AstExpression*, to: Type*, location: Location) -> None:
+def do_explicit_cast(fom: AstFunctionOrMethod*, expr: AstExpression*, to: Type*, location: Location) -> None:
     assert expr.types.orig_type != NULL
     assert expr.types.implicit_cast_type == expr.types.orig_type
     from = expr.types.orig_type
@@ -342,7 +341,7 @@ def typecheck_expression_with_implicit_cast(
 ) -> None:
     assert casttype != NULL
     typecheck_expression_not_void(state, expr, casttype)
-    do_implicit_cast(state.fom_types, expr, casttype, expr.location, errormsg_template)
+    do_implicit_cast(state.fom, expr, casttype, expr.location, errormsg_template)
 
 
 def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind) -> Type*:
@@ -415,7 +414,7 @@ def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind
 
 
 def check_binop(
-    fom: FunctionOrMethodTypes*,
+    fom: AstFunctionOrMethod*,
     op: AstExpressionKind,
     location: Location,
     lhs: AstExpression*,
@@ -537,7 +536,7 @@ def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
         snprintf(msg, sizeof(msg), bad_type_fmt, t.name)
         fail(expr.location, msg)
 
-    ensure_can_take_address(state.fom_types, &expr.operands[0], bad_expr_fmt)
+    ensure_can_take_address(state.fom, &expr.operands[0], bad_expr_fmt)
     return t
 
 
@@ -562,7 +561,7 @@ def typecheck_indexing(
         case TypeKind.Pointer:
             ptrtype = orig_type
         case TypeKind.Array:
-            cast_array_to_pointer(state.fom_types, ptrexpr)
+            cast_array_to_pointer(state.fom, ptrexpr)
             ptrtype = ptrexpr.types.implicit_cast_type
         case _:
             snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", orig_type.name)
@@ -579,7 +578,7 @@ def typecheck_indexing(
 
     # LLVM assumes that indexes smaller than 64 bits are signed.
     # https://github.com/Akuli/jou/issues/48
-    do_implicit_cast(state.fom_types, indexexpr, int_type(64), Location{}, NULL)
+    do_implicit_cast(state.fom, indexexpr, int_type(64), Location{}, NULL)
 
     return ptrtype.value_type
 
@@ -603,12 +602,12 @@ def typecheck_and_or(
 def typecheck_vararg(state: State*, expr: AstExpression*, what_we_calling: byte*) -> None:
     t = typecheck_expression_not_void(state, expr, NULL)
     if t.kind == TypeKind.Array:
-        cast_array_to_pointer(state.fom_types, expr)
+        cast_array_to_pointer(state.fom, expr)
     elif (t.is_integer_type() and t.size_in_bits < 32) or t == bool_type():
         # Add implicit cast to signed int, just like in C.
-        do_implicit_cast(state.fom_types, expr, int_type(32), Location{}, NULL)
+        do_implicit_cast(state.fom, expr, int_type(32), Location{}, NULL)
     elif t == float_type():
-        do_implicit_cast(state.fom_types, expr, double_type(), Location{}, NULL)
+        do_implicit_cast(state.fom, expr, double_type(), Location{}, NULL)
     elif t.kind == TypeKind.Enum:
         msg: byte[500]
         snprintf(
@@ -751,7 +750,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
                 "cannot take address of %%s, needed for calling the %s() method",
                 method_name,
             )
-            ensure_can_take_address(state.fom_types, call.method_call_self, msg)
+            ensure_can_take_address(state.fom, call.method_call_self, msg)
 
     if funcptr_type != NULL and funcptr_type.kind != TypeKind.FuncPtr:
         snprintf(msg, sizeof(msg), "expected a function, got %s", funcptr_type.name)
@@ -839,7 +838,7 @@ def typecheck_class_field(
 
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
-    t = type_from_ast(state.jou_file, state.fom_types.signature.get_self_class(), &inst.type)
+    t = type_from_ast(state.jou_file, state.fom.symbol.signature.get_self_class(), &inst.type)
 
     msg: byte[500]
 
@@ -873,7 +872,7 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
 
 
 def cast_array_members_to_a_common_type(
-    fom: FunctionOrMethodTypes*,
+    fom: AstFunctionOrMethod*,
     error_location: Location,
     array: List[AstExpression],
     item_type_hint: Type*,
@@ -948,7 +947,7 @@ def cast_array_members_to_a_common_type(
 #   1.0 if condition else 2
 #   1 if condition else 2.0
 def cast_ternary_values_to_a_common_type(
-    fom: FunctionOrMethodTypes*,
+    fom: AstFunctionOrMethod*,
     ternary_location: Location,
     then_expr: AstExpression*,
     otherwise_expr: AstExpression*,
@@ -1119,7 +1118,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 item_type_hint = NULL
             for item = expr.array.ptr; item < expr.array.end(); item++:
                 typecheck_expression_not_void(state, item, item_type_hint)
-            membertype = cast_array_members_to_a_common_type(state.fom_types, expr.location, expr.array, item_type_hint)
+            membertype = cast_array_members_to_a_common_type(state.fom, expr.location, expr.array, item_type_hint)
             result = membertype.array_type(expr.array.len as int)
 
         case AstExpressionKind.DotOperator:
@@ -1154,7 +1153,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
         case AstExpressionKind.AddressOf:
             result = typecheck_expression_not_void(state, &expr.operands[0], NULL).pointer_type()
-            ensure_can_take_address(state.fom_types, &expr.operands[0], "the '&' operator cannot be applied to %s")
+            ensure_can_take_address(state.fom, &expr.operands[0], "the '&' operator cannot be applied to %s")
 
         case AstExpressionKind.GetVariable:
             c_ptr = find_and_typecheck_constant(state.jou_file, expr.varname)
@@ -1179,8 +1178,9 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                     result = sig.to_funcptr_type()
 
         case AstExpressionKind.Self:
-            selfvar = state.fom_types.find_local_var("self")
-            assert selfvar != NULL
+            assert state.fom.locals.len >= 1
+            selfvar = &state.fom.locals.ptr[0]
+            assert strcmp(selfvar.name, "self") == 0
             result = selfvar.type
 
         case AstExpressionKind.Dereference:
@@ -1243,7 +1243,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             else:
                 typecheck_expression_not_void(state, &expr.operands[0], NULL)
             typecheck_expression_not_void(state, &expr.operands[1], NULL)
-            result = check_binop(state.fom_types, expr.kind, expr.location, &expr.operands[0], &expr.operands[1])
+            result = check_binop(state.fom, expr.kind, expr.location, &expr.operands[0], &expr.operands[1])
 
         case AstExpressionKind.TernaryIf:
             typecheck_expression_not_void(state, &expr.operands[0], NULL)
@@ -1252,7 +1252,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             )
             typecheck_expression_not_void(state, &expr.operands[2], NULL)
             result = cast_ternary_values_to_a_common_type(
-                state.fom_types, expr.location, &expr.operands[0], &expr.operands[2], type_hint
+                state.fom, expr.location, &expr.operands[0], &expr.operands[2], type_hint
             )
 
         case (
@@ -1264,7 +1264,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             result = check_increment_or_decrement(state, expr)
 
         case AstExpressionKind.As:
-            result = type_from_ast(state.jou_file, state.fom_types.signature.get_self_class(), &expr.as_.type)
+            result = type_from_ast(state.jou_file, state.fom.symbol.signature.get_self_class(), &expr.as_.type)
 
             # The `foo as SomeType` operation usually doesn't specify how the
             # type of `foo` should be inferred. The intent is that `foo` can be
@@ -1299,7 +1299,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 typecheck_expression_not_void(state, &expr.as_.value, result)
             else:
                 typecheck_expression_not_void(state, &expr.as_.value, NULL)
-                do_explicit_cast(state.fom_types, &expr.as_.value, result, expr.location)
+                do_explicit_cast(state.fom, &expr.as_.value, result, expr.location)
 
     assert result != NULL
     expr.types.orig_type = result
@@ -1477,11 +1477,11 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             ):
                 # Making a new variable. Use the type of the value being assigned.
                 type = typecheck_expression_not_void(state, valueexpr, NULL)
-                state.fom_types.add_variable(type, targetexpr.varname)
+                state.fom.locals.append(LocalVariable{type = type, name = targetexpr.varname})
             else:
                 # Convert value to the type of an existing variable or other assignment target.
                 targettype = typecheck_expression_not_void(state, targetexpr, NULL)
-                ensure_can_take_address(state.fom_types, targetexpr, "cannot assign to %s")
+                ensure_can_take_address(state.fom, targetexpr, "cannot assign to %s")
 
                 if targetexpr.kind == AstExpressionKind.Dereference:
                     msg = "cannot place a value of type <from> into a pointer of type <to>*"
@@ -1514,7 +1514,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 value_type = typecheck_expression_not_void(state, valueexpr, NULL)
             else:
                 value_type = typecheck_expression_not_void(state, valueexpr, targettype)
-            ensure_can_take_address(state.fom_types, targetexpr, "cannot assign to %s")
+            ensure_can_take_address(state.fom, targetexpr, "cannot assign to %s")
 
             match stmt.kind:
                 case AstStatementKind.InPlaceAdd:
@@ -1550,7 +1550,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 case _:
                     assert False
 
-            t = check_binop(state.fom_types, op, stmt.location, targetexpr, valueexpr)
+            t = check_binop(state.fom, op, stmt.location, targetexpr, valueexpr)
             if t != targetexpr.types.orig_type:
                 snprintf(
                     msg, sizeof msg,
@@ -1560,22 +1560,22 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 fail(stmt.location, msg)
 
         case AstStatementKind.Return:
-            function_or_method = state.fom_types.signature.function_or_method()
+            function_or_method = state.fom.symbol.signature.function_or_method()
 
-            if state.fom_types.signature.is_noreturn:
+            if state.fom.symbol.signature.is_noreturn:
                 snprintf(
                     msg, sizeof(msg),
                     "%s '%s' cannot return because it was defined with '-> noreturn'",
-                    function_or_method, state.fom_types.signature.name,
+                    function_or_method, state.fom.symbol.signature.name,
                 )
                 fail(stmt.location, msg)
 
-            return_type = state.fom_types.signature.return_type
+            return_type = state.fom.symbol.signature.return_type
 
             if stmt.return_value != NULL and return_type == NULL:
                 snprintf(
                     msg, sizeof(msg), "%s '%s' cannot return a value because it was defined with '-> None'",
-                    function_or_method, state.fom_types.signature.name,
+                    function_or_method, state.fom.symbol.signature.name,
                 )
                 fail(stmt.location, msg)
 
@@ -1583,14 +1583,14 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 snprintf(msg, sizeof(msg),
                     "a return value is needed, because the return type of %s '%s' is %s",
                     function_or_method,
-                    state.fom_types.signature.name,
-                    state.fom_types.signature.return_type.name)
+                    state.fom.symbol.signature.name,
+                    state.fom.symbol.signature.return_type.name)
                 fail(stmt.location, msg)
 
             if stmt.return_value != NULL:
                 snprintf(msg, sizeof msg,
                     "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
-                    function_or_method, state.fom_types.signature.name)
+                    function_or_method, state.fom.symbol.signature.name)
                 typecheck_expression_with_implicit_cast(state, stmt.return_value, return_type, msg)
 
         case AstStatementKind.DeclareLocalVar:
@@ -1604,8 +1604,8 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
                 fail(stmt.location, msg)
 
-            type = type_from_ast(state.jou_file, state.fom_types.signature.get_self_class(), &stmt.local_var_declare.type)
-            state.fom_types.add_variable(type, varname)
+            type = type_from_ast(state.jou_file, state.fom.symbol.signature.get_self_class(), &stmt.local_var_declare.type)
+            state.fom.locals.append(LocalVariable{type=type, name=varname})
 
             if stmt.local_var_declare.value != NULL:
                 typecheck_expression_with_implicit_cast(
@@ -1643,15 +1643,15 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
 
 
 def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) -> None:
-    assert state.fom_types == NULL
-    state.fom_types = &fom.types
+    assert state.fom == NULL
+    state.fom = fom
 
-    sig = &fom.types.signature
+    sig = &fom.symbol.signature
     for arg = sig.args.ptr; arg < sig.args.end(); arg++:
-        state.fom_types.add_variable(arg.type, arg.name)
+        state.fom.locals.append(LocalVariable{name=arg.name, type=arg.type})
 
     typecheck_body(state, fom.body)
-    state.fom_types = NULL
+    state.fom = NULL
 
 
 @public

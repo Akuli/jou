@@ -82,7 +82,7 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
             case AstStatementKind.MethodDef:
                 # Don't handle the method body yet: that is a part of step 3, not step 2
                 sig = typecheck_signature(jou_file, &stmt.method, t)
-                stmt.method.types.signature = sig
+                stmt.method.symbol.signature = sig
 
                 check_class_member_not_exist(t, sig.name, stmt.location)
                 t.classdata.methods.append(sig.copy())

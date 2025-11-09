@@ -15,7 +15,6 @@ import "./errors_and_warnings.jou"
 import "./global_symbols.jou"
 import "./constants.jou"
 import "./types.jou"
-import "./types_in_ast.jou"
 
 
 # Max number of arguments that a function definition, declaration or call can have
@@ -211,6 +210,20 @@ class AstInstantiation:
         for f = self.fields.ptr; f < self.fields.end(); f++:
             f.value.free()
         free(self.fields.ptr)
+
+
+@public
+class ExpressionTypes:
+    # Type of value that the expression evaluates to, before implicit casts are applied.
+    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
+    orig_type: Type*
+
+    # Type after applying implicit cast, if any. If there's no implicit cast, same as original_type.
+    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
+    implicit_cast_type: Type*
+
+    # Flags to indicate whether special kinds of implicit casts happened
+    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
 
 
 @public
@@ -1222,6 +1235,12 @@ class AstLink:
         free(self.resolved_flags)
 
 
+@public
+class LocalVariable:
+    name: byte[100]
+    type: Type*
+
+
 # def foo() -> bar:
 #     ...
 @public
@@ -1229,7 +1248,7 @@ class AstFunctionOrMethod:
     symbol: GlobalSymbol
     ast_signature: AstSignature
     body: List[AstStatement]
-    types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
+    locals: List[LocalVariable]  # populated in typecheck, empty before typecheck
     inline: bool  # is it decorated with @inline
 
     def print(self) -> None:
@@ -1243,9 +1262,7 @@ class AstFunctionOrMethod:
         self.symbol.free()
         self.ast_signature.free()
         free_body(self.body)
-        if self.types.signature.name[0] != '\0':
-            # type-checking ran, the types are set and they need freeing
-            self.types.free()
+        free(self.locals.ptr)
 
 
 # class Foo:
