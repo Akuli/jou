@@ -631,8 +631,15 @@ def create_simple_type(name: byte*, kind: TypeKind) -> Type*:
 
 # Creates a class with no members. Used for classes before their members are known.
 @public
-def create_empty_class(name: byte*) -> Type*:
-    return create_simple_type(name, TypeKind.Class)
+def create_empty_class(name: byte*, generics: List[byte[100]]) -> Type*:
+    t = create_simple_type(name, TypeKind.Class)
+
+    if generics.len > 0:
+        for nameptr = generics.ptr; nameptr < generics.end(); nameptr++:
+            t.classdata.generic_params.append(create_typevar(*nameptr))
+        t.name = create_type_name_with_params(name, t.classdata.generic_params)
+
+    return t
 
 
 # Used for generics. This creates the unknown type "T" when defining class "List[T]".
@@ -668,7 +675,6 @@ def create_enum(name: byte*, members: List[byte[100]]) -> Type*:
 
 # Returns a string like "ClassName[Param1, Param2, Param3]", e.g. "List[int]"
 # If class name already has "[", only the part before "[" is used.
-@public
 def create_type_name_with_params(class_name: byte*, params: List[Type*]) -> byte[500]:
     class_name_len = strcspn(class_name, "[")
 

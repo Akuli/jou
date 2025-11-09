@@ -1556,6 +1556,9 @@ class Parser:
             symbol = GlobalSymbol{
                 name = name,
                 kind = (GlobalSymbolKind.GenericClass if generics.len > 0 else GlobalSymbolKind.Type),
+                # Create a type for the class right away so it is always accessible.
+                # The type will be populated with members and such later.
+                type = create_empty_class(name, generics),
             },
             generic_typevar_names = generics,
             body = body,
