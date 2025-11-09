@@ -28,8 +28,8 @@ const big: uint64 = 12345678901234567890  # barely fits in uint64
 const big_negative: int64 = -12345678987654321
 
 # Refer to a constant defined later
-const late1: int = late2
-const late2: int = 123
+const late1: byte* = late2
+const late2: byte* = "hello"
 
 
 def main() -> int:
@@ -50,6 +50,6 @@ def main() -> int:
 
     puts(message)  # Output: hello
 
-    printf("%d %d\n", late1, late2)  # Output: 123 123
+    printf("%s %s\n", late1, late2)  # Output: hello hello
 
     return 0
