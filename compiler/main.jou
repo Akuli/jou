@@ -350,6 +350,7 @@ def make_imported_statements_available() -> None:
 
 
 def typecheck_everything() -> None:
+    make_imported_statements_available()
     typecheck_step1_global_symbols()
     typecheck_step2_class_members()
     typecheck_step3_function_and_method_bodies()
@@ -416,7 +417,6 @@ def parse_only() -> None:
 
 def uvg_only() -> None:
     tokenize_and_parse_all_files()
-    make_imported_statements_available()
     typecheck_everything()
 
     mainfile = find_file(global_compiler_state.args.infile)
@@ -426,7 +426,6 @@ def uvg_only() -> None:
 
 def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     tokenize_and_parse_all_files()
-    make_imported_statements_available()
     typecheck_everything()
     build_and_analyze_all_uvgs()
 
