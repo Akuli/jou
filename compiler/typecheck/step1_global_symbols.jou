@@ -2,9 +2,9 @@
 # variables, `const`, classes etc.
 #
 # Class and function bodies are not checked yet. For classes, we create the
-# types but we don't fill them with members and methods. This way, when later
-# steps check function signatures, they can refer to classes that are defined
-# anywhere in the project, e.g. later in the same file.
+# types but we don't fill them with members and methods. This is how classes
+# that refer to themselves are handled. This may need to change later to
+# support e.g. sizeof(some_class) in a const.
 
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
