@@ -283,6 +283,9 @@ def tokenize_and_parse_all_files() -> None:
 #   - This assumes that no more Jou files will be discovered afterwards.
 #   - This doesn't e.g. look inside `if` statements when looping through @public things.
 def make_imported_statements_available() -> None:
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Making imported statements available...\n")
+
     msg: byte[500]
     seen_before = List[JouFile*]{}
 
