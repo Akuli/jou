@@ -12,16 +12,20 @@ import "./types.jou"
 
 
 @public
-def get_special_constant(name: byte*) -> int:
-    match name with strcmp:
-        case "WINDOWS":
-            return WINDOWS as int
-        case "MACOS":
-            return MACOS as int
-        case "NETBSD":
-            return NETBSD as int
-        case _:
-            return -1
+def get_special_constant(name: byte*) -> Constant*:
+    if global_compiler_state.special_constants[0].name == NULL:
+        # called for the first time, initialize special constants
+        global_compiler_state.special_constants = [
+            SpecialConstant{name = "WINDOWS", constant = Constant{kind = ConstantKind.Bool, boolean = WINDOWS}},
+            SpecialConstant{name = "MACOS", constant = Constant{kind = ConstantKind.Bool, boolean = MACOS}},
+            SpecialConstant{name = "NETBSD", constant = Constant{kind = ConstantKind.Bool, boolean = NETBSD}},
+        ]
+
+    n = sizeof(global_compiler_state.special_constants) / sizeof(global_compiler_state.special_constants[0])
+    for i = 0; i < n; i++:
+        if strcmp(global_compiler_state.special_constants[i].name, name) == 0:
+            return &global_compiler_state.special_constants[i].constant
+    return NULL
 
 
 # Return values: 1=true 0=false -1=error
@@ -68,14 +72,16 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
             return True
 
         case AstExpressionKind.GetVariable:
-            if jou_file != NULL:
-                return find_and_typecheck_constant(jou_file, expr.varname, result)
+            if jou_file == NULL:
+                # Only special constants are supported here
+                c = get_special_constant(expr.varname)
+            else:
+                # Can e.g. refer to values of `const` constants
+                c = find_and_typecheck_constant(jou_file, expr.varname)
 
-            # We can still handle special constants like WINDOWS, MACOS, etc.
-            val = get_special_constant(expr.varname)
-            if val == -1:
+            if c == NULL:
                 return False
-            *result = Constant{kind = ConstantKind.Bool, boolean = (val == 1)}
+            *result = c.copy()
             return True
 
         case AstExpressionKind.And:

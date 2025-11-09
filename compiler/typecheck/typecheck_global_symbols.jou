@@ -101,28 +101,18 @@ def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSy
 #
 # This cannot simply return a pointer to the constant, because WINDOWS and
 # other such special constants are not in memory.
-#
-# TODO: just return pointer to constant, use global compiler state...
 @public
-def find_and_typecheck_constant(jou_file: JouFile*, name: byte*, out_ptr: Constant*) -> bool:
-    match get_special_constant(name):
-        case 1:
-            *out_ptr = Constant{kind = ConstantKind.Bool, boolean = True}
-            return True
-        case 0:
-            *out_ptr = Constant{kind = ConstantKind.Bool, boolean = False}
-            return True
-        case -1:
-            pass  # not a special constant, proceed to normal lookup below
-        case _:
-            assert False
+def find_and_typecheck_constant(jou_file: JouFile*, name: byte*) -> Constant*:
+    special_constant = get_special_constant(name)
+    if special_constant != NULL:
+        return special_constant
 
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Const)
-    if stmt == NULL:
-        return False
-    typecheck_statement_with_symbol(jou_file, stmt)
-    *out_ptr = stmt.symbol().constant
-    return True
+    if stmt != NULL:
+        typecheck_statement_with_symbol(jou_file, stmt)
+        return &stmt.symbol().constant
+
+    return NULL
 
 
 # Returns type of global variable for found, NULL for not found.
