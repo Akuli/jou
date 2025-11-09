@@ -61,11 +61,6 @@ class FunctionOrMethodTypes:
         self.signature.free()
 
 
-class GlobalVariable:
-    name: byte[100]  # Same as in user's code, never empty
-    type: Type*
-    usedptr: bool*  # If non-NULL, set to true when the variable is used. This is how we detect unused imports.
-
 class TypeAndUsedPtr:
     type: Type*
     usedptr: bool*  # used to detect unused imports
@@ -77,7 +72,6 @@ class SignatureAndUsedPtr:
 
 @public
 class FileTypes:
-    globals: List[GlobalVariable]
     available_types: List[TypeAndUsedPtr]
     functions: List[SignatureAndUsedPtr]
 
@@ -96,20 +90,8 @@ class FileTypes:
         assert strstr(t.name, "[") != NULL  # e.g. List[T]
         self._add_type_internal(t, usedptr)
 
-    def add_global_var(self, name: byte*, type: Type*, usedptr: bool*) -> GlobalVariable*:
-        assert name != NULL
-        assert type != NULL
-
-        g = GlobalVariable{type = type, usedptr = usedptr}
-        assert strlen(name) < sizeof g.name
-        strcpy(g.name, name)
-
-        self.globals.append(g)
-        return &self.globals.end()[-1]
-
     # This is safe to call if self has been zero-initialized.
     def free(self) -> None:
-        free(self.globals.ptr)
         free(self.available_types.ptr)
         for func = self.functions.ptr; func < self.functions.end(); func++:
             func.signature.free()
@@ -143,12 +125,4 @@ class FileTypes:
                 if f.usedptr != NULL:
                     *f.usedptr = True
                 return &f.signature
-        return NULL
-
-    def find_global_var(self, name: byte*) -> Type*:
-        for var = self.globals.ptr; var < self.globals.end(); var++:
-            if strcmp(var.name, name) == 0:
-                if var.usedptr != NULL:
-                    *var.usedptr = True
-                return var.type
         return NULL

@@ -13,6 +13,7 @@ import "stdlib/str.jou"
 import "stdlib/io.jou"
 
 import "../ast.jou"
+import "../global_symbols.jou"
 import "../errors_and_warnings.jou"
 import "../llvm.jou"
 import "../state.jou"
@@ -744,23 +745,30 @@ def build_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
     builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
     builder_wrapper = AnyBuilder{lbuilder = &builder}
 
-    for g = jou_file.types.globals.ptr; g < jou_file.types.globals.end(); g++:
-        LLVMAddGlobal(module, type_to_llvm(g.type), g.name)
+    for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
+        symbol = imported.statement_in_other_file.symbol()
+        if symbol.kind == GlobalSymbolKind.GlobalVar:
+            assert symbol.type != NULL
+            LLVMAddGlobal(module, type_to_llvm(symbol.type), symbol.name)
 
+    # Add global variables first, so we can refer to them later.
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.GlobalVariableDef:
-                globalptr = LLVMGetNamedGlobal(module, stmt.symbol().name)
+                assert stmt.symbol().type != NULL
+                globalptr = LLVMAddGlobal(module, type_to_llvm(stmt.symbol().type), stmt.symbol().name)
                 assert globalptr != NULL
-                vartype: Type* = NULL
-                for g = jou_file.types.globals.ptr; g < jou_file.types.globals.end(); g++:
-                    if strcmp(g.name, stmt.symbol().name) == 0:
-                        vartype = g.type
-                        break
-                assert vartype != NULL
-                LLVMSetInitializer(globalptr, LLVMConstNull(type_to_llvm(vartype)))
+                LLVMSetInitializer(globalptr, LLVMConstNull(type_to_llvm(stmt.symbol().type)))
                 if not stmt.symbol().public:
                     LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
+            case AstStatementKind.GlobalVariableDeclare:
+                assert stmt.symbol().type != NULL
+                LLVMAddGlobal(module, type_to_llvm(stmt.symbol().type), stmt.symbol().name)
+            case _:
+                pass
+
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+        match stmt.kind:
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
             case AstStatementKind.Class:

@@ -8,6 +8,7 @@
 import "stdlib/assert.jou"
 
 import "../ast.jou"
+import "../global_symbols.jou"
 import "../errors_and_warnings.jou"
 import "../hash.jou"
 import "../paths.jou"
@@ -18,6 +19,7 @@ import "./ast_to_builder.jou"
 
 
 def hash_type(hash: Hash*, type: Type*) -> None:
+    assert type != NULL
     type = type.unwrap_typedef(NULL)
 
     hash.add_string("type")
@@ -406,19 +408,30 @@ def build_content_hash(jou_file: JouFile*) -> Hash:
 
     builder_wrapper = AnyBuilder{hbuilder = &builder}
 
-    builder.hash.add_int64(jou_file.types.globals.len)
-    for g = jou_file.types.globals.ptr; g < jou_file.types.globals.end(); g++:
-        hash_type(&builder.hash, g.type)
-        builder.hash.add_string(g.name)
+    for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
+        symbol = imported.statement_in_other_file.symbol()
+        if symbol.kind == GlobalSymbolKind.GlobalVar:
+            builder.hash.add_string("globalimport")
+            builder.hash.add_string(symbol.name)
+            assert symbol.type != NULL
+            hash_type(&builder.hash, symbol.type)
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         builder.hash.add_int(stmt.kind as int)
         match stmt.kind:
+            case AstStatementKind.GlobalVariableDeclare:
+                builder.hash.add_string("globaldeclare")
+                builder.hash.add_string(stmt.symbol().name)
+                builder.hash.add_bool(stmt.symbol().public)
+                assert stmt.symbol().type != NULL
+                hash_type(&builder.hash, stmt.symbol().type)
             case AstStatementKind.GlobalVariableDef:
                 # Note: Currently all global variables are zero-initialized, that may change in the future.
                 builder.hash.add_string("global")
                 builder.hash.add_string(stmt.symbol().name)
                 builder.hash.add_bool(stmt.symbol().public)
+                assert stmt.symbol().type != NULL
+                hash_type(&builder.hash, stmt.symbol().type)
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
             case AstStatementKind.Class:

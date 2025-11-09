@@ -34,14 +34,14 @@ class State:
         local = self.fom_types.find_local_var(name)
         if local != NULL:
             return local.type
-        return self.file_types.find_global_var(name)
+        return find_and_typecheck_global_var(self.jou_file, name)
 
     def find_any_var_or_constant(self, name: byte*) -> Type*:
         vartype = self.find_any_var(name)
         if vartype != NULL:
             return vartype
         c: Constant
-        if find_and_typecheck_constant(self.jou_file, name, &c, True):
+        if find_and_typecheck_constant(self.jou_file, name, &c):
             return c.get_type()
         return NULL
 
@@ -1158,7 +1158,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             ensure_can_take_address(state.fom_types, &expr.operands[0], "the '&' operator cannot be applied to %s")
 
         case AstExpressionKind.GetVariable:
-            if find_and_typecheck_constant(state.jou_file, expr.varname, &c, True):
+            if find_and_typecheck_constant(state.jou_file, expr.varname, &c):
                 # Transform the expression into a constant
                 expr.kind = AstExpressionKind.Constant
                 expr.constant = c.copy()
@@ -1601,7 +1601,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 fail(stmt.location, msg)
 
             c: Constant
-            if find_and_typecheck_constant(state.jou_file, varname, &c, False):
+            if find_and_typecheck_constant(state.jou_file, varname, &c):
                 snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
                 fail(stmt.location, msg)
 
