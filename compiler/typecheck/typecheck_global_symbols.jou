@@ -11,8 +11,153 @@ import "../evaluate.jou"
 import "./common.jou"
 
 
+def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
+    msg: byte[500]
+
+    astsig = &ast.ast_signature
+    sig = Signature{name = astsig.name, takes_varargs = astsig.takes_varargs}
+    if ast.inline:
+        sig.ast_to_inline = ast
+
+    for astarg = astsig.args.ptr; astarg < astsig.args.end(); astarg++:
+        arg = NameAndType{name = astarg.name}
+        if (
+            strcmp(astarg.name, "self") == 0
+            and astarg.type.kind == AstTypeKind.Named
+            and astarg.type.name[0] == '\0'
+        ):
+            # just "self" without a type after it --> default to "self: Foo*" in class Foo
+            assert self_class != NULL
+            arg.type = self_class.pointer_type()
+        else:
+            # A class can take itself as argument, so it's important we don't
+            # require it to be populated here. Otherwise defining such method
+            # would fail.
+            arg.type = type_from_ast(jou_file, self_class, &astarg.type, False)
+
+        if strcmp(arg.name, "self") == 0 and arg.type != self_class and arg.type != self_class.pointer_type():
+            snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class.name, self_class.name)
+            fail(astarg.type.location, msg)
+
+        sig.args.append(arg)
+
+    sig.is_noreturn = astsig.return_type.is_noreturn()
+    if astsig.return_type.is_none() or astsig.return_type.is_noreturn():
+        sig.return_type = NULL
+    elif astsig.return_type.is_void():
+        snprintf(
+            msg, sizeof(msg),
+            "void is not a valid return type, use '-> None' if the %s does not return a value",
+            "function" if self_class == NULL else "method",
+        )
+        fail(astsig.return_type.location, msg)
+    else:
+        sig.return_type = type_from_ast(jou_file, self_class, &astsig.return_type, False)
+
+    if sig.is_main_function():
+        if sig.return_type == NULL or sig.return_type.unwrap_typedef() != int_type(32):
+            fail(astsig.return_type.location, "the main() function must return int")
+        if (
+            sig.args.len != 0
+            and not (
+                sig.args.len == 2
+                and sig.args.ptr[0].type == int_type(32)
+                and sig.args.ptr[1].type == uint_type(8).pointer_type().pointer_type()
+            )
+        ):
+            fail(
+                astsig.args.ptr[0].type.location,
+                "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
+            )
+
+    return sig
+
+
+def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> None:
+    msg: byte[500]
+    assert t.kind == TypeKind.Class
+
+    field = t.find_class_field(name)
+    if field != NULL:
+        # TODO: this is complicated, should just use same error message for fields and union members
+        assert t.classdata.fields.ptr <= field and field < t.classdata.fields.end()
+
+        belongs_to_a_union = (
+            (field > t.classdata.fields.ptr and field[-1].union_id == field.union_id)
+            or (&field[1] < t.classdata.fields.end() and field[1].union_id == field.union_id)
+        )
+
+        if belongs_to_a_union:
+            snprintf(msg, sizeof(msg), "class %s already has a union member named '%s'", t.name, name)
+        else:
+            snprintf(msg, sizeof(msg), "class %s already has a field named '%s'", t.name, name)
+        fail(location, msg)
+
+    if t.find_method(name) != NULL:
+        snprintf(msg, sizeof(msg), "class %s already has a method named '%s'", t.name, name)
+        fail(location, msg)
+
+
+def populate_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
+    # Class was already created when parsing. Let's fill it.
+    t = classdef.symbol.type
+    assert t != NULL
+    assert t.kind == TypeKind.Class
+
+    union_id = 0
+    for stmt = classdef.body.ptr; stmt < classdef.body.end(); stmt++:
+        match stmt.kind:
+            case AstStatementKind.ClassField:
+                f = ClassField{
+                    name = stmt.class_field.name,
+                    type = type_from_ast(jou_file, t, &stmt.class_field.type, True),
+                    union_id = union_id++,
+                }
+                check_class_member_not_exist(t, f.name, stmt.location)
+                t.classdata.fields.append(f)
+
+            case AstStatementKind.ClassUnion:
+                uid = union_id++
+                for ntv = stmt.union_fields.ptr; ntv < stmt.union_fields.end(); ntv++:
+                    for ntv2 = &ntv[1]; ntv2 < stmt.union_fields.end(); ntv2++:
+                        if strcmp(ntv.name, ntv2.name) == 0:
+                            msg: byte[500]
+                            snprintf(msg, sizeof(msg), "duplicate union member '%s'", ntv.name)
+                            fail(ntv2.name_location, msg)
+
+                    f = ClassField{
+                        name = ntv.name,
+                        type = type_from_ast(jou_file, t, &ntv.type, True),
+                        union_id = uid,
+                    }
+                    check_class_member_not_exist(t, f.name, ntv.name_location)
+                    t.classdata.fields.append(f)
+
+            case AstStatementKind.MethodDef:
+                # Don't handle the method body yet: that is a part of step 3, not step 2
+                sig = typecheck_signature(jou_file, &stmt.method, t)
+                stmt.method.symbol.signature = sig
+
+                check_class_member_not_exist(t, sig.name, stmt.location)
+                t.classdata.methods.append(sig.copy())
+
+            case AstStatementKind.Pass:
+                pass
+
+            case _:
+                assert False
+
+    if t.classdata.is_generic():
+        t.update_fields_and_methods_to_generic_instances()
+
+
 @public
 def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> None:
+    # TODO: delete jou_file parameter
+    for j = global_compiler_state.jou_files.ptr; j < global_compiler_state.jou_files.end(); j++:
+        if j.ast.ptr <= stmt and stmt < j.ast.end():
+            jou_file = j
+            break
     assert stmt.symbol() != NULL
     msg: byte[500]
 
@@ -29,7 +174,7 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
 
     match stmt.kind:
         case AstStatementKind.Const:
-            expected_type = type_from_ast(jou_file, NULL, &stmt.const_statement.type)
+            expected_type = type_from_ast(jou_file, NULL, &stmt.const_statement.type, True)
 
             value: Constant
             if not evaluate_constant_expression(jou_file, &stmt.const_statement.value, &value, expected_type):
@@ -48,23 +193,22 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
             stmt.symbol().constant = value
 
         case AstStatementKind.GlobalVariableDeclare:
-            stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_declare.type)
+            stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_declare.type, True)
         case AstStatementKind.GlobalVariableDef:
-            stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_def.type)
+            stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_def.type, True)
 
         case AstStatementKind.Enum:
             stmt.symbol().type = create_enum(stmt.symbol().name, stmt.enumdef.members)
 
         case AstStatementKind.TypeDef:
-            actual_type = type_from_ast(jou_file, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef()
+            actual_type = type_from_ast(jou_file, NULL, &stmt.typedef_statement.ast_type, True).unwrap_typedef()
             stmt.symbol().type = create_typedef_type(stmt.symbol().name, actual_type)
 
         case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
             stmt.symbol().signature = typecheck_signature(jou_file, &stmt.function, NULL)
 
         case AstStatementKind.Class:
-            # TODO: should be created somehow lazily, don't yet know how
-            pass
+            populate_class_members(jou_file, &stmt.classdef)
 
         case _:
             assert False
@@ -139,20 +283,27 @@ def find_and_typecheck_function(jou_file: JouFile*, name: byte*) -> Signature*:
 
 
 # Returns type if found, NULL if not found.
+#
+# If needs_to_be_populated = False, this may return a class whose methods are
+# still missing.
 @public
-def find_and_typecheck_type(jou_file: JouFile*, name: byte*) -> Type*:
+def find_and_typecheck_type(jou_file: JouFile*, name: byte*, needs_to_be_populated: bool) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Type)
     if stmt == NULL:
         return NULL
-    typecheck_statement_with_symbol(jou_file, stmt)
+    if stmt.kind != AstStatementKind.Class or needs_to_be_populated:
+        typecheck_statement_with_symbol(jou_file, stmt)
+    assert stmt.symbol().type != NULL
     return stmt.symbol().type
 
 
 # Returns type representing List[T] or similar (with dummy typevars) if found, NULL if not found.
 @public
-def find_and_typecheck_generic_class(jou_file: JouFile*, name: byte*) -> Type*:
+def find_and_typecheck_generic_class(jou_file: JouFile*, name: byte*, needs_to_be_populated: bool) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GenericClass)
     if stmt == NULL:
         return NULL
-    typecheck_statement_with_symbol(jou_file, stmt)
+    if needs_to_be_populated:
+        typecheck_statement_with_symbol(jou_file, stmt)
+    assert stmt.symbol().type != NULL
     return stmt.symbol().type

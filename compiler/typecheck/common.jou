@@ -24,7 +24,7 @@ def plural_s(n: int64) -> byte*:
 
 
 @public
-def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*) -> Type*:
+def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*, needs_to_be_populated: bool) -> Type*:
     if containing_class != NULL:
         assert containing_class.kind == TypeKind.Class
         for p = containing_class.classdata.generic_params.ptr; p < containing_class.classdata.generic_params.end(); p++:
@@ -63,12 +63,12 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
                             if strcmp((*p).name, asttype.name) == 0:
                                 return *p
 
-                    found = find_and_typecheck_type(jou_file, asttype.name)
+                    found = find_and_typecheck_type(jou_file, asttype.name, needs_to_be_populated)
                     if found != NULL:
                         return found
 
                     # At this point we will show an error for sure.
-                    generic = find_and_typecheck_generic_class(jou_file, asttype.name)
+                    generic = find_and_typecheck_generic_class(jou_file, asttype.name, needs_to_be_populated)
                     if generic == NULL:
                         snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype.name)
                     else:
@@ -89,10 +89,13 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
         case AstTypeKind.Pointer:
             if asttype.value_type.is_void():
                 return void_ptr_type()
-            return type_from_ast(jou_file, containing_class, asttype.value_type).pointer_type()
+            # To construct the pointer type Foo* we don't need to know what Foo
+            # contains. Supporting this properly is important for e.g. classes
+            # that refer to themselves with pointers
+            return type_from_ast(jou_file, containing_class, asttype.value_type, False).pointer_type()
 
         case AstTypeKind.Array:
-            tmp = type_from_ast(jou_file, containing_class, asttype.array.member_type)
+            tmp = type_from_ast(jou_file, containing_class, asttype.array.member_type, needs_to_be_populated)
             len = evaluate_array_length(asttype.array.length)
             if len <= 0:
                 fail(asttype.array.length.location, "array length must be positive")
@@ -100,9 +103,9 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
 
         case AstTypeKind.Generic:
             name = asttype.generic.class_name
-            gclass = find_and_typecheck_generic_class(jou_file, name)
+            gclass = find_and_typecheck_generic_class(jou_file, name, needs_to_be_populated)
             if gclass == NULL:
-                if find_and_typecheck_type(jou_file, name) != NULL:
+                if find_and_typecheck_type(jou_file, name, False) != NULL:
                     snprintf(msg, sizeof(msg), "%s is not generic, use just %s instead of %s[something]", name, name, name)
                 else:
                     snprintf(msg, sizeof(msg), "there is no generic class named '%s'", name)
@@ -128,7 +131,11 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             to: Type** = malloc(sizeof(to[0]) * n)
             assert to != NULL
             for i = 0; i < n; i++:
-                to[i] = type_from_ast(jou_file, containing_class, &asttype.generic.param_types.ptr[i])
+                # TODO: It is hard but possible to figure out whether these
+                # need to be populated. For example, for List they don't
+                # (so we assume False for compatibility), because List[T]
+                # contains only a pointer to T, not T itself.
+                to[i] = type_from_ast(jou_file, containing_class, &asttype.generic.param_types.ptr[i], False)
 
             result = gclass.substitute_generic_params(from, to, n)
             free(to)
@@ -143,71 +150,11 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             argtypes: Type*[100]
 
             for i = 0; i < nargs; i++:
-                argtypes[i] = type_from_ast(jou_file, containing_class, &fp.argtypes.ptr[i])
+                argtypes[i] = type_from_ast(jou_file, containing_class, &fp.argtypes.ptr[i], needs_to_be_populated)
 
             if fp.return_type.is_none() or fp.return_type.is_noreturn():
                 return_type = NULL
             else:
-                return_type = type_from_ast(jou_file, containing_class, fp.return_type)
+                return_type = type_from_ast(jou_file, containing_class, fp.return_type, needs_to_be_populated)
 
             return funcptr_type(argtypes, nargs, fp.takes_varargs, return_type, fp.return_type.is_noreturn())
-
-
-@public
-def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
-    msg: byte[500]
-
-    astsig = &ast.ast_signature
-    sig = Signature{name = astsig.name, takes_varargs = astsig.takes_varargs}
-    if ast.inline:
-        sig.ast_to_inline = ast
-
-    for astarg = astsig.args.ptr; astarg < astsig.args.end(); astarg++:
-        arg = NameAndType{name = astarg.name}
-        if (
-            strcmp(astarg.name, "self") == 0
-            and astarg.type.kind == AstTypeKind.Named
-            and astarg.type.name[0] == '\0'
-        ):
-            # just "self" without a type after it --> default to "self: Foo*" in class Foo
-            assert self_class != NULL
-            arg.type = self_class.pointer_type()
-        else:
-            arg.type = type_from_ast(jou_file, self_class, &astarg.type)
-
-        if strcmp(arg.name, "self") == 0 and arg.type != self_class and arg.type != self_class.pointer_type():
-            snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class.name, self_class.name)
-            fail(astarg.type.location, msg)
-
-        sig.args.append(arg)
-
-    sig.is_noreturn = astsig.return_type.is_noreturn()
-    if astsig.return_type.is_none() or astsig.return_type.is_noreturn():
-        sig.return_type = NULL
-    elif astsig.return_type.is_void():
-        snprintf(
-            msg, sizeof(msg),
-            "void is not a valid return type, use '-> None' if the %s does not return a value",
-            "function" if self_class == NULL else "method",
-        )
-        fail(astsig.return_type.location, msg)
-    else:
-        sig.return_type = type_from_ast(jou_file, self_class, &astsig.return_type)
-
-    if sig.is_main_function():
-        if sig.return_type == NULL or sig.return_type.unwrap_typedef() != int_type(32):
-            fail(astsig.return_type.location, "the main() function must return int")
-        if (
-            sig.args.len != 0
-            and not (
-                sig.args.len == 2
-                and sig.args.ptr[0].type == int_type(32)
-                and sig.args.ptr[1].type == uint_type(8).pointer_type().pointer_type()
-            )
-        ):
-            fail(
-                astsig.args.ptr[0].type.location,
-                "if the main() function takes parameters, it should be defined like this: def main(argc: int, argv: byte**) -> int"
-            )
-
-    return sig
