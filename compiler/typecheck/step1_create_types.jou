@@ -12,7 +12,6 @@
 import "../ast.jou"
 import "../state.jou"
 import "../types.jou"
-import "./typecheck_global_symbols.jou"
 
 
 @public
@@ -27,8 +26,6 @@ def typecheck_step1_create_types(jou_file: JouFile*) -> None:
                     old_name: byte[500] = t.name
                     t.name = create_type_name_with_params(old_name, t.classdata.generic_params)
                 stmt.symbol().type = t
-            case AstStatementKind.Enum:
-                typecheck_statement_with_symbol(jou_file, stmt)
             case AstStatementKind.TypeDef:
                 stmt.symbol().type = create_typedef_type(stmt.symbol().name)
             case _:

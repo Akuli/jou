@@ -59,6 +59,10 @@ def typecheck_statement_with_symbol(jou_file: JouFile*, stmt: AstStatement*) -> 
         case AstStatementKind.Enum:
             stmt.symbol().type = create_enum(stmt.symbol().name, stmt.enumdef.members)
 
+        case AstStatementKind.Class | AstStatementKind.TypeDef:
+            # TODO: should be created somehow lazily, don't yet know how
+            pass
+
         case _:
             assert False
 
@@ -137,7 +141,7 @@ def find_and_typecheck_type(jou_file: JouFile*, name: byte*) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.Type)
     if stmt == NULL:
         return NULL
-    #typecheck_statement_with_symbol(jou_file, stmt)  # TODO
+    typecheck_statement_with_symbol(jou_file, stmt)
     return stmt.symbol().type
 
 
@@ -147,5 +151,5 @@ def find_and_typecheck_generic_class(jou_file: JouFile*, name: byte*) -> Type*:
     stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GenericClass)
     if stmt == NULL:
         return NULL
-    #typecheck_statement_with_symbol(jou_file, stmt)  # TODO
+    typecheck_statement_with_symbol(jou_file, stmt)
     return stmt.symbol().type
