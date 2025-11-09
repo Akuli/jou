@@ -89,6 +89,13 @@ $ ./jou -vv examples/hello.jou  # Show all details
 
 ## Gotchas and unusual things
 
+Command-line arguments, AST of all files and various other things
+are all placed into one global variable that is accessed from many places.
+In my experience, this pattern encourages me to write simpler code:
+instead of writing classes that each do something and connecting them into a complex mesh,
+I write simple functions that mutate a big state object.
+The state object is defined in [compiler/state.jou](../../compiler/state.jou).
+
 Unlike many other compilers, the Jou compiler does not have "Jou IR" between AST and LLVM IR.
 The Jou compiler used to have a "Jou IR" (called CFGs) that was generated from AST,
 and then LLVM IR was generated from the "Jou IR".
