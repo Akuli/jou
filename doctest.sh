@@ -12,7 +12,7 @@ for arg in "$@"; do
 done
 
 if [ $# == 0 ]; then
-    files=(README.md doc/*.md)
+    files=(README.md doc/*.md doc/*/*.md)
 else
     files=("$@")
 fi

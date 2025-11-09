@@ -45,17 +45,10 @@ Here's what each step does:
 - **Evaluating compile-time if statements** must be done before looking at what other files are imported.
     For example, if there is a Windows-specific `import` statement under `if WINDOWS:`,
     we want to ignore it when not compiling for Windows.
-- **Type checking** is split into several steps,
-    so that everything will work as expected even if there are circular imports.
-    Whenever one file influences another file, that is done explicitly between the steps.
-    For example, suppose that functions `foo()` and `bar()` call each other recursively,
-    and they are in different files.
-    During step 3, the compiler goes through the body of `foo()`, and it sees a call to `bar()`.
-    It already knows about the `bar()` function, because discovering functions is part of step 2.
-    To understand what each step does, see the comments at the start of
-    [compiler/typecheck/step1_create_types.jou](../../compiler/typecheck/step1_create_types.jou),
-    [compiler/typecheck/step2_populate_types.jou](../../compiler/typecheck/step2_populate_types.jou) and
-    [compiler/typecheck/step3_function_and_method_bodies.jou](../../compiler/typecheck/step3_function_and_method_bodies.jou).
+- **Type checking** means figuring out what type everything in the code is,
+    whether the code tries to access something that doesn't exist,
+    and a few other things.
+    For details, see [type-checking.md](./type-checking.md).
 - **UVGs** are used only to show error messages and warnings.
     They are used to detect undefined variables and a few other common mistakes.
     See [uvg.md](uvg.md) for details.
