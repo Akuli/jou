@@ -27,7 +27,6 @@ import "./typecheck_global_symbols.jou"
 
 class State:
     jou_file: JouFile*
-    file_types: FileTypes*
     fom_types: FunctionOrMethodTypes*
 
     def find_any_var(self, name: byte*) -> Type*:
@@ -718,7 +717,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
         # Without this we would get "no variable named 'foo'".
         if (
             call.function.kind == AstExpressionKind.GetVariable
-            and state.file_types.find_function(call.function.varname) == NULL
+            and find_and_typecheck_function(state.jou_file, call.function.varname) == NULL
             and state.find_any_var(call.function.varname) == NULL
         ):
             snprintf(msg, sizeof(msg), "function '%s' not found", call.function.varname)
@@ -1169,7 +1168,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 result = state.find_any_var(expr.varname)
                 if result == NULL:
                     # Is it a function?
-                    sig = state.file_types.find_function(expr.varname)
+                    sig = find_and_typecheck_function(state.jou_file, expr.varname)
                     if sig == NULL:
                         snprintf(msg, sizeof(msg), "no variable named '%s'", expr.varname)
                         fail(expr.location, msg)
@@ -1354,7 +1353,7 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                         strcat(msg, " (use if/else instead)")
                 fail(match_stmt.match_obj.location, msg)
     else:
-        sig = state.file_types.find_function(match_stmt.func_name)
+        sig = find_and_typecheck_function(state.jou_file, match_stmt.func_name)
         if sig == NULL:
             snprintf(msg, sizeof(msg), "function '%s' not found", match_stmt.func_name)
             fail(match_stmt.match_obj.location, msg)
@@ -1617,7 +1616,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             typecheck_expression(state, &stmt.expression, NULL)
 
         case AstStatementKind.Assert:
-            if state.file_types.find_function("_jou_assert_fail") == NULL:
+            if find_and_typecheck_function(state.jou_file, "_jou_assert_fail") == NULL:
                 fail(stmt.location, "you must import \"stdlib/assert.jou\" to use the assert keyword")
             typecheck_expression_with_implicit_cast(
                 state, &stmt.assertion.condition, bool_type(),
@@ -1657,7 +1656,7 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
 
 @public
 def typecheck_step3_function_and_method_bodies(jou_file: JouFile*) -> None:
-    state = State{jou_file = jou_file, file_types = &jou_file.types}
+    state = State{jou_file = jou_file}
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:

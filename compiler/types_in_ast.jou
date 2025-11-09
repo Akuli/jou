@@ -59,30 +59,3 @@ class FunctionOrMethodTypes:
     def free(self) -> None:
         free(self.locals.ptr)
         self.signature.free()
-
-
-class SignatureAndUsedPtr:
-    signature: Signature
-    usedptr: bool*  # used to detect unused imports
-
-
-@public
-class FileTypes:
-    functions: List[SignatureAndUsedPtr]
-
-    def add_function(self, signature: Signature*, usedptr: bool*) -> None:
-        self.functions.append(SignatureAndUsedPtr{signature = signature.copy(), usedptr = usedptr})
-
-    # This is safe to call if self has been zero-initialized.
-    def free(self) -> None:
-        for func = self.functions.ptr; func < self.functions.end(); func++:
-            func.signature.free()
-        free(self.functions.ptr)
-
-    def find_function(self, name: byte*) -> Signature*:
-        for f = self.functions.ptr; f < self.functions.end(); f++:
-            if strcmp(f.signature.name, name) == 0:
-                if f.usedptr != NULL:
-                    *f.usedptr = True
-                return &f.signature
-        return NULL
