@@ -181,6 +181,18 @@ def find_and_typecheck_generic_class(jou_file: JouFile*, name: byte*) -> Type*:
     return stmt.symbol().type
 
 
+def check_compile_time_assert(jou_file: JouFile*, location: Location, condition: AstExpression*) -> None:
+    c: Constant
+    if not evaluate_constant_expression(jou_file, condition, &c, bool_type()):
+        fail(location, "cannot evaluate assertion at compile time")
+    if c.get_type() != bool_type():
+        msg: byte[500]
+        snprintf(msg, sizeof(msg), "assertion must be a bool, not %s", c.get_type().name)
+        fail(location, msg)
+    if not c.boolean:
+        fail(location, "assertion is False")
+
+
 @public
 def typecheck_step1_global_symbols() -> None:
     if global_compiler_state.args.verbosity >= 1:
@@ -189,8 +201,11 @@ def typecheck_step1_global_symbols() -> None:
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
             printf("  %s\n", jou_file.path)
+
         for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
             if stmt.symbol() != NULL:
                 # To support various cyclic things, this may also type-check
                 # other things than the one statement we tell it to check.
                 typecheck_statement_with_symbol(stmt)
+            if stmt.kind == AstStatementKind.Assert:
+                check_compile_time_assert(jou_file, stmt.location, &stmt.assertion.condition)

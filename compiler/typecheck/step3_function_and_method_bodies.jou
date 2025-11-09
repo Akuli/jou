@@ -1677,16 +1677,5 @@ def typecheck_step3_function_and_method_bodies() -> None:
                             if global_compiler_state.args.verbosity >= 2:
                                 printf("    %s.%s()\n", stmt.symbol().name, inner.method.symbol.name)
                             typecheck_function_or_method_body(&state, &inner.method)
-                case AstStatementKind.Assert:
-                    # TODO: this is a bit funny place for this
-                    c: Constant
-                    if not evaluate_constant_expression(jou_file, &stmt.assertion.condition, &c, bool_type()):
-                        fail(stmt.location, "cannot evaluate assertion at compile time")
-                    if c.get_type() != bool_type():
-                        msg: byte[500]
-                        snprintf(msg, sizeof(msg), "assertion must be a bool, not %s", c.get_type().name)
-                        fail(stmt.location, msg)
-                    if not c.boolean:
-                        fail(stmt.location, "assertion is False")
                 case _:
                     pass
