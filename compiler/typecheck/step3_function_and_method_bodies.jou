@@ -4,11 +4,12 @@
 # After the third step, local variables exist, and the types of all values in
 # the program are known.
 #
-# This step assumes that all classes, enums, global variables and functions
-# already exist and are fully populated, so that we e.g. know what methods each
-# class has and what parameter types they take.
+# This step assumes that all types, global variables, functions etc. already
+# exist and are fully populated, so that we e.g. know what methods each class
+# has and what parameter types they take.
 
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/math.jou"
@@ -21,7 +22,7 @@ import "../errors_and_warnings.jou"
 import "../evaluate.jou"
 import "../types.jou"
 import "./common.jou"
-import "./typecheck_global_symbols.jou"
+import "./step1_global_symbols.jou"
 
 
 class State:
@@ -1655,26 +1656,26 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
 
 
 @public
-def typecheck_step3_function_and_method_bodies(jou_file: JouFile*) -> None:
-    state = State{jou_file = jou_file}
+def typecheck_step3_function_and_method_bodies() -> None:
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Typecheck: function and method bodies (step 3/3)\n")
 
-    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        match stmt.kind:
-            case AstStatementKind.FunctionDef:
-                typecheck_function_or_method_body(&state, &stmt.function)
-            case AstStatementKind.Class:
-                for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
-                    if inner.kind == AstStatementKind.MethodDef:
-                        typecheck_function_or_method_body(&state, &inner.method)
-            case AstStatementKind.Assert:
-                c: Constant
-                if not evaluate_constant_expression(jou_file, &stmt.assertion.condition, &c, bool_type()):
-                    fail(stmt.location, "cannot evaluate assertion at compile time")
-                if c.get_type() != bool_type():
-                    msg: byte[500]
-                    snprintf(msg, sizeof(msg), "assertion must be a bool, not %s", c.get_type().name)
-                    fail(stmt.location, msg)
-                if not c.boolean:
-                    fail(stmt.location, "assertion is False")
-            case _:
-                pass
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        if global_compiler_state.args.verbosity >= 1:
+            printf("  %s\n", jou_file.path)
+
+        state = State{jou_file = jou_file}
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+            match stmt.kind:
+                case AstStatementKind.FunctionDef:
+                    if global_compiler_state.args.verbosity >= 2:
+                        printf("    %s()\n", stmt.symbol().name)
+                    typecheck_function_or_method_body(&state, &stmt.function)
+                case AstStatementKind.Class:
+                    for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
+                        if inner.kind == AstStatementKind.MethodDef:
+                            if global_compiler_state.args.verbosity >= 2:
+                                printf("    %s.%s()\n", stmt.symbol().name, inner.method.symbol.name)
+                            typecheck_function_or_method_body(&state, &inner.method)
+                case _:
+                    pass

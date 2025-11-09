@@ -61,7 +61,7 @@ jobs:
           path: links.json
           key: links-${{ hashFiles('check-markdown-links.py') }}
       - run: pip install requests==2.32.3
-      - run: python check-markdown-links.py
+      - run: python check-markdown-links.py --verbose
 
   # Run the release script to make sure it doesn't error.
   release-dry-run:
