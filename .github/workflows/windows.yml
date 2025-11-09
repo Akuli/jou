@@ -156,7 +156,10 @@ jobs:
         run: source activate && ./jou -o jou2 compiler/main.jou && mv jou2.exe jou.exe
         shell: bash
       - name: "Compile and test again"
-        run: source activate && ./runtests.sh --verbose
+        # Skip tests that check various error cases to save about 3 minutes of
+        # CI time. That is important, because before this was the slowest
+        # thing in CI.
+        run: source activate && ./runtests.sh should_succeed --verbose
         shell: bash
       - run: source activate && ./doctest.sh
         shell: bash
