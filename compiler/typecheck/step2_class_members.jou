@@ -1,22 +1,17 @@
-# Second step of type checking is to check function/method signatures, global
-# variables, and bodies of classes. However, we don't look into function or
-# method bodies yet, because they reference other functions and methods which
-# might not exist.
-#
-# After the second step, all types, functions, and global variables are ready.
-#
-# This step assumes that all types exist, but doesn't need to know what fields
-# and methods each class has.
+# Second step of type checking is to go through bodies of classes and populate
+# the corresponding type objects. However, we don't look inside bodies of
+# methods yet; we only handle the fields (e.g. "x: int" inside a class) and
+# method signatures (argument and return types).
 
 import "stdlib/assert.jou"
 import "stdlib/str.jou"
+import "stdlib/io.jou"
 
 import "../ast.jou"
 import "../state.jou"
 import "../types.jou"
 import "../errors_and_warnings.jou"
 import "./common.jou"
-import "./typecheck_global_symbols.jou"
 
 
 def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> None:
@@ -98,19 +93,16 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
 
 
 @public
-def typecheck_step2_populate_types(jou_file: JouFile*) -> None:
-    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        match stmt.kind:
-            case (
-                AstStatementKind.GlobalVariableDeclare
-                | AstStatementKind.GlobalVariableDef
-                | AstStatementKind.Const
-                | AstStatementKind.TypeDef
-                | AstStatementKind.FunctionDeclare
-                | AstStatementKind.FunctionDef
-            ):
-                typecheck_statement_with_symbol(stmt)
-            case AstStatementKind.Class:
+def typecheck_step2_class_members() -> None:
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Typecheck: class bodies (step 2/3)\n")
+
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        if global_compiler_state.args.verbosity >= 1:
+            printf("  %s\n", jou_file.path)
+
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+            if stmt.kind == AstStatementKind.Class:
+                if global_compiler_state.args.verbosity >= 2:
+                    printf("    class %s\n", stmt.symbol().name)
                 handle_class_members(jou_file, &stmt.classdef)
-            case _:
-                pass

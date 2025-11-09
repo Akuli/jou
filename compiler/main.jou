@@ -20,8 +20,8 @@ import "./state.jou"
 import "./target.jou"
 import "./token.jou"
 import "./tokenizer.jou"
-import "./typecheck/step1_create_types.jou"
-import "./typecheck/step2_populate_types.jou"
+import "./typecheck/step1_global_symbols.jou"
+import "./typecheck/step2_class_members.jou"
 import "./typecheck/step3_function_and_method_bodies.jou"
 import "./types.jou"
 
@@ -349,29 +349,10 @@ def make_imported_statements_available() -> None:
     free(seen_before.ptr)
 
 
-def typecheck_all_files() -> None:
-    if global_compiler_state.args.verbosity >= 1:
-        printf("Type-checking...\n")
-
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        if global_compiler_state.args.verbosity >= 1:
-            printf("  step 1: %s\n", jou_file.path)
-        typecheck_step1_create_types(jou_file)
-
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        if global_compiler_state.args.verbosity >= 1:
-            printf("  step 2: %s\n", jou_file.path)
-        typecheck_step2_populate_types(jou_file)
-
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        if global_compiler_state.args.verbosity >= 1:
-            printf("  step 3: %s\n", jou_file.path)
-        typecheck_step3_function_and_method_bodies(jou_file)
-        if global_compiler_state.args.verbosity >= 3:
-            # AST now contains types. If very verbose, print them.
-            printf("===== AST for file \"%s\" =====\n", jou_file.path)
-            for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-                stmt.print()
+def typecheck_everything() -> None:
+    typecheck_step1_global_symbols()
+    typecheck_step2_class_members()
+    typecheck_step3_function_and_method_bodies()
 
 
 def build_and_analyze_all_uvgs() -> None:
@@ -436,7 +417,7 @@ def parse_only() -> None:
 def uvg_only() -> None:
     tokenize_and_parse_all_files()
     make_imported_statements_available()
-    typecheck_all_files()
+    typecheck_everything()
 
     mainfile = find_file(global_compiler_state.args.infile)
     assert mainfile != NULL
@@ -446,7 +427,7 @@ def uvg_only() -> None:
 def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
     tokenize_and_parse_all_files()
     make_imported_statements_available()
-    typecheck_all_files()
+    typecheck_everything()
     build_and_analyze_all_uvgs()
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:

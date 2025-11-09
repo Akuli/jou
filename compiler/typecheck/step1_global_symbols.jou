@@ -1,12 +1,21 @@
+# First step of type checking is to check all global symbols; that is, global
+# variables, `const`, classes etc.
+#
+# Class and function bodies are not checked yet. For classes, we create the
+# types but we don't fill them with members and methods. This way, when later
+# steps check function signatures, they can refer to classes that are defined
+# anywhere in the project, e.g. later in the same file.
+
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
 import "stdlib/str.jou"
 
+import "../state.jou"
 import "../global_symbols.jou"
 import "../types.jou"
 import "../errors_and_warnings.jou"
 import "../ast.jou"
 import "../constants.jou"
-import "../state.jou"
 import "../evaluate.jou"
 import "./common.jou"
 
@@ -34,6 +43,8 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
             return
 
     stmt.symbol().status = GlobalSymbolStatus.TypeChecking
+    if global_compiler_state.args.verbosity >= 2:
+        printf("    %s (%s in %s)\n", stmt.symbol().name, stmt.symbol().short_description(), jou_file.path)
 
     match stmt.kind:
         case AstStatementKind.Const:
@@ -71,8 +82,13 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
             stmt.symbol().signature = typecheck_signature(jou_file, &stmt.function, NULL)
 
         case AstStatementKind.Class:
-            # TODO: should be created somehow lazily, don't yet know how
-            pass
+            t = create_empty_class(stmt.symbol().name)
+            if stmt.classdef.is_generic():
+                for nameptr = stmt.classdef.generic_typevar_names.ptr; nameptr < stmt.classdef.generic_typevar_names.end(); nameptr++:
+                    t.classdata.generic_params.append(create_typevar(*nameptr))
+                old_name: byte[500] = t.name
+                t.name = create_type_name_with_params(old_name, t.classdata.generic_params)
+            stmt.symbol().type = t
 
         case _:
             assert False
@@ -163,3 +179,18 @@ def find_and_typecheck_generic_class(jou_file: JouFile*, name: byte*) -> Type*:
         return NULL
     typecheck_statement_with_symbol(stmt)
     return stmt.symbol().type
+
+
+@public
+def typecheck_step1_global_symbols() -> None:
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Typecheck: global symbols (step 1/3)\n")
+
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        if global_compiler_state.args.verbosity >= 1:
+            printf("  %s\n", jou_file.path)
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+            if stmt.symbol() != NULL:
+                # To support various cyclic things, this may also type-check
+                # other things than the one statement we tell it to check.
+                typecheck_statement_with_symbol(stmt)
