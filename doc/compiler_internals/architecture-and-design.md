@@ -53,8 +53,8 @@ Here's what each step does:
     During step 3, the compiler goes through the body of `foo()`, and it sees a call to `bar()`.
     It already knows about the `bar()` function, because discovering functions is part of step 2.
     To understand what each step does, see the comments at the start of
-    [compiler/typecheck/step1_create_types.jou](../../compiler/typecheck/step1_create_types.jou),
-    [compiler/typecheck/step2_populate_types.jou](../../compiler/typecheck/step2_populate_types.jou) and
+    [compiler/typecheck/step1_global_symbols.jou](../../compiler/typecheck/step1_global_symbols.jou),
+    [compiler/typecheck/step2_class_members.jou](../../compiler/typecheck/step2_class_members.jou) and
     [compiler/typecheck/step3_function_and_method_bodies.jou](../../compiler/typecheck/step3_function_and_method_bodies.jou).
 - **UVGs** are used only to show error messages and warnings.
     They are used to detect undefined variables and a few other common mistakes.
