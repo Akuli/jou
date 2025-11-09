@@ -1,6 +1,6 @@
 # Type Checking
 
-Type checking means figuring out what the type each thing in a Jou program is,
+Type checking means figuring out what the type of each thing in a Jou program is,
 whether the code tries to access something that doesn't exist,
 and also evaluating some values such as `const` statements and array sizes.
 
