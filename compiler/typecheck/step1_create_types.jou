@@ -9,19 +9,14 @@
 # Enums are simple. The first step creates them and also fills in their members,
 # although it doesn't really matter whether that's done in step 1 or 2.
 
-import "stdlib/list.jou"
-
 import "../ast.jou"
-import "../global_symbols.jou"
 import "../state.jou"
 import "../types.jou"
 import "./typecheck_global_symbols.jou"
 
 
 @public
-def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
-    exports = List[GlobalSymbol*]{}
-
+def typecheck_step1_create_types(jou_file: JouFile*) -> None:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.Class:
@@ -35,17 +30,6 @@ def typecheck_step1_create_types(jou_file: JouFile*) -> List[GlobalSymbol*]:
             case AstStatementKind.Enum:
                 typecheck_statement_with_symbol(jou_file, stmt)
             case AstStatementKind.TypeDef:
-                t = create_typedef_type(stmt.symbol().name)
-                stmt.symbol().type = t
+                stmt.symbol().type = create_typedef_type(stmt.symbol().name)
             case _:
-                continue
-
-#        if stmt.kind == AstStatementKind.Class and stmt.classdef.is_generic():
-#            jou_file.types.add_generic_class(stmt.symbol().type, &stmt.symbol().used)
-#        else:
-#            jou_file.types.add_type(stmt.symbol().type, &stmt.symbol().used)
-
-        if stmt.symbol().public:
-            exports.append(stmt.symbol())
-
-    return exports
+                pass

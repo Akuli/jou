@@ -390,16 +390,13 @@ def typecheck_all_files() -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Type-checking...\n")
 
-    pending_exports: List[GlobalSymbol*]* = malloc(sizeof(pending_exports[0]) * global_compiler_state.jou_files.len)
-    assert pending_exports != NULL
-
-    i = 0
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
             printf("  step 1: %s\n", jou_file.path)
-        pending_exports[i++] = typecheck_step1_create_types(jou_file)
+        typecheck_step1_create_types(jou_file)
 
-    exports_to_imports(pending_exports)
+    pending_exports: List[GlobalSymbol*]* = malloc(sizeof(pending_exports[0]) * global_compiler_state.jou_files.len)
+    assert pending_exports != NULL
 
     i = 0
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
@@ -408,6 +405,7 @@ def typecheck_all_files() -> None:
         pending_exports[i++] = typecheck_step2_populate_types(jou_file)
 
     exports_to_imports(pending_exports)
+    free(pending_exports)
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
@@ -418,8 +416,6 @@ def typecheck_all_files() -> None:
             printf("===== AST for file \"%s\" =====\n", jou_file.path)
             for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
                 stmt.print()
-
-    free(pending_exports)
 
 
 def build_and_analyze_all_uvgs() -> None:
