@@ -139,3 +139,13 @@ def find_and_typecheck_type(jou_file: JouFile*, name: byte*) -> Type*:
         return NULL
     #typecheck_statement_with_symbol(jou_file, stmt)  # TODO
     return stmt.symbol().type
+
+
+# Returns type representing List[T] or similar (with dummy typevars) if found, NULL if not found.
+@public
+def find_and_typecheck_generic_class(jou_file: JouFile*, name: byte*) -> Type*:
+    stmt = find_global_symbol_statement(jou_file, name, GlobalSymbolKind.GenericClass)
+    if stmt == NULL:
+        return NULL
+    #typecheck_statement_with_symbol(jou_file, stmt)  # TODO
+    return stmt.symbol().type

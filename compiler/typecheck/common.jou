@@ -68,7 +68,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
                         return found
 
                     # At this point we will show an error for sure.
-                    generic = jou_file.types.find_generic_class(asttype.name)
+                    generic = find_and_typecheck_generic_class(jou_file, asttype.name)
                     if generic == NULL:
                         snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype.name)
                     else:
@@ -100,7 +100,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
 
         case AstTypeKind.Generic:
             name = asttype.generic.class_name
-            gclass = jou_file.types.find_generic_class(name)
+            gclass = find_and_typecheck_generic_class(jou_file, name)
             if gclass == NULL:
                 if find_and_typecheck_type(jou_file, name) != NULL:
                     snprintf(msg, sizeof(msg), "%s is not generic, use just %s instead of %s[something]", name, name, name)
