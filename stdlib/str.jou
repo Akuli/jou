@@ -62,8 +62,12 @@ declare strncmp(s1: byte*, s2: byte*, n: int64) -> int
 
 # Returns true if the string s starts with the given prefix.
 @public
+@inline
 def starts_with(s: byte*, prefix: byte*) -> bool:
-    return strncmp(s, prefix, strlen(prefix)) == 0
+    for i = 0; prefix[i] != '\0'; i++:
+        if s[i] != prefix[i]:
+            return False
+    return True
 
 # Returns true if the string s ends with the given prefix.
 @public
