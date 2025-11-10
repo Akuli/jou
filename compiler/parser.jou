@@ -151,6 +151,11 @@ def skip_string_or_byte(s: byte*) -> byte*:
     return s
 
 
+# TODO: offset is long, Windows support
+declare fseek(stream: FILE*, offset: int64, whence: int) -> int
+const SEEK_SET: int = 0  # seek from beginning of file
+
+
 def read_assertion_from_file(start: Token*, end: Token*) -> byte*:
     assert start.byte_offset >= 0
     assert end.byte_offset >= 0
@@ -161,8 +166,8 @@ def read_assertion_from_file(start: Token*, end: Token*) -> byte*:
     assert f != NULL
 
     # TODO: add fseek to standard library
-    for i = 0; i < start.byte_offset; i++:
-        fgetc(f)
+    seek_result = fseek(f, start.byte_offset, SEEK_SET)
+    assert seek_result == 0  # success
 
     s: byte* = malloc(end.byte_offset - start.byte_offset + 1)
     assert s != NULL
