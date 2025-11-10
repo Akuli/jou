@@ -24,14 +24,6 @@ import "./common.jou"
 def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
     msg: byte[500]
 
-    # Find the Jou file where the statement is defined
-    jou_file: JouFile* = NULL
-    for j = global_compiler_state.jou_files.ptr; j < global_compiler_state.jou_files.end(); j++:
-        if j.ast.ptr <= stmt and stmt < j.ast.end():
-            jou_file = j
-            break
-    assert jou_file != NULL
-
     assert stmt.symbol() != NULL
     match stmt.symbol().status:
         case GlobalSymbolStatus.NotTypeChecked:
@@ -41,6 +33,14 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
             fail(stmt.location, msg)
         case GlobalSymbolStatus.Ready:
             return
+
+    # Find the Jou file where the statement is defined
+    jou_file: JouFile* = NULL
+    for j = global_compiler_state.jou_files.ptr; j < global_compiler_state.jou_files.end(); j++:
+        if j.ast.ptr <= stmt and stmt < j.ast.end():
+            jou_file = j
+            break
+    assert jou_file != NULL
 
     stmt.symbol().status = GlobalSymbolStatus.TypeChecking
     if global_compiler_state.args.verbosity >= 2:
