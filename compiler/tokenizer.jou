@@ -205,7 +205,7 @@ def detect_banned_whitespace_characters(file_content: byte*, path: byte*) -> Non
 
 
 class Tokenizer:
-    file_content: byte*
+    file_ptr: byte*
     file_content_start: byte*  # used to work out byte offsets when needed
     location: Location
     # Parens array isn't dynamic, so that you can't segfault
@@ -216,9 +216,9 @@ class Tokenizer:
     banned_chars_state: uint32
 
     def read_byte(self) -> byte:
-        c = *self.file_content
+        c = *self.file_ptr
         if c != '\0':
-            self.file_content++
+            self.file_ptr++
         if c == '\n':
             self.location.lineno++
         return c
@@ -226,11 +226,11 @@ class Tokenizer:
     def unread_byte(self, b: byte) -> None:
         if b == '\0':
             # Reading or unreading the end marker does nothing
-            assert *self.file_content == '\0'
+            assert *self.file_ptr == '\0'
         else:
-            assert self.file_content > self.file_content_start
-            assert self.file_content[-1] == b
-            self.file_content--
+            assert self.file_ptr > self.file_content_start
+            assert self.file_ptr[-1] == b
+            self.file_ptr--
             if b == '\n':
                 self.location.lineno--
 
@@ -481,7 +481,7 @@ class Tokenizer:
         while True:
             token = Token{
                 location = self.location,
-                byte_offset = ((self.file_content as int64) - (self.file_content_start as int64)) as int,
+                byte_offset = ((self.file_ptr as int64) - (self.file_content_start as int64)) as int,
             }
             token.byte_offset--  # compensate for fake newline added to start of file
             b = self.read_byte()
@@ -544,7 +544,7 @@ class Tokenizer:
 def tokenize_without_indent_dedent_tokens(file_content: byte*, path: byte*) -> Token*:
     tokenizer = Tokenizer{
         location = Location{path = path},
-        file_content = file_content,
+        file_ptr = file_content,
         file_content_start = file_content,
     }
 
