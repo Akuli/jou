@@ -1988,7 +1988,15 @@ class CFuncMaker:
             end_braces = ""
             for cond, body in if_and_elifs:
                 cond = self.do_expression(cond, BASIC_TYPES["bool"])
-                if cond.c_code != "false":
+                if cond.c_code == "true":
+                    # Evaluate it and don't bother with the rest.
+                    self.do_body(body)
+                    otherwise = []
+                elif cond.c_code == "false":
+                    # Skip this entirely
+                    pass
+                else:
+                    # Fully evaluate it. Nest the rest in the else.
                     self.output.append("if (" + cond.c_code + ") {")
                     self.do_body(body)
                     self.output.append("} else {")
