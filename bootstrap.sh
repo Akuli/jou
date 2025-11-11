@@ -125,7 +125,7 @@ function transpile_with_python_and_compile() {
         echo "Compiling C code..."
         # TODO: -w silences all warnings. We might not want that in the future.
         if [[ "$OS" =~ Windows ]]; then
-            $cc -w -O1 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
+            $cc -g -w -O1 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
             echo "Sanity check..."
             JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix examples/hello.jou
             echo "Sanity check 2..."
