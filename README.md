@@ -87,7 +87,7 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 1. Install the dependencies:
     ```
-    $ sudo apt install git llvm-19-dev clang-19 make
+    $ sudo apt install git llvm-19-dev clang-19 make python3
     ```
     Let me know if you use a distro that doesn't have `apt`,
     and you need help with this step.
@@ -153,19 +153,21 @@ $ LLVM_CONFIG=llvm-config-15 make
     - `llvm@18`
     - `llvm@19`
     - `llvm@20`
-2. Download and compile Jou.
+2. Install Python if you don't have it already.
+    Any reasonably new version will work.
+3. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou
     $ cd jou
     $ make
     ```
-3. Run the hello world program to make sure that Jou works:
+4. Run the hello world program to make sure that Jou works:
     ```
     $ ./jou examples/hello.jou
     Hello World
     ```
     You can now run other Jou programs in the same way.
-4. (Optional) If you want to run Jou programs with simply `jou filename`
+5. (Optional) If you want to run Jou programs with simply `jou filename`
     instead of something like `./jou filename` or `/full/path/to/jou filename`,
     you can add the `jou` directory to your PATH.
     To do so, edit `~/.bashrc` (or whatever other file you have instead, e.g. `~/.zshrc`):
@@ -188,7 +190,9 @@ $ LLVM_CONFIG=llvm-config-15 make
     ```
     # pkgin install bash clang git gmake python313
     ```
-    Optionally `diffutils` can be installed for coloured diff outputs.
+    You don't need to install Python 3.13 specifically.
+    Any reasonably new version of Python will work.
+    You may also want to install `diffutils` for coloured diff outputs.
 2. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou
