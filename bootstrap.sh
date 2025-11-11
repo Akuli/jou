@@ -113,7 +113,7 @@ function transpile_with_python_and_compile() {
     if [[ "$OS" =~ Windows ]]; then
         echo "Copying LLVM files..."
         mkdir -p $folder/mingw64/lib
-        cp -v ${windows_llvm_files[@]} $folder/mingw64/lib/
+        cp ${windows_llvm_files[@]} $folder/mingw64/lib/
     fi
 
     (
@@ -159,11 +159,11 @@ function compile_next_jou_compiler() {
         if [ $number -le 16 ]; then
             mkdir $folder/libs
             for f in ${windows_llvm_files[@]}; do
-                cp -v $f $folder/libs/$(basename -s .dll.a $f).a
+                cp $f $folder/libs/$(basename -s .dll.a $f).a
             done
         else
             mkdir -p $folder/mingw64/lib
-            cp -v ${windows_llvm_files[@]} $folder/mingw64/lib/
+            cp ${windows_llvm_files[@]} $folder/mingw64/lib/
         fi
     fi
 
