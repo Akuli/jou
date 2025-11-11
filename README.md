@@ -240,24 +240,25 @@ However, this doesn't help you much if you have nothing that can compile Jou cod
 
 To solve this problem, there are two scripts:
 - [`bootstrap_transpiler.py`](./bootstrap_transpiler.py) is a Python script that converts Jou code to C code.
+    It is not intended to be used for anything other than this.
+    For example, it doesn't support all features of the Jou language.
 - [`bootstrap.sh`](./bootstrap.sh) takes old versions of the Jou compiler from Git history,
     starting with a commit that is compatible with `./bootstrap_transpiler.py`.
-    It then uses the previous version of Jou to compile the next version of Jou
+    It then uses the previous Jou compiler to compile the next version of the Jou compiler
     until it gets a Jou compiler that supports the latest Jou syntax.
 
 On Windows, if you don't have Python installed, you can also pass the `--small` option to `./windows_setup.sh`
+as described in [CONTRIBUTING.md](CONTRIBUTING.md).
+This downloads a release of Jou from GitHub and uses its `jou.exe`
+as a starting point instead of an old Jou compiler in Git history.
 
-When you set up Jou for the first time,
-`bootstrap_transpiler.py` is used to convert a slightly old version of the Jou compiler into C code,
-and the C code is then compiled to produce a working but slightly outdated Jou compiler.
-This Jou compiler is then used to compile a newer version of the Jou compiler,
-which then compiles a newer Jou compiler and so on.
-[The `bootstrap.sh` script](./bootstrap.sh) does all this automatically when you set up Jou.
+You might be wondering why `bootstrap_transpiler.py` does not directly support the latest Jou version.
+The main reason is that it would break frequently when working on the Jou compiler,
+and when it breaks, it produces horribly bad error messages.
+This is by design: its only purpose is to compile the subset of Jou used in a specific compiler version.
+Instead, it is usually better to add a new commit to the end of the list in [`bootstrap.sh`](./bootstrap.sh).
 
-The compiler written in C was deleted, because it is easier to maintain one compiler than two compilers.
-Instead, there is [a script named bootstrap.sh](./bootstrap.sh).
-
-See [CONTRIBUTING.md](CONTRIBUTING.md)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for some more details
 if you want to learn more about the Jou compiler or develop it.
 
 

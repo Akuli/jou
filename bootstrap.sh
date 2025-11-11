@@ -3,22 +3,16 @@
 # The Jou compiler is written in Jou, but it doesn't help you very much if you
 # have nothing that can compile or run Jou code. That's why this script exists.
 #
-# This script uses `jou_to_c.py` to convert the Jou compiler's source code to C
-# and then compiles that with a C compiler.
+# See the bootstrapping section in README.md for details.
 #
-# The Jou compiler version to convert is not whatever is a hard-coded commit,
-# not whatever is on the the latest `main` branch, for a few reasons:
-#   - Adding a feature to Jou does not necessarily break this script.
-#   - When you develop Jou, this process does not need to happen every time you
-#     change the compiler's source code.
-#   - If there's something wrong with the compiler, this script will likely
-#     give you a cryptic error message. By using a known-to-be-good commit, we
-#     avoid that.
+# If you just want to setup a Jou development environment, you probably don't
+# need to run this script manually, because `make` runs it as needed.
 
 set -e -o pipefail
 
 # Add the latest commit on main branch to the end of the list if this script
-# produces a compiler that is too old.
+# produces a compiler that is too old. This means that whatever the script is
+# currently producing will be used to compile the commit you add.
 #
 # The numbering does not start from 0 for historical reasons. Commit 001 was
 # just before the original compiler written in C was deleted.
@@ -28,7 +22,7 @@ numbered_commits=(
     018_c594c326d3031a2894731f60ac9881a206793dfa  # infer types of integers in code
     019_99de2976a7f3b34ec6b2b07725c5ad1400313dc1  # bitwise xor operator `^`
     020_944c0f34e941d340af1749cdceea4621860ec69f  # bitwise '&' and '|', "const" supports integers other than int
-    021_9339a749315b82f73d19bacdccab5ee327c44822
+    021_9339a749315b82f73d19bacdccab5ee327c44822  # accessing fields and methods on pointers with '.' instead of '->'
     022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # <--- bootstrap_transpiler.py starts here!
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
 )
@@ -233,6 +227,6 @@ while true; do
     compile_next_jou_compiler $previous_numbered_commit $numbered_commit
 done
 
-echo -e "${CYAN}$0: Copying the bootstrapped executable....${RESET}"
+echo -e "${CYAN}$0: Copying the bootstrapped executable...${RESET}"
 cp -v tmp/bootstrap_cache/$previous_numbered_commit/jou$exe_suffix ./jou_bootstrap$exe_suffix
 echo -e "${CYAN}$0: Done!${RESET}"
