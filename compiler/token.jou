@@ -37,41 +37,59 @@ class Token:
         match self.kind:
             case TokenKind.Byte:
                 printf("byte %#02llx", self.integer_value)
+                fflush(get_stdout())
                 if is_ascii_printable(self.integer_value as byte):
                     printf(" '%c'", self.integer_value as byte)
+                    fflush(get_stdout())
                 printf("\n")
+                fflush(get_stdout())
             case TokenKind.Integer:
                 printf("integer %llu\n", self.integer_value)
+                fflush(get_stdout())
             case TokenKind.Float:
                 printf("float %s\n", self.short_string)
+                fflush(get_stdout())
             case TokenKind.Double:
                 printf("double %s\n", self.short_string)
+                fflush(get_stdout())
             case TokenKind.EndOfFile:
                 printf("end of file\n")
+                fflush(get_stdout())
             case TokenKind.Operator:
                 printf("operator '%s'\n", self.short_string)
+                fflush(get_stdout())
             case TokenKind.Decorator:
                 printf("decorator %s\n", self.short_string)
+                fflush(get_stdout())
             case TokenKind.Name:
                 printf("name \"%s\"\n", self.short_string)
+                fflush(get_stdout())
             case TokenKind.Keyword:
                 printf("keyword \"%s\"\n", self.short_string)
+                fflush(get_stdout())
             case TokenKind.Newline:
                 printf("newline token (next line has %d spaces of indentation)\n", self.indentation_level)
+                fflush(get_stdout())
             case TokenKind.String:
                 printf("string \"")
+                fflush(get_stdout())
                 for s = self.long_string; *s != 0; s++:
                     if is_ascii_printable(*s):
                         putchar(*s)
                     elif *s == '\n':
                         printf("\\n")
+                        fflush(get_stdout())
                     else:
                         printf("\\x%02x", *s)
+                        fflush(get_stdout())
                 printf("\"\n")
+                fflush(get_stdout())
             case TokenKind.Indent:
                 printf("indent (+4 spaces)\n")
+                fflush(get_stdout())
             case TokenKind.Dedent:
                 printf("dedent (-4 spaces)\n")
+                fflush(get_stdout())
 
     def is_keyword(self, kw: byte*) -> bool:
         return self.kind == TokenKind.Keyword and strcmp(self.short_string, kw) == 0
@@ -133,6 +151,7 @@ class Token:
 @public
 def print_tokens(tokens: Token*) -> None:
     printf("===== Tokens for file \"%s\" =====\n", tokens.location.path)
+    fflush(get_stdout())
     t = tokens
     current_lineno = -1
 
@@ -140,8 +159,10 @@ def print_tokens(tokens: Token*) -> None:
         if t.location.lineno != current_lineno:
             current_lineno = t.location.lineno
             printf("\nLine %d:\n", current_lineno)
+            fflush(get_stdout())
 
         printf("  ")
+        fflush(get_stdout())
         t.print()
 
         if t.kind == TokenKind.EndOfFile:
@@ -149,6 +170,7 @@ def print_tokens(tokens: Token*) -> None:
         t++
 
     printf("\n")
+    fflush(get_stdout())
 
 
 @public

@@ -325,6 +325,7 @@ def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
 
             if ret == 0 and global_compiler_state.args.verbosity >= 1:
                 printf("Deleted %s\n", full_path)
+                fflush(get_stdout())
 
             free(full_path)
 

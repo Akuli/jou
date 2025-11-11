@@ -83,37 +83,50 @@ class AstType:
         match self.kind:
             case AstTypeKind.Named:
                 printf("%s", self.name)
+                fflush(get_stdout())
             case AstTypeKind.Pointer:
                 self.value_type.print(False)
                 printf("*")
+                fflush(get_stdout())
             case AstTypeKind.Array:
                 self.array.member_type.print(False)
                 printf("[<size>]")  # TODO: show the size expression better?
+                fflush(get_stdout())
             case AstTypeKind.Generic:
                 printf("%s[", self.generic.class_name)
+                fflush(get_stdout())
                 for i = 0; i < self.generic.param_types.len; i++:
                     if i != 0:
                         printf(", ")
+                        fflush(get_stdout())
                     self.generic.param_types.ptr[i].print(False)
                 printf("]")
+                fflush(get_stdout())
             case AstTypeKind.FuncPtr:
                 # Wrap it in parentheses so we see how it's nested.
                 # Important with e.g. array of funcptr
                 printf("(funcptr(")
+                fflush(get_stdout())
                 for i = 0; i < self.func_ptr.argtypes.len; i++:
                     if i != 0:
                         printf(", ")
+                        fflush(get_stdout())
                     self.func_ptr.argtypes.ptr[i].print(False)
                 if self.func_ptr.takes_varargs:
                     if self.func_ptr.argtypes.len != 0:
                         printf(", ")
+                        fflush(get_stdout())
                     printf("...")
+                    fflush(get_stdout())
                 printf(") -> ")
+                fflush(get_stdout())
                 self.func_ptr.return_type.print(False)
                 printf(")")
+                fflush(get_stdout())
 
         if show_lineno:
             printf(" [line %d]", self.location.lineno)
+            fflush(get_stdout())
 
     def free(self) -> None:
         match self.kind:
@@ -148,9 +161,11 @@ class TreePrinter:
         subprinter = TreePrinter{}
         if is_last_child:
             printf("%s`--- ", self.prefix)
+            fflush(get_stdout())
             snprintf(subprinter.prefix, sizeof subprinter.prefix, "%s  ", self.prefix)
         else:
             printf("%s|--- ", self.prefix)
+            fflush(get_stdout())
             snprintf(subprinter.prefix, sizeof subprinter.prefix, "%s| ", self.prefix)
         return subprinter
 
@@ -197,12 +212,15 @@ class AstInstantiation:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("instantiate ")
+        fflush(get_stdout())
         self.type.print(False)
         printf("\n")
+        fflush(get_stdout())
 
         for f = self.fields.ptr; f < self.fields.end(); f++:
             sub = tp.print_prefix(f == &self.fields.end()[-1])
             printf("field \"%s\": ", f.name)
+            fflush(get_stdout())
             f.value.print_with_tree_printer(sub)
 
     def free(self) -> None:
@@ -301,21 +319,28 @@ class AstExpression:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("[line %d", self.location.lineno)
+        fflush(get_stdout())
         if self.types.orig_type != NULL:
             printf(", type %s", self.types.orig_type.name)
+            fflush(get_stdout())
             # TODO: print casts and other stuff under self.types?
         printf("] ")
+        fflush(get_stdout())
 
         match self.kind:
             case AstExpressionKind.IntegerConstant:
                 printf("integer constant: %llu\n", self.integer_value)
+                fflush(get_stdout())
             case AstExpressionKind.Constant:
                 printf("constant: ")
+                fflush(get_stdout())
                 self.constant.print()
             case AstExpressionKind.Indexing:
                 printf("indexing\n")
+                fflush(get_stdout())
             case AstExpressionKind.Array:
                 printf("array\n")
+                fflush(get_stdout())
                 for p = self.array.ptr; p < self.array.end(); p++:
                     p.print_with_tree_printer(tp.print_prefix(p == &self.array.end()[-1]))
             case AstExpressionKind.Call:
@@ -324,12 +349,16 @@ class AstExpression:
                 self.instantiation.print_with_tree_printer(tp)
             case AstExpressionKind.Self:
                 printf("self\n")
+                fflush(get_stdout())
             case AstExpressionKind.GetVariable:
                 printf("get variable \"%s\"\n", self.varname)
+                fflush(get_stdout())
             case AstExpressionKind.GetFuncPtr:
                 printf("get pointer to function \"%s\"\n", self.varname)
+                fflush(get_stdout())
             case AstExpressionKind.DotOperator:
                 printf("get member \"%s\"\n", self.class_field.field_name)
+                fflush(get_stdout())
                 self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.GetEnumMember:
                 printf(
@@ -337,72 +366,104 @@ class AstExpression:
                     self.enum_member.member_name,
                     self.enum_member.enum_name,
                 )
+                fflush(get_stdout())
             case AstExpressionKind.GetClassField:
                 printf("get class field \"%s\" from instance\n", self.class_field.field_name)
+                fflush(get_stdout())
                 self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.GetClassFieldPtr:
                 printf("get class field \"%s\" from pointer\n", self.class_field.field_name)
+                fflush(get_stdout())
                 self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.As:
                 self.as_.print_with_tree_printer(tp)
             case AstExpressionKind.SizeOf:
                 printf("sizeof\n")
+                fflush(get_stdout())
             case AstExpressionKind.AddressOf:
                 printf("address of\n")
+                fflush(get_stdout())
             case AstExpressionKind.Dereference:
                 printf("dereference\n")
+                fflush(get_stdout())
             case AstExpressionKind.Negate:
                 printf("negate\n")
+                fflush(get_stdout())
             case AstExpressionKind.Not:
                 printf("not\n")
+                fflush(get_stdout())
             case AstExpressionKind.BitNot:
                 printf("bitwise not\n")
+                fflush(get_stdout())
             case AstExpressionKind.PreIncr:
                 printf("pre-increment\n")
+                fflush(get_stdout())
             case AstExpressionKind.PostIncr:
                 printf("post-increment\n")
+                fflush(get_stdout())
             case AstExpressionKind.PreDecr:
                 printf("pre-decrement\n")
+                fflush(get_stdout())
             case AstExpressionKind.PostDecr:
                 printf("post-decrement\n")
+                fflush(get_stdout())
             case AstExpressionKind.Add:
                 printf("add\n")
+                fflush(get_stdout())
             case AstExpressionKind.Sub:
                 printf("sub\n")
+                fflush(get_stdout())
             case AstExpressionKind.Mul:
                 printf("mul\n")
+                fflush(get_stdout())
             case AstExpressionKind.Div:
                 printf("div\n")
+                fflush(get_stdout())
             case AstExpressionKind.Mod:
                 printf("mod\n")
+                fflush(get_stdout())
             case AstExpressionKind.BitAnd:
                 printf("bitwise and\n")
+                fflush(get_stdout())
             case AstExpressionKind.BitOr:
                 printf("bitwise or\n")
+                fflush(get_stdout())
             case AstExpressionKind.BitXor:
                 printf("bitwise xor\n")
+                fflush(get_stdout())
             case AstExpressionKind.BitShiftLeft:
                 printf("bitwise shift left\n")
+                fflush(get_stdout())
             case AstExpressionKind.BitShiftRight:
                 printf("bitwise shift right\n")
+                fflush(get_stdout())
             case AstExpressionKind.Eq:
                 printf("eq\n")
+                fflush(get_stdout())
             case AstExpressionKind.Ne:
                 printf("ne\n")
+                fflush(get_stdout())
             case AstExpressionKind.Gt:
                 printf("gt\n")
+                fflush(get_stdout())
             case AstExpressionKind.Ge:
                 printf("ge\n")
+                fflush(get_stdout())
             case AstExpressionKind.Lt:
                 printf("lt\n")
+                fflush(get_stdout())
             case AstExpressionKind.Le:
                 printf("le\n")
+                fflush(get_stdout())
             case AstExpressionKind.And:
                 printf("and\n")
+                fflush(get_stdout())
             case AstExpressionKind.Or:
                 printf("or\n")
+                fflush(get_stdout())
             case AstExpressionKind.TernaryIf:
                 printf("ternary if\n")
+                fflush(get_stdout())
 
         for i = 0; i < self.get_arity(); i++:
             self.operands[i].print_with_tree_printer(tp.print_prefix(i == self.get_arity()-1))
@@ -512,8 +573,10 @@ class AstAs:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("as ")
+        fflush(get_stdout())
         self.type.print(True)
         printf("\n")
+        fflush(get_stdout())
         self.value.print_with_tree_printer(tp.print_prefix(True))
 
     def free(self) -> None:
@@ -546,20 +609,24 @@ class AstCall:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("call %s\n", self.function_or_method())
+        fflush(get_stdout())
 
         if self.function != NULL:
             sub = tp.print_prefix(self.args.len == 0)
             printf("function: ")
+            fflush(get_stdout())
             self.function.print_with_tree_printer(sub)
 
         if self.method_call_self != NULL:
             sub = tp.print_prefix(self.args.len == 0)
             printf("self: ")
+            fflush(get_stdout())
             self.method_call_self.print_with_tree_printer(sub)
 
         for i = 0; i < self.args.len; i++:
             sub = tp.print_prefix(i == self.args.len - 1)
             printf("argument %d: ", i)
+            fflush(get_stdout())
             self.args.ptr[i].print_with_tree_printer(sub)
 
     def free(self) -> None:
@@ -594,12 +661,15 @@ class AstConstStatement:
 
     def print(self) -> None:
         printf("%s: ", self.symbol.name)
+        fflush(get_stdout())
         self.type.print(True)
         printf("\n")
+        fflush(get_stdout())
 
         tp = TreePrinter{}
         sub = tp.print_prefix(True)
         printf("value: ")
+        fflush(get_stdout())
         self.value.print_with_tree_printer(sub)
 
     def free(self) -> None:
@@ -679,9 +749,11 @@ class AstStatement:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("[line %d] ", self.location.lineno)
+        fflush(get_stdout())
         match self.kind:
             case AstStatementKind.ExpressionStatement:
                 printf("expression statement\n")
+                fflush(get_stdout())
                 self.expression.print_with_tree_printer(tp.print_prefix(True))
             case AstStatementKind.Link:
                 self.link_statement.print()
@@ -689,11 +761,14 @@ class AstStatement:
                 self.typedef_statement.print()
             case AstStatementKind.Assert:
                 printf("assert \"%s\"\n", self.assertion.condition_str)
+                fflush(get_stdout())
                 self.assertion.condition.print_with_tree_printer(tp.print_prefix(True))
             case AstStatementKind.Pass:
                 printf("pass\n")
+                fflush(get_stdout())
             case AstStatementKind.Return:
                 printf("return\n")
+                fflush(get_stdout())
                 if self.return_value != NULL:
                     self.return_value.print_with_tree_printer(tp.print_prefix(True))
             case AstStatementKind.If:
@@ -704,55 +779,73 @@ class AstStatement:
                 self.match_statement.print_with_tree_printer(tp)
             case AstStatementKind.WhileLoop:
                 printf("while loop\n")
+                fflush(get_stdout())
                 self.while_loop.print_with_tree_printer(tp, True)
             case AstStatementKind.Break:
                 printf("break\n")
+                fflush(get_stdout())
             case AstStatementKind.Continue:
                 printf("continue\n")
+                fflush(get_stdout())
             case AstStatementKind.DeclareLocalVar:
                 printf("declare local var ")
+                fflush(get_stdout())
                 self.local_var_declare.print_with_tree_printer(&tp)
             case AstStatementKind.Assign:
                 printf("assign\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceAdd:
                 printf("in-place add\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceSub:
                 printf("in-place sub\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceMul:
                 printf("in-place mul\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceDiv:
                 printf("in-place div\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceMod:
                 printf("in-place mod\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceBitAnd:
                 printf("in-place bitwise and\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceBitOr:
                 printf("in-place bitwise or\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceBitXor:
                 printf("in-place bitwise xor\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceBitShiftLeft:
                 printf("in-place bitwise shift left\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceBitShiftRight:
                 printf("in-place bitwise shift right\n")
+                fflush(get_stdout())
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.FunctionDeclare:
                 printf("declare a function: ")
+                fflush(get_stdout())
                 self.function.print_with_tree_printer(tp)
             case AstStatementKind.FunctionDef:
                 printf("define a function: ")
+                fflush(get_stdout())
                 self.function.print_with_tree_printer(tp)
             case AstStatementKind.MethodDef:
                 printf("define a method: ")
+                fflush(get_stdout())
                 self.method.print_with_tree_printer(tp)
             case AstStatementKind.Class:
                 self.classdef.print_with_tree_printer(tp)
@@ -760,25 +853,33 @@ class AstStatement:
                 self.enumdef.print_with_tree_printer(tp)
             case AstStatementKind.GlobalVariableDeclare:
                 printf("declare global var ")
+                fflush(get_stdout())
                 self.global_var_declare.print()
                 printf("\n")
+                fflush(get_stdout())
             case AstStatementKind.GlobalVariableDef:
                 printf("define global var ")
+                fflush(get_stdout())
                 self.global_var_def.print()
                 printf("\n")
+                fflush(get_stdout())
             case AstStatementKind.Import:
                 self.import_statement.print()
             case AstStatementKind.ClassField:
                 printf("class field ")
+                fflush(get_stdout())
                 self.class_field.print_with_tree_printer(NULL)
                 printf("\n")
+                fflush(get_stdout())
             case AstStatementKind.ClassUnion:
                 printf("union\n")
+                fflush(get_stdout())
                 for f = self.union_fields.ptr; f < self.union_fields.end(); f++:
                     subprinter = tp.print_prefix(f == &self.union_fields.end()[-1])
                     f.print_with_tree_printer(&subprinter)  # TODO: does this need to be optional/pointer?
             case AstStatementKind.Const:
                 printf("const statement ")
+                fflush(get_stdout())
                 self.const_statement.print()
 
     def free(self) -> None:
@@ -913,10 +1014,12 @@ class AstConditionAndBody:
     def print_with_tree_printer(self, tp: TreePrinter, body_is_last_sub_item: bool) -> None:
         sub = tp.print_prefix(False)
         printf("condition: ")
+        fflush(get_stdout())
         self.condition.print_with_tree_printer(sub)
 
         sub = tp.print_prefix(body_is_last_sub_item)
         printf("body:\n")
+        fflush(get_stdout())
         print_body(self.body, sub)
 
     def free(self) -> None:
@@ -960,12 +1063,14 @@ class AstIfStatement:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("if\n")
+        fflush(get_stdout())
         for p = self.if_and_elifs.ptr; p < self.if_and_elifs.end(); p++:
             p.print_with_tree_printer(tp, p == &self.if_and_elifs.end()[-1] and self.else_body.len == 0)
 
         if self.else_body.len > 0:
             sub = tp.print_prefix(True)
             printf("else body:\n")
+            fflush(get_stdout())
             print_body(self.else_body, sub)
 
     def free(self) -> None:
@@ -991,12 +1096,14 @@ class AstMatchStatement:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("match\n")
+        fflush(get_stdout())
         for p = self.cases.ptr; p < self.cases.end(); p++:
             p.print_with_tree_printer(tp, p == &self.cases.end()[-1] and self.case_underscore == NULL)
 
         if self.case_underscore != NULL:
             sub = tp.print_prefix(True)
             printf("[line %d] body of case _:\n", self.case_underscore_location.lineno)
+            fflush(get_stdout())
             print_body(*self.case_underscore, sub)
 
     def free(self) -> None:
@@ -1022,10 +1129,12 @@ class AstCase:
         for p = self.case_objs.ptr; p < self.case_objs.end(); p++:
             sub = tp.print_prefix(False)
             printf("case_obj: ")
+            fflush(get_stdout())
             p.print_with_tree_printer(sub)
 
         sub = tp.print_prefix(is_last_case)
         printf("body:\n")
+        fflush(get_stdout())
         print_body(self.body, sub)
 
     def free(self) -> None:
@@ -1049,24 +1158,29 @@ class AstForLoop:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("for loop\n")
+        fflush(get_stdout())
 
         if self.init != NULL:
             sub = tp.print_prefix(False)
             printf("init: ")
+            fflush(get_stdout())
             self.init.print_with_tree_printer(sub)
 
         if self.cond != NULL:
             sub = tp.print_prefix(False)
             printf("cond: ")
+            fflush(get_stdout())
             self.cond.print_with_tree_printer(sub)
 
         if self.incr != NULL:
             sub = tp.print_prefix(False)
             printf("incr: ")
+            fflush(get_stdout())
             self.incr.print_with_tree_printer(sub)
 
         sub = tp.print_prefix(True)
         printf("body:\n")
+        fflush(get_stdout())
         print_body(self.body, sub)
 
     def free(self) -> None:
@@ -1100,14 +1214,17 @@ class AstNameTypeValue:
     # tp can be set to NULL, in that case no trailing newline is printed
     def print_with_tree_printer(self, tp: TreePrinter*) -> None:
         printf("%s: ", self.name)
+        fflush(get_stdout())
         self.type.print(True)
         if tp == NULL:
             assert self.value == NULL
         else:
             printf("\n")
+            fflush(get_stdout())
             if self.value != NULL:
                 sub = tp.print_prefix(True)
                 printf("initial value: ")
+                fflush(get_stdout())
                 self.value.print_with_tree_printer(sub)
 
     def free(self) -> None:
@@ -1125,8 +1242,10 @@ class AstGlobalVarDeclare:
 
     def print(self) -> None:
         printf("%s: ", self.symbol.name)
+        fflush(get_stdout())
         self.type.print(True)
         printf("\n")
+        fflush(get_stdout())
 
     def free(self) -> None:
         self.symbol.free()
@@ -1142,8 +1261,10 @@ class AstGlobalVarDef:
 
     def print(self) -> None:
         printf("%s: ", self.symbol.name)
+        fflush(get_stdout())
         self.type.print(True)
         printf("\n")
+        fflush(get_stdout())
 
     def free(self) -> None:
         self.symbol.free()
@@ -1173,9 +1294,11 @@ class AstSignature:
 
     def print(self) -> None:
         printf("%s(", self.name)
+        fflush(get_stdout())
         for p = self.args.ptr; p < self.args.end(); p++:
             if p > self.args.ptr:
                 printf(", ")
+                fflush(get_stdout())
 
             if (
                 strcmp(p.name, "self") == 0
@@ -1184,17 +1307,22 @@ class AstSignature:
             ):
                 # self with implicitly given type
                 printf("self")
+                fflush(get_stdout())
             else:
                 p.print_with_tree_printer(NULL)
 
         if self.takes_varargs:
             if self.args.len != 0:
                 printf(", ")
+                fflush(get_stdout())
             printf("...")
+            fflush(get_stdout())
 
         printf(") -> ")
+        fflush(get_stdout())
         self.return_type.print(True)
         printf("\n")
+        fflush(get_stdout())
 
     def free(self) -> None:
         for p = self.args.ptr; p < self.args.end(); p++:
@@ -1215,6 +1343,7 @@ class AstImport:
             "import \"%s\", which resolves to \"%s\"\n",
             self.specified_path, self.resolved_path,
         )
+        fflush(get_stdout())
 
     def free(self) -> None:
         free(self.specified_path)
@@ -1229,6 +1358,7 @@ class AstLink:
 
     def print(self) -> None:
         printf("link \"%s\" (resolves to \"%s\")\n", self.specified_flags, self.resolved_flags)
+        fflush(get_stdout())
 
     def free(self) -> None:
         free(self.specified_flags)
@@ -1281,6 +1411,7 @@ class AstClassDef:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("class \"%s\"\n", self.symbol.name)
+        fflush(get_stdout())
         print_body(self.body, tp)
 
     def free(self) -> None:
@@ -1304,6 +1435,7 @@ class AstEnumDef:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         printf("enum \"%s\" with %d members\n", self.symbol.name, self.members.len)
+        fflush(get_stdout())
         for p = self.members.ptr; p < self.members.end(); p++:
             tp.print_prefix(p == &self.members.end()[-1])
             puts(*p)
@@ -1321,6 +1453,7 @@ class AstTypeDef:
 
     def print(self) -> None:
         printf("typedef \"%s\" to be ", self.symbol.name)
+        fflush(get_stdout())
         self.ast_type.print(True)
         putchar('\n')
 

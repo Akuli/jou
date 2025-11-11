@@ -26,22 +26,31 @@ const DONT_ANALYZE: uint8       = 0b111  # The "don't analyze" UVG instruction h
 if False:
     def print_statuses(uvg: Uvg*, statuses: uint8*) -> None:
         printf("VAR STATUSES:")
+        fflush(get_stdout())
         for v = 0; v < uvg.varnames.len; v++:
             printf(" %s=", uvg.varnames[v])
+            fflush(get_stdout())
             match statuses[v]:
                 case UNVISITED:
                     printf("{}")
+                    fflush(get_stdout())
                 case UNDEFINED:
                     printf("{u}")
+                    fflush(get_stdout())
                 case DEFINED:
                     printf("{d}")
+                    fflush(get_stdout())
                 case POSSIBLY_UNDEFINED:
                     printf("{u,d}")
+                    fflush(get_stdout())
                 case DONT_ANALYZE:
                     printf("-")
+                    fflush(get_stdout())
                 case _:
                     printf("?")
+                    fflush(get_stdout())
         printf("\n")
+        fflush(get_stdout())
 
 
 def build_statuses_at_end_before_analyzing(uvg: Uvg*) -> uint8**:

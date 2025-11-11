@@ -42,6 +42,7 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     len = 0 as int64
     filename = LLVMGetSourceFileName(module, &len)
     printf("===== %s LLVM IR for file \"%.*s\" =====\n", opt_or_unopt, len as int, filename)
+    fflush(get_stdout())
 
     s = LLVMPrintModuleToString(module)
     puts(s)
@@ -53,6 +54,7 @@ def optimize(module: LLVMModule*, level: int) -> None:
         len = 0 as int64
         filename = LLVMGetSourceFileName(module, &len)
         printf("Optimizing %s (level %d)\n", filename, level)
+        fflush(get_stdout())
 
     assert 1 <= level and level <= 3
     passes: byte[100]
@@ -77,6 +79,7 @@ declare rename(oldpath: byte*, newpath: byte*) -> int
 def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Writing LLVM IR to %s\n", o_path)
+        fflush(get_stdout())
 
     # If we want to create foo.o, first write to foo_temp.o.
     # This way we don't end up with a corrupted foo.o if the compiler is interrupted.
@@ -143,6 +146,7 @@ def warn_about_unused(jou_file: JouFile*) -> None:
 def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
     if global_compiler_state.args.verbosity >= 1:
         printf("Building LLVM IR: %s\n", jou_file.path)
+        fflush(get_stdout())
     mod = build_llvm_ir(jou_file)
     if global_compiler_state.args.verbosity >= 2:
         print_llvm_ir(mod, False)
@@ -162,6 +166,7 @@ def find_existing_object_file_or_compile_to_object_file(jou_file: JouFile*) -> b
     if exists:
         if global_compiler_state.args.verbosity >= 1:
             printf("Reusing previously compiled file: %s\n", o_path)
+            fflush(get_stdout())
     else:
         mod = build_and_verify_llvm_ir(jou_file)
         if global_compiler_state.args.optlevel != 0:
@@ -241,6 +246,7 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Tokenizing %s\n", path)
+        fflush(get_stdout())
     tokens = tokenize(jou_file.path, import_location)
 
     if global_compiler_state.args.verbosity >= 2:
@@ -248,15 +254,18 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Parsing %s\n", path)
+        fflush(get_stdout())
     jou_file.ast = parse(tokens)
     free_tokens(tokens)
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Evaluating compile-time if statements in %s\n", path)
+        fflush(get_stdout())
     evaluate_compile_time_if_statements(&jou_file)
 
     if global_compiler_state.args.verbosity >= 2:
         printf("===== AST for file \"%s\" =====\n", path)
+        fflush(get_stdout())
         for p = jou_file.ast.ptr; p < jou_file.ast.end(); p++:
             p.print()
 
@@ -285,6 +294,7 @@ def tokenize_and_parse_all_files() -> None:
 def make_imported_statements_available() -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Making imported statements available...\n")
+        fflush(get_stdout())
 
     msg: byte[500]
     seen_before = List[JouFile*]{}
@@ -364,6 +374,7 @@ def build_and_analyze_all_uvgs() -> None:
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
             printf("Building and analyzing UVGs for %s\n", jou_file.path)
+            fflush(get_stdout())
         build_and_analyze_uvgs(jou_file, print_uvgs)
 
 
@@ -409,6 +420,7 @@ def parse_only() -> None:
     tokens = tokenize(global_compiler_state.args.infile, NULL)
     ast = parse(tokens)
     printf("===== AST for file \"%s\" =====\n", global_compiler_state.args.infile)
+    fflush(get_stdout())
     for p = ast.ptr; p < ast.end(); p++:
         p.print()
     for p = ast.ptr; p < ast.end(); p++:

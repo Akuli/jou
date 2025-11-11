@@ -28,6 +28,7 @@ def fail_update() -> noreturn:
 def confirm(prompt: byte*) -> None:
     printf("%s (y/n) ", prompt)
     fflush(get_stdout())
+    fflush(get_stdout())
 
     line: byte[50] = ""
     fgets(line, sizeof(line) as int, get_stdin())
@@ -35,6 +36,7 @@ def confirm(prompt: byte*) -> None:
 
     if strcmp(line, "Y") != 0 and strcmp(line, "y") != 0:
         printf("Aborted.\n")
+        fflush(get_stdout())
         exit(1)
 
 
@@ -43,6 +45,7 @@ def update_jou_compiler() -> None:
     exe = find_current_executable()
     exedir = dirname(exe)
     printf("Installation directory: %s\n\n", exedir)
+    fflush(get_stdout())
 
     if chdir(exedir) == -1:
         fprintf(get_stderr(), "chdir(\"%s\") failed: %s\n", exedir, strerror(get_errno()))
@@ -63,3 +66,4 @@ def update_jou_compiler() -> None:
 
     free(exe)
     printf("\n\nYou now have the latest version of Jou :)\n")
+    fflush(get_stdout())
