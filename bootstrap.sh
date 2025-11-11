@@ -156,7 +156,7 @@ function compile_next_jou_compiler() {
         # These files used to be in a separate "libs" folder next to mingw64 folder.
         # Now they are in mingw64/lib.
         # They were also named slightly differently before.
-        if [ $i -le 16 ]; then
+        if [ $number -le 16 ]; then
             mkdir $folder/libs
             for f in ${windows_llvm_files[@]}; do
                 cp -v $f $folder/libs/$(basename -s .dll.a $f).a
@@ -191,9 +191,6 @@ function compile_next_jou_compiler() {
             # but it was slow and wasted disk space. Afaik symlinks aren't really a
             # thing on windows.
             make_flags="$make_flags JOU_MINGW_DIR=../../../mingw64"
-            if [ $i == 1 ]; then
-                make_flags="$make_flags CC=../../../mingw64/bin/clang.exe"
-            fi
         fi
 
         $make $make_flags jou$exe_suffix
