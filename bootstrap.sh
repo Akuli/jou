@@ -136,6 +136,8 @@ function transpile_with_python_and_compile() {
             ./hello.exe
             echo "Compiler main tokenize"
             JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix --tokenize-only compiler/main.jou
+            echo "Compiler main gdb parse"
+            (echo run && echo quit) | JOU_MINGW_DIR=../../../mingw64 gdb --args ./jou$exe_suffix --parse-only compiler/main.jou
             echo "Compiler main parse"
             JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix --parse-only compiler/main.jou
             echo "Compiler main UVG"
