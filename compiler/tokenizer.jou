@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
@@ -7,22 +8,19 @@ import "stdlib/ascii.jou"
 import "./errors_and_warnings.jou"
 import "./token.jou"
 
-# TODO: move to stdlib?
-declare isprint(b: int) -> int
-
 def is_identifier_or_number_byte(b: byte) -> bool:
     # Allows non-ASCII variable names (bytes 128-255)
     return b >= 128 or is_ascii_letter(b) or is_ascii_digit(b) or b == '_'
 
 def is_operator_byte(c: byte) -> bool:
-    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|^", c) != NULL
+    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|^~", c) != NULL
 
 def is_keyword(word: byte*) -> bool:
     # See also: tests/should_succeed/keywords.jou
     match word with strcmp:
         case (
             "import" | "link"
-            | "def" | "declare" | "class" | "union" | "enum" | "global" | "const"
+            | "def" | "declare" | "class" | "union" | "enum" | "typedef" | "global" | "const"
             | "if" | "elif" | "else" | "while" | "for" | "pass" | "break" | "continue" | "match" | "with" | "case" | "return"
             | "True" | "False" | "None" | "NULL" | "self"
             | "and" | "or" | "not" | "as" | "sizeof" | "assert"
@@ -362,8 +360,7 @@ class Tokenizer:
                 case 'x':
                     c = self.read_hex_escape_byte()
                 case _:
-                    # TODO: add is_ascii_printable() function to stdlib/ascii.jou
-                    if after_backslash < 0x80 and isprint(after_backslash) != 0:
+                    if is_ascii_printable(after_backslash):
                         message: byte* = malloc(100)
                         sprintf(message, "unknown escape: '\\%c'", after_backslash)
                         fail(self.location, message)
@@ -427,8 +424,7 @@ class Tokenizer:
                             # \ at end of line, string continues on next line
                             pass
                         case _:
-                            # TODO: add is_ascii_printable() function to stdlib/ascii.jou
-                            if after_backslash < 0x80 and isprint(after_backslash) != 0:
+                            if is_ascii_printable(after_backslash):
                                 snprintf(msg, sizeof(msg), "unknown escape: '\\%c'", after_backslash)
                             else:
                                 msg = "unknown '\\' escape"
@@ -445,10 +441,10 @@ class Tokenizer:
         operators = [
             # Please update the syntax documentation if you add new operators.
             # Longer operators are first, so that '==' does not tokenize as '=' '='
-            "...", "===", "!==",
+            "...", "===", "!==", "<<=", ">>=",
             "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
-            "&&", "||",
-            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "^", "<", ">", "!", "|",
+            "&&", "||", "<<", ">>",
+            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "^", "<", ">", "!", "|", "~",
         ]
         operator: byte[100] = ""
 
@@ -559,7 +555,7 @@ class Tokenizer:
                         token.short_string = self.read_operator()
                     else:
                         message: byte[100]
-                        if b < 0x80 and isprint(b) != 0:
+                        if is_ascii_printable(b):
                             sprintf(message, "unexpected byte '%c' (%#02x)", b, b)
                         else:
                             sprintf(message, "unexpected byte %#02x", b)

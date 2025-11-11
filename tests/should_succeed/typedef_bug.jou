@@ -1,0 +1,10 @@
+import "stdlib/io.jou"
+import "./imported/typedef.jou"
+
+# This causes the compiler to figure out what PrivateInt is. It must do that
+# based on what's available in the imported file, not this file.
+const foo: PublicInt = 123
+
+def main() -> int:
+    printf("%d\n", foo)  # Output: 123
+    return 0

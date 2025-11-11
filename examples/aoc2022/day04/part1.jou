@@ -1,0 +1,20 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result = 0
+    a_start, a_end, b_start, b_end: int
+
+    while fscanf(f, "%d-%d,%d-%d\n", &a_start, &a_end, &b_start, &b_end) == 4:
+        a_contains_b = a_start <= b_start and a_end >= b_end
+        b_contains_a = b_start <= a_start and b_end >= a_end
+        if a_contains_b or b_contains_a:
+            result++
+
+    printf("%d\n", result)  # Output: 2
+    fclose(f)
+    return 0

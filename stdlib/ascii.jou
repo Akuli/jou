@@ -25,6 +25,17 @@ def is_ascii_letter(b: byte) -> bool:
 def is_ascii_punctuation(b: byte) -> bool:
     return b != '\0' and strchr("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", b) != NULL
 
+# Checks if the given byte is a printable ASCII character.
+#
+# This returns False for e.g. newline, '\0', and ASCII characters that are
+# almost never used like end of text marker (ASCII value 3) or file separator
+# (ASCII value 28).
+#
+# Note that this returns True for ' ' but False for '\n'.
+@public
+def is_ascii_printable(b: byte) -> bool:
+    return 32 <= b and b <= 126
+
 # Checks if the given byte is an ASCII whitespace character, such as ' ' or '\n'.
 @public
 def is_ascii_whitespace(b: byte) -> bool:

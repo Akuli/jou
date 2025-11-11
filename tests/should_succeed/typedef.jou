@@ -1,0 +1,30 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "./imported/typedef.jou"
+
+if WINDOWS:
+    typedef Thingy1 = int64
+    const THINGY_FORMAT: StringyString = "%lld\n"
+else:
+    typedef Thingy1 = int
+    const THINGY_FORMAT: StringyString = "%d\n"
+
+typedef Thingy2 = Thingy1
+typedef Thingy = Thingy2
+
+
+def get_the_zero(t: Thingy) -> Thingy:
+    # Should be possible to do math with it
+    return (t + 1)*123 - 100*t - 23*t - 123
+
+
+def main() -> int:
+    fmt: StringyString = THINGY_FORMAT
+    printf(fmt, 12.34 as Thingy)  # Output: 12
+
+    # No unnecessary cast warning on any platform even if it is the same type.
+    printf(fmt, 12 as Thingy)  # Output: 12
+
+    zero: Thingy = 0
+    assert get_the_zero(1234) == zero
+    return zero as int

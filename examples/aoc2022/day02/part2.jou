@@ -1,0 +1,47 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/ascii.jou"
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    score = 0
+    line: byte[10]
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+
+        assert strlen(line) == 3
+        opponent = line[0]
+        strategy = line[2]
+
+        match strategy:
+            case 'X':
+                # We must lose
+                me = 'A' + ((opponent - 'A' - 1) % 3)
+            case 'Y':
+                # Must be draw
+                me = opponent
+                score += 3
+            case 'Z':
+                # We must win
+                me = 'A' + ((opponent - 'A' + 1) % 3)
+                score += 6
+            case _:
+                assert False
+
+        match me:
+            case 'A':
+                score += 1
+            case 'B':
+                score += 2
+            case 'C':
+                score += 3
+            case _:
+                assert False
+
+    fclose(f)
+    printf("%d\n", score)  # Output: 12
+    return 0

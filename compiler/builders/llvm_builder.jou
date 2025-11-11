@@ -6,17 +6,19 @@
 # means we don't walk through the AST in multiple different places that could
 # handle some corner cases differently.
 
+import "stdlib/assert.jou"
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 
-import "../errors_and_warnings.jou"
 import "../ast.jou"
-import "./any_builder.jou"
+import "../global_symbols.jou"
+import "../errors_and_warnings.jou"
 import "../llvm.jou"
-import "../target.jou"
+import "../state.jou"
 import "../types.jou"
+import "./any_builder.jou"
 import "./ast_to_builder.jou"
 
 
@@ -42,10 +44,12 @@ def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
     #if ntypes == 1:
     #    return types[0]
 
+    assert global_compiler_state.target.ready
+
     sizeneeded = 0 as int64
     for i = 0; i < ntypes; i++:
-        size1 = LLVMABISizeOfType(target.target_data, types[i])
-        size2 = LLVMStoreSizeOfType(target.target_data, types[i])
+        size1 = LLVMABISizeOfType(global_compiler_state.target.target_data, types[i])
+        size2 = LLVMStoreSizeOfType(global_compiler_state.target.target_data, types[i])
 
         # If this assert fails, you need to figure out which of the size functions should be used.
         # I don't know what their difference is.
@@ -82,6 +86,8 @@ def class_type_to_llvm(type: Type*) -> LLVMType*:
 
 def type_to_llvm(type: Type*) -> LLVMType*:
     match type.kind:
+        case TypeKind.TypeDef:
+            return type_to_llvm(type.typedef_actual_type)
         case TypeKind.Array:
             return LLVMArrayType(type_to_llvm(type.array.item_type), type.array.len)
         case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
@@ -170,15 +176,131 @@ def build_llvm_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue
     return LLVMBuildExactSDiv(builder, top, rhs, "sdiv")
 
 
+# Clamps out-of-range values to min or max. Returns 0 for NaN.
+#
+# Doing this in LLVM without invoking UB is surprisingly difficult. The
+# following pseudo-code roughly describes what this does:
+#
+#    if float_value is NaN:
+#        result = 0
+#    elif float_value > max:
+#        result = max
+#    elif float_value < min:
+#        result = min
+#    else:
+#        result = normal LLVM conversion
+#
+def cast_floating_point_to_integer(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
+    assert from.kind == TypeKind.FloatingPoint
+    assert to.is_integer_type()
+
+    is_signed = (to.kind == TypeKind.SignedInteger)
+
+    if is_signed:
+        int_min = LLVMConstInt(type_to_llvm(to), to.min_value(), 1)
+        int_max = LLVMConstInt(type_to_llvm(to), to.max_value() as int64, 1)
+        floating_min = LLVMBuildSIToFP(builder, int_min, type_to_llvm(from), "floating_min")
+        floating_max = LLVMBuildSIToFP(builder, int_max, type_to_llvm(from), "floating_max")
+    else:
+        int_min = LLVMConstInt(type_to_llvm(to), to.min_value(), 0)
+        int_max = LLVMConstInt(type_to_llvm(to), to.max_value() as int64, 0)
+        floating_min = LLVMBuildUIToFP(builder, int_min, type_to_llvm(from), "floating_min")
+        floating_max = LLVMBuildUIToFP(builder, int_max, type_to_llvm(from), "floating_max")
+
+    return LLVMBuildSelect(
+        builder,
+        # If NaN:
+        LLVMBuildFCmp(builder, LLVMRealPredicate.UNO, obj, obj, "is_nan"),
+        # then return 0
+        LLVMConstInt(type_to_llvm(to), 0, 0),
+        # If not NaN:
+        LLVMBuildSelect(
+            builder,
+            # If value > max:
+            LLVMBuildFCmp(builder, LLVMRealPredicate.OGT, obj, floating_max, "greater_than_max"),
+            # then return max
+            int_max,
+            # If value <= max:
+            LLVMBuildSelect(
+                builder,
+                # If value < min:
+                LLVMBuildFCmp(builder, LLVMRealPredicate.OLT, obj, floating_min, "less_than_min"),
+                # then return min
+                int_min,
+                # If value is between min and max, use LLVM's normal conversion.
+                #
+                # If value is not between min and max, LLVM returns a poison
+                # value. It is fine to construct a poison value if it is not
+                # used. Using a poison value invokes UB.
+                (
+                    LLVMBuildFPToSI(builder, obj, type_to_llvm(to), "normal_cast_signed")
+                    if is_signed else
+                    LLVMBuildFPToUI(builder, obj, type_to_llvm(to), "normal_cast_unsigned")
+                ),
+                "min_check",
+            ),
+            "max_check",
+        ),
+        "nan_check",
+    )
+
+
+# Builds the result of "a << b" or "a >> b". Avoids LLVM's undefined behaviors.
+def bitshift(
+    builder: LLVMBuilder*,
+    a: LLVMValue*,
+    b: LLVMValue*,
+    shift_type: Type*,
+    left: bool,
+) -> LLVMValue*:
+    assert LLVMTypeOf(a) == type_to_llvm(shift_type)
+
+    # Shift amount must be converted to a's type because LLVM wants it that
+    # way. This is fine: when the result is used, the shift amount is 0 to 63
+    # so it surely fits.
+    llvm_shift_amount = LLVMBuildIntCast2(builder, b, LLVMTypeOf(a), False as int, "shift_amount")
+
+    # Compute a normal LLVM bitshift. It is a poison value for shifting beyond
+    # the width. This is fine because creating a poison value is not UB if you
+    # don't use the poison value.
+    if left:
+        bitshift_or_poison = LLVMBuildShl(builder, a, llvm_shift_amount, "bitshift_or_poison")
+    else:
+        bitshift_or_poison = LLVMBuildLShr(builder, a, llvm_shift_amount, "bitshift_or_poison")
+
+    return LLVMBuildSelect(
+        builder,
+        # If we shift beyond the width of the type
+        LLVMBuildICmp(
+            builder,
+            # Check if shift amount >= width
+            LLVMIntPredicate.UGE,
+            b,
+            # Width of the data type (max 64, so surely fits into b's type)
+            LLVMConstInt(LLVMTypeOf(b), shift_type.size_in_bits, False as int),
+            "shifts_beyond_width",
+        ),
+        # Then return zero
+        LLVMConstInt(LLVMTypeOf(a), 0, False as int),
+        # Otherwise, return the result of a normal LLVM bitshift, which is not
+        # a poison value when it is chosen.
+        bitshift_or_poison,
+        "bitshift",
+    )
+
+
 def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
     assert from != NULL
     assert to != NULL
 
+    from = from.unwrap_typedef()
+    to = to.unwrap_typedef()
+
     # Always treat enums as ints
     if from.kind == TypeKind.Enum:
-        from = intType
+        from = int_type(32)
     if to.kind == TypeKind.Enum:
-        to = intType
+        to = int_type(32)
 
     if from == to:
         return obj
@@ -201,10 +323,7 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
                 return LLVMBuildUIToFP(builder, obj, type_to_llvm(to), "cast")
         if from.kind == TypeKind.FloatingPoint and to.is_integer_type():
             # double/float --> integer
-            if to.kind == TypeKind.SignedInteger:
-                return LLVMBuildFPToSI(builder, obj, type_to_llvm(to), "cast")
-            else:
-                return LLVMBuildFPToUI(builder, obj, type_to_llvm(to), "cast")
+            return cast_floating_point_to_integer(builder, obj, from, to)
         if from.kind == TypeKind.FloatingPoint and to.kind == TypeKind.FloatingPoint:
             # double/float --> double/float
             return LLVMBuildFPCast(builder, obj, type_to_llvm(to), "cast")
@@ -215,10 +334,10 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
     if from.is_pointer_type() and to.is_integer_type():
         return LLVMBuildPtrToInt(builder, obj, type_to_llvm(to), "cast")
 
-    if from == boolType and to.is_integer_type():
+    if from == bool_type() and to.is_integer_type():
         return LLVMBuildIntCast2(builder, obj, type_to_llvm(to), False as int, "cast")
 
-    printf("cast failed: %s -. %s\n", from.name, to.name)
+    printf("cast failed: %s -> %s\n", from.name, to.name)
     assert False
 
 
@@ -302,7 +421,7 @@ class LBuilder:
     # Returns &ptr[index]
     def indexed_pointer(self, ptr: LBuilderValue, index: LBuilderValue) -> LBuilderValue:
         assert ptr.type.kind == TypeKind.Pointer
-        assert index.type == int64Type  # doesn't work right if it's other type
+        assert index.type == int_type(64)  # doesn't work right if it's other type
         llvm_result = LLVMBuildGEP2(
             self.llvm_builder,
             type_to_llvm(ptr.type.value_type),
@@ -397,7 +516,7 @@ class LBuilder:
         strcpy(padded, s)
         llvm_array = LLVMConstString(padded, array_size, True as int)
         free(padded)
-        return LBuilderValue{type = byteType.array_type(array_size), llvm_value = llvm_array}
+        return LBuilderValue{type = uint_type(8).array_type(array_size), llvm_value = llvm_array}
 
     # string as '\0' terminated pointer
     def pointer_string(self, s: byte*) -> LBuilderValue:
@@ -405,11 +524,11 @@ class LBuilder:
         llvm_string = LLVMAddGlobal(self.llvm_module, LLVMTypeOf(llvm_array), "string_literal")
         LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)
-        return LBuilderValue{type = byteType.pointer_type(), llvm_value = llvm_string}
+        return LBuilderValue{type = uint_type(8).pointer_type(), llvm_value = llvm_string}
 
     def boolean(self, b: bool) -> LBuilderValue:
         return LBuilderValue{
-            type = boolType,
+            type = bool_type(),
             llvm_value = LLVMConstInt(LLVMInt1Type(), b as int64, False as int),
         }
 
@@ -523,6 +642,20 @@ class LBuilder:
         llvm_xor = LLVMBuildXor(self.llvm_builder, a.llvm_value, b.llvm_value, "bit_xor")
         return LBuilderValue{type = a.type, llvm_value = llvm_xor}
 
+    # a << b
+    def bit_shift_left(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
+        return LBuilderValue{
+            type = a.type,
+            llvm_value = bitshift(self.llvm_builder, a.llvm_value, b.llvm_value, a.type, True),
+        }
+
+    # a >> b
+    def bit_shift_right(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
+        return LBuilderValue{
+            type = a.type,
+            llvm_value = bitshift(self.llvm_builder, a.llvm_value, b.llvm_value, a.type, False),
+        }
+
     # a == b
     def eq(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
         assert a.type == b.type
@@ -533,7 +666,7 @@ class LBuilder:
                 llvm_result = LLVMBuildFCmp(self.llvm_builder, LLVMRealPredicate.OEQ, a.llvm_value, b.llvm_value, "eq")
             case _:
                 assert False
-        return LBuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = bool_type(), llvm_value = llvm_result}
 
     # a < b
     def lt(self, a: LBuilderValue, b: LBuilderValue) -> LBuilderValue:
@@ -547,16 +680,22 @@ class LBuilder:
                 llvm_result = LLVMBuildFCmp(self.llvm_builder, LLVMRealPredicate.OLT, a.llvm_value, b.llvm_value, "lt")
             case _:
                 assert False
-        return LBuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = bool_type(), llvm_value = llvm_result}
 
     # not value
     def not_(self, value: LBuilderValue) -> LBuilderValue:
         llvm_result = LLVMBuildXor(self.llvm_builder, value.llvm_value, LLVMConstInt(LLVMInt1Type(), 1, False as int), "not")
-        return LBuilderValue{type = boolType, llvm_value = llvm_result}
+        return LBuilderValue{type = bool_type(), llvm_value = llvm_result}
+
+    # ~value
+    def bit_not(self, value: LBuilderValue) -> LBuilderValue:
+        all_bits = uint_type(value.type.size_in_bits).max_value()
+        llvm_result = LLVMBuildXor(self.llvm_builder, value.llvm_value, LLVMConstInt(type_to_llvm(value.type), all_bits as int64, False as int), "bit_not")
+        return LBuilderValue{type = value.type, llvm_value = llvm_result}
 
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> LBuilderValue:
-        return LBuilderValue{type = int64Type, llvm_value = LLVMSizeOf(type_to_llvm(t))}
+        return LBuilderValue{type = int_type(64), llvm_value = LLVMSizeOf(type_to_llvm(t))}
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: LBuilderValue) -> None:
@@ -596,37 +735,46 @@ class LBuilder:
 
 
 @public
-def build_llvm_ir(ast: AstFile*) -> LLVMModule*:
-    module = LLVMModuleCreateWithName(ast.path)
-    LLVMSetTarget(module, target.triple)
-    LLVMSetDataLayout(module, target.data_layout)
+def build_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
+    module = LLVMModuleCreateWithName(jou_file.path)
+
+    assert global_compiler_state.target.ready
+    LLVMSetTarget(module, global_compiler_state.target.triple)
+    LLVMSetDataLayout(module, global_compiler_state.target.data_layout)
 
     builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
     builder_wrapper = AnyBuilder{lbuilder = &builder}
 
-    for g = ast.types.globals.ptr; g < ast.types.globals.end(); g++:
-        LLVMAddGlobal(module, type_to_llvm(g.type), g.name)
+    for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
+        symbol = imported.statement_in_other_file.symbol()
+        if symbol.kind == GlobalSymbolKind.GlobalVar:
+            assert symbol.type != NULL
+            LLVMAddGlobal(module, type_to_llvm(symbol.type), symbol.name)
 
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
+    # Add global variables first, so we can refer to them later.
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.GlobalVariableDef:
-                globalptr = LLVMGetNamedGlobal(module, stmt.global_var_def.name)
+                assert stmt.symbol().type != NULL
+                globalptr = LLVMAddGlobal(module, type_to_llvm(stmt.symbol().type), stmt.symbol().name)
                 assert globalptr != NULL
-                vartype: Type* = NULL
-                for g = ast.types.globals.ptr; g < ast.types.globals.end(); g++:
-                    if strcmp(g.name, stmt.global_var_def.name) == 0:
-                        vartype = g.type
-                        break
-                assert vartype != NULL
-                LLVMSetInitializer(globalptr, LLVMConstNull(type_to_llvm(vartype)))
-                if not stmt.global_var_def.public:
+                LLVMSetInitializer(globalptr, LLVMConstNull(type_to_llvm(stmt.symbol().type)))
+                if not stmt.symbol().public:
                     LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
+            case AstStatementKind.GlobalVariableDeclare:
+                assert stmt.symbol().type != NULL
+                LLVMAddGlobal(module, type_to_llvm(stmt.symbol().type), stmt.symbol().name)
+            case _:
+                pass
+
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+        match stmt.kind:
             case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt.function, stmt.location, ast.is_main_file, &builder_wrapper)
+                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
             case AstStatementKind.Class:
                 for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
                     if inner.kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner.method, inner.location, ast.is_main_file, &builder_wrapper)
+                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, &builder_wrapper)
             case _:
                 pass
 

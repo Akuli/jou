@@ -124,6 +124,7 @@ These LLVM/clang versions are supported:
 - LLVM 17 with clang 17
 - LLVM 18 with clang 18
 - LLVM 19 with clang 19
+- LLVM 20 with clang 20
 
 By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
@@ -151,6 +152,7 @@ $ LLVM_CONFIG=llvm-config-15 make
     - `llvm@17`
     - `llvm@18`
     - `llvm@19`
+    - `llvm@20`
 2. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou

@@ -149,6 +149,12 @@ function post_process_output()
         # Hide most of the output. We really only care about whether it
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
+    elif [[ $joufile =~ compiler_unit_tests ]] && [[ "${OS:=$(uname)}" =~ Darwin ]]; then
+        # On MacOS, silence a linker warning that appears whenever linking
+        # with LLVM. I don't know what causes the warning.
+        #
+        # See: https://github.com/Akuli/jou/issues/1005
+        grep -v "ld: warning: reexported library with install name"
     else
         # Pass the output through unchanged.
         cat
@@ -198,14 +204,25 @@ function should_skip()
         return 0
     fi
 
+    # When running valgrind, skip compiler unit tests. They link with LLVM and
+    # LLVM leaks memory when the program starts, even if it is never called.
+    if [ $valgrind = yes ] &&  [ $joufile = tests/should_succeed/compiler_unit_tests.jou ]; then
+        return 0
+    fi
+
     # Skip special programs that don't interact nicely with automated tests
     if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/memory_leak.jou ]; then
         return 0
     fi
 
     # If liblzma is not installed in a pkg-config compatible way, skip tests that use it
-    if [[ $joufile =~ link_with_liblzma ]] && ! (pkg-config --exists liblzma 2>/dev/null); then
-        return 0
+    if [[ $joufile =~ link_with_liblzma ]]; then
+        if ! (pkg-config --exists liblzma 2>/dev/null); then
+            return 0
+        fi
+        if [[ $joufile =~ (relative|system)_path && ! -e "$(pkg-config --variable=libdir liblzma)/liblzma.a" ]]; then
+            return 0
+        fi
     fi
 
     return 1  # false, don't skip

@@ -1,32 +1,39 @@
+import "stdlib/assert.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "./ast.jou"
+import "./typecheck/step1_global_symbols.jou"
+import "./state.jou"
 import "./errors_and_warnings.jou"
 import "./constants.jou"
 import "./types.jou"
 
 
 @public
-def get_special_constant(name: byte*) -> int:
-    match name with strcmp:
-        case "WINDOWS":
-            return WINDOWS as int
-        case "MACOS":
-            return MACOS as int
-        case "NETBSD":
-            return NETBSD as int
-        case _:
-            return -1
+def get_special_constant(name: byte*) -> Constant*:
+    if global_compiler_state.special_constants[0].name == NULL:
+        # called for the first time, initialize special constants
+        global_compiler_state.special_constants = [
+            SpecialConstant{name = "WINDOWS", constant = Constant{kind = ConstantKind.Bool, boolean = WINDOWS}},
+            SpecialConstant{name = "MACOS", constant = Constant{kind = ConstantKind.Bool, boolean = MACOS}},
+            SpecialConstant{name = "NETBSD", constant = Constant{kind = ConstantKind.Bool, boolean = NETBSD}},
+        ]
+
+    n = sizeof(global_compiler_state.special_constants) / sizeof(global_compiler_state.special_constants[0])
+    for i = 0; i < n; i++:
+        if strcmp(global_compiler_state.special_constants[i].name, name) == 0:
+            return &global_compiler_state.special_constants[i].constant
+    return NULL
 
 
 # Return values: 1=true 0=false -1=error
-def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
+def evaluate_boolean_and_or(jou_file: JouFile*, expr: AstExpression*, and_or: byte*) -> int:
     assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
 
     value: Constant
-    if not evaluate_constant_expression(expr, &value, boolType):
+    if not evaluate_constant_expression(jou_file, expr, &value, bool_type()):
         return -1
 
     if value.kind != ConstantKind.Bool:
@@ -38,68 +45,12 @@ def evaluate_boolean_and_or(expr: AstExpression*, and_or: byte*) -> int:
     return value.boolean as int
 
 
-# For integer types, returns the smallest supported value.
-def min_value(t: Type*) -> int64:
-    match t.kind:
-        # See doc/types.md
-        case TypeKind.SignedInteger:
-            match t.size_in_bits:
-                case 8:
-                    return -0x80
-                case 16:
-                    return -0x8000
-                case 32:
-                    # TODO: This is more difficult than it should be.
-                    return -(0x8000_0000 as int64)
-                case 64:
-                    # TODO: This is more difficult than it should be. Relies on overflow.
-                    return (0x8000_0000_0000_0000 as uint64) as int64
-                case _:
-                    assert False
-        case TypeKind.UnsignedInteger:
-            return 0
-        case _:
-            assert False
-
-
-# For integer types, returns the biggest supported value.
-def max_value(t: Type*) -> uint64:
-    match t.kind:
-        # See doc/types.md
-        case TypeKind.SignedInteger:
-            match t.size_in_bits:
-                case 8:
-                    return 0x7f
-                case 16:
-                    return 0x7fff
-                case 32:
-                    return 0x7fff_ffff
-                case 64:
-                    return 0x7fff_ffff_ffff_ffff
-                case _:
-                    assert False
-        case TypeKind.UnsignedInteger:
-            match t.size_in_bits:
-                case 8:
-                    return 0xff
-                case 16:
-                    return 0xffff
-                case 32:
-                    return 0xffff_ffff
-                case 64:
-                    return 0xffff_ffff_ffff_ffff
-                case _:
-                    assert False
-        case _:
-            assert False
-
-
 # Returns False if the expression is not a simple compile-time constant.
 #
 # As the naming suggests, the type hint is only a hint and result type may differ.
 # Set the type hint to NULL if you don't care about it.
 @public
-def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_hint: Type*) -> bool:
+def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, result: Constant*, type_hint: Type*) -> bool:
     msg: byte[500]
 
     match expr.kind:
@@ -107,9 +58,9 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
             if type_hint != NULL and type_hint.is_integer_type():
                 t = type_hint
             else:
-                t = intType
+                t = int_type(32)
 
-            if expr.integer_value > max_value(t):
+            if expr.integer_value > t.max_value():
                 snprintf(msg, sizeof(msg), "value does not fit into %s", t.name)
                 fail(expr.location, msg)
 
@@ -121,31 +72,36 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
             return True
 
         case AstExpressionKind.GetVariable:
-            # Handle special constants like WINDOWS, MACOS, etc.
-            val = get_special_constant(expr.varname)
-            if val == -1:
+            if jou_file == NULL:
+                # Only special constants are supported here
+                c = get_special_constant(expr.varname)
+            else:
+                # Can e.g. refer to values of `const` constants
+                c = find_and_typecheck_constant(jou_file, expr.varname)
+
+            if c == NULL:
                 return False
-            *result = Constant{kind = ConstantKind.Bool, boolean = (val == 1)}
+            *result = c.copy()
             return True
 
         case AstExpressionKind.And:
-            lhs = evaluate_boolean_and_or(&expr.operands[0], "and")
-            rhs = evaluate_boolean_and_or(&expr.operands[1], "and")
+            lhs = evaluate_boolean_and_or(jou_file, &expr.operands[0], "and")
+            rhs = evaluate_boolean_and_or(jou_file, &expr.operands[1], "and")
             if lhs == -1 or rhs == -1:
                 return False
             *result = Constant{kind = ConstantKind.Bool, boolean = (lhs == 1 and rhs == 1)}
             return True
 
         case AstExpressionKind.Or:
-            lhs = evaluate_boolean_and_or(&expr.operands[0], "or")
-            rhs = evaluate_boolean_and_or(&expr.operands[1], "or")
+            lhs = evaluate_boolean_and_or(jou_file, &expr.operands[0], "or")
+            rhs = evaluate_boolean_and_or(jou_file, &expr.operands[1], "or")
             if lhs == -1 or rhs == -1:
                 return False
             *result = Constant{kind = ConstantKind.Bool, boolean = (lhs == 1 or rhs == 1)}
             return True
 
         case AstExpressionKind.Not:
-            if not evaluate_constant_expression(&expr.operands[0], result, boolType):
+            if not evaluate_constant_expression(jou_file, &expr.operands[0], result, bool_type()):
                 return False
 
             if result.kind != ConstantKind.Bool:
@@ -157,7 +113,18 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
             return True
 
         case AstExpressionKind.Negate:
-            if not evaluate_constant_expression(&expr.operands[0], result, type_hint):
+            # Special-case e.g. "const foo: int8 = -128" because 128 is not a
+            # valid int8 but -128 is, so can't just evaluate 128 and add minus.
+            if (
+                type_hint != NULL
+                and type_hint.is_integer_type()
+                and expr.operands[0].kind == AstExpressionKind.IntegerConstant
+                and expr.operands[0].integer_value == (-type_hint.min_value()) as uint64
+            ):
+                *result = int_constant(type_hint, type_hint.min_value())
+                return True
+
+            if not evaluate_constant_expression(jou_file, &expr.operands[0], result, type_hint):
                 return False
 
             match result.get_type().kind:
@@ -165,7 +132,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
                     # Negating the smallest signed integer would overflow.
                     # For example, int8 goes from -128 to +127.
                     # TODO: test this when possible
-                    if result.integer.value == min_value(result.get_type()):
+                    if result.integer.value == result.get_type().min_value():
                         return False
                     result.integer.value *= -1
                     return True
@@ -192,7 +159,7 @@ def evaluate_constant_expression(expr: AstExpression*, result: Constant*, type_h
 def evaluate_array_length(expr: AstExpression*) -> int:
     # TODO: this should probably support int64
     c: Constant
-    if evaluate_constant_expression(expr, &c, intType) and c.get_type() == intType:
+    if evaluate_constant_expression(NULL, expr, &c, int_type(32)) and c.get_type() == int_type(32):
         return c.integer.value as int
     fail(expr.location, "cannot evaluate array length at compile time")
 
@@ -203,7 +170,7 @@ def choose_if_elif_branch(if_stmt: AstIfStatement*) -> List[AstStatement]*:
     # Return the first branch whose condition is true.
     # Return NULL if we fail to evaluate a condition and it must be checked at runtime.
     for p = if_stmt.if_and_elifs.ptr; p < if_stmt.if_and_elifs.end(); p++:
-        if (not evaluate_constant_expression(&p.condition, &cond, boolType)) or cond.kind != ConstantKind.Bool:
+        if (not evaluate_constant_expression(NULL, &p.condition, &cond, bool_type())) or cond.kind != ConstantKind.Bool:
             return NULL
 
         if cond.boolean:
@@ -286,6 +253,8 @@ def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool
                 | AstStatementKind.InPlaceBitAnd
                 | AstStatementKind.InPlaceBitOr
                 | AstStatementKind.InPlaceBitXor
+                | AstStatementKind.InPlaceBitShiftLeft
+                | AstStatementKind.InPlaceBitShiftRight
                 | AstStatementKind.FunctionDeclare
                 | AstStatementKind.Enum
                 | AstStatementKind.GlobalVariableDeclare
@@ -294,11 +263,12 @@ def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool
                 | AstStatementKind.ClassField
                 | AstStatementKind.ClassUnion
                 | AstStatementKind.Const
+                | AstStatementKind.TypeDef
             ):
                 # these statements cannot contain if statements, no need to recurse inside
                 pass
 
 
 @public
-def evaluate_compile_time_if_statements(file: AstFile*) -> None:
-    evaluate_if_statements_in_body(&file.body, True)
+def evaluate_compile_time_if_statements(jou_file: JouFile*) -> None:
+    evaluate_if_statements_in_body(&jou_file.ast, True)

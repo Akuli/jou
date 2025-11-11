@@ -36,11 +36,6 @@ def main() -> int:
     printf("%lld\n", n)  # Output: 123123123123123
     printf("%lld bytes (%lld bits)\n", sizeof(n), sizeof(n)*8)  # Output: 8 bytes (64 bits)
 
-    # The following two lines are UB and produce different
-    # values with -O3 and without:
-    #printf("%d\n", -12.34 as byte)
-    #printf("%d\n", -12.99 as byte)
-
     one = 1 as int  # Warning: unnecessary cast from int to int
     printf("%d\n", one)  # Output: 1
 

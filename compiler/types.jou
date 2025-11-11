@@ -1,8 +1,10 @@
+import "stdlib/assert.jou"
 import "stdlib/mem.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "./ast.jou"
+import "./state.jou"
 
 
 @public
@@ -87,6 +89,7 @@ enum TypeKind:
     Array
     Class
     TypeVar  # the unknown type "T" of "class List[T]"
+    TypeDef  # "typedef MyInt = int" creates a new type MyInt
     Enum
 
 
@@ -100,13 +103,73 @@ class Type:
         func_ptr: FuncPtrType
         classdata: ClassData  # Class
         array: ArrayType  # Array
+        typedef_actual_type: Type*  # TypeDef
         enum_members: List[byte[100]]
+
+    def unwrap_typedef(self) -> Type*:
+        if self.kind == TypeKind.TypeDef:
+            assert self.typedef_actual_type != NULL
+            assert self.typedef_actual_type.kind != TypeKind.TypeDef
+            return self.typedef_actual_type
+        return self
 
     def is_integer_type(self) -> bool:
         return self.kind == TypeKind.SignedInteger or self.kind == TypeKind.UnsignedInteger
 
     def is_number_type(self) -> bool:
         return self.is_integer_type() or self.kind == TypeKind.FloatingPoint
+
+    def min_value(self) -> int64:
+        # See doc/types.md
+        match self.kind:
+            case TypeKind.SignedInteger:
+                match self.size_in_bits:
+                    case 8:
+                        return -0x80
+                    case 16:
+                        return -0x8000
+                    case 32:
+                        # TODO: This is more difficult than it should be.
+                        return -(0x8000_0000 as int64)
+                    case 64:
+                        # TODO: This is more difficult than it should be. Relies on overflow.
+                        return (0x8000_0000_0000_0000 as uint64) as int64
+                    case _:
+                        assert False
+            case TypeKind.UnsignedInteger:
+                return 0
+            case _:
+                assert False
+
+    def max_value(self) -> uint64:
+        # See doc/types.md
+        match self.kind:
+            case TypeKind.SignedInteger:
+                match self.size_in_bits:
+                    case 8:
+                        return 0x7f
+                    case 16:
+                        return 0x7fff
+                    case 32:
+                        return 0x7fff_ffff
+                    case 64:
+                        return 0x7fff_ffff_ffff_ffff
+                    case _:
+                        assert False
+            case TypeKind.UnsignedInteger:
+                match self.size_in_bits:
+                    case 8:
+                        return 0xff
+                    case 16:
+                        return 0xffff
+                    case 32:
+                        return 0xffff_ffff
+                    case 64:
+                        return 0xffff_ffff_ffff_ffff
+                    case _:
+                        assert False
+            case _:
+                assert False
 
     def is_pointer_type(self) -> bool:
         match self.kind:
@@ -164,7 +227,7 @@ class Type:
             assert from[i].kind == TypeKind.TypeVar
 
         match self.kind:
-            case TypeKind.TypeVar:
+            case TypeKind.TypeVar | TypeKind.TypeDef:
                 # the T of List[T] becomes the int of List[int]
                 for i = 0; i < n; i++:
                     if from[i] == self:
@@ -297,6 +360,10 @@ class Type:
                 return "the built-in bool type"
             case TypeKind.TypeVar:
                 return "an unknown type"
+            case TypeKind.TypeDef:
+                if self.typedef_actual_type != NULL:
+                    return self.typedef_actual_type.short_description()
+                return "a typedef"
 
     def find_class_field(self, name: byte*) -> ClassField*:
         if self.kind != TypeKind.Class:
@@ -356,48 +423,91 @@ def cast_type_to_typeinfo(t: Type*) -> TypeInfo*:
 # frees with valgrind.
 #
 # This also simplifies checking whether two types are the same type: you
-# can simply use "==" between two "const Type *" pointers.
-class GlobalTypeState:
-    ints: TypeInfo[129]     # ints[i] = signed i-bit integer
-    uints: TypeInfo[129]    # uints[i] = unsigned i-bit integer
+# can simply use "==" between two Type* pointers.
+@public
+class TypeState:
+    ints: TypeInfo[5]     # signed 8,16,32,64,128 bit integers
+    uints: TypeInfo[5]    # unsigned 8,16,32,64,128 bit integers
     boolean: TypeInfo
-    doublelele: TypeInfo
     floater: TypeInfo
+    doublelele: TypeInfo
     voidptr: TypeInfo
     funcptr_types: List[TypeInfo*]  # All funcptr types. TODO: use a hash table
     other_types: List[TypeInfo*]
 
-global global_type_state: GlobalTypeState
+    def free(self) -> None:
+        self.boolean.free_related_types()
+        self.floater.free_related_types()
+        self.doublelele.free_related_types()
+        self.voidptr.free_related_types()
+        for i = 0; i < sizeof(self.ints)/sizeof(self.ints[0]); i++:
+            self.ints[i].free_related_types()
+        for i = 0; i < sizeof(self.uints)/sizeof(self.uints[0]); i++:
+            self.uints[i].free_related_types()
+        for p = self.funcptr_types.ptr; p < self.funcptr_types.end(); p++:
+            free_type(&(*p).type)
+        free(self.funcptr_types.ptr)
+        for p = self.other_types.ptr; p < self.other_types.end(); p++:
+            free_type(&(*p).type)
+        free(self.other_types.ptr)
 
+
+# Returns the "bool" type
 @public
-global boolType: Type*      # bool
+def bool_type() -> Type*:
+    return &global_compiler_state.types.boolean.type
+
+# Returns the "float" type
 @public
-global intType: Type*       # int (32-bit signed)
+def float_type() -> Type*:
+    return &global_compiler_state.types.floater.type
+
+# Returns the "double" type
 @public
-global int64Type: Type*     # int64 (64-bit signed)
+def double_type() -> Type*:
+    return &global_compiler_state.types.doublelele.type
+
+# Returns the "void*" type
 @public
-global byteType: Type*      # byte (8-bit unsigned)
-@public
-global floatType: Type*     # float (32-bit)
-@public
-global doubleType: Type*    # double (64-bit)
-@public
-global voidPtrType: Type*   # void*
+def void_ptr_type() -> Type*:
+    return &global_compiler_state.types.voidptr.type
 
 
 # Examples: int_type(32) returns the "int" type, int_type(64) is int64
 # int_type(128) is not accessible in Jou code and is used only for intermediate values.
 @public
 def int_type(bits: int) -> Type*:
-    assert bits == 8 or bits == 16 or bits == 32 or bits == 64 or bits == 128
-    return &global_type_state.ints[bits].type
+    match bits:
+        case 8:
+            return &global_compiler_state.types.ints[0].type
+        case 16:
+            return &global_compiler_state.types.ints[1].type
+        case 32:
+            return &global_compiler_state.types.ints[2].type
+        case 64:
+            return &global_compiler_state.types.ints[3].type
+        case 128:
+            return &global_compiler_state.types.ints[4].type
+        case _:
+            assert False
 
 # Examples: uint_type(8) returns the "byte" type, uint_type(64) is int64
 # uint_type(128) is not accessible in Jou code and is used only for intermediate values.
 @public
 def uint_type(bits: int) -> Type*:
-    assert bits == 8 or bits == 16 or bits == 32 or bits == 64 or bits == 128
-    return &global_type_state.uints[bits].type
+    match bits:
+        case 8:
+            return &global_compiler_state.types.uints[0].type
+        case 16:
+            return &global_compiler_state.types.uints[1].type
+        case 32:
+            return &global_compiler_state.types.uints[2].type
+        case 64:
+            return &global_compiler_state.types.uints[3].type
+        case 128:
+            return &global_compiler_state.types.uints[4].type
+        case _:
+            assert False
 
 
 # Return a function pointer type like "funcptr(int, int) -> int"
@@ -407,7 +517,7 @@ def funcptr_type(argtypes: Type**, nargs: int64, takes_varargs: bool, return_typ
         assert return_type == NULL
 
     # Do we already have this funcptr type?
-    for infoptr = global_type_state.funcptr_types.ptr; infoptr < global_type_state.funcptr_types.end(); infoptr++:
+    for infoptr = global_compiler_state.types.funcptr_types.ptr; infoptr < global_compiler_state.types.funcptr_types.end(); infoptr++:
         t: Type* = &(*infoptr).type
         assert t.kind == TypeKind.FuncPtr
         assert sizeof(t.func_ptr.argtypes.ptr[0]) == sizeof(argtypes[0])
@@ -450,40 +560,31 @@ def funcptr_type(argtypes: Type**, nargs: int64, takes_varargs: bool, return_typ
     snprintf(info.type.name, sizeof(t.name), "funcptr(%s) -> %s", argstr, ret_name)
     free(argstr)
 
-    global_type_state.funcptr_types.append(info)
+    global_compiler_state.types.funcptr_types.append(info)
     return &info.type
 
 
 @public
 def init_types() -> None:
-    memset(&global_type_state, 0, sizeof(global_type_state))
-
-    boolType = &global_type_state.boolean.type
-    intType = &global_type_state.ints[32].type
-    int64Type = &global_type_state.ints[64].type
-    byteType = &global_type_state.uints[8].type
-    floatType = &global_type_state.floater.type
-    doubleType = &global_type_state.doublelele.type
-    voidPtrType = &global_type_state.voidptr.type
-
-    global_type_state.boolean.type = Type{name = "bool", kind = TypeKind.Bool }
-    global_type_state.voidptr.type = Type{name = "void*", kind = TypeKind.VoidPointer }
-    global_type_state.floater.type = Type{name = "float", kind = TypeKind.FloatingPoint, size_in_bits = 32 }
-    global_type_state.doublelele.type = Type{name = "double", kind = TypeKind.FloatingPoint, size_in_bits = 64 }
+    memset(&global_compiler_state.types, 0, sizeof(global_compiler_state.types))
+    *bool_type() = Type{name = "bool", kind = TypeKind.Bool }
+    *void_ptr_type() = Type{name = "void*", kind = TypeKind.VoidPointer }
+    *float_type() = Type{name = "float", kind = TypeKind.FloatingPoint, size_in_bits = 32 }
+    *double_type() = Type{name = "double", kind = TypeKind.FloatingPoint, size_in_bits = 64 }
 
     # Currently int128 and uint128 are not exposed in the language, but int128 is used
     # for temporary values hidden from users.
     for size = 8; size <= 128; size *= 2:
-        global_type_state.uints[size].type.kind = TypeKind.UnsignedInteger
-        global_type_state.uints[size].type.size_in_bits = size
-        sprintf(global_type_state.uints[size].type.name, "uint%d", size)
+        uint_type(size).kind = TypeKind.UnsignedInteger
+        uint_type(size).size_in_bits = size
+        sprintf(uint_type(size).name, "uint%d", size)
 
-        global_type_state.ints[size].type.kind = TypeKind.SignedInteger
-        global_type_state.ints[size].type.size_in_bits = size
-        sprintf(global_type_state.ints[size].type.name, "int%d", size)
+        int_type(size).kind = TypeKind.SignedInteger
+        int_type(size).size_in_bits = size
+        sprintf(int_type(size).name, "int%d", size)
 
-    global_type_state.uints[8].type.name = "byte"
-    global_type_state.ints[32].type.name = "int"
+    uint_type(8).name = "byte"
+    int_type(32).name = "int"
 
 
 # Usually you don't need to free a type. This is in a function to make you
@@ -510,28 +611,11 @@ def free_type(t: Type*) -> None:
     free(t)
 
 
-@public
-def free_global_type_state() -> None:
-    global_type_state.boolean.free_related_types()
-    global_type_state.floater.free_related_types()
-    global_type_state.doublelele.free_related_types()
-    global_type_state.voidptr.free_related_types()
-    for size = 8; size <= 128; size *= 2:
-        global_type_state.ints[size].free_related_types()
-        global_type_state.uints[size].free_related_types()
-    for p = global_type_state.funcptr_types.ptr; p < global_type_state.funcptr_types.end(); p++:
-        free_type(&(*p).type)
-    free(global_type_state.funcptr_types.ptr)
-    for p = global_type_state.other_types.ptr; p < global_type_state.other_types.end(); p++:
-        free_type(&(*p).type)
-    free(global_type_state.other_types.ptr)
-
-
 # Ensures that the type is freed when compiler is done. Operating system would
 # do it anyway, but communicating this to valgrind is complicated because of
 # how pointers and arrays work.
 def satisfy_valgrind(ti: TypeInfo*) -> None:
-    global_type_state.other_types.append(ti)
+    global_compiler_state.types.other_types.append(ti)
 
 
 def create_simple_type(name: byte*, kind: TypeKind) -> Type*:
@@ -555,6 +639,16 @@ def create_empty_class(name: byte*) -> Type*:
 @public
 def create_typevar(name: byte*) -> Type*:
     return create_simple_type(name, TypeKind.TypeVar)
+
+
+# Used for typedef statements. This creates a type that implicitly casts to
+# some other type and back. The other, actual type is set later.
+@public
+def create_typedef_type(name: byte*, actual_type: Type*) -> Type*:
+    assert actual_type != NULL
+    result = create_simple_type(name, TypeKind.TypeDef)
+    result.typedef_actual_type = actual_type
+    return result
 
 
 @public

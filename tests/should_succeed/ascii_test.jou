@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"
 import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
@@ -28,6 +29,17 @@ def main() -> int:
     assert not is_ascii_punctuation('a')
     assert not is_ascii_punctuation('2')
     assert not is_ascii_punctuation('\0')
+
+    assert is_ascii_printable('!')
+    assert is_ascii_printable('J')
+    assert is_ascii_printable('~')
+    assert is_ascii_printable(' ')
+    assert not is_ascii_printable('\n')
+    assert not is_ascii_printable('\0')
+    assert not is_ascii_printable('\x1c')  # File Separator (almost nobody uses this)
+    assert not is_ascii_printable('\x1f')  # last non-printable before printables
+    assert not is_ascii_printable('\x7f')  # first non-printable after printables
+    assert not is_ascii_printable("ö"[0])  # not ASCII
 
     assert is_ascii_whitespace(' ')
     assert is_ascii_whitespace('\t')

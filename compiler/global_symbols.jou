@@ -1,0 +1,61 @@
+# A global symbol is anything that can be referred by name anywhere in a file,
+# e.g. a class, a function or a global constant. If a symbol is decorated with
+# @public, it is also accessible in other files.
+#
+# The Jou compiler does not allocate memory for symbols separately. Instead,
+# the symbols are simply placed inside the AST statement classes.
+
+import "./types.jou"
+import "./constants.jou"
+
+
+@public
+enum GlobalSymbolKind:
+    Function
+    Type
+    GenericClass  # similar to Type, contains something like List[T] where T is a type variable
+    GlobalVar
+    Const
+
+@public
+enum GlobalSymbolStatus:
+    NotTypeChecked  # Type checking not started yet (the default, must be first)
+    TypeChecking    # We are currently type checking this. Used to detect self-referencing things.
+    Ready           # Type checked, e.g. we now know the value of a constant or members of a class
+
+
+@public
+class GlobalSymbol:
+    name: byte[100]
+    kind: GlobalSymbolKind
+    status: GlobalSymbolStatus
+    public: bool  # Is it decorated with @public?
+    used: bool    # If not @public, this is used to show unused warnings
+
+    union:
+        # These are zero initialized at first, populated during type checking.
+        signature: Signature  # GlobalSymbolKind.Function
+        type: Type*  # GlobalSymbolKind.Type, GlobalSymbolKind.GlobalVar, GlobalSymbolKind.GenericClass
+        constant: Constant  # GlobalSymbolKind.Const
+
+    def free(self) -> None:
+        match self.kind:
+            case GlobalSymbolKind.Function:
+                self.signature.free()
+            case GlobalSymbolKind.Const:
+                self.constant.free()
+            case _:
+                pass
+
+    def short_description(self) -> byte*:
+        match self.kind:
+            case GlobalSymbolKind.Function:
+                return "function"
+            case GlobalSymbolKind.GlobalVar:
+                return "global variable"
+            case GlobalSymbolKind.Type:
+                return "type"
+            case GlobalSymbolKind.GenericClass:
+                return "generic class"
+            case GlobalSymbolKind.Const:
+                return "constant"

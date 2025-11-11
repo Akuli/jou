@@ -45,17 +45,13 @@ Here's what each step does:
 - **Evaluating compile-time if statements** must be done before looking at what other files are imported.
     For example, if there is a Windows-specific `import` statement under `if WINDOWS:`,
     we want to ignore it when not compiling for Windows.
-- **Type checking** is split into several steps,
-    so that everything will work as expected even if there are circular imports.
-    Whenever one file influences another file, that is done explicitly between the steps.
-    For example, suppose that functions `foo()` and `bar()` call each other recursively,
-    and they are in different files.
-    During step 3, the compiler goes through the body of `foo()`, and it sees a call to `bar()`.
-    It already knows about the `bar()` function, because discovering functions is part of step 2.
-    To understand what each step does, see the comments at the start of
-    [compiler/typecheck/step1_create_types.jou](../../compiler/typecheck/step1_create_types.jou),
-    [compiler/typecheck/step2_populate_types.jou](../../compiler/typecheck/step2_populate_types.jou) and
-    [compiler/typecheck/step3_function_and_method_bodies.jou](../../compiler/typecheck/step3_function_and_method_bodies.jou).
+- **Making imported statements available** means
+    finding `@public`-decorated statements in imported files and collecting them to a list.
+    There is one list per source file.
+- **Type checking** means figuring out what type everything in the code is,
+    whether the code tries to access something that doesn't exist,
+    and a few other things.
+    For details, see [type-checking.md](./type-checking.md).
 - **UVGs** are used only to show error messages and warnings.
     They are used to detect undefined variables and a few other common mistakes.
     See [uvg.md](uvg.md) for details.
@@ -92,6 +88,13 @@ $ ./jou -vv examples/hello.jou  # Show all details
 
 
 ## Gotchas and unusual things
+
+Command-line arguments, AST of all files and various other things
+are all placed into one global variable that is accessed from many places.
+In my experience, this pattern encourages me to write simpler code:
+instead of writing classes that each do something and connecting them into a complex mesh,
+I write simple functions that mutate a big state object.
+The state object is defined in [compiler/state.jou](../../compiler/state.jou).
 
 Unlike many other compilers, the Jou compiler does not have "Jou IR" between AST and LLVM IR.
 The Jou compiler used to have a "Jou IR" (called CFGs) that was generated from AST,

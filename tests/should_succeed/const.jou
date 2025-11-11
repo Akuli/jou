@@ -27,9 +27,9 @@ const message: byte* = "hello"
 const big: uint64 = 12345678901234567890  # barely fits in uint64
 const big_negative: int64 = -12345678987654321
 
-# TODO: doesn't work yet
-#const int8_min: int8 = -128
-#const int16_min: int16 = -32768
+# Refer to a constant defined later
+const late1: byte* = late2
+const late2: byte* = "hello"
 
 
 def main() -> int:
@@ -49,5 +49,7 @@ def main() -> int:
     printf("%d %d %d %d %d\n", no1, no2, no3, no4, no5)       # Output: 0 0 0 0 0
 
     puts(message)  # Output: hello
+
+    printf("%s %s\n", late1, late2)  # Output: hello hello
 
     return 0

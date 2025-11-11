@@ -1,10 +1,8 @@
+import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "./errors_and_warnings.jou"
-
-# TODO: move to stdlib
-declare isprint(b: int) -> int
 
 
 @public
@@ -39,7 +37,7 @@ class Token:
         match self.kind:
             case TokenKind.Byte:
                 printf("byte %#02llx", self.integer_value)
-                if isprint(self.integer_value as byte) != 0:
+                if is_ascii_printable(self.integer_value as byte):
                     printf(" '%c'", self.integer_value as byte)
                 printf("\n")
             case TokenKind.Integer:
@@ -63,7 +61,7 @@ class Token:
             case TokenKind.String:
                 printf("string \"")
                 for s = self.long_string; *s != 0; s++:
-                    if isprint(*s) != 0:
+                    if is_ascii_printable(*s):
                         putchar(*s)
                     elif *s == '\n':
                         printf("\\n")

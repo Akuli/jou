@@ -1,0 +1,104 @@
+import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
+import "stdlib/list.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+
+class File:
+    name: byte[100]  # relative to containing directory, no "/" characters
+    size: int64
+
+
+class Directory:
+    name: byte[100]  # relative to containing directory, no "/" characters
+    files: List[File]
+    subdirs: List[Directory]
+
+    def total_size(self) -> int64:
+        result: int64 = 0
+        for d = self.subdirs.ptr; d < self.subdirs.end(); d++:
+            result += d.total_size()
+        for f = self.files.ptr; f < self.files.end(); f++:
+            result += f.size
+        return result
+
+    def total_size_of_smallest_dir_at_least(self, min_size: int64) -> int64:
+        best: int64 = 100000000000000
+
+        if self.total_size() >= min_size:
+            best = self.total_size()
+
+        for d = self.subdirs.ptr; d < self.subdirs.end(); d++:
+            subdir_best = d.total_size_of_smallest_dir_at_least(min_size)
+            if subdir_best < best:
+                best = subdir_best
+
+        return best
+
+    def free(self) -> None:
+        for d = self.subdirs.ptr; d < self.subdirs.end(); d++:
+            d.free()
+        free(self.subdirs.ptr)
+        free(self.files.ptr)
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    root = Directory{name="root"}
+    dirs = List[Directory*]{}  # topmost is current working directory
+
+    line: byte[100]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+
+        if strcmp(line, "$ cd /") == 0:
+            dirs.len = 0
+            dirs.append(&root)
+        elif strcmp(line, "$ ls") == 0:
+            # directory listing follows, will be processed when it comes
+            pass
+        elif strcmp(line, "$ cd ..") == 0:
+            dirs.pop()
+        elif starts_with(line, "$ cd "):
+            cwd = dirs.end()[-1]
+            found = False
+            for d = cwd.subdirs.ptr; d < cwd.subdirs.end(); d++:
+                if strcmp(d.name, &line[5]) == 0:
+                    dirs.append(d)
+                    found = True
+                    break
+            assert found
+        elif starts_with(line, "dir "):
+            subdir = Directory{}
+            subdir_name = &line[4]
+            assert strlen(subdir_name) < sizeof(subdir.name)
+            strcpy(subdir.name, subdir_name)
+            dirs.end()[-1].subdirs.append(subdir)
+        else:
+            # file with size
+            filename = strstr(line, " ")
+            assert filename != NULL
+            filename++  # skip space
+            file = File{size = atoll(line)}
+            assert strlen(filename) < sizeof(file.name)
+            strcpy(file.name, filename)
+            dirs.end()[-1].files.append(file)
+
+    free(dirs.ptr)
+    fclose(f)
+
+    size_of_disk = 70000000
+    needed_space = 30000000
+    free_space = size_of_disk - root.total_size()
+    assert free_space < needed_space
+    min_size = needed_space - free_space
+
+    # Output: 24933642
+    printf("%lld\n", root.total_size_of_smallest_dir_at_least(min_size))
+
+    root.free()
+    return 0

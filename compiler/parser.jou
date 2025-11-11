@@ -1,9 +1,13 @@
+import "stdlib/assert.jou"
 import "stdlib/ascii.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
+
 import "./token.jou"
+import "./global_symbols.jou"
+import "./state.jou"
 import "./ast.jou"
 import "./errors_and_warnings.jou"
 import "./paths.jou"
@@ -77,6 +81,12 @@ def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -
     elif t.is_operator("^"):
         assert arity == 2
         result.kind = AstExpressionKind.BitXor
+    elif t.is_operator("<<"):
+        assert arity == 2
+        result.kind = AstExpressionKind.BitShiftLeft
+    elif t.is_operator(">>"):
+        assert arity == 2
+        result.kind = AstExpressionKind.BitShiftRight
     elif t.is_keyword("and"):
         assert arity == 2
         result.kind = AstExpressionKind.And
@@ -118,6 +128,10 @@ def determine_the_kind_of_a_statement_that_starts_with_an_expression(
         return AstStatementKind.InPlaceBitOr
     if this_token_is_after_that_initial_expression.is_operator("^="):
         return AstStatementKind.InPlaceBitXor
+    if this_token_is_after_that_initial_expression.is_operator("<<="):
+        return AstStatementKind.InPlaceBitShiftLeft
+    if this_token_is_after_that_initial_expression.is_operator(">>="):
+        return AstStatementKind.InPlaceBitShiftRight
     return AstStatementKind.ExpressionStatement
 
 
@@ -193,21 +207,15 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 if strcmp(stmt.function.ast_signature.name, "main") == 0:
                     fail(location, "the main() function cannot be @public")
-                stmt.function.public = True
             case AstStatementKind.MethodDef:
                 fail(location, "methods cannot be decorated with @public, a class is either fully public or fully private")
-            case AstStatementKind.Class:
-                stmt.classdef.public = True
-            case AstStatementKind.Enum:
-                stmt.enumdef.public = True
-            case AstStatementKind.GlobalVariableDeclare:
-                stmt.global_var_declare.public = True
-            case AstStatementKind.GlobalVariableDef:
-                stmt.global_var_def.public = True
-            case AstStatementKind.Const:
-                stmt.const_statement.public = True
             case _:
-                fail(location, "the @public decorator cannot be used here")
+                pass
+
+        symbol = stmt.symbol()
+        if symbol == NULL:
+            fail(location, "the @public decorator cannot be used here")
+        symbol.public = True
 
     elif strcmp(decor, "@inline") == 0:
         match stmt.kind:
@@ -284,7 +292,6 @@ enum WhatAreWeParsing:
 
 class Parser:
     tokens: Token*
-    stdlib_path: byte*
     loop_vars: List[byte*]  # NULL means a loop that doesn't look like "for foo = bar; ..."
     what_are_we_parsing: WhatAreWeParsing
 
@@ -324,7 +331,8 @@ class Parser:
         path: byte*
         if starts_with(path_token.long_string, "stdlib/"):
             # Starts with stdlib --> import from where stdlib actually is
-            asprintf(&path, "%s/%s", self.stdlib_path, &path_token.long_string[7])
+            assert global_compiler_state.stdlib_path != NULL
+            asprintf(&path, "%s/%s", global_compiler_state.stdlib_path, &path_token.long_string[7])
         elif starts_with(path_token.long_string, "."):
             # Relative to directory where the file is
             tmp = strdup(path_token.location.path)
@@ -515,6 +523,24 @@ class Parser:
 
         return result
 
+    def parse_typedef(self) -> AstTypeDef:
+        assert self.tokens.is_keyword("typedef")
+        self.tokens++
+
+        if self.tokens.kind != TokenKind.Name:
+            self.tokens.fail_expected_got("the name for a type")
+        name = self.tokens.short_string
+        self.tokens++
+
+        if not self.tokens.is_operator("="):
+            self.tokens.fail_expected_got("'=' between name and type")
+        self.tokens++
+
+        return AstTypeDef{
+            symbol = GlobalSymbol{name = name, kind = GlobalSymbolKind.Type},
+            ast_type = self.parse_type(),
+        }
+
     def parse_name_type_value(self, expected_what_for_name: byte*) -> AstNameTypeValue:
         if self.tokens.kind != TokenKind.Name:
             assert expected_what_for_name != NULL
@@ -687,7 +713,7 @@ class Parser:
                 self.tokens++
             case TokenKind.Byte:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = int_constant(byteType, self.tokens.integer_value as int64)
+                expr.constant = int_constant(uint_type(8), self.tokens.integer_value as int64)
                 self.tokens++
             case TokenKind.Float:
                 expr.kind = AstExpressionKind.Constant
@@ -829,6 +855,7 @@ class Parser:
             or self.tokens.is_operator("--")
             or self.tokens.is_operator("&")
             or self.tokens.is_operator("*")
+            or self.tokens.is_operator("~")
             or self.tokens.is_keyword("sizeof")
         ):
             self.tokens++
@@ -864,6 +891,8 @@ class Parser:
                     kind = AstExpressionKind.Dereference
                 elif token.is_operator("&"):
                     kind = AstExpressionKind.AddressOf
+                elif token.is_operator("~"):
+                    kind = AstExpressionKind.BitNot
                 elif token.is_keyword("sizeof"):
                     kind = AstExpressionKind.SizeOf
                 else:
@@ -904,7 +933,13 @@ class Parser:
     # TODO: ban chaining different bitwise operations e.g. a ^ b & c
     def parse_expression_with_bitwise_ops(self) -> AstExpression:
         result = self.parse_expression_with_add()
-        while self.tokens.is_operator("&") or self.tokens.is_operator("|") or self.tokens.is_operator("^"):
+        while (
+            self.tokens.is_operator("&")
+            or self.tokens.is_operator("|")
+            or self.tokens.is_operator("^")
+            or self.tokens.is_operator("<<")
+            or self.tokens.is_operator(">>")
+        ):
             t = self.tokens++
             lhs_rhs = [result, self.parse_expression_with_add()]
             result = build_operator_expression(t, 2, lhs_rhs)
@@ -1066,13 +1101,21 @@ class Parser:
             if ntv.value == NULL:
                 fail(location, "constants must have an initial value")
             result.kind = AstStatementKind.Const
-            result.const_statement = AstConstStatement{name = ntv.name, type = ntv.type, value = *ntv.value}
+            result.const_statement = AstConstStatement{
+                symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.Const},
+                type = ntv.type,
+                value = *ntv.value,
+            }
             free(ntv.value)
+        elif self.tokens.is_keyword("typedef"):
+            self.check_top_level("typedef statement")
+            result.kind = AstStatementKind.TypeDef
+            result.typedef_statement = self.parse_typedef()
         elif self.tokens.kind == TokenKind.Name and self.tokens[1].is_operator(":"):
             # e.g. "foo: int"
             match self.what_are_we_parsing:
                 case WhatAreWeParsing.TopLevel:
-                    fail(self.tokens.location, "missing 'global' keyword when defining global variable")
+                    fail(self.tokens.location, "missing 'global' or 'const' keyword when defining global variable")
                 case WhatAreWeParsing.ClassBody:
                     result.kind = AstStatementKind.ClassField
                     result.class_field = self.parse_name_type_value(NULL)
@@ -1089,7 +1132,7 @@ class Parser:
                 and self.what_are_we_parsing == WhatAreWeParsing.TopLevel
             ):
                 # Would fail anyway, but let's produce a better error message
-                fail(expr.location, "missing 'global' keyword when defining global variable")
+                fail(expr.location, "missing 'global' or 'const' keyword when defining global variable")
             if result.kind == AstStatementKind.ExpressionStatement:
                 if not expr.is_valid_as_a_statement():
                     fail(expr.location, "not a valid statement")
@@ -1330,13 +1373,20 @@ class Parser:
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.GlobalVariableDeclare,
-                    global_var_declare = AstGlobalVarDeclare{name = ntv.name, type = ntv.type},
+                    global_var_declare = AstGlobalVarDeclare{
+                        symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
+                        type = ntv.type,
+                    },
                 }
             else:
+                astsig = self.parse_function_or_method_signature(False)
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.FunctionDeclare,
-                    function = AstFunctionOrMethod{ast_signature = self.parse_function_or_method_signature(False)},
+                    function = AstFunctionOrMethod{
+                        symbol = GlobalSymbol{name = astsig.name, kind = GlobalSymbolKind.Function},
+                        ast_signature = astsig,
+                    },
                 }
             self.eat_newline()
         elif self.tokens.is_keyword("global"):
@@ -1351,7 +1401,10 @@ class Parser:
             result = AstStatement{
                 location = location,
                 kind = AstStatementKind.GlobalVariableDef,
-                global_var_def = AstGlobalVarDef{name = ntv.name, type = ntv.type},
+                global_var_def = AstGlobalVarDef{
+                    symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
+                    type = ntv.type,
+                },
             }
             self.eat_newline()
         elif self.tokens.is_keyword("class"):
@@ -1456,7 +1509,11 @@ class Parser:
         body = self.parse_body()
         self.what_are_we_parsing = old
 
-        return AstFunctionOrMethod{ast_signature = signature, body = body}
+        return AstFunctionOrMethod{
+            symbol = GlobalSymbol{name = signature.name, kind = GlobalSymbolKind.Function},
+            ast_signature = signature,
+            body = body,
+        }
 
     def parse_class(self) -> AstClassDef:
         assert self.tokens.is_keyword("class")
@@ -1496,7 +1553,10 @@ class Parser:
         self.what_are_we_parsing = old
 
         return AstClassDef{
-            name = name,
+            symbol = GlobalSymbol{
+                name = name,
+                kind = (GlobalSymbolKind.GenericClass if generics.len > 0 else GlobalSymbolKind.Type),
+            },
             generic_typevar_names = generics,
             body = body,
         }
@@ -1533,7 +1593,7 @@ class Parser:
             self.tokens.fail_expected_got("a name for the enum")
 
         result = AstEnumDef{
-            name = self.tokens.short_string,
+            symbol = GlobalSymbol{name = self.tokens.short_string, kind = GlobalSymbolKind.Type},
             name_location = self.tokens.location,
         }
         self.tokens++
@@ -1558,12 +1618,12 @@ class Parser:
         return result
 
 @public
-def parse(tokens: Token*, stdlib_path: byte*) -> AstFile:
-    parser = Parser{tokens = tokens, stdlib_path = stdlib_path}
-    result = AstFile{path = tokens[0].location.path}
+def parse(tokens: Token*) -> List[AstStatement]:
+    parser = Parser{tokens = tokens}
+    result = List[AstStatement]{}
 
     while parser.tokens.kind != TokenKind.EndOfFile:
-        result.body.append(parser.parse_statement())
+        result.append(parser.parse_statement())
 
     assert parser.loop_vars.len == 0
     free(parser.loop_vars.ptr)

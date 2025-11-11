@@ -5,15 +5,16 @@
 # .print() exists, you probably don't need to call .print_with_tree_printer(),
 # which is basically an internal detail of the .print() implementation.
 
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./errors_and_warnings.jou"
+import "./global_symbols.jou"
 import "./constants.jou"
 import "./types.jou"
-import "./types_in_ast.jou"
 
 
 # Max number of arguments that a function definition, declaration or call can have
@@ -212,6 +213,20 @@ class AstInstantiation:
 
 
 @public
+class ExpressionTypes:
+    # Type of value that the expression evaluates to, before implicit casts are applied.
+    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
+    orig_type: Type*
+
+    # Type after applying implicit cast, if any. If there's no implicit cast, same as original_type.
+    # This is NULL before type checking, and if the expression  calling '-> None' function/method.
+    implicit_cast_type: Type*
+
+    # Flags to indicate whether special kinds of implicit casts happened
+    implicit_array_to_pointer_cast: bool    # Foo[N] to Foo*
+
+
+@public
 enum AstExpressionKind:
     IntegerConstant # e.g. 123, type is unknown for now (it's usually int)
     Constant        # a compile-time-known value with known type, e.g. use of `const` value after type checking
@@ -228,35 +243,38 @@ enum AstExpressionKind:
     GetClassFieldPtr    # foo.bar, foo is a pointer to an instance and bar is a field
     As
     # unary operators
-    SizeOf      # sizeof x
-    AddressOf   # &x
-    Dereference # *x
-    Negate      # -x
-    Not         # not x
-    PreIncr     # ++x
-    PostIncr    # x++
-    PreDecr     # --x
-    PostDecr    # x--
+    SizeOf          # sizeof x
+    AddressOf       # &x
+    Dereference     # *x
+    Negate          # -x
+    Not             # not x
+    BitNot          # ~x
+    PreIncr         # ++x
+    PostIncr        # x++
+    PreDecr         # --x
+    PostDecr        # x--
     # binary operators
-    Add         # x+y
-    Sub         # x-y
-    Mul         # x*y
-    Div         # x/y
-    Indexing    # x[y]
-    Mod         # x % y
-    BitAnd      # x & y
-    BitOr       # x | y
-    BitXor      # x ^ y
-    Eq          # x == y
-    Ne          # x != y
-    Gt          # x > y
-    Lt          # x < y
-    Ge          # x >= y
-    Le          # x <= y
-    And         # x and y
-    Or          # x or y
+    Add             # x+y
+    Sub             # x-y
+    Mul             # x*y
+    Div             # x/y
+    Indexing        # x[y]
+    Mod             # x % y
+    BitAnd          # x & y
+    BitOr           # x | y
+    BitXor          # x ^ y
+    BitShiftLeft    # x << y
+    BitShiftRight   # x >> y
+    Eq              # x == y
+    Ne              # x != y
+    Gt              # x > y
+    Lt              # x < y
+    Ge              # x >= y
+    Le              # x <= y
+    And             # x and y
+    Or              # x or y
     # ternary operators
-    TernaryIf   # x if y else z
+    TernaryIf       # x if y else z
 
 @public
 class AstExpression:
@@ -337,6 +355,8 @@ class AstExpression:
                 printf("negate\n")
             case AstExpressionKind.Not:
                 printf("not\n")
+            case AstExpressionKind.BitNot:
+                printf("bitwise not\n")
             case AstExpressionKind.PreIncr:
                 printf("pre-increment\n")
             case AstExpressionKind.PostIncr:
@@ -361,6 +381,10 @@ class AstExpression:
                 printf("bitwise or\n")
             case AstExpressionKind.BitXor:
                 printf("bitwise xor\n")
+            case AstExpressionKind.BitShiftLeft:
+                printf("bitwise shift left\n")
+            case AstExpressionKind.BitShiftRight:
+                printf("bitwise shift right\n")
             case AstExpressionKind.Eq:
                 printf("eq\n")
             case AstExpressionKind.Ne:
@@ -419,6 +443,7 @@ class AstExpression:
                 | AstExpressionKind.Dereference
                 | AstExpressionKind.Negate
                 | AstExpressionKind.Not
+                | AstExpressionKind.BitNot
                 | AstExpressionKind.PreIncr
                 | AstExpressionKind.PreDecr
                 | AstExpressionKind.PostIncr
@@ -434,6 +459,8 @@ class AstExpression:
                 | AstExpressionKind.BitAnd
                 | AstExpressionKind.BitOr
                 | AstExpressionKind.BitXor
+                | AstExpressionKind.BitShiftLeft
+                | AstExpressionKind.BitShiftRight
                 | AstExpressionKind.Eq
                 | AstExpressionKind.Ne
                 | AstExpressionKind.Gt
@@ -447,7 +474,21 @@ class AstExpression:
                 return 2
             case AstExpressionKind.TernaryIf:
                 return 3
-            case _:
+            case (
+                AstExpressionKind.IntegerConstant
+                | AstExpressionKind.Constant
+                | AstExpressionKind.Array
+                | AstExpressionKind.Call
+                | AstExpressionKind.Instantiate
+                | AstExpressionKind.Self
+                | AstExpressionKind.GetVariable
+                | AstExpressionKind.GetFuncPtr
+                | AstExpressionKind.DotOperator
+                | AstExpressionKind.GetEnumMember
+                | AstExpressionKind.GetClassField
+                | AstExpressionKind.GetClassFieldPtr
+                | AstExpressionKind.As
+            ):
                 return 0
 
     def is_valid_as_a_statement(self) -> bool:
@@ -547,15 +588,12 @@ class AstAssertion:
 # const name: type = value
 @public
 class AstConstStatement:
-    name: byte[100]
+    symbol: GlobalSymbol
     type: AstType
     value: AstExpression
 
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused constants
-
     def print(self) -> None:
-        printf("%s: ", self.name)
+        printf("%s: ", self.symbol.name)
         self.type.print(True)
         printf("\n")
 
@@ -565,6 +603,7 @@ class AstConstStatement:
         self.value.print_with_tree_printer(sub)
 
     def free(self) -> None:
+        self.symbol.free()
         self.type.free()
         self.value.free()
 
@@ -583,23 +622,26 @@ enum AstStatementKind:
     ForLoop
     Break
     Continue
-    DeclareLocalVar # x: SomeType = y (the "= y" is optional)
-    ClassField      # x: SomeType (inside a class)
-    ClassUnion      # "union:" followed by indented fields inside a class
-    Assign          # x = y
-    InPlaceAdd      # x += y
-    InPlaceSub      # x -= y
-    InPlaceMul      # x *= y
-    InPlaceDiv      # x /= y
-    InPlaceMod      # x %= y
-    InPlaceBitAnd   # x &= y
-    InPlaceBitOr    # x |= y
-    InPlaceBitXor   # x ^= y
+    DeclareLocalVar         # x: SomeType = y (the "= y" is optional)
+    ClassField              # x: SomeType (inside a class)
+    ClassUnion              # "union:" followed by indented fields inside a class
+    Assign                  # x = y
+    InPlaceAdd              # x += y
+    InPlaceSub              # x -= y
+    InPlaceMul              # x *= y
+    InPlaceDiv              # x /= y
+    InPlaceMod              # x %= y
+    InPlaceBitAnd           # x &= y
+    InPlaceBitOr            # x |= y
+    InPlaceBitXor           # x ^= y
+    InPlaceBitShiftLeft     # x <<= y
+    InPlaceBitShiftRight    # x >>= y
     FunctionDeclare
     FunctionDef
     MethodDef
     Class
     Enum
+    TypeDef
     GlobalVariableDeclare
     GlobalVariableDef
     Const           # const x: SomeType = y
@@ -625,6 +667,7 @@ class AstStatement:
         method: AstFunctionOrMethod
         classdef: AstClassDef
         enumdef: AstEnumDef
+        typedef_statement: AstTypeDef
         assertion: AstAssertion
         match_statement: AstMatchStatement
         import_statement: AstImport
@@ -642,6 +685,8 @@ class AstStatement:
                 self.expression.print_with_tree_printer(tp.print_prefix(True))
             case AstStatementKind.Link:
                 self.link_statement.print()
+            case AstStatementKind.TypeDef:
+                self.typedef_statement.print()
             case AstStatementKind.Assert:
                 printf("assert \"%s\"\n", self.assertion.condition_str)
                 self.assertion.condition.print_with_tree_printer(tp.print_prefix(True))
@@ -693,6 +738,12 @@ class AstStatement:
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceBitXor:
                 printf("in-place bitwise xor\n")
+                self.assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceBitShiftLeft:
+                printf("in-place bitwise shift left\n")
+                self.assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceBitShiftRight:
+                printf("in-place bitwise shift right\n")
                 self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.FunctionDeclare:
                 printf("declare a function: ")
@@ -766,6 +817,8 @@ class AstStatement:
                 | AstStatementKind.InPlaceBitAnd
                 | AstStatementKind.InPlaceBitOr
                 | AstStatementKind.InPlaceBitXor
+                | AstStatementKind.InPlaceBitShiftLeft
+                | AstStatementKind.InPlaceBitShiftRight
             ):
                 self.assignment.free()
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
@@ -784,8 +837,68 @@ class AstStatement:
                 free(self.union_fields.ptr)
             case AstStatementKind.Const:
                 self.const_statement.free()
+            case AstStatementKind.TypeDef:
+                self.typedef_statement.free()
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
                 pass
+
+    def symbol(self) -> GlobalSymbol*:
+        match self.kind:
+            case (
+                AstStatementKind.Import
+                | AstStatementKind.Link
+                | AstStatementKind.ExpressionStatement
+                | AstStatementKind.Assert
+                | AstStatementKind.Pass
+                | AstStatementKind.Return
+                | AstStatementKind.If
+                | AstStatementKind.Match
+                | AstStatementKind.WhileLoop
+                | AstStatementKind.ForLoop
+                | AstStatementKind.Break
+                | AstStatementKind.Continue
+                | AstStatementKind.DeclareLocalVar
+                | AstStatementKind.ClassField
+                | AstStatementKind.ClassUnion
+                | AstStatementKind.Assign
+                | AstStatementKind.InPlaceAdd
+                | AstStatementKind.InPlaceSub
+                | AstStatementKind.InPlaceMul
+                | AstStatementKind.InPlaceDiv
+                | AstStatementKind.InPlaceMod
+                | AstStatementKind.InPlaceBitAnd
+                | AstStatementKind.InPlaceBitOr
+                | AstStatementKind.InPlaceBitXor
+                | AstStatementKind.InPlaceBitShiftLeft
+                | AstStatementKind.InPlaceBitShiftRight
+                | AstStatementKind.MethodDef
+            ):
+                # These things can't e.g. be imported to other file, no global symbol here
+                return NULL
+            case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
+                assert self.function.symbol.kind == GlobalSymbolKind.Function
+                return &self.function.symbol
+            case AstStatementKind.Class:
+                assert (
+                    self.classdef.symbol.kind == GlobalSymbolKind.Type
+                    or self.classdef.symbol.kind == GlobalSymbolKind.GenericClass
+                )
+                return &self.classdef.symbol
+            case AstStatementKind.Enum:
+                assert self.enumdef.symbol.kind == GlobalSymbolKind.Type
+                return &self.enumdef.symbol
+            case AstStatementKind.TypeDef:
+                assert self.typedef_statement.symbol.kind == GlobalSymbolKind.Type
+                return &self.typedef_statement.symbol
+            case AstStatementKind.GlobalVariableDeclare:
+                assert self.global_var_declare.symbol.kind == GlobalSymbolKind.GlobalVar
+                return &self.global_var_declare.symbol
+            case AstStatementKind.GlobalVariableDef:
+                assert self.global_var_def.symbol.kind == GlobalSymbolKind.GlobalVar
+                return &self.global_var_def.symbol
+            case AstStatementKind.Const:
+                assert self.const_statement.symbol.kind == GlobalSymbolKind.Const
+                return &self.const_statement.symbol
 
 
 # Useful for e.g. "while condition: body", "if condition: body"
@@ -1007,17 +1120,16 @@ class AstNameTypeValue:
 # declare global foo: int
 @public
 class AstGlobalVarDeclare:
-    name: byte[100]
+    symbol: GlobalSymbol
     type: AstType
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused global variables
 
     def print(self) -> None:
-        printf("%s: ", self.name)
+        printf("%s: ", self.symbol.name)
         self.type.print(True)
         printf("\n")
 
     def free(self) -> None:
+        self.symbol.free()
         self.type.free()
 
 
@@ -1025,17 +1137,16 @@ class AstGlobalVarDeclare:
 # TODO: support specifying an initial value
 @public
 class AstGlobalVarDef:
-    name: byte[100]
+    symbol: GlobalSymbol
     type: AstType
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused global variables
 
     def print(self) -> None:
-        printf("%s: ", self.name)
+        printf("%s: ", self.symbol.name)
         self.type.print(True)
         printf("\n")
 
     def free(self) -> None:
+        self.symbol.free()
         self.type.free()
 
 
@@ -1124,34 +1235,21 @@ class AstLink:
         free(self.resolved_flags)
 
 
-# Represents the AST of one Jou file.
 @public
-class AstFile:
-    path: byte*  # not owned
-    is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
-    body: List[AstStatement]
-    types: FileTypes  # populated in typecheck, zero-initialized before typecheck runs
-
-    def print(self) -> None:
-        printf("===== AST for file \"%s\" =====\n", self.path)
-        for p = self.body.ptr; p < self.body.end(); p++:
-            p.print()
-
-    def free(self) -> None:
-        free_body(self.body)
-        self.types.free()  # also works if self.types is zero-initialized
+class LocalVariable:
+    name: byte[100]
+    type: Type*
 
 
 # def foo() -> bar:
 #     ...
 @public
 class AstFunctionOrMethod:
+    symbol: GlobalSymbol
     ast_signature: AstSignature
     body: List[AstStatement]
-    types: FunctionOrMethodTypes  # populated in typecheck, zero-initialized before typecheck runs
-    public: bool  # is it decorated with @public
+    locals: List[LocalVariable]  # populated in typecheck, empty before typecheck
     inline: bool  # is it decorated with @inline
-    used: bool  # used to detect unused functions
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
@@ -1161,23 +1259,19 @@ class AstFunctionOrMethod:
         print_body(self.body, tp)
 
     def free(self) -> None:
+        self.symbol.free()
         self.ast_signature.free()
         free_body(self.body)
-        if self.types.signature.name[0] != '\0':
-            # type-checking ran, the types are set and they need freeing
-            self.types.free()
+        free(self.locals.ptr)
 
 
 # class Foo:
 #     ...members...
 @public
 class AstClassDef:
-    name: byte[100]
+    symbol: GlobalSymbol
     generic_typevar_names: List[byte[100]]  # the "T1" and "T2" of "class Foo[T1, T2]", empty means not generic
     body: List[AstStatement]
-    type: Type*  # populated in typecheck, NULL before typecheck runs
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused classes
 
     def is_generic(self) -> bool:
         return self.generic_typevar_names.len > 0
@@ -1186,10 +1280,11 @@ class AstClassDef:
         self.print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("class \"%s\"\n", self.name)
+        printf("class \"%s\"\n", self.symbol.name)
         print_body(self.body, tp)
 
     def free(self) -> None:
+        self.symbol.free()
         free(self.generic_typevar_names.ptr)
         free_body(self.body)
 
@@ -1200,21 +1295,35 @@ class AstClassDef:
 #     Member3
 @public
 class AstEnumDef:
-    name: byte[100]
+    symbol: GlobalSymbol
     name_location: Location
     members: List[byte[100]]
-    type: Type*  # populated in typecheck, NULL before typecheck runs
-    public: bool  # is it decorated with @public
-    used: bool  # used to detect unused enums
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("enum \"%s\" with %d members\n", self.name, self.members.len)
+        printf("enum \"%s\" with %d members\n", self.symbol.name, self.members.len)
         for p = self.members.ptr; p < self.members.end(); p++:
             tp.print_prefix(p == &self.members.end()[-1])
             puts(*p)
 
     def free(self) -> None:
+        self.symbol.free()
         free(self.members.ptr)
+
+
+# typedef Foo = int*
+@public
+class AstTypeDef:
+    symbol: GlobalSymbol
+    ast_type: AstType
+
+    def print(self) -> None:
+        printf("typedef \"%s\" to be ", self.symbol.name)
+        self.ast_type.print(True)
+        putchar('\n')
+
+    def free(self) -> None:
+        self.symbol.free()
+        self.ast_type.free()

@@ -200,7 +200,7 @@ enum LLVMLinkage:
 
 @public
 enum LLVMIntPredicate:
-    # TODO: a better way to start the enum at 32
+    # TODO: a better way to start the enum at 32?
     Dummy0
     Dummy1
     Dummy2
@@ -342,8 +342,6 @@ declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> No
 @public
 declare LLVMAppendBasicBlock(Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
 @public
-declare LLVMAddIncoming(PhiNode: LLVMValue*, IncomingValues: LLVMValue**, IncomingBlocks: LLVMBasicBlock**, Count: int) -> None
-@public
 declare LLVMCreateBuilder() -> LLVMBuilder*
 @public
 declare LLVMPositionBuilderAtEnd(Builder: LLVMBuilder*, Block: LLVMBasicBlock*) -> None
@@ -361,6 +359,8 @@ declare LLVMBuildBr(Builder: LLVMBuilder*, Dest: LLVMBasicBlock*) -> LLVMValue*
 declare LLVMBuildCondBr(Builder: LLVMBuilder*, If: LLVMValue*, Then: LLVMBasicBlock*, Else: LLVMBasicBlock*) -> LLVMValue*
 @public
 declare LLVMBuildUnreachable(Builder: LLVMBuilder*) -> LLVMValue*
+@public
+declare LLVMBuildSelect(Builder: LLVMBuilder*, If: LLVMValue*, Then: LLVMValue*, Else: LLVMValue*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMBuildAdd(Builder: LLVMBuilder*, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
 @public
@@ -391,6 +391,10 @@ declare LLVMBuildAnd(Builder: LLVMBuilder*, LHS: LLVMValue*, RHS: LLVMValue*, Na
 declare LLVMBuildOr(Builder: LLVMBuilder*, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMBuildXor(Builder: LLVMBuilder*, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
+@public
+declare LLVMBuildShl(Builder: LLVMBuilder*, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
+@public
+declare LLVMBuildLShr(Builder: LLVMBuilder*, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMBuildNeg(Builder: LLVMBuilder*, V: LLVMValue*, Name: byte*) -> LLVMValue*
 @public
@@ -435,8 +439,6 @@ declare LLVMBuildFPCast(Builder: LLVMBuilder*, Val: LLVMValue*, DestTy: LLVMType
 declare LLVMBuildICmp(Builder: LLVMBuilder*, Op: LLVMIntPredicate, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMBuildFCmp(Builder: LLVMBuilder*, Op: LLVMRealPredicate, LHS: LLVMValue*, RHS: LLVMValue*, Name: byte*) -> LLVMValue*
-@public
-declare LLVMBuildPhi(Builder: LLVMBuilder*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMBuildCall2(Builder: LLVMBuilder*, FunctionTy: LLVMType*, Fn: LLVMValue*, Args: LLVMValue**, NumArgs: int, Name: byte*) -> LLVMValue*
 @public

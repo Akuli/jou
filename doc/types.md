@@ -29,6 +29,8 @@ For convenience, the most commonly used types have simpler names:
 Values of integers in Jou code may contain underscores.
 They are ignored, but they often make large numbers much more readable.
 
+The minimum and maximum values shown above are also in [stdlib/limits.jou](../stdlib/limits.jou).
+
 Integers wrap around if you exceed their minimum/maximum values.
 For example, `(0 as byte) - (1 as byte)` produces `255 as byte`.
 It is not possible to invoke [UB](ub.md) by overflowing integers.
@@ -142,7 +144,7 @@ Explicit casts are:
 - Array to pointer: `T[N]` (where `T` is a type and `N` is an integer) casts to `T*` or `void*`.
     Note that `array_of_ints as int64*` is a compiler error.
 - Any pointer type casts to any other pointer type. This includes `void*` pointers.
-- Any number type casts to any other number type.
+- Any number type casts to any other number type. This is described in more detail below.
 - Any integer type casts to any enum.
 - Any enum casts to any integer type.
 - `bool` casts to any integer type and produces zero or one.
@@ -155,7 +157,42 @@ Explicit casts are:
     For example `123123123123123 as int64` or `"foo" as byte[10]`.
 
 
-## Type Inference
+### Casting number to number
+
+This section defines what exactly "any number type casts to any other number type" mentioned above does.
+
+Casting an integer to another integer [wraps around](tutorial.md#byte-int-int64):
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 260 as byte)  # Output: 4
+    return 0
+```
+
+Casting a `float` or `double` to an integer truncates away the fractional part.
+Out-of-range values become the smallest or largest value of the integer type.
+The result is zero if the `float` or `double` is [a NaN value](https://en.wikipedia.org/wiki/NaN).
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    printf("%d\n", 1234.5 as byte)  # Output: 255
+    printf("%d\n", 24.68 as int)    # Output: 24
+    printf("%d\n", -24.68 as int)   # Output: -24
+
+    # Infinity and NaN
+    printf("%d\n", (1.0 / 0.0) as int)   # Output: 2147483647
+    printf("%d\n", (0.0 / 0.0) as int)   # Output: 0
+
+    return 0
+```
+
+
+### Type Inference
 
 When the Jou compiler is determining the type of a string or integer in the code,
 it considers how it is going to be used.

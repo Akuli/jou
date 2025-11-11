@@ -1,6 +1,8 @@
+import "stdlib/assert.jou"
 import "stdlib/mem.jou"
 
 import "../uvg_analyze.jou"
+import "../state.jou"
 import "../ast.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
@@ -166,6 +168,14 @@ class UBuilder:
     def bit_xor(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
+    # a << b
+    def bit_shift_left(self, a: int, b: int) -> int:
+        return ANONYMOUS_VALUE_ID
+
+    # a >> b
+    def bit_shift_right(self, a: int, b: int) -> int:
+        return ANONYMOUS_VALUE_ID
+
     # a == b
     def eq(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
@@ -184,6 +194,10 @@ class UBuilder:
             case _:
                 return ANONYMOUS_VALUE_ID
 
+    # ~value
+    def bit_not(self, value: int) -> int:
+        return ANONYMOUS_VALUE_ID
+
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> int:
         return ANONYMOUS_VALUE_ID
@@ -197,7 +211,7 @@ class UBuilder:
         if to.is_pointer_type():
             # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
             return value
-        elif to == boolType and (value == TRUE_ID or value == FALSE_ID):
+        elif to == bool_type() and (value == TRUE_ID or value == FALSE_ID):
             # Thips helps with e.g. if statements and loops where condition is a literal "True".
             # There is an implicit cast from bool to bool.
             return value
@@ -257,14 +271,14 @@ class UBuilder:
 
 
 @public
-def build_and_analyze_uvgs(ast: AstFile*, print: bool) -> None:
+def build_and_analyze_uvgs(jou_file: JouFile*, print: bool) -> None:
     builder = UBuilder{}
     builder_wrapper = AnyBuilder{ubuilder = &builder}
 
-    for stmt = ast.body.ptr; stmt < ast.body.end(); stmt++:
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt.function, stmt.location, ast.is_main_file, &builder_wrapper)
+                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
                 if print:
                     builder.uvg.print()
                 uvg_analyze(&builder.uvg)
@@ -273,7 +287,7 @@ def build_and_analyze_uvgs(ast: AstFile*, print: bool) -> None:
             case AstStatementKind.Class:
                 for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
                     if inner.kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner.method, inner.location, ast.is_main_file, &builder_wrapper)
+                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, &builder_wrapper)
                         if print:
                             builder.uvg.print()
                         uvg_analyze(&builder.uvg)

@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/io.jou"
@@ -112,17 +113,17 @@ class Constant:
             case ConstantKind.EnumMember:
                 return self.enum_member.enumtype
             case ConstantKind.Null:
-                return voidPtrType
+                return void_ptr_type()
             case ConstantKind.Double:
-                return doubleType
+                return double_type()
             case ConstantKind.Float:
-                return floatType
+                return float_type()
             case ConstantKind.Bool:
-                return boolType
+                return bool_type()
             case ConstantKind.ArrayString:
-                return byteType.array_type(self.array_string.len as int)
+                return uint_type(8).array_type(self.array_string.len as int)
             case ConstantKind.PointerString:
-                return byteType.pointer_type()
+                return uint_type(8).pointer_type()
             case ConstantKind.Integer:
                 if self.integer.is_signed:
                     return int_type(self.integer.size_in_bits)

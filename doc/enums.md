@@ -39,6 +39,7 @@ Let's say you are working on a calculator program,
 and you have something like this:
 
 ```python
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
 
 def calculate(a: double, b: double, op: byte) -> double:
