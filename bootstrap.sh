@@ -134,6 +134,12 @@ function transpile_with_python_and_compile() {
             JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix -v -o hello.exe examples/hello.jou
             echo "Sanity check 3 runs..."
             ./hello.exe
+            echo "Compiler main tokenize"
+            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix --tokenize-only compiler/main.jou
+            echo "Compiler main parse"
+            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix --parse-only compiler/main.jou
+            echo "Compiler main UVG"
+            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix --uvg-only compiler/main.jou
             echo "Creating jou2"
             JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix -v -o jou2.exe compiler/main.jou
             echo "Running jou2 hello"
