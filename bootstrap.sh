@@ -77,7 +77,7 @@ function transpile_with_python_and_compile() {
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
         cc=../../../mingw64/bin/clang.exe
     else
-        cc="$(command -v `$LLVM_CONFIG --bindir`/clang || command -v clang)"
+        cc="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
     fi
     echo "$cc"
 
@@ -106,7 +106,7 @@ function transpile_with_python_and_compile() {
         echo "Compiling C code..."
         # TODO: -w silences all warnings. We might not want that in the future.
         # TODO: config.jou does not contain the linker flags on Windows!!!
-        $cc -w -O1 compiler.c -o jou$exe_suffix $cflags $(grep ^link config.jou | cut -d'"' -f2)
+        $cc -w -O1 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
     )
 }
 
