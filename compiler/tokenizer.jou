@@ -19,75 +19,98 @@ def is_operator_byte(c: byte) -> bool:
         case _:
             return False
 
-@public  # TODO: remove
+# Packs the first 8 or less bytes of a string into a uint64. For strings no
+# longer than 8 bytes, this returns different numbers for any pair of
+# different strings.
+@inline
+def string_to_u64(string: byte*) -> uint64:
+    result: uint64 = 0
+    for i = 0; i < 8 and string[i] != '\0'; i++:
+        result <<= 8
+        result |= string[i]
+    return result
+
 def is_keyword(word: byte*) -> bool:
     # See also: tests/should_succeed/keywords.jou
     #
-    # Checking the first character like this is MUCH faster than always doing
-    # all strcmp() calls. When compiling the compiler with all object files
-    # cached so there was need to invoke LLVM, 8% of the whole compilation time
-    # was spent in this function. It is now 0.5%.
-    match word[0]:
-        case 'F':
-            return strcmp(word, "False") == 0
-        case 'N':
-            return strcmp(word, "NULL") == 0 or strcmp(word, "None") == 0
-        case 'T':
-            return strcmp(word, "True") == 0
-        case 'a':
-            return strcmp(word, "and") == 0 or strcmp(word, "as") == 0 or strcmp(word, "assert") == 0
-        case 'b':
-            return strcmp(word, "bool") == 0 or strcmp(word, "break") == 0 or strcmp(word, "byte") == 0
-        case 'c':
-            return strcmp(word, "case") == 0 or strcmp(word, "class") == 0 or strcmp(word, "const") == 0 or strcmp(word, "continue") == 0
-        case 'd':
-            return strcmp(word, "declare") == 0 or strcmp(word, "def") == 0 or strcmp(word, "double") == 0
-        case 'e':
-            return strcmp(word, "elif") == 0 or strcmp(word, "else") == 0 or strcmp(word, "enum") == 0
-        case 'f':
-            return strcmp(word, "float") == 0 or strcmp(word, "for") == 0 or strcmp(word, "funcptr") == 0
-        case 'g':
-            return strcmp(word, "global") == 0
-        case 'i':
-            return (
-                strcmp(word, "if") == 0
-                or strcmp(word, "import") == 0
-                or strcmp(word, "int") == 0
-                or strcmp(word, "int8") == 0
-                or strcmp(word, "int16") == 0
-                or strcmp(word, "int32") == 0
-                or strcmp(word, "int64") == 0
-            )
-        case 'l':
-            return strcmp(word, "link") == 0
-        case 'm':
-            return strcmp(word, "match") == 0
-        case 'n':
-            return strcmp(word, "noreturn") == 0 or strcmp(word, "not") == 0
-        case 'o':
-            return strcmp(word, "or") == 0
-        case 'p':
-            return strcmp(word, "pass") == 0
-        case 'r':
-            return strcmp(word, "return") == 0
-        case 's':
-            return strcmp(word, "self") == 0 or strcmp(word, "sizeof") == 0
-        case 't':
-            return strcmp(word, "typedef") == 0
-        case 'u':
-            return (
-                strcmp(word, "union") == 0
-                or strcmp(word, "uint8") == 0
-                or strcmp(word, "uint16") == 0
-                or strcmp(word, "uint32") == 0
-                or strcmp(word, "uint64") == 0
-            )
-        case 'v':
-            return strcmp(word, "void") == 0
-        case 'w':
-            return strcmp(word, "while") == 0 or strcmp(word, "with") == 0
+    # This way to check for keywords is MUCH faster than strcmp(). When
+    # compiling the compiler with all object files cached so there was need to
+    # invoke LLVM, 8% of the whole compilation time was spent in this function
+    # because it called strcmp() 49 times when it saw a non-keyword. It is now
+    # only 0.3%.
+    #
+    # If you are reading this because you want to add a keyword that is more
+    # than 8 bytes long, just add a special case with strcmp(). It's fast
+    # enough if you don't use it for everything.
+    if (
+        word[0] != '\0'
+        and word[1] != '\0'
+        and word[2] != '\0'
+        and word[3] != '\0'
+        and word[4] != '\0'
+        and word[5] != '\0'
+        and word[6] != '\0'
+        and word[7] != '\0'
+        and word[8] != '\0'
+    ):
+        # 9 bytes or more, too long to be a keyword
+        return False
 
-    return False
+    match string_to_u64(word):
+        case (
+            string_to_u64("import")
+            | string_to_u64("link")
+            | string_to_u64("def")
+            | string_to_u64("declare")
+            | string_to_u64("class")
+            | string_to_u64("union")
+            | string_to_u64("enum")
+            | string_to_u64("typedef")
+            | string_to_u64("global")
+            | string_to_u64("const")
+            | string_to_u64("if")
+            | string_to_u64("elif")
+            | string_to_u64("else")
+            | string_to_u64("while")
+            | string_to_u64("for")
+            | string_to_u64("pass")
+            | string_to_u64("break")
+            | string_to_u64("continue")
+            | string_to_u64("match")
+            | string_to_u64("with")
+            | string_to_u64("case")
+            | string_to_u64("return")
+            | string_to_u64("True")
+            | string_to_u64("False")
+            | string_to_u64("None")
+            | string_to_u64("NULL")
+            | string_to_u64("self")
+            | string_to_u64("and")
+            | string_to_u64("or")
+            | string_to_u64("not")
+            | string_to_u64("as")
+            | string_to_u64("sizeof")
+            | string_to_u64("assert")
+            | string_to_u64("bool")
+            | string_to_u64("float")
+            | string_to_u64("double")
+            | string_to_u64("byte")
+            | string_to_u64("int")
+            | string_to_u64("int8")
+            | string_to_u64("int16")
+            | string_to_u64("int32")
+            | string_to_u64("int64")
+            | string_to_u64("uint8")
+            | string_to_u64("uint16")
+            | string_to_u64("uint32")
+            | string_to_u64("uint64")
+            | string_to_u64("void")
+            | string_to_u64("noreturn")
+            | string_to_u64("funcptr")
+        ):
+            return True
+        case _:
+            return False
 
 def hexdigit_value(c: byte) -> int:
     if 'A' <= c and c <= 'F':
