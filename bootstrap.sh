@@ -128,6 +128,8 @@ function transpile_with_python_and_compile() {
             $cc -w -O1 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
             echo "Sanity check..."
             JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix examples/hello.jou
+            echo "Sanity check 2..."
+            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix -v examples/hello.jou
             echo "Creating jou2"
             JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix -v -o jou2.exe compiler/main.jou
             echo "Running jou2 hello"
