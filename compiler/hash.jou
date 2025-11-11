@@ -38,15 +38,19 @@ class Hash:
             self.add_byte(*s++)
         self.add_byte('\0')
 
+    @inline
     def add_bool(self, b: bool) -> None:
         self.add_byte(b as byte)
 
+    @inline
     def add_int(self, i: int) -> None:
         self.add_bytes(&i as byte*, sizeof(i))
 
+    @inline
     def add_int64(self, i: int64) -> None:
         self.add_bytes(&i as byte*, sizeof(i))
 
+    @inline
     def add_uint64(self, i: uint64) -> None:
         self.add_bytes(&i as byte*, sizeof(i))
 
