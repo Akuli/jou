@@ -113,7 +113,7 @@ function transpile_with_python_and_compile() {
     if [[ "$OS" =~ Windows ]]; then
         echo "Copying LLVM files..."
         mkdir -p $folder/mingw64/lib
-        cp ${windows_llvm_files[@]} $folder/mingw64/lib/
+        cp -v ${windows_llvm_files[@]} $folder/mingw64/lib/
     fi
 
     (
@@ -124,8 +124,11 @@ function transpile_with_python_and_compile() {
 
         echo "Compiling C code..."
         # TODO: -w silences all warnings. We might not want that in the future.
-        # TODO: config.jou does not contain the linker flags on Windows!!!
-        $cc -w -O1 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+        if [[ "$OS" =~ Windows ]]; then
+            $cc -w -O1 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
+        else
+            $cc -w -O1 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+        fi
     )
 }
 
