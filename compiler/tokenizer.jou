@@ -13,7 +13,11 @@ def is_identifier_or_number_byte(b: byte) -> bool:
     return b >= 128 or is_ascii_letter(b) or is_ascii_digit(b) or b == '_'
 
 def is_operator_byte(c: byte) -> bool:
-    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|^~", c) != NULL
+    match c:
+        case '=' | '<' | '>' | '!' | '.' | ',' | '(' | ')' | '[' | ']' | '{' | '}' | ';' | ':' | '+' | '-' | '*' | '/' | '&' | '%' | '|' | '^' | '~':
+            return True
+        case _:
+            return False
 
 def is_keyword(word: byte*) -> bool:
     # See also: tests/should_succeed/keywords.jou
@@ -408,52 +412,62 @@ class Tokenizer:
         return result.ptr
 
     def read_operator(self) -> byte[100]:
-        msg: byte[100]
+        assert is_operator_byte(*self.file_ptr)
 
-        operators = [
-            # Please update the syntax documentation if you add new operators.
-            # Longer operators are first, so that '==' does not tokenize as '=' '='
-            "...", "===", "!==", "<<=", ">>=",
-            "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
-            "&&", "||", "<<", ">>",
-            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "^", "<", ">", "!", "|", "~",
-        ]
-        operator: byte[100] = ""
+        if starts_with(self.file_ptr, "==="):
+            fail(self.location, "use '==' instead of '==='")
+        if starts_with(self.file_ptr, "!=="):
+            fail(self.location, "use '!=' instead of '!=='")
+        if starts_with(self.file_ptr, "&&"):
+            fail(self.location, "use 'and' instead of '&&'")
+        if starts_with(self.file_ptr, "||"):
+            fail(self.location, "use 'or' instead of '||'")
+        if self.file_ptr[0] == '!' and self.file_ptr[1] != '=':
+            fail(self.location, "use 'not' instead of '!'")
 
-        # Read as many operator characters as we may need.
-        while strlen(operator) < 3:
-            c = self.read_byte()
-            if not is_operator_byte(c):
-                self.unread_byte(c)
-                break
-            operator[strlen(operator)] = c
+        result: byte[100] = ""
 
-        for i = 0; i < sizeof operators / sizeof operators[0]; i++:
-            if starts_with(operator, operators[i]):
-                # Unread the bytes we didn't use.
-                while strlen(operator) > strlen(operators[i]):
-                    last = &operator[strlen(operator) - 1]
-                    self.unread_byte(*last)
-                    *last = '\0'
+        # Please update the syntax documentation if you add new operators.
+        # Longer operators are first, so that '==' does not tokenize as '=' '='
+        if (
+            starts_with(self.file_ptr, "<<=")
+            or starts_with(self.file_ptr, ">>=")
+            or starts_with(self.file_ptr, "...")
+        ):
+            result[0] = *self.file_ptr++
+            result[1] = *self.file_ptr++
+            result[2] = *self.file_ptr++
+            result[3] = '\0'
+        elif (
+            starts_with(self.file_ptr, "==")
+            or starts_with(self.file_ptr, "!=")
+            or starts_with(self.file_ptr, "->")
+            or starts_with(self.file_ptr, "<=")
+            or starts_with(self.file_ptr, ">=")
+            or starts_with(self.file_ptr, "++")
+            or starts_with(self.file_ptr, "--")
+            or starts_with(self.file_ptr, "+=")
+            or starts_with(self.file_ptr, "-=")
+            or starts_with(self.file_ptr, "*=")
+            or starts_with(self.file_ptr, "/=")
+            or starts_with(self.file_ptr, "%=")
+            or starts_with(self.file_ptr, "&=")
+            or starts_with(self.file_ptr, "|=")
+            or starts_with(self.file_ptr, "^=")
+            or starts_with(self.file_ptr, "<<")
+            or starts_with(self.file_ptr, ">>")
+        ):
+            result[0] = *self.file_ptr++
+            result[1] = *self.file_ptr++
+            result[2] = '\0'
+        else:
+            # This assumes that any valid operator character is valid as a
+            # single-character operator. Currently that is true for everything
+            # except '!' which was already handled above.
+            result[0] = *self.file_ptr++
+            result[1] = '\0'
 
-                # These operators are here only to give a better error message when you
-                # accidentally use syntax of another programming language.
-                match operator with strcmp:
-                    case "===":
-                        fail(self.location, "use '==' instead of '==='")
-                    case "!==":
-                        fail(self.location, "use '!=' instead of '!=='")
-                    case "&&":
-                        fail(self.location, "use 'and' instead of '&&'")
-                    case "||":
-                        fail(self.location, "use 'or' instead of '||'")
-                    case "!":
-                        fail(self.location, "use 'not' instead of '!'")
-                    case _:
-                        return operator
-
-        snprintf(msg, sizeof(msg), "there is no '%s' operator", operator)
-        fail(self.location, msg)
+        return result
 
     def handle_parentheses(self, token: Token*) -> None:
         msg: byte[100]
