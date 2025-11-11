@@ -21,6 +21,11 @@ class Imported:
     # Location of the import statement
     import_location: Location
 
+    # TODO: use this more
+    @inline
+    def name(self) -> byte*:
+        return self.statement_in_other_file.symbol().name
+
 
 # Jou source code file (.jou)
 @public

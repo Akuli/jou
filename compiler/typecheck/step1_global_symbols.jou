@@ -112,13 +112,25 @@ def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSy
             return stmt
 
     # Imported?
-    for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
-        stmt = imported.statement_in_other_file
-        assert stmt.symbol() != NULL
-        if strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:
-            stmt.symbol().used = True
-            imported.the_import.used = True
-            return stmt
+    lo = 0 as int64
+    hi = jou_file.imported_from_other_files.len - 1
+    while lo <= hi:
+        mid = (lo + hi) / 2
+        imported = &jou_file.imported_from_other_files.ptr[mid]
+        cmp = strcmp(imported.name(), name)
+        if cmp < 0:
+            lo = mid + 1
+        elif cmp > 0:
+            hi = mid - 1
+        else:
+            # Found the symbol
+            stmt = imported.statement_in_other_file
+            if stmt.symbol().kind == kind:
+                stmt.symbol().used = True
+                imported.the_import.used = True
+                return stmt
+            else:
+                return NULL
 
     return NULL
 
