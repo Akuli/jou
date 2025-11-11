@@ -1,6 +1,18 @@
 """This file converts Jou code to C code.
 
-See 
+This is meant to be used only when setting up Jou on a system for the first
+time. Usually you don't need to run this manually, because bootstrap.sh figures
+out where Python is installed and invokes this with whatever Python you have.
+
+This is basically a mini Jou compiler. Here are the main ways how this differs
+from the full Jou compiler:
+- Somewhat horrible error handling, assumes that the code is ok
+- Outputs ugly C code instead of an executable
+- Does not support all Jou syntax, just needs enough to compile a Jou compiler
+- Avoids compiling parts of source files that are not used
+- Not tested with ./runtests.sh
+- Not meant to be maintained very often
+- Coding style is "quick and dirty"
 """
 
 from __future__ import annotations
