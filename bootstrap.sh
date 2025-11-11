@@ -56,6 +56,25 @@ CYAN="\x1b[36m"
 RED="\x1b[31m"
 RESET="\x1b[0m"
 
+# On windows, you get a linker error if you try to compile LLVM code without these files.
+#
+# The same list of files is in:
+#   - .github/workflows/windows.yml
+#   - compiler/llvm.jou
+windows_llvm_files=(
+    mingw64/lib/libLLVMCore.dll.a
+    mingw64/lib/libLLVMX86CodeGen.dll.a
+    mingw64/lib/libLLVMAnalysis.dll.a
+    mingw64/lib/libLLVMTarget.dll.a
+    mingw64/lib/libLLVMPasses.dll.a
+    mingw64/lib/libLLVMSupport.dll.a
+    mingw64/lib/libLLVMLinker.dll.a
+    mingw64/lib/libLTO.dll.a
+    mingw64/lib/libLLVMX86AsmParser.dll.a
+    mingw64/lib/libLLVMX86Info.dll.a
+    mingw64/lib/libLLVMX86Desc.dll.a
+)
+
 function transpile_with_python_and_compile() {
     echo -e "${CYAN}$0: Let's use Python to convert a Jou compiler to C code.${RESET} "
     echo -n "Finding Python... "
@@ -90,6 +109,12 @@ function transpile_with_python_and_compile() {
     mkdir -p $folder
     git archive --format=tar $commit | (cd $folder && tar xf -)
     cp -v config.jou $folder || true
+
+    if [[ "$OS" =~ Windows ]]; then
+        echo "Copying LLVM files..."
+        mkdir -p $folder/mingw64/lib
+        cp -v ${windows_llvm_files[@]} $folder/mingw64/lib/
+    fi
 
     (
         cd $folder
@@ -131,31 +156,14 @@ function compile_next_jou_compiler() {
         # These files used to be in a separate "libs" folder next to mingw64 folder.
         # Now they are in mingw64/lib.
         # They were also named slightly differently before.
-        #
-        # The same list of files is in:
-        #   - .github/workflows/windows.yml
-        #   - compiler/llvm.jou
-        local files=(
-            mingw64/lib/libLLVMCore.dll.a
-            mingw64/lib/libLLVMX86CodeGen.dll.a
-            mingw64/lib/libLLVMAnalysis.dll.a
-            mingw64/lib/libLLVMTarget.dll.a
-            mingw64/lib/libLLVMPasses.dll.a
-            mingw64/lib/libLLVMSupport.dll.a
-            mingw64/lib/libLLVMLinker.dll.a
-            mingw64/lib/libLTO.dll.a
-            mingw64/lib/libLLVMX86AsmParser.dll.a
-            mingw64/lib/libLLVMX86Info.dll.a
-            mingw64/lib/libLLVMX86Desc.dll.a
-        )
         if [ $i -le 16 ]; then
             mkdir $folder/libs
-            for f in ${files[@]}; do
-                cp $f $folder/libs/$(basename -s .dll.a $f).a
+            for f in ${windows_llvm_files[@]}; do
+                cp -v $f $folder/libs/$(basename -s .dll.a $f).a
             done
         else
             mkdir -p $folder/mingw64/lib
-            cp ${files[@]} $folder/mingw64/lib/
+            cp -v ${windows_llvm_files[@]} $folder/mingw64/lib/
         fi
     fi
 
