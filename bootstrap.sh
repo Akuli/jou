@@ -129,7 +129,7 @@ function transpile_with_python_and_compile() {
             echo "Sanity check..."
             JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix examples/hello.jou
             echo "Creating jou2"
-            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix -o jou2.exe compiler/main.jou
+            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix -v -o jou2.exe compiler/main.jou
             echo "Running jou2 hello"
             JOU_MINGW_DIR=../../../mingw64 ./jou2.exe examples/hello.jou
         else
