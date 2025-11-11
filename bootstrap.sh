@@ -124,30 +124,18 @@ function transpile_with_python_and_compile() {
 
         echo "Compiling C code..."
         # TODO: -w silences all warnings. We might not want that in the future.
+        #
+        # TODO: On windows, this needs at least -O2 because the C code is so
+        #       bad it overflows the stack if optimizer doesn't reduce stack
+        #       usage!!! Instead emit better C code? Or at least handle union
+        #       members, or don't create so many local variables? Last time it
+        #       failed on creating an AstExpression on stack with all the
+        #       different kinds of expressions as struct members instead of
+        #       union members...
         if [[ "$OS" =~ Windows ]]; then
-            $cc -g -w -O2 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
-            echo "Sanity check..."
-            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix examples/hello.jou
-            echo "Sanity check 2..."
-            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix -v examples/hello.jou
-            echo "Sanity check 3..."
-            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix -v -o hello.exe examples/hello.jou
-            echo "Sanity check 3 runs..."
-            ./hello.exe
-            echo "Compiler main tokenize"
-            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix --tokenize-only compiler/main.jou
-            echo "Compiler main gdb parse"
-            (echo run && echo quit) | JOU_MINGW_DIR=../../../mingw64 gdb --args ./jou$exe_suffix --parse-only compiler/main.jou
-            echo "Compiler main parse"
-            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix --parse-only compiler/main.jou
-            echo "Compiler main UVG"
-            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix --uvg-only compiler/main.jou
-            echo "Creating jou2"
-            JOU_MINGW_DIR=../../../mingw64 ./jou$exe_suffix -v -o jou2.exe compiler/main.jou
-            echo "Running jou2 hello"
-            JOU_MINGW_DIR=../../../mingw64 ./jou2.exe examples/hello.jou
+            $cc -w -O2 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
         else
-            $cc -w -O1 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+            $cc -w -O2 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
         fi
     )
 }
