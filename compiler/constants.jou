@@ -15,10 +15,8 @@ def print_string(s: byte*) -> None:
             putchar(s[i])
         elif s[i] == '\n':
             printf("\\n")
-            fflush(get_stdout())
         else:
             printf("\\x%02x", s[i])
-            fflush(get_stdout())
     putchar('"')
 
 
@@ -58,20 +56,15 @@ class Constant:
         match self.kind:
             case ConstantKind.EnumMember:
                 printf("enum member %d of %s\n", self.enum_member.memberidx, self.enum_member.enumtype.name)
-                fflush(get_stdout())
             case ConstantKind.Bool:
                 if self.boolean:
                     printf("True\n")
-                    fflush(get_stdout())
                 else:
                     printf("False\n")
-                    fflush(get_stdout())
             case ConstantKind.Float:
                 printf("float %s\n", self.float_or_double_text)
-                fflush(get_stdout())
             case ConstantKind.Double:
                 printf("double %s\n", self.float_or_double_text)
-                fflush(get_stdout())
             case ConstantKind.Integer:
                 if self.integer.is_signed:
                     signed_or_unsigned = "signed"
@@ -83,22 +76,16 @@ class Constant:
                     self.integer.size_in_bits,
                     signed_or_unsigned,
                 )
-                fflush(get_stdout())
             case ConstantKind.Null:
                 printf("NULL\n")
-                fflush(get_stdout())
             case ConstantKind.ArrayString:
                 printf("array string ")
-                fflush(get_stdout())
                 print_string(self.array_string.ptr)
                 printf(" (padded to %lld bytes)\n", self.array_string.len)
-                fflush(get_stdout())
             case ConstantKind.PointerString:
                 printf("pointer string ")
-                fflush(get_stdout())
                 print_string(self.pointer_string)
                 printf("\n")
-                fflush(get_stdout())
 
     def free(self) -> None:
         match self.kind:

@@ -338,7 +338,6 @@ def build_llvm_cast(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Typ
         return LLVMBuildIntCast2(builder, obj, type_to_llvm(to), False as int, "cast")
 
     printf("cast failed: %s -> %s\n", from.name, to.name)
-    fflush(get_stdout())
     assert False
 
 
@@ -409,7 +408,6 @@ class LBuilder:
     def set_ptr(self, ptr: LBuilderValue, value: LBuilderValue) -> None:
         if ptr.type != value.type.pointer_type():
             printf("Cannot set value of %s to %s\n", ptr.type.name, value.type.name)
-            fflush(get_stdout())
         assert ptr.type == value.type.pointer_type()
         ptr_type = LLVMPointerType(type_to_llvm(value.type), 0)
         LLVMBuildStore(self.llvm_builder, value.llvm_value, ptr.llvm_value)

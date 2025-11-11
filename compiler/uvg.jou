@@ -88,7 +88,6 @@ class Uvg:
     def print(self) -> None:
         sigstr = self.signature.to_string(True, True)
         printf("===== UVG for %s =====\n", sigstr)
-        fflush(get_stdout())
         free(sigstr)
 
         assert self.blocks.len > 0
@@ -96,10 +95,8 @@ class Uvg:
         for i = 0; i < self.blocks.len; i++:
             if i == 0:
                 printf("block 0 (start):\n")
-                fflush(get_stdout())
             else:
                 printf("block %d:\n", i)
-                fflush(get_stdout())
             b = self.blocks.ptr[i]
 
             for ins = b.instructions.ptr; ins < b.instructions.end(); ins++:
@@ -110,46 +107,34 @@ class Uvg:
                 while strstr(s, " ]") != NULL:
                     memswap(strstr(s, " ]"), strstr(s, "]"), 1)
                 printf("%s", s)
-                fflush(get_stdout())
 
                 match ins.kind:
                     case UvgInstructionKind.Use:
                         printf("use %s\n", self.varnames.ptr[ins.var])
-                        fflush(get_stdout())
                     case UvgInstructionKind.Set:
                         printf("set %s\n", self.varnames.ptr[ins.var])
-                        fflush(get_stdout())
                     case UvgInstructionKind.DontAnalyze:
                         printf("don't analyze %s\n", self.varnames.ptr[ins.var])
-                        fflush(get_stdout())
                     case UvgInstructionKind.Statement:
                         printf("statement\n")
-                        fflush(get_stdout())
 
             printf("    ")
-            fflush(get_stdout())
             match b.terminator.kind:
                 case UvgTerminatorKind.Jump:
                     printf("Jump to block %d.\n", self.index_of_block(b.terminator.jump_block))
-                    fflush(get_stdout())
                 case UvgTerminatorKind.Branch:
                     printf(
                         "Jump to either block %d or %d depending on some condition.\n",
                         self.index_of_block(b.terminator.branch.then),
                         self.index_of_block(b.terminator.branch.otherwise),
                     )
-                    fflush(get_stdout())
                 case UvgTerminatorKind.Return:
                     printf("Return from function.\n")
-                    fflush(get_stdout())
                 case UvgTerminatorKind.Unreachable:
                     printf("The end of this block is unreachable. It will never run.\n")
-                    fflush(get_stdout())
                 case UvgTerminatorKind.NotSet:
                     printf("(terminator not set)\n")
-                    fflush(get_stdout())
         printf("\n")
-        fflush(get_stdout())
 
     def add_block(self) -> UvgBlock*:
         b: UvgBlock* = malloc(sizeof(*b))

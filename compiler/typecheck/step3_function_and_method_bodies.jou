@@ -1659,12 +1659,10 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
 def typecheck_step3_function_and_method_bodies() -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Typecheck: function and method bodies (step 3/3)\n")
-        fflush(get_stdout())
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
             printf("  %s\n", jou_file.path)
-            fflush(get_stdout())
 
         state = State{jou_file = jou_file}
         for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
@@ -1672,14 +1670,12 @@ def typecheck_step3_function_and_method_bodies() -> None:
                 case AstStatementKind.FunctionDef:
                     if global_compiler_state.args.verbosity >= 2:
                         printf("    %s()\n", stmt.symbol().name)
-                        fflush(get_stdout())
                     typecheck_function_or_method_body(&state, &stmt.function)
                 case AstStatementKind.Class:
                     for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
                         if inner.kind == AstStatementKind.MethodDef:
                             if global_compiler_state.args.verbosity >= 2:
                                 printf("    %s.%s()\n", stmt.symbol().name, inner.method.symbol.name)
-                                fflush(get_stdout())
                             typecheck_function_or_method_body(&state, &inner.method)
                 case _:
                     pass

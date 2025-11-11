@@ -96,16 +96,13 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
 def typecheck_step2_class_members() -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Typecheck: class bodies (step 2/3)\n")
-        fflush(get_stdout())
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if global_compiler_state.args.verbosity >= 1:
             printf("  %s\n", jou_file.path)
-            fflush(get_stdout())
 
         for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
             if stmt.kind == AstStatementKind.Class:
                 if global_compiler_state.args.verbosity >= 2:
                     printf("    class %s\n", stmt.symbol().name)
-                    fflush(get_stdout())
                 handle_class_members(jou_file, &stmt.classdef)

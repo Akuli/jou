@@ -61,7 +61,6 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Running linker: %s\n", command)
-        fflush(get_stdout())
 
     if system(command) != 0:
         exit(1)
@@ -72,7 +71,6 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
 def run_exe(exepath: byte*) -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Run: %s\n", exepath)
-        fflush(get_stdout())
 
     command: byte*
     if WINDOWS:
