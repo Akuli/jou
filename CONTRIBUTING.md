@@ -14,15 +14,17 @@ Following the [instructions in the README](README.md#setup) is enough.
 <details> <summary>64-bit Windows</summary>
 
 1. Download and install Git from [Git's website](https://git-scm.com/download/win) if you don't have it already.
-2. Open Git Bash from the start menu.
+2. Download and install Python (unless you are going to use `./windows_setup.sh --small`, see below).
+    Any reasonably new version of Python will work.
+3. Open Git Bash from the start menu.
     **You must use Git Bash** for running bash scripts such as `windows_setup.sh` and `runtests.sh`.
-3. Clone the project with the command prompt:
+4. Clone the project with Git Bash (or command prompt):
     ```
     cd Desktop
     git clone https://github.com/Akuli/jou
     ```
     You can put the project anywhere. The above command places it on the desktop.
-4. Run a script that does the rest of the setup for you:
+5. Run a script that does the rest of the setup for you:
     ```
     cd jou
     ./windows_setup.sh
@@ -32,7 +34,7 @@ Following the [instructions in the README](README.md#setup) is enough.
     you can instead run `./windows_setup.sh --small`.
     Instead of downloading the full mingw64 (about 360MB download),
     this will get a minimal version of MinGW from a [release](#releases) of Jou (about 50MB download).
-5. Compile Jou:
+6. Compile Jou:
     ```
     source activate
     mingw32-make
@@ -47,7 +49,7 @@ Following the [instructions in the README](README.md#setup) is enough.
     If you used the `--small` option of `windows_setup.sh`,
     the bootstrapping process will begin at the downloaded Jou release
     instead of the last version that came with a compiler written in C.
-6. Compile and run hello world:
+7. Compile and run hello world:
     ```
     ./jou.exe examples/hello.jou
     ```
@@ -55,7 +57,7 @@ Following the [instructions in the README](README.md#setup) is enough.
     If you instead get errors about missing DLL files, run `source activate` first.
     The Jou compiler depends on DLLs in `mingw64\bin`,
     so `mingw64\bin` must be in PATH when running it.
-7. Run tests:
+8. Run tests:
     ```
     ./runtests.sh
     ```

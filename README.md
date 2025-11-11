@@ -238,16 +238,24 @@ The Jou compiler (in [compiler/](./compiler/) folder) is written in Jou.
 It can compile itself.
 However, this doesn't help you much if you have nothing that can compile Jou code.
 
-To solve this problem, there was another Jou compiler written in C.
-It existed only to compile the main Jou compiler.
-[Source code for the last version of the compiler written in C is here.](https://github.com/Akuli/jou/tree/1c7ce74933aea8a8862fd1d4409735b9fb7a1d7e/bootstrap_compiler)
+To solve this problem, there are two scripts:
+- [`bootstrap_transpiler.py`](./bootstrap_transpiler.py) is a Python script that converts Jou code to C code.
+- [`bootstrap.sh`](./bootstrap.sh) takes old versions of the Jou compiler from Git history,
+    starting with a commit that is compatible with `./bootstrap_transpiler.py`.
+    It then uses the previous version of Jou to compile the next version of Jou
+    until it gets a Jou compiler that supports the latest Jou syntax.
+
+On Windows, if you don't have Python installed, you can also pass the `--small` option to `./windows_setup.sh`
+
+When you set up Jou for the first time,
+`bootstrap_transpiler.py` is used to convert a slightly old version of the Jou compiler into C code,
+and the C code is then compiled to produce a working but slightly outdated Jou compiler.
+This Jou compiler is then used to compile a newer version of the Jou compiler,
+which then compiles a newer Jou compiler and so on.
+[The `bootstrap.sh` script](./bootstrap.sh) does all this automatically when you set up Jou.
 
 The compiler written in C was deleted, because it is easier to maintain one compiler than two compilers.
 Instead, there is [a script named bootstrap.sh](./bootstrap.sh).
-It takes old versions of Jou from Git history,
-starting with the last commit that came with the compiler written in C.
-It then uses the previous version of Jou to compile the next version of Jou
-until it gets a Jou compiler that supports the latest Jou syntax.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 if you want to learn more about the Jou compiler or develop it.

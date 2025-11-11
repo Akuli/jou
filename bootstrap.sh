@@ -15,8 +15,27 @@
 #     give you a cryptic error message. By using a known-to-be-good commit, we
 #     avoid that.
 
+set -e -o pipefail
 
-set -e
+# Add the latest commit on main branch to the end of the list if this script
+# produces a compiler that is too old.
+#
+# The numbering does not start from 0 for historical reasons. Commit 001 was
+# just before the original compiler written in C was deleted.
+numbered_commits=(
+    016_98c5fb2792eaac8bbe7496a176808d684f631d82  # <--- "./windows_setup.sh --small" starts from here! (release 2025-04-08-2200)
+    017_eed3b974ccb42a01339ead7f6dcaa0913ca2cd64  # fixed-size integer types, e.g. uint64
+    018_c594c326d3031a2894731f60ac9881a206793dfa  # infer types of integers in code
+    019_99de2976a7f3b34ec6b2b07725c5ad1400313dc1  # bitwise xor operator `^`
+    020_944c0f34e941d340af1749cdceea4621860ec69f  # bitwise '&' and '|', "const" supports integers other than int
+    021_9339a749315b82f73d19bacdccab5ee327c44822
+    022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # <--- bootstrap_transpiler.py starts here!
+    023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
+)
+
+# This should be an item of the above list according to what
+# bootstrap_transpiler.py supports.
+bootstrap_transpiler_numbered_commit=022_e35573c899699e2d717421f3bcd29e16a5a35cc1
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
@@ -39,53 +58,181 @@ else
     exe_suffix=""
 fi
 
+CYAN="\x1b[36m"
+RED="\x1b[31m"
+RESET="\x1b[0m"
 
-echo "$0: Finding Python..."
-
-if [[ "${OS:=$(uname)}" =~ Windows ]]; then
-    # Avoid the "python.exe" launcher that opens app store for installing python.
-    python=$( (command -v py python || true) | grep -v Microsoft/WindowsApps | head -1)
-else
-    python=$( (command -v python3.13 python3 python || true) | head -1)
-fi
-
-if ! [[ "$("$python" --version || true)" =~ ^Python\ 3 ]]; then
-    echo -e "\x1b[31mError: Python not found. Please install it.\x1b[0m" >&2
-    echo "Also, please create an issue on GitHub if you can't get this to work." >&2
-    exit 1
-fi
-
-commit=d89c4f5a33ac9a6be7b2dcd66d6f2dca695452bc
-
-if [ -f tmp/bootstrap/jou_bootstrap_$commit ]; then
-    echo "$0: Found tmp/bootstrap/jou_bootstrap_$commit. Delete the tmp/bootstrap folder if you want to bootstrap again."
-else
-    echo "$0: Checking out commit $commit in temporary folder..."
-
-    # TODO: delete the old tmp/bootstrap_cache folder if it exists? It can be huge.
-    rm -rf tmp/bootstrap
-    mkdir -p tmp/bootstrap
-
-    # This seems to be the best way to checkout a commit into a folder.
-    git archive --format=tar $commit | (cd tmp/bootstrap && tar xf -)
-    if [ -f config.jou ]; then cp config.jou tmp/bootstrap/; fi
-
-    echo "$0: Converting Jou compiler to C code..."
-    "$python" jou_to_c.py tmp/bootstrap/compiler/main.jou > tmp/bootstrap/compiler.c
-
-    echo "$0: Compiling C code..."
-
+function transpile_with_python_and_compile() {
+    echo -e "${CYAN}$0: Let's use Python to convert a Jou compiler to C code.${RESET} "
+    echo -n "Finding Python... "
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
-        cc=mingw64/bin/gcc.exe  # TODO: This will not work with --small!
-        cflags="$(echo mingw64/lib/libLLVM*.dll.a) mingw64/lib/libLTO.dll.a"
+        # Avoid the "python.exe" launcher that opens app store for installing python.
+        python=$( (command -v py python || true) | (grep -v Microsoft/WindowsApps || true) | head -1)
     else
-        cc="$(which `$LLVM_CONFIG --bindir`/clang || which clang)"
-        cflags="$($LLVM_CONFIG --ldflags --libs)"
+        python=$( (command -v python3.13 python3 python || true) | head -1)
     fi
-    $cc -w -O1 -x c tmp/bootstrap/compiler.c -o tmp/bootstrap/jou_bootstrap_$commit$exe_suffix $cflags
+    echo "$python"
+
+    echo -n "Finding C compiler... "
+    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
+        cc=../../../mingw64/bin/clang.exe
+    else
+        cc="$(command -v `$LLVM_CONFIG --bindir`/clang || command -v clang)"
+    fi
+    echo "$cc"
+
+    if ! [[ "$("$python" --version || true)" =~ ^Python\ 3 ]]; then
+        echo -e "${RED}Error: Python not found. Please install it.${RESET}" >&2
+        echo "Also, please create an issue on GitHub if you can't get this to work." >&2
+        exit 1
+    fi
+
+    local folder=tmp/bootstrap_cache/$bootstrap_transpiler_numbered_commit
+    local number=${bootstrap_transpiler_numbered_commit%%_*}
+    local commit=${bootstrap_transpiler_numbered_commit#*_}
+
+    echo "Checking out commit $number ($commit)..."
+    rm -rf $folder
+    mkdir -p $folder
+    git archive --format=tar $commit | (cd $folder && tar xf -)
+    cp -v config.jou $folder || true
+
+    (
+        cd $folder
+
+        echo "Converting Jou code to C..."
+        "$python" ../../../bootstrap_transpiler.py compiler/main.jou > compiler.c
+
+        echo "Compiling C code..."
+        # TODO: -w silences all warnings. We might not want that in the future.
+        # TODO: config.jou does not contain the linker flags on Windows!!!
+        $cc -w -O1 compiler.c -o jou$exe_suffix $cflags $(grep ^link config.jou | cut -d'"' -f2)
+    )
+}
+
+function compile_next_jou_compiler() {
+    local previous_numbered_commit=$1
+    local numbered_commit=$2
+
+    local previous_folder=tmp/bootstrap_cache/$previous_numbered_commit
+    local previous_number=${previous_numbered_commit%%_*}
+
+    local folder=tmp/bootstrap_cache/$numbered_commit
+    local number=${numbered_commit%%_*}
+    local commit=${numbered_commit#*_}
+
+    echo -e "${CYAN}$0: Using the previous Jou compiler to compile the next Jou compiler.${RESET} ($previous_number --> $number)"
+
+    echo "Checking out commit $commit ($number)..."
+    rm -rf $folder
+    mkdir -p $folder
+    git archive --format=tar $commit | (cd $folder && tar xf -)
+    cp -v config.jou $folder || true
+
+    echo "Copying previous executable..."
+    cp -v $previous_folder/jou$exe_suffix $folder/jou_bootstrap$exe_suffix
+
+    if [[ "$OS" =~ Windows ]]; then
+        echo "Copying LLVM files..."
+        # These files used to be in a separate "libs" folder next to mingw64 folder.
+        # Now they are in mingw64/lib.
+        # They were also named slightly differently before.
+        #
+        # The same list of files is in:
+        #   - .github/workflows/windows.yml
+        #   - compiler/llvm.jou
+        local files=(
+            mingw64/lib/libLLVMCore.dll.a
+            mingw64/lib/libLLVMX86CodeGen.dll.a
+            mingw64/lib/libLLVMAnalysis.dll.a
+            mingw64/lib/libLLVMTarget.dll.a
+            mingw64/lib/libLLVMPasses.dll.a
+            mingw64/lib/libLLVMSupport.dll.a
+            mingw64/lib/libLLVMLinker.dll.a
+            mingw64/lib/libLTO.dll.a
+            mingw64/lib/libLLVMX86AsmParser.dll.a
+            mingw64/lib/libLLVMX86Info.dll.a
+            mingw64/lib/libLLVMX86Desc.dll.a
+        )
+        if [ $i -le 16 ]; then
+            mkdir $folder/libs
+            for f in ${files[@]}; do
+                cp $f $folder/libs/$(basename -s .dll.a $f).a
+            done
+        else
+            mkdir -p $folder/mingw64/lib
+            cp ${files[@]} $folder/mingw64/lib/
+        fi
+    fi
+
+    (
+        cd $folder
+
+        echo "Deleting version check..."
+        sed -i -e "/Found unsupported LLVM version/d" Makefile.*
+
+        if [ "$(uname)" == "Linux" ] && [ "$(uname -m)" == "aarch64" ] && [ $number -le 21 ]; then
+            # These versions of Jou have support for aarch64 but it is only
+            # enabled on MacOS. We are on linux and we need it.
+            echo "Patching Jou code to support aarch64..."
+            sed -i s/'if MACOS:'/'if True:'/g compiler/target.jou
+        fi
+
+        echo "Running make..."
+
+        # The jou_bootstrap(.exe) file should never be rebuilt.
+        # We don't want bootstrap inside bootstrap.
+        local make_flags="--old-file jou_bootstrap$exe_suffix"
+
+        if [[ "$OS" =~ Windows ]]; then
+            # Use correct path to mingw64. This used to copy the mingw64 folder,
+            # but it was slow and wasted disk space. Afaik symlinks aren't really a
+            # thing on windows.
+            make_flags="$make_flags JOU_MINGW_DIR=../../../mingw64"
+            if [ $i == 1 ]; then
+                make_flags="$make_flags CC=../../../mingw64/bin/clang.exe"
+            fi
+        fi
+
+        $make $make_flags jou$exe_suffix
+    )
+}
+
+# Figure out how far back in history we need to go.
+# If nothing exists, use the bootstrap transpiler script.
+numbered_commit=
+for (( i = ${#numbered_commits[@]}-1 ; i >= 0 ; i-- )) ; do
+    if [ -f tmp/bootstrap_cache/${numbered_commits[i]}/jou$exe_suffix ]; then
+        numbered_commit=${numbered_commits[i]}
+        echo -e "${CYAN}$0: Found a previously built executable for commit ${numbered_commit%%_*} (${numbered_commit#*_}).${RESET}"
+        echo "Delete tmp/bootstrap_cache/${numbered_commit} if you want to build it again."
+        break
+    fi
+done
+
+if [ -z "$numbered_commit" ]; then
+    transpile_with_python_and_compile
+    numbered_commit=$bootstrap_transpiler_numbered_commit
 fi
 
-echo -n "$0: Copying the bootstrapped executable... "
-cp -v tmp/bootstrap/jou_bootstrap_$commit$exe_suffix ./jou_bootstrap$exe_suffix
+while true; do
+    previous_numbered_commit=$numbered_commit
 
-echo "$0: Done!"
+    # Find next commit
+    for (( i = 0 ; i < ${#numbered_commits[@]} ; i++ )) ; do
+        if [ ${numbered_commits[i]} == $numbered_commit ]; then
+            numbered_commit=${numbered_commits[i+1]}
+            break
+        fi
+    done
+    if [ -z "$numbered_commit" ]; then
+        # Reached end of list
+        break
+    fi
+
+    compile_next_jou_compiler $previous_numbered_commit $numbered_commit
+done
+
+echo -e "${CYAN}$0: Copying the bootstrapped executable....${RESET}"
+cp -v tmp/bootstrap_cache/$previous_numbered_commit/jou$exe_suffix ./jou_bootstrap$exe_suffix
+echo -e "${CYAN}$0: Done!${RESET}"
