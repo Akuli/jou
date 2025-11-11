@@ -1312,7 +1312,7 @@ def parse_file(path):
         "MACOS": jou_bool(sys.platform == "darwin"),
         "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
     }
-    print(CONSTANTS[path])
+    print(CONSTANTS[path], file=sys.stderr)
     ENUMS[path] = {}
 
 
