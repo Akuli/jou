@@ -18,7 +18,7 @@ Following the [instructions in the README](README.md#setup) is enough.
     Any reasonably new version of Python will work.
 3. Open Git Bash from the start menu.
     **You must use Git Bash** for running bash scripts such as `windows_setup.sh` and `runtests.sh`.
-4. Clone the project with Git Bash (or command prompt):
+4. Clone the project:
     ```
     cd Desktop
     git clone https://github.com/Akuli/jou
@@ -34,6 +34,8 @@ Following the [instructions in the README](README.md#setup) is enough.
     you can instead run `./windows_setup.sh --small`.
     Instead of downloading the full mingw64 (about 360MB download),
     this will get a minimal version of MinGW from a [release](#releases) of Jou (about 50MB download).
+    It will also take `jou.exe` from the release instead of [bootstrapping with a Python script](README.md#bootstrapping),
+    so you don't need to have Python installed if you use `--small`.
 6. Compile Jou:
     ```
     source activate
@@ -46,9 +48,6 @@ Following the [instructions in the README](README.md#setup) is enough.
 
     When you run `mingw32-make` for the first time, it
     [bootstraps Jou from Git history](README.md#bootstrapping).
-    If you used the `--small` option of `windows_setup.sh`,
-    the bootstrapping process will begin at the downloaded Jou release
-    instead of the last version that came with a compiler written in C.
 7. Compile and run hello world:
     ```
     ./jou.exe examples/hello.jou

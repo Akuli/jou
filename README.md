@@ -245,16 +245,18 @@ However, this doesn't help you much if you have nothing that can compile Jou cod
 To solve this problem, there are two scripts:
 - [`bootstrap_transpiler.py`](./bootstrap_transpiler.py) is a Python script that converts Jou code to C code.
     It is not intended to be used for anything other than this.
-    For example, it doesn't support all features of the Jou language.
+    For example, it doesn't support all features of the Jou language,
+    and when it doesn't support something, it usually fails with an unhelpful error message.
 - [`bootstrap.sh`](./bootstrap.sh) takes old versions of the Jou compiler from Git history,
     starting with a commit that is compatible with `./bootstrap_transpiler.py`.
     It then uses the previous Jou compiler to compile the next version of the Jou compiler
     until it gets a Jou compiler that supports the latest Jou syntax.
 
-On Windows, if you don't have Python installed, you can also pass the `--small` option to `./windows_setup.sh`
+On Windows, you can also pass the `--small` option to `./windows_setup.sh`
 as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 This downloads a release of Jou from GitHub and uses its `jou.exe`
-as a starting point instead of an old Jou compiler in Git history.
+as a starting point instead of converting Jou code to C code.
+This is useful if you don't have Python installed.
 
 You might be wondering why `bootstrap_transpiler.py` does not directly support the latest Jou version.
 The main reason is that it would break frequently when working on the Jou compiler,
