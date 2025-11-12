@@ -70,6 +70,7 @@ else
         sha=5937a482247bebc2eca8c0b93fa43ddb17d94968adfff3f2e0c63c94608ee76b
     fi
 
+    # TODO: don't download if file exists, just verify and tell user to delete if that fails
     if [ -z "$offline_zip" ]; then
         echo "Downloading $filename..."
         curl -L -o $filename $url

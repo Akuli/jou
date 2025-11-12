@@ -87,7 +87,7 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 1. Install the dependencies:
     ```
-    $ sudo apt install git llvm-19-dev clang-19 make
+    $ sudo apt install git llvm-19-dev clang-19 make python3
     ```
     Let me know if you use a distro that doesn't have `apt`,
     and you need help with this step.
@@ -153,19 +153,21 @@ $ LLVM_CONFIG=llvm-config-15 make
     - `llvm@18`
     - `llvm@19`
     - `llvm@20`
-2. Download and compile Jou.
+2. Install Python if you don't have it already.
+    Any reasonably new version will work.
+3. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou
     $ cd jou
     $ make
     ```
-3. Run the hello world program to make sure that Jou works:
+4. Run the hello world program to make sure that Jou works:
     ```
     $ ./jou examples/hello.jou
     Hello World
     ```
     You can now run other Jou programs in the same way.
-4. (Optional) If you want to run Jou programs with simply `jou filename`
+5. (Optional) If you want to run Jou programs with simply `jou filename`
     instead of something like `./jou filename` or `/full/path/to/jou filename`,
     you can add the `jou` directory to your PATH.
     To do so, edit `~/.bashrc` (or whatever other file you have instead, e.g. `~/.zshrc`):
@@ -186,9 +188,11 @@ $ LLVM_CONFIG=llvm-config-15 make
 
 1. Install the dependencies:
     ```
-    # pkgin install bash clang git gmake
+    # pkgin install bash clang git gmake python313
     ```
-    Optionally `diffutils` can be installed for coloured diff outputs.
+    You don't need to install Python 3.13 specifically.
+    Any reasonably new version of Python will work.
+    You may also want to install `diffutils` for coloured diff outputs.
 2. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou
@@ -238,18 +242,29 @@ The Jou compiler (in [compiler/](./compiler/) folder) is written in Jou.
 It can compile itself.
 However, this doesn't help you much if you have nothing that can compile Jou code.
 
-To solve this problem, there was another Jou compiler written in C.
-It existed only to compile the main Jou compiler.
-[Source code for the last version of the compiler written in C is here.](https://github.com/Akuli/jou/tree/1c7ce74933aea8a8862fd1d4409735b9fb7a1d7e/bootstrap_compiler)
+To solve this problem, there are two scripts:
+- [`bootstrap_transpiler.py`](./bootstrap_transpiler.py) is a Python script that converts Jou code to C code.
+    It is not intended to be used for anything other than this.
+    For example, it doesn't support all features of the Jou language,
+    and when it doesn't support something, it usually fails with an unhelpful error message.
+- [`bootstrap.sh`](./bootstrap.sh) takes old versions of the Jou compiler from Git history,
+    starting with a commit that is compatible with `./bootstrap_transpiler.py`.
+    It then uses the previous Jou compiler to compile the next version of the Jou compiler
+    until it gets a Jou compiler that supports the latest Jou syntax.
 
-The compiler written in C was deleted, because it is easier to maintain one compiler than two compilers.
-Instead, there is [a script named bootstrap.sh](./bootstrap.sh).
-It takes old versions of Jou from Git history,
-starting with the last commit that came with the compiler written in C.
-It then uses the previous version of Jou to compile the next version of Jou
-until it gets a Jou compiler that supports the latest Jou syntax.
+On Windows, you can also pass the `--small` option to `./windows_setup.sh`
+as described in [CONTRIBUTING.md](CONTRIBUTING.md).
+This downloads a release of Jou from GitHub and uses its `jou.exe`
+as a starting point instead of converting Jou code to C code.
+This is useful if you don't have Python installed.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md)
+You might be wondering why `bootstrap_transpiler.py` does not directly support the latest Jou version.
+The main reason is that it would break frequently when working on the Jou compiler,
+and when it breaks, it produces horribly bad error messages.
+This is by design: its only purpose is to compile the subset of Jou used in a specific compiler version.
+Instead, it is usually better to add a new commit to the end of the list in [`bootstrap.sh`](./bootstrap.sh).
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for some more details
 if you want to learn more about the Jou compiler or develop it.
 
 

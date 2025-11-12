@@ -32,7 +32,7 @@ config.jou: Makefile.posix
 	echo '@public' >> config.jou
 	echo 'const JOU_CLANG_PATH: byte* = "$(shell which `$(LLVM_CONFIG) --bindir`/clang || which clang)"' >> config.jou
 
-jou_bootstrap: bootstrap.sh
+jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou
 	env LLVM_CONFIG=$(LLVM_CONFIG) ./bootstrap.sh
 
 jou: jou_bootstrap config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
