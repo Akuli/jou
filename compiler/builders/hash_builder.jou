@@ -138,6 +138,7 @@ class HBuilder:
         self.hash.add_string("indexed_pointer")
         self.hash.add_int64(ptr.id)
         self.hash.add_int64(index.id)
+        hash_type(&self.hash, ptr.type.value_type)  # result depends on size of pointed type
         return self.new_value(ptr.type)
 
     # Returns &ptr.field
