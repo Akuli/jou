@@ -242,6 +242,7 @@ enum AstExpressionKind:
     GetClassField       # foo.bar, foo is an instance of a class and bar is a field
     GetClassFieldPtr    # foo.bar, foo is a pointer to an instance and bar is a field
     As
+    EnumCount
     # unary operators
     SizeOf          # sizeof x
     ArrayCount      # array_count x
@@ -290,6 +291,7 @@ class AstExpression:
         call: AstCall
         instantiation: AstInstantiation
         as_: AstAs*  # Must be pointer, because it contains an AstExpression
+        enumcount: AstEnumCount
         array: List[AstExpression]
         varname: byte[100]
         get_func_ptr: AstGetFuncPtr
@@ -346,6 +348,8 @@ class AstExpression:
                 self.class_field.instance.print_with_tree_printer(tp.print_prefix(True))
             case AstExpressionKind.As:
                 self.as_.print_with_tree_printer(tp)
+            case AstExpressionKind.EnumCount:
+                self.enumcount.print()
             case AstExpressionKind.SizeOf:
                 printf("sizeof\n")
             case AstExpressionKind.ArrayCount:
@@ -492,6 +496,7 @@ class AstExpression:
                 | AstExpressionKind.GetClassField
                 | AstExpressionKind.GetClassFieldPtr
                 | AstExpressionKind.As
+                | AstExpressionKind.EnumCount
             ):
                 return 0
 
@@ -523,6 +528,21 @@ class AstAs:
     def free(self) -> None:
         self.value.free()
         self.type.free()
+
+
+# enum_count(Foo)
+@public
+class AstEnumCount:
+    enum_type_ast: AstType
+    enum_type: Type*
+
+    def print(self) -> None:
+        printf("enum_count ")
+        self.enum_type_ast.print(True)
+        printf("\n")
+
+    def free(self) -> None:
+        self.enum_type_ast.free()
 
 
 # foo(arg1, arg2, arg3)

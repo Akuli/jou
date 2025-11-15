@@ -764,6 +764,10 @@ class Parser:
                 elif self.tokens.is_operator("["):
                     expr.kind = AstExpressionKind.Array
                     expr.array = self.parse_array()
+                elif self.tokens.is_keyword("enum_count"):
+                    expr.kind = AstExpressionKind.EnumCount
+                    self.tokens++
+                    expr.enumcount.enum_type_ast = self.parse_type()
                 else:
                     self.tokens.fail_expected_got("an expression")
 

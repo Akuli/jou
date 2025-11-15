@@ -29,6 +29,8 @@ def main() -> int:
     printf("%d\n", Thingy.Bar as int)  # Output: 1
     printf("%d\n", Thingy.Baz as int)  # Output: 2
 
+    printf("%d\n", enum_count(Thingy))  # Output: 3
+
     return 0
 ```
 
@@ -112,6 +114,43 @@ but then the compiler won't complain if you don't handle all enum members.
 See also [the `match` statement documentation](match.md).
 
 
+## The `enum_count` builtin
+
+You can use `enum_count(SomeEnum)` to get the number of enum members as `int`. For example:
+
+```python
+import "stdlib/io.jou"
+
+enum Operation:
+    Add
+    Subtract
+    Multiply
+
+def main() -> int:
+    printf("%d\n", enum_count(Operation))  # Output: 3
+    return 0
+```
+
+Unfortunately, it is currently not possible to use `enum_count()` in an array size:
+
+```python
+enum Operation:
+    Add
+    Subtract
+    Multiply
+
+def main() -> int:
+    enabled_operations: bool[enum_count(operation)]  # Error: expected a type, got the 'enum_count' keyword
+```
+
+For now, the following workaround is recommended:
+
+```python
+enabled_operations: bool[3]
+assert array_count(enabled_operations) == enum_count(Operation)
+```
+
+
 ## Integer conversions
 
 When the program runs, enums are actually just `int`s.
@@ -133,9 +172,11 @@ def main() -> int:
     return 0
 ```
 
-This is sometimes used to assign a string to each enum member:
+This is sometimes used to assign a string to each enum member.
+See above for an explanation of `enum_count`.
 
 ```python
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
 
 enum Operation:
@@ -145,9 +186,13 @@ enum Operation:
 
 def main() -> int:
     descriptions = ["Add numbers", "Subtract numbers", "Multiply numbers"]
+    assert array_count(descriptions) == enum_count(Operation)
     printf("%s\n", descriptions[Operation.Subtract as int])  # Output: Subtract numbers
     return 0
 ```
+
+The purpose of the `assert` is to ensure that the `descriptions` array stays up to date
+when new operations are added.
 
 You can also convert integers to enums,
 but note that the result might not correspond with any member of the enum.

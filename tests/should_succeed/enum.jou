@@ -4,6 +4,13 @@ enum FooBar:
     Foo
     Bar
 
+# This will fail compiling if a value is not int.
+#
+# Taking a pointer avoids implicit casts. For example, if b is a byte, then
+# b implicitly casts to int, but &b doesn't implicitly cast to int*.
+def check_int(x: int*) -> None:
+    pass
+
 def main() -> int:
     printf("%d\n", FooBar.Foo as int)  # Output: 0
     printf("%d\n", FooBar.Bar as int)  # Output: 1
@@ -19,5 +26,9 @@ def main() -> int:
         printf("yass\n")  # Output: yass
     if x == FooBar.Bar:
         printf("wut wut why dis\n")
+
+    num = enum_count(FooBar)
+    check_int(&num)
+    printf("%d\n", num)  # Output: 2
 
     return 0
