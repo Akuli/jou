@@ -9,9 +9,19 @@ class timespec:
     tv_sec: uint64
     tv_nsec: uint64
 
-declare clock_gettime(clockid: int, tp: timespec*) -> int
+if NETBSD:
+    declare __clock_gettime50(clockid: int, tp: timespec*) -> int
+    def clock_gettime(clockid: int, tp: timespec*) -> int:
+        return __clock_gettime50(clockid, tp)
+else:
+    declare clock_gettime(clockid: int, tp: timespec*) -> int
 
-const CLOCK_MONOTONIC: int = 1
+if MACOS:
+    const CLOCK_MONOTONIC: int = 8  # TODO: this is actually CLOCK_UPTIME_RAW
+elif NETBSD:
+    const CLOCK_MONOTONIC: int = 3
+else:
+    const CLOCK_MONOTONIC: int = 1  # Windows and Linux
 
 
 def print_time() -> None:
