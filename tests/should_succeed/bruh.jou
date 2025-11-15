@@ -7,7 +7,7 @@ import "stdlib/time.jou"
 
 class timespec:
     tv_sec: uint64
-    tv_nsec: uint64
+    tv_nsec: uint64  # TODO: seems to be "long" (32-bit) on Windows... use some other thing?
 
 if NETBSD:
     declare __clock_gettime50(clockid: int, tp: timespec*) -> int
@@ -17,10 +17,13 @@ else:
     declare clock_gettime(clockid: int, tp: timespec*) -> int
 
 if MACOS:
+    # Works fine!
     const CLOCK_MONOTONIC: int = 8  # TODO: this is actually CLOCK_UPTIME_RAW
 elif NETBSD:
+    # Works fine!
     const CLOCK_MONOTONIC: int = 3
 else:
+    # Works fine! (Windows and Linux)
     const CLOCK_MONOTONIC: int = 1  # Windows and Linux
 
 
