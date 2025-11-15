@@ -86,17 +86,23 @@ function transpile_with_python_and_compile() {
     fi
     echo "$python"
 
-    echo -n "Finding C compiler... "
-    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
-        cc=../../../mingw64/bin/clang.exe
-    else
-        cc="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
-    fi
-    echo "$cc"
-
     if ! [[ "$("$python" --version || true)" =~ ^Python\ 3 ]]; then
         echo -e "${RED}Error: Python not found. Please install it.${RESET}" >&2
         echo "Also, please create an issue on GitHub if you can't get this to work." >&2
+        exit 1
+    fi
+
+    echo -n "Finding clang... "
+    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
+        clang=../../../mingw64/bin/clang.exe
+    else
+        clang="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
+    fi
+    echo "$clang"
+
+    if ! [ -f "$clang" ]; then
+        echo -e "${RED}Error: clang not found.${RESET}" >&2
+        echo "Please create an issue on GitHub if you can't get this to work." >&2
         exit 1
     fi
 
@@ -133,9 +139,9 @@ function transpile_with_python_and_compile() {
         #       different kinds of expressions as struct members instead of
         #       union members...
         if [[ "$OS" =~ Windows ]]; then
-            $cc -w -O2 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
+            $clang -w -O2 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
         else
-            $cc -w -O2 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+            $clang -w -O2 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
         fi
     )
 }
