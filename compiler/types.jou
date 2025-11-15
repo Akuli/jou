@@ -45,7 +45,7 @@ class ClassData:
 
 class ArrayType:
     item_type: Type*
-    len: int
+    count: int
 
 
 class FuncPtrType:
@@ -194,24 +194,24 @@ class Type:
 
     # Returns a type that represents array where items are the original type.
     # Result is cached. Don't worry about freeing it.
-    def array_type(self, len: int) -> Type*:
+    def array_type(self, count: int) -> Type*:
         info = cast_type_to_typeinfo(self)
 
-        assert len > 0
+        assert count > 0
         for t = info.related_types.ptr; t < info.related_types.end(); t++:
             if (
                 (*t).type.kind == TypeKind.Array
                 and (*t).type.array.item_type == self
-                and (*t).type.array.len == len
+                and (*t).type.array.count == count
             ):
                 return &(*t).type
 
         arr: TypeInfo* = calloc(1, sizeof *arr)
-        arr.type = Type{kind = TypeKind.Array, array = ArrayType{item_type = self, len = len}}
+        arr.type = Type{kind = TypeKind.Array, array = ArrayType{item_type = self, count = count}}
         if self.kind == TypeKind.FuncPtr:
-            snprintf(arr.type.name, sizeof arr.type.name, "(%s)[%d]", self.name, len)
+            snprintf(arr.type.name, sizeof arr.type.name, "(%s)[%d]", self.name, count)
         else:
-            snprintf(arr.type.name, sizeof arr.type.name, "%s[%d]", self.name, len)
+            snprintf(arr.type.name, sizeof arr.type.name, "%s[%d]", self.name, count)
 
         info.related_types.append(arr)
         return &arr.type
@@ -286,7 +286,7 @@ class Type:
 
             case TypeKind.Array:
                 new_item_type = self.array.item_type.substitute_generic_params(from, to, n)
-                return new_item_type.array_type(self.array.len)
+                return new_item_type.array_type(self.array.count)
 
             case TypeKind.FuncPtr:
                 nargs = self.func_ptr.argtypes.len

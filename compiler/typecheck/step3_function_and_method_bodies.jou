@@ -57,6 +57,8 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "an enum member"
         case AstExpressionKind.SizeOf:
             return "a sizeof expression"
+        case AstExpressionKind.ArrayCount:
+            return "an array_count expression"
         case AstExpressionKind.Instantiate:
             return "a newly created instance"
         case AstExpressionKind.Array:
@@ -1071,12 +1073,12 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 and type_hint.array.item_type == uint_type(8)
             ):
                 s = expr.constant.pointer_string
-                if strlen(s) >= type_hint.array.len:
+                if strlen(s) >= type_hint.array.count:
                     snprintf(msg, sizeof(msg), "a string of %lld bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint.name)
                     fail(expr.location, msg)
                 expr.constant.kind = ConstantKind.ArrayString
                 expr.constant.array_string = List[byte]{}
-                while expr.constant.array_string.len < type_hint.array.len:
+                while expr.constant.array_string.len < type_hint.array.count:
                     expr.constant.array_string.append('\0')
                 strcpy(expr.constant.array_string.ptr, s)
                 free(s)
@@ -1108,6 +1110,13 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 obj_type_hint = NULL
             typecheck_expression_not_void(state, &expr.operands[0], obj_type_hint)
             result = int_type(64)
+
+        case AstExpressionKind.ArrayCount:
+            array_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)
+            if array_type.kind != TypeKind.Array:
+                snprintf(msg, sizeof(msg), "array_count must be called on an array, not %s", array_type.name)
+                fail(expr.location, msg)
+            result = int_type(32)
 
         case AstExpressionKind.Instantiate:
             result = typecheck_instantiation(state, &expr.instantiation, expr.location)

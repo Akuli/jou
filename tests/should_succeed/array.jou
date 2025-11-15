@@ -12,11 +12,22 @@ def do_nothing(a: int[3]) -> None:
 def increment(a: int*) -> None:
     ++a[0]
 
+# This fails compiling if the value is of the wrong type.
+#
+# Taking a pointer avoids implicit casts. For example, if b is a byte, then
+# b implicitly casts to int, but &b doesn't implicitly cast to int*.
+def check_int(x: int*) -> None:
+    pass
+
 def main() -> int:
     foo: int[3]
     foo[0] = 1
     foo[1] = 2
     foo[2] = 3
+
+    n = array_count foo
+    check_int(&n)
+    printf("%d\n", n)  # Output: 3
 
     printf("%d %d %d\n", foo[0], foo[1], foo[2])  # Output: 1 2 3
 
@@ -59,10 +70,10 @@ def main() -> int:
     # Output: bar
     # Output: bazzybaz
     strings50: byte[50][3] = ["hello", "world", "test"]
-    for i = 0; i < 3; i++:
+    for i = 0; i < array_count(strings50); i++:
         puts(strings50[i])
     strings50 = ["foo", "bar", "bazzybaz"]
-    for i = 0; i < 3; i++:
+    for i = 0; i < array_count(strings50); i++:
         puts(strings50[i])
 
     return 0
