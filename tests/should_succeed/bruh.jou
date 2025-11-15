@@ -23,7 +23,7 @@ def print_time() -> None:
 
 def main() -> int:
     if MACOS:
-        system("echo '#include <time.h>\n#include <stdio.h>\nint main(){printf(\"%d\\n\", CLOCK_UPTIME_RAW);}' | cc -x c -o show_clock - && ./show_clock")
+        system("echo '#include <time.h>\n#include <stdio.h>\nint main(){printf(\"%d\\\\n\", CLOCK_UPTIME_RAW);}' | cc -x c -o show_clock - && ./show_clock")
     system("echo '#include <time.h>' | cpp -x c -")
     system("python3 -c 'import time; print(time.CLOCK_MONOTONIC)'")
 
