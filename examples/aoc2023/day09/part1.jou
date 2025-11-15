@@ -37,7 +37,7 @@ def main() -> int:
         nnums = 0
         parts = split_by_ascii_whitespace(line)
         for p = parts.ptr; p < parts.end(); p++:
-            assert nnums < sizeof(nums)/sizeof(nums[0])
+            assert nnums < array_count(nums)
             nums[nnums++] = atoll(*p)
         free(parts.ptr)
 

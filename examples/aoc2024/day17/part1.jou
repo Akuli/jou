@@ -101,13 +101,13 @@ def main() -> int:
             while True:
                 number = *p++
                 assert '0' <= number and number <= '7'
-                assert code_len < sizeof(code)/sizeof(code[0])
+                assert code_len < array_count(code)
                 code[code_len++] = number - '0'
                 if *p++ != ',':
                     break
             # Terminate with many halt instructions to reduce risk of overflow :)
             for i = 0; i < 10; i++:
-                assert code_len < sizeof(code)/sizeof(code[0])
+                assert code_len < array_count(code)
                 code[code_len++] = -1
 
     fclose(f)

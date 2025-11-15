@@ -167,7 +167,7 @@ def main() -> int:
 
     x, y, z, dx, dy, dz: int64
     while fscanf(f, "%lld, %lld, %lld @ %lld, %lld, %lld\n", &x, &y, &z, &dx, &dy, &dz) == 6:
-        assert nrays < sizeof(rays)/sizeof(rays[0])
+        assert nrays < array_count(rays)
         rays[nrays++] = Ray{start = [x,y], dir = [dx,dy]}
 
     fclose(f)

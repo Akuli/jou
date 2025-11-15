@@ -45,14 +45,14 @@ def read_print_jobs(file: FILE*, njobs: int*) -> int[100]*:
 
         p: byte* = line
         while True:
-            assert num_pages < sizeof(job)/sizeof(job[0])
+            assert num_pages < array_count(job)
             job[num_pages++] = atoi(p)
             p = strstr(p, ",")
             if p == NULL:
                 break
             p++  # skip comma
 
-        assert num_pages < sizeof(job)/sizeof(job[0])
+        assert num_pages < array_count(job)
         job[num_pages] = -1
 
         assert *njobs < max_jobs

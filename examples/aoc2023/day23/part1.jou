@@ -67,7 +67,7 @@ def main() -> int:
             next: List[int[2]][4] = get_next_paths(p, &grid)
             for i = 0; i < 4; i++:
                 if next[i].len > 0:
-                    assert npaths < sizeof(paths)/sizeof(paths[0])
+                    assert npaths < array_count(paths)
                     paths[npaths++] = next[i]
         free(p.ptr)
 

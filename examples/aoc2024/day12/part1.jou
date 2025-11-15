@@ -20,7 +20,7 @@ def mark_region(grid: Grid*, start: int[2]) -> None:
         point = todo[--todo_len]
         if grid.get(point) == region_letter:
             grid.set(point, '*')
-            assert todo_len + 4 <= sizeof(todo) / sizeof(todo[0])
+            assert todo_len + 4 <= array_count(todo)
             todo[todo_len++] = [point[0], point[1] - 1]
             todo[todo_len++] = [point[0], point[1] + 1]
             todo[todo_len++] = [point[0] - 1, point[1]]

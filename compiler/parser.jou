@@ -857,6 +857,7 @@ class Parser:
             or self.tokens.is_operator("*")
             or self.tokens.is_operator("~")
             or self.tokens.is_keyword("sizeof")
+            or self.tokens.is_keyword("array_count")
         ):
             self.tokens++
         prefix_end = self.tokens
@@ -895,6 +896,8 @@ class Parser:
                     kind = AstExpressionKind.BitNot
                 elif token.is_keyword("sizeof"):
                     kind = AstExpressionKind.SizeOf
+                elif token.is_keyword("array_count"):
+                    kind = AstExpressionKind.ArrayCount
                 else:
                     assert False
 

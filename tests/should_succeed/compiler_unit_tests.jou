@@ -66,7 +66,7 @@ def test_fnv1a_hash() -> None:
         "HashFunction", # Output: FC11AA668104F0B5
     ]
 
-    for i = 0; i < sizeof(tests)/sizeof(tests[0]); i++:
+    for i = 0; i < array_count(tests); i++:
         h = new_hash()
         h.add_bytes(tests[i], strlen(tests[i]))
         printf("%llX\n", h.hash)

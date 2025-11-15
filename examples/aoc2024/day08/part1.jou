@@ -42,7 +42,7 @@ def main() -> int:
     nfreqs = 0
     for p = antennas.data; *p != '\0'; p++:
         if *p != '.' and *p != '\n' and strchr(freqs, *p) == NULL:
-            assert nfreqs + 1 < sizeof(freqs)/sizeof(freqs[0])
+            assert nfreqs + 1 < array_count(freqs)
             freqs[nfreqs++] = *p
 
     for i = 0; i < nfreqs; i++:

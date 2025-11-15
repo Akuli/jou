@@ -244,6 +244,7 @@ enum AstExpressionKind:
     As
     # unary operators
     SizeOf          # sizeof x
+    ArrayCount      # array_count x
     AddressOf       # &x
     Dereference     # *x
     Negate          # -x
@@ -347,6 +348,8 @@ class AstExpression:
                 self.as_.print_with_tree_printer(tp)
             case AstExpressionKind.SizeOf:
                 printf("sizeof\n")
+            case AstExpressionKind.ArrayCount:
+                printf("array_count\n")
             case AstExpressionKind.AddressOf:
                 printf("address of\n")
             case AstExpressionKind.Dereference:
@@ -439,6 +442,7 @@ class AstExpression:
         match self.kind:
             case (
                 AstExpressionKind.SizeOf
+                | AstExpressionKind.ArrayCount
                 | AstExpressionKind.AddressOf
                 | AstExpressionKind.Dereference
                 | AstExpressionKind.Negate

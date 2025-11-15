@@ -20,7 +20,7 @@ class Input:
     nnodes: int
 
     def add_node(self, node: Node) -> None:
-        assert self.nnodes < sizeof(self.nodes)/sizeof(self.nodes[0])
+        assert self.nnodes < array_count(self.nodes)
         self.nodes[self.nnodes++] = node
 
     def find_node(self, name: byte*) -> Node*:
@@ -185,7 +185,7 @@ def main() -> int:
 
     for i = 0; i < input.nnodes; i++:
         if input.nodes[i].name[2] == 'A':
-            assert nzcounts < sizeof(zcounts)/sizeof(zcounts[0])
+            assert nzcounts < array_count(zcounts)
             if input.nnodes > 500:
                 # progress print for the real input
                 printf("get z counts: %s\n", input.nodes[i].name)

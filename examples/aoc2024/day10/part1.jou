@@ -38,7 +38,7 @@ def score_of_trailhead(grid: Grid, start: int[2]) -> int:
                     and grid.get(*new_p) == old_byte + 1
                     and not list_contains_pair(new_places, new_nplaces, *new_p)
                 ):
-                    assert new_nplaces < sizeof(new_places)/sizeof(new_places[0])
+                    assert new_nplaces < array_count(new_places)
                     new_places[new_nplaces++] = *new_p
 
         places = new_places

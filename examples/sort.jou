@@ -4,10 +4,10 @@ import "stdlib/sort.jou"
 
 def main() -> int:
     numbers = [4, 5, 2, 1, 3]
-    sort_int32(numbers, sizeof(numbers) / sizeof(numbers[0]))
+    sort_int32(numbers, array_count(numbers))
 
     # Output: 1 2 3 4 5
-    for i = 0; i < sizeof(numbers) / sizeof(numbers[0]); i++:
+    for i = 0; i < array_count(numbers); i++:
         if i != 0:
             printf(" ")
         printf("%d", numbers[i])
