@@ -173,8 +173,7 @@ def main() -> int:
 ```
 
 Here `sizeof(descriptions) / sizeof(descriptions[0])`
-[is the number of elements in the `descriptions` array](types.md#pointers-and-arrays),
-and `enum_count(Operation)` is the number of members in the `Operation` enum.
+[is the number of elements in the `descriptions` array](types.md#pointers-and-arrays).
 The purpose of the `assert` is to ensure that the `descriptions` array stays up to date
 when new operations are added.
 
