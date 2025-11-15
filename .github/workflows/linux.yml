@@ -47,7 +47,7 @@ jobs:
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
       - name: "Compile and test"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" bruh
       - name: "Compile the compiler with itself"
         run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
       - name: "Compile and test again"

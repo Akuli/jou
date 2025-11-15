@@ -1,0 +1,54 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+import "stdlib/time.jou"
+
+
+class timespec:
+    tv_sec: uint64
+    tv_nsec: uint64  # TODO: seems to be "long" (32-bit) on Windows... use some other thing?
+
+if NETBSD:
+    declare __clock_gettime50(clockid: int, tp: timespec*) -> int
+    def clock_gettime(clockid: int, tp: timespec*) -> int:
+        return __clock_gettime50(clockid, tp)
+else:
+    declare clock_gettime(clockid: int, tp: timespec*) -> int
+
+if MACOS:
+    # Works fine!
+    const CLOCK_MONOTONIC: int = 8  # TODO: this is actually CLOCK_UPTIME_RAW
+elif NETBSD:
+    # Works fine!
+    const CLOCK_MONOTONIC: int = 3
+else:
+    # Works fine! (Windows and Linux)
+    const CLOCK_MONOTONIC: int = 1  # Windows and Linux
+
+
+def print_time() -> None:
+    ts = timespec{}
+    ret = clock_gettime(CLOCK_MONOTONIC, &ts)
+    printf("clock_gettime(%d,%p) returned %d\n", CLOCK_MONOTONIC, &ts, ret)
+    printf(" --> %llu, %llu\n", ts.tv_sec as uint64, ts.tv_nsec as uint64)
+
+
+def main() -> int:
+    if MACOS:
+        f = fopen("a.c","w")
+        fprintf(f, "%s", "#include <time.h>\n#include <stdio.h>\nint main(){printf(\"%d\\n\", CLOCK_UPTIME_RAW);}")
+        fclose(f)
+        system("cc a.c && ./a.out")
+    system("echo '#include <time.h>' | cpp -x c -")
+    system("python3 -c 'import time; print(time.CLOCK_MONOTONIC)'")
+
+    print_time()
+
+    a = time(NULL)
+    while time(NULL) < a+2:
+        pass
+
+    print_time()
+
+    return 0
