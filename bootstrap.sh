@@ -82,21 +82,27 @@ function transpile_with_python_and_compile() {
         # Avoid the "python.exe" launcher that opens app store for installing python.
         python=$( (command -v py python || true) | (grep -v Microsoft/WindowsApps || true) | head -1)
     else
-        python=$( (command -v python3.13 python3 python || true) | head -1)
+        python=$( (command -v python3 python python3.{10..20} || true) | head -1)
     fi
     echo "$python"
-
-    echo -n "Finding C compiler... "
-    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
-        cc=../../../mingw64/bin/clang.exe
-    else
-        cc="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
-    fi
-    echo "$cc"
 
     if ! [[ "$("$python" --version || true)" =~ ^Python\ 3 ]]; then
         echo -e "${RED}Error: Python not found. Please install it.${RESET}" >&2
         echo "Also, please create an issue on GitHub if you can't get this to work." >&2
+        exit 1
+    fi
+
+    echo -n "Finding clang... "
+    if [[ "${OS:=$(uname)}" =~ Windows ]]; then
+        clang="$PWD/mingw64/bin/clang.exe"
+    else
+        clang="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
+    fi
+    echo "$clang"
+
+    if ! [ -f "$clang" ]; then
+        echo -e "${RED}Error: clang not found.${RESET}" >&2
+        echo "Please create an issue on GitHub if you can't get this to work." >&2
         exit 1
     fi
 
@@ -133,9 +139,9 @@ function transpile_with_python_and_compile() {
         #       different kinds of expressions as struct members instead of
         #       union members...
         if [[ "$OS" =~ Windows ]]; then
-            $cc -w -O2 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
+            $clang -w -O2 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
         else
-            $cc -w -O2 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+            $clang -w -O2 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
         fi
     )
 }
@@ -180,6 +186,15 @@ function compile_next_jou_compiler() {
 
     (
         cd $folder
+
+        if [ $number -eq 23 ]; then
+            # I changed how the assert statement works: the new compiler imports
+            # "stdlib/assert.jou" in every file that uses `assert`, and the old
+            # compiler doesn't expect it so it gives a bunch of unused import
+            # warnings. Let's get rid of the warnings.
+            echo "Deleting stdlib/assert.jou imports..."
+            sed -i -e '/import "stdlib\/assert.jou"/d' compiler/*.jou compiler/*/*.jou
+        fi
 
         echo "Deleting version check..."
         sed -i -e "/Found unsupported LLVM version/d" Makefile.*
