@@ -291,13 +291,13 @@ class AstExpression:
         call: AstCall
         instantiation: AstInstantiation
         as_: AstAs*  # Must be pointer, because it contains an AstExpression
+        enumcount: AstEnumCount
         array: List[AstExpression]
         varname: byte[100]
         get_func_ptr: AstGetFuncPtr
         float_or_double_text: byte[100]
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
         constant: Constant
-        enum_type: AstType  # AstExpressionKind.EnumCount
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
@@ -349,9 +349,7 @@ class AstExpression:
             case AstExpressionKind.As:
                 self.as_.print_with_tree_printer(tp)
             case AstExpressionKind.EnumCount:
-                printf("enum_count ")
-                self.enum_type.print(True)
-                printf("\n")
+                self.enumcount.print()
             case AstExpressionKind.SizeOf:
                 printf("sizeof\n")
             case AstExpressionKind.ArrayCount:
@@ -530,6 +528,21 @@ class AstAs:
     def free(self) -> None:
         self.value.free()
         self.type.free()
+
+
+# enum_count(Foo)
+@public
+class AstEnumCount:
+    enum_type_ast: AstType
+    enum_type: Type*
+
+    def print(self) -> None:
+        printf("enum_count ")
+        self.enum_type_ast.print(True)
+        printf("\n")
+
+    def free(self) -> None:
+        self.enum_type_ast.free()
 
 
 # foo(arg1, arg2, arg3)

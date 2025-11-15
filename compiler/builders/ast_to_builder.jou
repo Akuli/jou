@@ -474,7 +474,7 @@ class AstToBuilder:
             case AstExpressionKind.As:
                 return self.builder.cast(self.build_expression(&expr.as_.value), expr.types.orig_type)
             case AstExpressionKind.EnumCount:
-                return self.builder.integer(int_type(32), )
+                return self.builder.integer(expr.types.orig_type, expr.enumcount.enum_type.enum_members.len)
             case AstExpressionKind.SizeOf:
                 return self.builder.size_of(self.map_type(expr.operands[0].types.implicit_cast_type))
             case AstExpressionKind.ArrayCount:
