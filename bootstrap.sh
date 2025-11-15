@@ -82,7 +82,7 @@ function transpile_with_python_and_compile() {
         # Avoid the "python.exe" launcher that opens app store for installing python.
         python=$( (command -v py python || true) | (grep -v Microsoft/WindowsApps || true) | head -1)
     else
-        python=$( (command -v python3.13 python3 python || true) | head -1)
+        python=$( (command -v python3 python || true) | head -1)
     fi
     echo "$python"
 
