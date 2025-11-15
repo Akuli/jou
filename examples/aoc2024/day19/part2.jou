@@ -24,7 +24,7 @@ def count_availability(towel: byte*, patterns: List[byte*]) -> int64:
                 return avail_cache[i].value
 
         # Create new cache entry
-        assert avail_cache_len < sizeof(avail_cache)/sizeof(avail_cache[0])
+        assert avail_cache_len < array_count(avail_cache)
         cacheptr = &avail_cache[avail_cache_len++]
         strcpy(cacheptr.towel, towel)
 

@@ -152,7 +152,7 @@ def get_numpad_move_sequences(code: byte*) -> byte[50][50]:
         else:
             # We can move first horizontal then vertical, or first vertical then horizontal.
             # Duplicate results and do both.
-            assert 2 * nresults < sizeof(results) / sizeof(results[0])
+            assert 2 * nresults < array_count(results)
             memcpy(&results[nresults], results, sizeof(results[0]) * nresults)
             for i = 0; i < nresults; i++:
                 add_dx_string(dx, results[i])

@@ -30,7 +30,7 @@ def read_win_counts() -> int[500]:
             else:
                 n = atoi(words.ptr[i])
                 if no_separator_yet:
-                    assert nwinning < sizeof(winning)/sizeof(winning[0])
+                    assert nwinning < array_count(winning)
                     winning[nwinning++] = n
                 else:
                     # check if this is a winning number
@@ -39,14 +39,14 @@ def read_win_counts() -> int[500]:
                             match_count++
                             break
 
-        assert result_len < sizeof(result)/sizeof(result[0])
+        assert result_len < array_count(result)
         result[result_len++] = match_count
 
         free(words.ptr)
 
     fclose(f)
 
-    assert result_len < sizeof(result)/sizeof(result[0])
+    assert result_len < array_count(result)
     result[result_len] = -1
     return result
 
@@ -57,7 +57,7 @@ def main() -> int:
     for i = 0; win_counts[i] != -1; i++:
         num_cards++
 
-    assert sizeof(win_counts)/sizeof(win_counts[0]) == 500
+    assert array_count(win_counts) == 500
     card_counts: int[500]
     for i = 0; i < num_cards; i++:
         card_counts[i] = 1

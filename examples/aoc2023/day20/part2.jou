@@ -42,7 +42,7 @@ class ModuleList:
         assert strlen(name) < sizeof(m.name)
         strcpy(m.name, name)
 
-        assert self.nmodules < sizeof(self.modules)/sizeof(self.modules[0])
+        assert self.nmodules < array_count(self.modules)
         self.modules[self.nmodules++] = m
 
     def find_module(self, name: byte*) -> Module*:
@@ -75,14 +75,14 @@ def find_affected_modules(start: Module*) -> Module*[100]:
         if found:
             continue
 
-        assert result_len < sizeof(result)/sizeof(result[0])
+        assert result_len < array_count(result)
         result[result_len++] = mod
 
         for i = 0; i < mod.ndestinations; i++:
-            assert todo_len < sizeof(todo)/sizeof(todo[0])
+            assert todo_len < array_count(todo)
             todo[todo_len++] = mod.destinations[i]
 
-    assert result_len < sizeof(result)/sizeof(result[0])
+    assert result_len < array_count(result)
     result[result_len] = NULL
     return result
 
@@ -124,7 +124,7 @@ def run_part_of_input(start_flip_flop: Module*, end: Module*) -> int[5]:
             if item.from == end and item.value:
                 # end receives a high
                 result[result_len++] = iter
-                if result_len == sizeof(result)/sizeof(result[0]):
+                if result_len == array_count(result):
                     for i = 0; relevant_modules[i] != NULL; i++:
                         relevant_modules[i].reset_to_initial_state()
                     free(todo.items.ptr)
@@ -212,9 +212,9 @@ def main() -> int:
             modules.create_if_doesnt_exist(words.ptr[i])
             dest = modules.find_module(words.ptr[i])
 
-            assert dest.nsources < sizeof(dest.sources)/sizeof(dest.sources[0])
+            assert dest.nsources < array_count(dest.sources)
             dest.sources[dest.nsources++] = source
-            assert source.ndestinations < sizeof(source.destinations)/sizeof(source.destinations[0])
+            assert source.ndestinations < array_count(source.destinations)
             source.destinations[source.ndestinations++] = dest
 
         free(words.ptr)
@@ -239,7 +239,7 @@ def main() -> int:
     output_conjunction: Module* = rx.sources[0]
     assert output_conjunction.nsources == broadcaster.ndestinations
     nchannels = output_conjunction.nsources
-    assert nchannels <= sizeof(channels)/sizeof(channels[0])
+    assert nchannels <= array_count(channels)
 
     for i = 0; i < broadcaster.ndestinations; i++:
         flip_flop: Module* = broadcaster.destinations[i]

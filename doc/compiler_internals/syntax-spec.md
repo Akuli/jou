@@ -105,6 +105,7 @@ Jou has a few different kinds of tokens:
     - `not`
     - `as`
     - `sizeof`
+    - `array_count`
     - `assert`
     - `bool`
     - `float`

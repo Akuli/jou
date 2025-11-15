@@ -258,7 +258,7 @@ def read_gates(filename: byte*, ngates: int*) -> Gate[250]:
                 case _:
                     assert False
 
-        assert *ngates < sizeof(gates)/sizeof(gates[0])
+        assert *ngates < array_count(gates)
         gates[(*ngates)++] = g
 
     fclose(f)

@@ -34,11 +34,8 @@ global cache: int64[100][100]
 # Handles the blinking of one stone.
 # Returns how many stones it splits into once all the blinking is done.
 def analyze_stone(stone_number: int64, remaining_blinks: int) -> int64:
-    cache_stone_number_limit = sizeof(cache)/sizeof(cache[0])
-    cache_remaining_blinks_limit = sizeof(cache[0])/sizeof(cache[0][0])
-
     cacheptr: int64* = NULL
-    if stone_number < cache_stone_number_limit and remaining_blinks < cache_remaining_blinks_limit:
+    if stone_number < array_count(cache) and remaining_blinks < array_count(cache[0]):
         cacheptr = &cache[stone_number][remaining_blinks]
         if *cacheptr != 0:
             return *cacheptr

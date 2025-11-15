@@ -13,7 +13,7 @@ class Map:
         a, b, c: int64
         assert sscanf(s, "%lld %lld %lld", &a, &b, &c) == 3
 
-        assert self.ntriples < sizeof(self.triples)/sizeof(self.triples[0])
+        assert self.ntriples < array_count(self.triples)
         self.triples[self.ntriples++] = [a, b, c]
 
     def map_number(self, n: int64) -> int64:
@@ -39,7 +39,7 @@ class Input:
 
         words = split_by_ascii_whitespace(line)
         for i = 1; i < words.len; i++:
-            assert i < sizeof(self.seed_numbers) / sizeof(self.seed_numbers[0])
+            assert i < array_count(self.seed_numbers)
             self.seed_numbers[i-1] = atoll(words.ptr[i])
             self.n_seed_numbers++
         free(words.ptr)
@@ -60,7 +60,7 @@ def main() -> int:
     while fgets(line, sizeof(line) as int, f) != NULL:
         if strstr(line, "map") != NULL:
             # start of new map
-            assert input.nmaps < sizeof(input.maps)/sizeof(input.maps[0])
+            assert input.nmaps < array_count(input.maps)
             input.nmaps++
         elif is_ascii_digit(line[0]):
             # add numbers to existing map

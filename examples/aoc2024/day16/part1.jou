@@ -141,7 +141,7 @@ def main() -> int:
         if state.score < *scoreptr:
             *scoreptr = state.score
             next_states: State[3] = state.next_states()
-            assert todo_len + 3 <= sizeof(todo)/sizeof(todo[0])
+            assert todo_len + 3 <= array_count(todo)
             memcpy(&todo[todo_len], &next_states, sizeof(next_states))
             todo_len += 3
 

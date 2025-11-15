@@ -24,7 +24,7 @@ class Box:
         assert strlen(label) < sizeof(lens.label)
         strcpy(lens.label, label)
 
-        assert self.nlenses < sizeof(self.lenses)/sizeof(self.lenses[0])
+        assert self.nlenses < array_count(self.lenses)
         self.lenses[self.nlenses++] = lens
 
     def remove_by_label(self, label: byte*) -> None:

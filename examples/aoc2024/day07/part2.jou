@@ -95,7 +95,7 @@ def main() -> int:
         while strstr(p, " ") != NULL:
             p = strstr(p, " ")
             p++  # skip space
-            assert eq.nvalues < sizeof(eq.values)/sizeof(eq.values[0])
+            assert eq.nvalues < array_count(eq.values)
             eq.values[eq.nvalues++] = atoll(p)
 
         if eq.is_satisfiable():

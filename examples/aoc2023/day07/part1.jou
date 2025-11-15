@@ -81,7 +81,7 @@ class Hand:
         ]
 
         result = -1
-        for i = 0; i < sizeof(bools)/sizeof(bools[0]); i++:
+        for i = 0; i < array_count(bools); i++:
             if bools[i]:
                 assert result == -1
                 result = i
@@ -122,7 +122,7 @@ def main() -> int:
 
     while fscanf(f, "%5s %d\n", &hands[nhands].letters, &hands[nhands].bid) == 2:
         nhands++
-        assert nhands < sizeof(hands)/sizeof(hands[0])
+        assert nhands < array_count(hands)
 
     fclose(f)
 
