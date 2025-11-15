@@ -187,6 +187,15 @@ function compile_next_jou_compiler() {
     (
         cd $folder
 
+        if [ $number -eq 23 ]; then
+            # I changed how the assert statement works: the new compiler imports
+            # "stdlib/assert.jou" in every file that uses `assert`, and the old
+            # compiler doesn't expect it so it gives a bunch of unused import
+            # warnings. Let's get rid of the warnings.
+            echo "Deleting stdlib/assert.jou imports..."
+            sed -i -e '/import "stdlib\/assert.jou"/d' compiler/*.jou compiler/*/*.jou
+        fi
+
         echo "Deleting version check..."
         sed -i -e "/Found unsupported LLVM version/d" Makefile.*
 
