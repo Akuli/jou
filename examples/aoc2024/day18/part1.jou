@@ -66,7 +66,7 @@ def main() -> int:
             *steps_ptr = state.steps
 
             next_states: State[4] = state.next_states()
-            assert todo_len + 4 <= sizeof(todo)/sizeof(todo[0])
+            assert todo_len + 4 <= array_count(todo)
             memcpy(&todo[todo_len], &next_states, sizeof(next_states))
             todo_len += 4
 

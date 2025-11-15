@@ -28,11 +28,11 @@ def main() -> int:
         dest: int*
         if grid.get([0, 0]) == '#':
             # lock
-            assert nlocks < sizeof(locks)/sizeof(locks[0])
+            assert nlocks < array_count(locks)
             dest = locks[nlocks++]
         else:
             # key
-            assert nkeys < sizeof(keys)/sizeof(keys[0])
+            assert nkeys < array_count(keys)
             dest = keys[nkeys++]
 
         for x = 0; x < 5; x++:

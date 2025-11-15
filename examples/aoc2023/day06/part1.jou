@@ -47,7 +47,7 @@ def main() -> int:
             dest = &distances
 
         for i = 0; i+1 < words.len; i++:
-            assert i < sizeof(*dest)/sizeof((*dest)[0]) - 1
+            assert i < array_count(*dest) - 1
             (*dest)[i] = atoi(words.ptr[i+1])
 
         free(words.ptr)

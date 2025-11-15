@@ -64,7 +64,7 @@ def main() -> int:
 
     b: Block
     while fscanf(f, "%d,%d,%d~%d,%d,%d\n", &b.start[0], &b.start[1], &b.start[2], &b.end[0], &b.end[1], &b.end[2]) == 6:
-        assert nblocks < sizeof(blocks)/sizeof(blocks[0])
+        assert nblocks < array_count(blocks)
         blocks[nblocks++] = b
 
     fclose(f)

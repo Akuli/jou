@@ -14,7 +14,7 @@ class Map:
         a, b, c: int64
         assert sscanf(s, "%lld %lld %lld", &a, &b, &c) == 3
 
-        assert self.ntriples < sizeof(self.triples)/sizeof(self.triples[0])
+        assert self.ntriples < array_count(self.triples)
         self.triples[self.ntriples++] = [a, b, c]
 
     def get_input_range_starts(self) -> List[int64]:
@@ -82,7 +82,7 @@ class Input:
 
         words = split_by_ascii_whitespace(line)
         for i = 0; i+1 < words.len; i += 2:
-            assert i/2 < sizeof(self.seed_ranges) / sizeof(self.seed_ranges[0])
+            assert i/2 < array_count(self.seed_ranges)
             self.seed_ranges[i/2] = Range{
                 start = atoll(words.ptr[i]),
                 end = atoll(words.ptr[i]) + atoll(words.ptr[i+1]),
@@ -112,7 +112,7 @@ def main() -> int:
     while fgets(line, sizeof(line) as int, f) != NULL:
         if strstr(line, "map") != NULL:
             # start of new map
-            assert input.nmaps < sizeof(input.maps)/sizeof(input.maps[0])
+            assert input.nmaps < array_count(input.maps)
             input.nmaps++
         elif is_ascii_digit(line[0]):
             # add numbers to existing map

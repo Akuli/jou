@@ -364,7 +364,7 @@ class AstToBuilder:
 
     def build_array(self, t: Type*, items: List[AstExpression]) -> AnyBuilderValue:
         assert t.kind == TypeKind.Array
-        assert t.array.len == items.len
+        assert t.array.count == items.len
 
         arr_ptr = self.builder.stack_alloc(t, NULL)
         first_item_ptr = self.builder.cast(arr_ptr, t.array.item_type.pointer_type())
@@ -477,6 +477,10 @@ class AstToBuilder:
                 return self.builder.integer(int_type(32), )
             case AstExpressionKind.SizeOf:
                 return self.builder.size_of(self.map_type(expr.operands[0].types.implicit_cast_type))
+            case AstExpressionKind.ArrayCount:
+                array_type = expr.operands[0].types.implicit_cast_type
+                assert array_type.kind == TypeKind.Array
+                return self.builder.integer(int_type(32), array_type.array.count)
             case AstExpressionKind.AddressOf:
                 return self.build_address_of_expression(&expr.operands[0])
             case AstExpressionKind.Dereference:

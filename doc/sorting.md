@@ -90,8 +90,7 @@ def main() -> int:
 
 Note that we need to specify the array length `3` manually.
 This is useful, because [arrays often contain unused space for more items at the end](lists.md#lists-vs-arrays).
-You can use [the `sizeof(array) / sizeof(array[0])` trick](types.md#pointers-and-arrays)
-if you want to sort the whole array.
+You can use [the `array_count` built-in](types.md#pointers-and-arrays) if you want to sort the whole array.
 
 You can also use `sort_int32()` with a [list](lists.md) of integers:
 

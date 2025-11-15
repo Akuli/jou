@@ -28,7 +28,7 @@ def hash_type(hash: Hash*, type: Type*) -> None:
         case TypeKind.TypeDef:
             assert False  # already handled
         case TypeKind.Array:
-            hash.add_int64(type.array.len)
+            hash.add_int64(type.array.count)
             hash_type(hash, type.array.item_type)
         case (
             # Treat all pointers the same, since they are the same LLVM type.

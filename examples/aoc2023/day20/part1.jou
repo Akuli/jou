@@ -39,7 +39,7 @@ class ModuleList:
         assert strlen(name) < sizeof(m.name)
         strcpy(m.name, name)
 
-        assert self.nmodules < sizeof(self.modules)/sizeof(self.modules[0])
+        assert self.nmodules < array_count(self.modules)
         self.modules[self.nmodules++] = m
 
     def find_module(self, name: byte*) -> Module*:
@@ -149,9 +149,9 @@ def main() -> int:
             modules.create_if_doesnt_exist(words.ptr[i])
             dest = modules.find_module(words.ptr[i])
 
-            assert dest.nsources < sizeof(dest.sources)/sizeof(dest.sources[0])
+            assert dest.nsources < array_count(dest.sources)
             dest.sources[dest.nsources++] = source
-            assert source.ndestinations < sizeof(source.destinations)/sizeof(source.destinations[0])
+            assert source.ndestinations < array_count(source.destinations)
             source.destinations[source.ndestinations++] = dest
 
         free(words.ptr)

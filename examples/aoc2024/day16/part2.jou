@@ -50,7 +50,7 @@ class StateStats:
 
     def append_source(self, new_source: StateStats*) -> None:
         if new_source != NULL:
-            assert self.sources_len < sizeof(self.sources)/sizeof(self.sources[0])
+            assert self.sources_len < array_count(self.sources)
             self.sources[self.sources_len++] = new_source
 
 
@@ -113,7 +113,7 @@ def main() -> int:
             stats.append_source(state.source)
 
             next_states: State[3] = state.next_states(stats)
-            assert todo_len + 3 <= sizeof(todo)/sizeof(todo[0])
+            assert todo_len + 3 <= array_count(todo)
             memcpy(&todo[todo_len], &next_states, sizeof(next_states))
             todo_len += 3
 

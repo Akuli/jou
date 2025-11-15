@@ -28,7 +28,7 @@ def main() -> int:
 
     f = fopen("part2_templates.txt", "r")
     while feof(f) == 0:
-        assert num_templates < sizeof(templates)/sizeof(templates[0])
+        assert num_templates < array_count(templates)
         templates[num_templates++] = read_grid_from_file(f)
     fclose(f)
 

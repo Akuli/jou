@@ -89,7 +89,7 @@ def type_to_llvm(type: Type*) -> LLVMType*:
         case TypeKind.TypeDef:
             return type_to_llvm(type.typedef_actual_type)
         case TypeKind.Array:
-            return LLVMArrayType(type_to_llvm(type.array.item_type), type.array.len)
+            return LLVMArrayType(type_to_llvm(type.array.item_type), type.array.count)
         case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
             # Element type doesn't matter in new LLVM versions.
             return LLVMPointerType(LLVMInt8Type(), 0)

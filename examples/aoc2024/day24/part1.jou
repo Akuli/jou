@@ -114,7 +114,7 @@ def main() -> int:
             case _:
                 assert False
 
-        assert ngates < sizeof(gates)/sizeof(gates[0])
+        assert ngates < array_count(gates)
         gates[ngates++] = LogicGate{
             inputs = [varmgr.get_or_create_var(input1), varmgr.get_or_create_var(input2)],
             output = varmgr.get_or_create_var(output),

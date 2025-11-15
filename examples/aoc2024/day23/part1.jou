@@ -11,7 +11,7 @@ class Computer:
     def connect(self, other: Computer*) -> None:
         assert other != NULL
 
-        for i = 0; i < sizeof(self.connections)/sizeof(self.connections[0]); i++:
+        for i = 0; i < array_count(self.connections); i++:
             if self.connections[i] == NULL:
                 self.connections[i] = other
                 return
@@ -20,7 +20,7 @@ class Computer:
         assert False
 
     def is_connected(self, other: Computer*) -> bool:
-        for i = 0; i < sizeof(self.connections)/sizeof(self.connections[0]); i++:
+        for i = 0; i < array_count(self.connections); i++:
             if self.connections[i] == other:
                 return True
         return False
