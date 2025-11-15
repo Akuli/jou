@@ -121,16 +121,33 @@ You can use `enum_count(SomeEnum)` to get the number of enum members as `int`. F
 ```python
 import "stdlib/io.jou"
 
-'enum Operation:
+enum Operation:
     Add
     Subtract
     Multiply
-    Divide          # 7 / 3 produces 2.3333...
-    FloorDivide     # 7 / 3 produces 2
 
 def main() -> int:
-    printf("%d\n", enum_count(Operation))  # Output: 5
+    printf("%d\n", enum_count(Operation))  # Output: 3
     return 0
+```
+
+Unfortunately, it is currently not possible to use `enum_count()` in an array size:
+
+```python
+enum Operation:
+    Add
+    Subtract
+    Multiply
+
+def main() -> int:
+    enabled_operations: bool[enum_count(operation)]  # Error: expected a type, got the 'enum_count' keyword
+```
+
+For now, the following workaround is recommended:
+
+```python
+enabled_operations: bool[3]
+assert array_count(enabled_operations) == enum_count(Operation)
 ```
 
 
@@ -155,9 +172,11 @@ def main() -> int:
     return 0
 ```
 
-This is sometimes used to assign a string to each enum member:
+This is sometimes used to assign a string to each enum member.
+See above for an explanation of `enum_count`.
 
 ```python
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
 
 enum Operation:
@@ -167,13 +186,11 @@ enum Operation:
 
 def main() -> int:
     descriptions = ["Add numbers", "Subtract numbers", "Multiply numbers"]
-    assert sizeof(descriptions) / sizeof(descriptions[0]) == enum_count(Operation)
+    assert array_count(descriptions) == enum_count(Operation)
     printf("%s\n", descriptions[Operation.Subtract as int])  # Output: Subtract numbers
     return 0
 ```
 
-Here `sizeof(descriptions) / sizeof(descriptions[0])`
-[is the number of elements in the `descriptions` array](types.md#pointers-and-arrays).
 The purpose of the `assert` is to ensure that the `descriptions` array stays up to date
 when new operations are added.
 
