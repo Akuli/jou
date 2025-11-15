@@ -1,0 +1,35 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+import "stdlib/time.jou"
+
+
+class timespec:
+    tv_sec: uint64
+    tv_nsec: uint64
+
+declare clock_gettime(clockid: int, tp: timespec*) -> int
+
+const CLOCK_MONOTONIC: int = 1
+
+
+def main() -> int:
+    system("echo '#include <time.h>' | cpp -x c -")
+    system("python3 -c 'import time; print(time.CLOCK_MONOTONIC)'")
+
+    ts = timespec{}
+    ret = clock_gettime(CLOCK_MONOTONIC, &ts)
+    printf("clock_gettime(%d,%p) returned %d\n", CLOCK_MONOTONIC, &ts, ret)
+    printf(" --> %llu, %llu\n", ts.tv_sec as uint64, ts.tv_nsec as uint64)
+
+    a = time(NULL)
+    while time(NULL) < a+2:
+        pass
+
+    ts = timespec{}
+    ret = clock_gettime(CLOCK_MONOTONIC, &ts)
+    printf("clock_gettime(%d,%p) returned %d\n", CLOCK_MONOTONIC, &ts, ret)
+    printf(" --> %llu, %llu\n", ts.tv_sec as uint64, ts.tv_nsec as uint64)
+
+    return 0
