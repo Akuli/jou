@@ -29,6 +29,8 @@ def main() -> int:
     printf("%d\n", Thingy.Bar as int)  # Output: 1
     printf("%d\n", Thingy.Baz as int)  # Output: 2
 
+    printf("%d\n", enum_count(Thingy))  # Output: 3
+
     return 0
 ```
 
@@ -112,6 +114,26 @@ but then the compiler won't complain if you don't handle all enum members.
 See also [the `match` statement documentation](match.md).
 
 
+## The `enum_count` builtin
+
+You can use `enum_count(SomeEnum)` to get the number of enum members as `int`. For example:
+
+```python
+import "stdlib/io.jou"
+
+'enum Operation:
+    Add
+    Subtract
+    Multiply
+    Divide          # 7 / 3 produces 2.3333...
+    FloorDivide     # 7 / 3 produces 2
+
+def main() -> int:
+    printf("%d\n", enum_count(Operation))  # Output: 5
+    return 0
+```
+
+
 ## Integer conversions
 
 When the program runs, enums are actually just `int`s.
@@ -145,9 +167,16 @@ enum Operation:
 
 def main() -> int:
     descriptions = ["Add numbers", "Subtract numbers", "Multiply numbers"]
+    assert sizeof(descriptions) / sizeof(descriptions[0]) == enum_count(Operation)
     printf("%s\n", descriptions[Operation.Subtract as int])  # Output: Subtract numbers
     return 0
 ```
+
+Here `sizeof(descriptions) / sizeof(descriptions[0])`
+[is the number of elements in the `descriptions` array](types.md#pointers-and-arrays),
+and `enum_count(Operation)` is the number of members in the `Operation` enum.
+The purpose of the `assert` is to ensure that the `descriptions` array stays up to date
+when new operations are added.
 
 You can also convert integers to enums,
 but note that the result might not correspond with any member of the enum.
