@@ -14,22 +14,25 @@ declare clock_gettime(clockid: int, tp: timespec*) -> int
 const CLOCK_MONOTONIC: int = 1
 
 
-def main() -> int:
-    system("echo '#include <time.h>' | cpp -x c -")
-    system("python3 -c 'import time; print(time.CLOCK_MONOTONIC)'")
-
+def print_time() -> None:
     ts = timespec{}
     ret = clock_gettime(CLOCK_MONOTONIC, &ts)
     printf("clock_gettime(%d,%p) returned %d\n", CLOCK_MONOTONIC, &ts, ret)
     printf(" --> %llu, %llu\n", ts.tv_sec as uint64, ts.tv_nsec as uint64)
+
+
+def main() -> int:
+    if MACOS:
+        system("echo '#include <time.h>\n#include <stdio.h>\nint main(){printf(\"%d\\n\", CLOCK_UPTIME_RAW);}' | cc -x c -o show_clock - && ./show_clock")
+    system("echo '#include <time.h>' | cpp -x c -")
+    system("python3 -c 'import time; print(time.CLOCK_MONOTONIC)'")
+
+    print_time()
 
     a = time(NULL)
     while time(NULL) < a+2:
         pass
 
-    ts = timespec{}
-    ret = clock_gettime(CLOCK_MONOTONIC, &ts)
-    printf("clock_gettime(%d,%p) returned %d\n", CLOCK_MONOTONIC, &ts, ret)
-    printf(" --> %llu, %llu\n", ts.tv_sec as uint64, ts.tv_nsec as uint64)
+    print_time()
 
     return 0
