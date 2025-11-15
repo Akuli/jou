@@ -94,7 +94,7 @@ function transpile_with_python_and_compile() {
 
     echo -n "Finding clang... "
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
-        clang=../../../mingw64/bin/clang.exe
+        clang="$PWD/mingw64/bin/clang.exe"
     else
         clang="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
     fi
