@@ -23,8 +23,16 @@ const MAX_ARGS: int = 100
 
 
 @public
+enum AstTypeKind:
+    Named       # byte, int, MyClass
+    Pointer     # byte*
+    Array       # int[5]
+    Generic     # List[int]
+    FuncPtr     # funcptr(int, int) -> int
+
+
+@public
 class AstArrayType:
-    # TODO: these probably shouldn't be pointers, make a pointer to AstArrayType instead
     member_type: AstType*
     length: AstExpression*
 
@@ -42,19 +50,6 @@ class AstGenericType:
     param_types: List[AstType]  # e.g. int
 
 
-# The Jou type `foo[bar]` is ambiguous. It can be:
-#   - an array: MyThing[NUM_THINGS]
-#   - a generic type: List[MyThing]
-#
-# When parsing, if the compiler cannot figure out whether the type foo[bar] is
-# a generic type or an array, it creates this.
-@public
-class AstArrayOrGeneric:
-    name: byte[100]                 # The foo of foo[bar]
-    array_length: AstExpression     # The bar of foo[bar], interpreted as an expression
-    generic_param_type: AstType     # The bar of foo[bar], interpreted as a type
-
-
 # funcptr(int, int) -> int
 @public
 class AstFuncPtrType:
@@ -64,27 +59,16 @@ class AstFuncPtrType:
 
 
 @public
-enum AstTypeKind:
-    BuiltIn         # anything specified with a keyword: byte, int, noreturn, ...
-    Named           # MyClass
-    Pointer         # byte*
-    Array           # int[5]
-    Generic         # List[int]
-    ArrayOrGeneric  # Foo[Bar] when we don't know whether Bar is an expression (array length) or type (generic)
-    FuncPtr         # funcptr(int, int) -> int
-
-@public
 class AstType:
     kind: AstTypeKind
     location: Location
 
     union:
-        name: byte[100]                         # AstTypeKind.BuiltIn and AstTypeKind.Named
-        value_type: AstType*                    # AstTypeKind.Pointer
-        array: AstArrayType                     # AstTypeKind.Array
-        generic: AstGenericType                 # AstTypeKind.Generic
-        array_or_generic: AstArrayOrGeneric*    # AstTypeKind.ArrayOrGeneric
-        func_ptr: AstFuncPtrType                # AstTypeKind.FuncPtr
+        name: byte[100]             # AstTypeKind.Named
+        value_type: AstType*        # AstTypeKind.Pointer
+        array: AstArrayType         # AstTypeKind.Array
+        generic: AstGenericType     # AstTypeKind.Generic
+        func_ptr: AstFuncPtrType    # AstTypeKind.FuncPtr
 
     def is_void(self) -> bool:
         return self.kind == AstTypeKind.Named and strcmp(self.name, "void") == 0
@@ -112,16 +96,6 @@ class AstType:
                         printf(", ")
                     self.generic.param_types.ptr[i].print(False)
                 printf("]")
-            case AstTypeKind.ArrayOrGeneric:
-                # TODO: show the size expression better?
-                printf(
-                    "(ambiguously, it is either %s[<size>] or %s[",
-                    self.array_or_generic.name,
-                    self.array_or_generic.name,
-                )
-                self.array_or_generic.generic_param_type.print(False)
-                printf("])")
-                
             case AstTypeKind.FuncPtr:
                 # Wrap it in parentheses so we see how it's nested.
                 # Important with e.g. array of funcptr
@@ -154,17 +128,12 @@ class AstType:
                 for p = self.generic.param_types.ptr; p < self.generic.param_types.end(); p++:
                     p.free()
                 free(self.generic.param_types.ptr)
-            case AstTypeKind.ArrayOrGeneric:
-                self.array_or_generic.array_length.free()
-                self.array_or_generic.generic_param_type.free()
-                free(self.array_or_generic)
             case AstTypeKind.FuncPtr:
                 for p = self.func_ptr.argtypes.ptr; p < self.func_ptr.argtypes.end(); p++:
                     p.free()
                 free(self.func_ptr.argtypes.ptr)
                 self.func_ptr.return_type.free()
                 free(self.func_ptr.return_type)
-
 
 # Statements and expressions can be printed in a tree.
 # To see a tree, run:
