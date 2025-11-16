@@ -65,7 +65,8 @@ class AstFuncPtrType:
 
 @public
 enum AstTypeKind:
-    Named           # byte, int, MyClass
+    BuiltIn         # anything specified with a keyword: byte, int, noreturn, ...
+    Named           # MyClass
     Pointer         # byte*
     Array           # int[5]
     Generic         # List[int]
@@ -78,7 +79,7 @@ class AstType:
     location: Location
 
     union:
-        name: byte[100]                         # AstTypeKind.Named
+        name: byte[100]                         # AstTypeKind.BuiltIn and AstTypeKind.Named
         value_type: AstType*                    # AstTypeKind.Pointer
         array: AstArrayType                     # AstTypeKind.Array
         generic: AstGenericType                 # AstTypeKind.Generic
