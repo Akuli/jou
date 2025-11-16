@@ -1,9 +1,11 @@
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "./ast.jou"
+import "./typecheck/common.jou"
 import "./typecheck/step1_global_symbols.jou"
 import "./state.jou"
 import "./errors_and_warnings.jou"
@@ -69,6 +71,15 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
 
         case AstExpressionKind.Constant:
             *result = expr.constant.copy()
+            return True
+
+        case AstExpressionKind.EnumCount:
+            enum_type = type_from_ast(jou_file, NULL, &expr.enumcount.enum_type_ast)
+            if enum_type.kind != TypeKind.Enum:
+                snprintf(msg, sizeof(msg), "enum_count must be called on an enum type, not %s", enum_type.short_description())
+                fail(expr.location, msg)
+            expr.enumcount.enum_type = enum_type
+            *result = int_constant(int_type(32), enum_type.enum_members.len)
             return True
 
         case AstExpressionKind.GetVariable:

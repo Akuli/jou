@@ -1058,7 +1058,8 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     detect_enum_member_syntax(state, expr)
 
     match expr.kind:
-        case AstExpressionKind.IntegerConstant:
+        case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount:
+            # The expression can be evaluated as a constant
             c: Constant
             ok = evaluate_constant_expression(state.jou_file, expr, &c, type_hint)
             assert ok  # Should fail with a compiler error if there is a problem
@@ -1312,14 +1313,6 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             else:
                 typecheck_expression_not_void(state, &expr.as_.value, NULL)
                 do_explicit_cast(state.fom, &expr.as_.value, result, expr.location)
-
-        case AstExpressionKind.EnumCount:
-            enum_type = type_from_ast(state.jou_file, state.fom.symbol.signature.get_self_class(), &expr.enumcount.enum_type_ast)
-            expr.enumcount.enum_type = enum_type
-            if enum_type.kind != TypeKind.Enum:
-                snprintf(msg, sizeof(msg), "enum_count must be called on an enum type, not %s", enum_type.short_description())
-                fail(expr.location, msg)
-            result = int_type(32)
 
     assert result != NULL
     expr.types.orig_type = result
