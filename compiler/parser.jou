@@ -295,11 +295,6 @@ class Parser:
     loop_vars: List[byte*]  # NULL means a loop that doesn't look like "for foo = bar; ..."
     what_are_we_parsing: WhatAreWeParsing
 
-    def eat_newline(self) -> None:
-        if self.tokens.kind != TokenKind.Newline:
-            self.tokens.fail_expected_got("end of line")
-        self.tokens++
-
     def check_top_level(self, what_is_it: byte*) -> None:
         if self.what_are_we_parsing != WhatAreWeParsing.TopLevel:
             msg: byte[500]
@@ -315,17 +310,42 @@ class Parser:
                 snprintf(msg, sizeof(msg), "%s must be inside a function or method", what_is_it)
                 fail(self.tokens.location, msg)
 
+    def eat_keyword(self, word: byte*, use_fail_expected_got: bool, error_msg: byte*) -> Token*:
+        if not self.tokens.is_keyword(word):
+            assert error_msg != NULL
+            if use_fail_expected_got:
+                self.tokens.fail_expected_got(error_msg)
+            else:
+                fail(self.tokens.location, error_msg)
+        return self.tokens++
+
+    def eat_operator(self, op: byte*, use_fail_expected_got: bool, error_msg: byte*) -> Token*:
+        if not self.tokens.is_operator(op):
+            assert error_msg != NULL
+            if use_fail_expected_got:
+                self.tokens.fail_expected_got(error_msg)
+            else:
+                fail(self.tokens.location, error_msg)
+        return self.tokens++
+
+    def eat_by_kind(self, kind: TokenKind, use_fail_expected_got: bool, error_msg: byte*) -> Token*:
+        if self.tokens.kind != kind:
+            assert error_msg != NULL
+            if use_fail_expected_got:
+                self.tokens.fail_expected_got(error_msg)
+            else:
+                fail(self.tokens.location, error_msg)
+        return self.tokens++
+
+    def eat_newline(self) -> None:
+        self.eat_by_kind(TokenKind.Newline, True, "end of line")
+
     def parse_import(self) -> AstImport:
+        import_keyword = self.eat_keyword("import", False, NULL)
         if self.what_are_we_parsing != WhatAreWeParsing.TopLevel:
-            fail(self.tokens.location, "imports must be in the beginning of the file")
+            fail(import_keyword.location, "imports must be in the beginning of the file")
 
-        assert self.tokens.is_keyword("import")
-        self.tokens++
-
-        path_token = self.tokens++
-        if path_token.kind != TokenKind.String:
-            path_token.fail_expected_got("a string to specify the file name")
-
+        path_token = self.eat_by_kind(TokenKind.String, True, "a string to specify the file name")
         self.eat_newline()
 
         path: byte*
@@ -352,41 +372,26 @@ class Parser:
 
     def parse_link(self) -> AstLink:
         self.check_top_level("'link' statement")
-
-        assert self.tokens.is_keyword("link")
-        self.tokens++
-
-        flags_token = self.tokens++
-        if flags_token.kind != TokenKind.String:
-            flags_token.fail_expected_got("a string of linker flags after the 'link' keyword")
-
+        self.eat_keyword("link", False, NULL)
+        flags_token = self.eat_by_kind(TokenKind.String, True, "a string of linker flags after the 'link' keyword")
         self.eat_newline()
-
-        resolved_flags = handle_relative_paths_in_linker_flags(flags_token.long_string, flags_token.location.path)
-
         return AstLink{
             specified_flags = strdup(flags_token.long_string),
-            resolved_flags = resolved_flags,
+            resolved_flags = handle_relative_paths_in_linker_flags(flags_token.long_string, flags_token.location.path),
         }
 
     def parse_named_type(self) -> AstType:
         assert self.tokens.kind == TokenKind.Name or self.tokens.kind == TokenKind.Keyword
-        result = AstType{
+        t = self.tokens++
+        return AstType{
             kind = AstTypeKind.Named,
-            location = self.tokens.location,
-            name = self.tokens.short_string,
+            location = t.location,
+            name = t.short_string,
         }
-        self.tokens++
-        return result
 
     def parse_funcptr_type(self) -> AstType:
-        assert self.tokens.is_keyword("funcptr")
-        location = self.tokens.location
-        self.tokens++
-
-        if not self.tokens.is_operator("("):
-            self.tokens.fail_expected_got("a '(' to denote the start of funcptr argument types")
-        self.tokens++
+        location = self.eat_keyword("funcptr", False, NULL).location
+        self.eat_operator("(", True, "a '(' to denote the start of funcptr argument types")
 
         takes_varargs = False
         argtypes = List[AstType]{}
@@ -407,16 +412,12 @@ class Parser:
                 break
             self.tokens++
 
-        if not self.tokens.is_operator(")"):
-            if self.tokens.is_operator(":") and self.tokens[-1].kind == TokenKind.Name:
-                # It looks like "foo: int"
-                fail(self.tokens.location, "funcptr parameters cannot be named")
-            self.tokens.fail_expected_got("a ')'")
-        self.tokens++
+        if self.tokens.is_operator(":") and self.tokens[-1].kind == TokenKind.Name:
+            # It looks like "foo: int"
+            fail(self.tokens.location, "funcptr parameters cannot be named")
 
-        if not self.tokens.is_operator("->"):
-            fail(self.tokens.location, "return type of funcptr must be specified with '->'")
-        self.tokens++
+        self.eat_operator(")", True, "a ')'")
+        self.eat_operator("->", False, "return type of funcptr must be specified with '->'")
 
         ret: AstType* = malloc(sizeof(*ret))
         assert ret != NULL
@@ -432,9 +433,7 @@ class Parser:
         if self.tokens.is_operator("("):
             self.tokens++
             result = self.parse_type()
-            if not self.tokens.is_operator(")"):
-                self.tokens.fail_expected_got("a ')'")
-            self.tokens++
+            self.eat_operator(")", True, "a ')'")
         elif (
             self.tokens.kind == TokenKind.Name
             or self.tokens.is_keyword("None")
@@ -465,15 +464,11 @@ class Parser:
             *p = result
 
             if self.tokens.is_operator("*"):
-                result = AstType{
-                    location = (self.tokens++).location,
-                    kind = AstTypeKind.Pointer,
-                    value_type = p,
-                }
+                star = self.tokens++
+                result = AstType{location = star.location, kind = AstTypeKind.Pointer, value_type = p}
                 continue
 
-            assert self.tokens.is_operator("[")
-            location = (self.tokens++).location
+            open_bracket = self.eat_operator("[", False, NULL)
 
             if self.tokens.kind == TokenKind.Integer or result.kind != AstTypeKind.Named:
                 # Array, e.g. int[10]
@@ -483,13 +478,9 @@ class Parser:
                 # https://github.com/Akuli/jou/issues/804
                 len_expression: AstExpression* = malloc(sizeof *len_expression)
                 *len_expression = self.parse_expression()
-
-                if not self.tokens.is_operator("]"):
-                    self.tokens.fail_expected_got("a ']' to end the array size")
-                self.tokens++
-
+                self.eat_operator("]", True, "a ']' to end the array size")
                 result = AstType{
-                    location = location,
+                    location = open_bracket.location,
                     kind = AstTypeKind.Array,
                     array = AstArrayType{
                         member_type = p,
@@ -507,9 +498,7 @@ class Parser:
                         break
                     self.tokens++
 
-                if not self.tokens.is_operator("]"):
-                    self.tokens.fail_expected_got("a ']'")
-                self.tokens++
+                self.eat_operator("]", True, "a ']'")
 
                 assert result.kind == AstTypeKind.Named
                 result = AstType{
@@ -524,60 +513,36 @@ class Parser:
         return result
 
     def parse_typedef(self) -> AstTypeDef:
-        assert self.tokens.is_keyword("typedef")
-        self.tokens++
-
-        if self.tokens.kind != TokenKind.Name:
-            self.tokens.fail_expected_got("the name for a type")
-        name = self.tokens.short_string
-        self.tokens++
-
-        if not self.tokens.is_operator("="):
-            self.tokens.fail_expected_got("'=' between name and type")
-        self.tokens++
-
+        self.eat_keyword("typedef", False, NULL)
+        name = self.eat_by_kind(TokenKind.Name, True, "the name for a type").short_string
+        self.eat_operator("=", True, "'=' between name and type")
         return AstTypeDef{
             symbol = GlobalSymbol{name = name, kind = GlobalSymbolKind.Type},
             ast_type = self.parse_type(),
         }
 
     def parse_name_type_value(self, expected_what_for_name: byte*) -> AstNameTypeValue:
-        if self.tokens.kind != TokenKind.Name:
-            assert expected_what_for_name != NULL
-            self.tokens.fail_expected_got(expected_what_for_name)
-
-        result = AstNameTypeValue{name = self.tokens.short_string, name_location = self.tokens.location}
-        self.tokens++
-
-        if not self.tokens.is_operator(":"):
-            self.tokens.fail_expected_got("':' and a type after it (example: \"foo: int\")")
-        self.tokens++
-        result.type = self.parse_type()
-
+        name = self.eat_by_kind(TokenKind.Name, True, expected_what_for_name)
+        self.eat_operator(":", True, "':' and a type after it (example: \"foo: int\")")
+        type = self.parse_type()
+        value: AstExpression* = NULL
         if self.tokens.is_operator("="):
-            self.tokens++
-            p: AstExpression* = malloc(sizeof *p)
-            *p = self.parse_expression()
-            result.value = p
+            self.eat_operator("=", False, NULL)
+            value = malloc(sizeof *value)
+            *value = self.parse_expression()
 
-        return result
+        return AstNameTypeValue{name = name.short_string, name_location = name.location, type = type, value = value}
 
     def parse_function_or_method_signature(self, is_method: bool) -> AstSignature:
-        if self.tokens.kind != TokenKind.Name:
-            if is_method:
-                self.tokens.fail_expected_got("a method name")
-            else:
-                self.tokens.fail_expected_got("a function name")
+        message: byte[300]
 
+        name = self.eat_by_kind(TokenKind.Name, True, "a method name" if is_method else "a function name")
         result = AstSignature{
-            name_location = self.tokens.location,
-            name = self.tokens.short_string,
+            name_location = name.location,
+            name = name.short_string,
         }
-        self.tokens++
 
-        if not self.tokens.is_operator("("):
-            self.tokens.fail_expected_got("a '(' to denote the start of arguments")
-        self.tokens++
+        self.eat_operator("(", True, "a '(' to denote the start of arguments")
 
         used_self = False
         while not self.tokens.is_operator(")"):
@@ -589,17 +554,13 @@ class Parser:
                 self.tokens++
 
             elif self.tokens.is_keyword("self"):
+                self_keyword = self.tokens++
                 if not is_method:
-                    fail(self.tokens.location, "'self' cannot be used here")
+                    fail(self_keyword.location, "'self' cannot be used here")
                 if result.args.len != 0:
-                    fail(self.tokens.location, "'self' must be the first argument")
+                    fail(self_keyword.location, "'self' must be the first argument")
 
-                self_arg = AstNameTypeValue{
-                    name = "self",
-                    name_location = self.tokens.location,
-                }
-                self.tokens++
-
+                self_arg = AstNameTypeValue{name = "self", name_location = self_keyword.location}
                 if self.tokens.is_operator(":"):
                     self.tokens++
                     self_arg.type = self.parse_type()
@@ -614,7 +575,6 @@ class Parser:
 
                 for p = result.args.ptr; p < result.args.end(); p++:
                     if strcmp(p.name, arg.name) == 0:
-                        message: byte[200]
                         snprintf(
                             message, sizeof message,
                             "there are multiple arguments named '%s'", arg.name)
@@ -628,9 +588,7 @@ class Parser:
                 break
             self.tokens++
 
-        if not self.tokens.is_operator(")"):
-            self.tokens.fail_expected_got("a ')'")
-        self.tokens++
+        self.eat_operator(")", True, "a ')'")
 
         # Special case for common typo:   def foo():
         if self.tokens.is_operator(":"):
@@ -638,55 +596,42 @@ class Parser:
                 fail(self.tokens.location, "return type must be specified with '->', or with '-> None' if the method doesn't return anything")
             else:
                 fail(self.tokens.location, "return type must be specified with '->', or with '-> None' if the function doesn't return anything")
-        if not self.tokens.is_operator("->"):
-            self.tokens.fail_expected_got("a '->'")
-        self.tokens++
+        self.eat_operator("->", True, "a '->'")
 
         if not used_self and is_method:
-            throwerror: byte[300]
-            snprintf(throwerror, sizeof throwerror, "missing self, should be 'def %s(self, ...)'", result.name)
-            fail(self.tokens.location, throwerror)
+            snprintf(message, sizeof message, "missing self, should be 'def %s(self, ...)'", result.name)
+            fail(self.tokens.location, message)
 
         result.return_type = self.parse_type()
         return result
 
     def parse_instantiation(self) -> AstInstantiation:
         result = AstInstantiation{type = self.parse_type()}
-        assert self.tokens.is_operator("{")
-        self.tokens++
+        self.eat_operator("{", False, NULL)
 
         while not self.tokens.is_operator("}"):
-            if self.tokens.kind != TokenKind.Name:
-                self.tokens.fail_expected_got("a field name")
-            field_name = self.tokens.short_string
+            fname = self.eat_by_kind(TokenKind.Name, True, "a field name")
             for f = result.fields.ptr; f < result.fields.end(); f++:
-                if strcmp(f.name, field_name) == 0:
+                if strcmp(f.name, fname.short_string) == 0:
                     error: byte[500]
-                    snprintf(error, sizeof error, "multiple values were given for field '%s'", field_name)
-                    fail(self.tokens.location, error)
-            self.tokens++
+                    snprintf(error, sizeof error, "multiple values were given for field '%s'", fname.short_string)
+                    fail(fname.location, error)
 
-            if not self.tokens.is_operator("="):
-                msg: byte[300]
-                snprintf(msg, sizeof msg, "'=' followed by a value for field '%s'", field_name)
-                self.tokens.fail_expected_got(msg)
-            self.tokens++
+            msg: byte[300]
+            snprintf(msg, sizeof msg, "'=' followed by a value for field '%s'", fname.short_string)
+            self.eat_operator("=", True, msg)
 
-            result.fields.append(AstInstantiationField{name = field_name, value = self.parse_expression()})
+            result.fields.append(AstInstantiationField{name = fname.short_string, value = self.parse_expression()})
 
             if not self.tokens.is_operator(","):
                 break
             self.tokens++
 
-        if not self.tokens.is_operator("}"):
-            self.tokens.fail_expected_got("a '}'")
-        self.tokens++
-
+        self.eat_operator("}", True, "a '}'")
         return result
 
     def parse_array(self) -> List[AstExpression]:
-        assert self.tokens.is_operator("[")
-        self.tokens++
+        self.eat_operator("[", False, NULL)
 
         result = List[AstExpression]{}
         while not self.tokens.is_operator("]"):
@@ -695,11 +640,9 @@ class Parser:
                 break
             self.tokens++
 
-        if not self.tokens.is_operator("]"):
-            self.tokens.fail_expected_got("a ']' to end the array")
+        close_bracket = self.eat_operator("]", True, "a ']' to end the array")
         if result.len == 0:
-            fail(self.tokens.location, "arrays cannot be empty")
-        self.tokens++
+            fail(close_bracket.location, "arrays cannot be empty")
 
         return result
 
@@ -709,32 +652,26 @@ class Parser:
         match self.tokens.kind:
             case TokenKind.Integer:
                 expr.kind = AstExpressionKind.IntegerConstant
-                expr.integer_value = self.tokens.integer_value
-                self.tokens++
+                expr.integer_value = (self.tokens++).integer_value
             case TokenKind.Byte:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = int_constant(uint_type(8), self.tokens.integer_value as int64)
-                self.tokens++
+                expr.constant = int_constant(uint_type(8), (self.tokens++).integer_value as int64)
             case TokenKind.Float:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = Constant{kind = ConstantKind.Float, float_or_double_text = self.tokens.short_string}
-                self.tokens++
+                expr.constant = Constant{kind = ConstantKind.Float, float_or_double_text = (self.tokens++).short_string}
             case TokenKind.Double:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = Constant{kind = ConstantKind.Double, float_or_double_text = self.tokens.short_string}
-                self.tokens++
+                expr.constant = Constant{kind = ConstantKind.Double, float_or_double_text = (self.tokens++).short_string}
             case TokenKind.String:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = Constant{kind = ConstantKind.PointerString, pointer_string = strdup(self.tokens.long_string)}
-                self.tokens++
+                expr.constant = Constant{kind = ConstantKind.PointerString, pointer_string = strdup((self.tokens++).long_string)}
             case TokenKind.Name:
                 if looks_like_instantiate(self.tokens):
                     expr.kind = AstExpressionKind.Instantiate
                     expr.instantiation = self.parse_instantiation()
                 else:
                     expr.kind = AstExpressionKind.GetVariable
-                    expr.varname = self.tokens.short_string
-                    self.tokens++
+                    expr.varname = (self.tokens++).short_string
             case _:
                 if self.tokens.is_keyword("True"):
                     expr.kind = AstExpressionKind.Constant
@@ -758,9 +695,7 @@ class Parser:
                 elif self.tokens.is_operator("("):
                     self.tokens++
                     expr = self.parse_expression()
-                    if not self.tokens.is_operator(")"):
-                        self.tokens.fail_expected_got("a ')'")
-                    self.tokens++
+                    self.eat_operator(")", True, "a ')'")
                 elif self.tokens.is_operator("["):
                     expr.kind = AstExpressionKind.Array
                     expr.array = self.parse_array()
@@ -774,33 +709,23 @@ class Parser:
         return expr
 
     def parse_indexing(self, obj: AstExpression) -> AstExpression:
-        assert self.tokens.is_operator("[")
-        open_bracket = self.tokens++
-
+        open_bracket = self.eat_operator("[", False, NULL)
         operands = [obj, self.parse_expression()]
-
-        if not self.tokens.is_operator("]"):
-            self.tokens.fail_expected_got("a ']'")
-        self.tokens++
-
+        self.eat_operator("]", True, "a ']'")
         return build_operator_expression(open_bracket, 2, operands)
 
     def parse_dot_operator(self, obj: AstExpression) -> AstExpression:
-        assert self.tokens.is_operator(".")
-        self.tokens++
-
-        if self.tokens.kind != TokenKind.Name:
-            self.tokens.fail_expected_got("a field or method name")
-        name_token = self.tokens++
+        self.eat_operator(".", False, NULL)
+        field_name_token = self.eat_by_kind(TokenKind.Name, True, "a field or method name")
 
         instance: AstExpression* = malloc(sizeof *instance)
         *instance = obj
         return AstExpression{
-            location = self.tokens.location,
+            location = field_name_token.location,
             kind = AstExpressionKind.DotOperator,
             class_field = AstClassField{
                 instance = instance,
-                field_name = name_token.short_string,
+                field_name = field_name_token.short_string,
             },
         }
 
@@ -809,9 +734,7 @@ class Parser:
         *func = obj
         call = AstCall{function = func}
 
-        assert self.tokens.is_operator("(")
-        location = self.tokens.location
-        self.tokens++
+        location = self.eat_operator("(", False, NULL).location
 
         while not self.tokens.is_operator(")"):
             # Do not allow going all the way to MAX_ARGS so that we can add
@@ -827,10 +750,7 @@ class Parser:
                 break
             self.tokens++
 
-        if not self.tokens.is_operator(")"):
-            self.tokens.fail_expected_got("a ')'")
-        self.tokens++
-
+        self.eat_operator(")", True, "a ')'")
         return AstExpression{
             location = location,
             kind = AstExpressionKind.Call,
@@ -957,14 +877,10 @@ class Parser:
     def parse_expression_with_as(self) -> AstExpression:
         result = self.parse_expression_with_bitwise_ops()
         while self.tokens.is_keyword("as"):
-            as_location = (self.tokens++).location
+            as_keyword = self.tokens++
             p: AstAs* = malloc(sizeof(*p))
             *p = AstAs{type = self.parse_type(), value = result}
-            result = AstExpression{
-                location = as_location,
-                kind = AstExpressionKind.As,
-                as_ = p,
-            }
+            result = AstExpression{location = as_keyword.location, kind = AstExpressionKind.As, as_ = p}
         return result
 
     def parse_expression_with_comparisons(self) -> AstExpression:
@@ -978,14 +894,11 @@ class Parser:
         return result
 
     def parse_expression_with_not(self) -> AstExpression:
+        not_token: Token* = NULL
         if self.tokens.is_keyword("not"):
-            not_token = self.tokens
-            self.tokens++
-        else:
-            not_token = NULL
-
-        if self.tokens.is_keyword("not"):
-            fail(self.tokens.location, "'not' cannot be repeated")
+            not_token = self.tokens++
+            if self.tokens.is_keyword("not"):
+                fail(self.tokens.location, "'not' cannot be repeated")
 
         result = self.parse_expression_with_comparisons()
         if not_token != NULL:
@@ -1028,9 +941,7 @@ class Parser:
         then = result
         if_token = self.tokens++
         condition = self.parse_expression_with_and_or()
-        if not self.tokens.is_keyword("else"):
-            self.tokens.fail_expected_got("'else'")
-        self.tokens++
+        self.eat_keyword("else", True, "'else'")
         otherwise = self.parse_expression_with_and_or()
         parts = [then, condition, otherwise]
         return build_operator_expression(if_token, 3, parts)
@@ -1077,12 +988,12 @@ class Parser:
                 result.return_value = malloc(sizeof *result.return_value)
                 *result.return_value = self.parse_expression()
         elif self.tokens.is_keyword("assert"):
+            assert_keyword = self.tokens++
             match self.what_are_we_parsing:
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody | WhatAreWeParsing.TopLevel:
                     pass
                 case WhatAreWeParsing.ClassBody:
-                    fail(self.tokens.location, "'assert' cannot be placed inside a class unless it is inside a method")
-            self.tokens++
+                    fail(assert_keyword.location, "'assert' cannot be placed inside a class unless it is inside a method")
             result.kind = AstStatementKind.Assert
             start = self.tokens
             result.assertion.condition = self.parse_expression()
@@ -1092,14 +1003,14 @@ class Parser:
             self.tokens++
             result.kind = AstStatementKind.Pass
         elif self.tokens.is_keyword("break"):
+            break_keyword = self.tokens++
             if self.loop_vars.len == 0:
-                fail(self.tokens.location, "'break' can only be used inside a loop")
-            self.tokens++
+                fail(break_keyword.location, "'break' can only be used inside a loop")
             result.kind = AstStatementKind.Break
         elif self.tokens.is_keyword("continue"):
+            continue_keyword = self.tokens++
             if self.loop_vars.len == 0:
-                fail(self.tokens.location, "'continue' can only be used inside a loop")
-            self.tokens++
+                fail(continue_keyword.location, "'continue' can only be used inside a loop")
             result.kind = AstStatementKind.Continue
         elif self.tokens.is_keyword("const"):
             self.check_top_level("const definitions")
@@ -1218,9 +1129,7 @@ class Parser:
             init = malloc(sizeof *init)
             *init = self.parse_oneline_statement()
 
-        if not self.tokens.is_operator(";"):
-            self.tokens.fail_expected_got("a ';'")
-        self.tokens++
+        self.eat_operator(";", True, "a ';'")
 
         cond: AstExpression*
         if self.tokens.is_operator(";"):
@@ -1229,9 +1138,7 @@ class Parser:
             cond = malloc(sizeof *cond)
             *cond = self.parse_expression()
 
-        if not self.tokens.is_operator(";"):
-            self.tokens.fail_expected_got("a ';'")
-        self.tokens++
+        self.eat_operator(";", True, "a ';'")
 
         incr: AstStatement*
         if self.tokens.is_operator(":"):
@@ -1263,21 +1170,17 @@ class Parser:
 
         if self.tokens.is_keyword("with"):
             self.tokens++
-            if self.tokens.kind != TokenKind.Name:
-                self.tokens.fail_expected_got("function name")
-            result.func_name = (self.tokens++).short_string
+            result.func_name = self.eat_by_kind(TokenKind.Name, True, "function name").short_string
 
         self.parse_start_of_body()
 
         while self.tokens.kind != TokenKind.Dedent:
-            if not self.tokens.is_keyword("case"):
-                self.tokens.fail_expected_got("the 'case' keyword")
+            case_keyword = self.eat_keyword("case", True, "the 'case' keyword")
             if result.case_underscore != NULL:
                 fail(
-                    self.tokens.location,
+                    case_keyword.location,
                     "this case will never run, because 'case _:' above matches anything",
                 )
-            self.tokens++
 
             if (
                 self.tokens.kind == TokenKind.Name
@@ -1298,19 +1201,16 @@ class Parser:
 
     # Parses the "x: int" part of "x, y, z: int", leaving "y, z: int" to be parsed later.
     def parse_first_of_multiple_local_var_declares(self) -> AstNameTypeValue:
-        assert self.tokens.kind == TokenKind.Name
-
+        name_token = self.eat_by_kind(TokenKind.Name, False, NULL)
         ntv = AstNameTypeValue{
-            name = self.tokens.short_string,
-            name_location = self.tokens.location,
+            name = name_token.short_string,
+            name_location = name_token.location,
         }
 
-        # Take a backup of the parser where first variable name and its comma are consumed.
-        save_state = *self
-        save_state.tokens = &save_state.tokens[2]
+        # This skips first variable name and its comma
+        skipped_tokens = &self.tokens[1]
 
         # Skip variables and commas so we can parse the type that comes after it
-        self.tokens++
         while self.tokens.is_operator(",") and self.tokens[1].kind == TokenKind.Name:
             self.tokens = &self.tokens[2]
 
@@ -1318,17 +1218,14 @@ class Parser:
         if self.tokens.is_operator("="):
             fail(self.tokens.location, "only one variable can be assigned at a time")
 
-        if not self.tokens.is_operator(":"):
-            self.tokens.fail_expected_got("':' and a type after it (example: \"foo, bar: int\")")
-        self.tokens++
-
+        self.eat_operator(":", True, "':' and a type after it (example: \"foo, bar: int\")")
         ntv.type = self.parse_type()
 
         # Error for "x, y: int = 0"
         if self.tokens.is_operator("="):
             fail(self.tokens.location, "only one variable can be assigned at a time")
 
-        *self = save_state
+        self.tokens = skipped_tokens
         return ntv
 
     def parse_statement(self) -> AstStatement:
@@ -1477,17 +1374,9 @@ class Parser:
         return result
 
     def parse_start_of_body(self) -> None:
-        if not self.tokens.is_operator(":"):
-            self.tokens.fail_expected_got("':' followed by a new line with more indentation")
-        self.tokens++
-
-        if self.tokens.kind != TokenKind.Newline:
-            self.tokens.fail_expected_got("a new line with more indentation after ':'")
-        self.tokens++
-
-        if self.tokens.kind != TokenKind.Indent:
-            self.tokens.fail_expected_got("more indentation after ':'")
-        self.tokens++
+        self.eat_operator(":", True, "':' followed by a new line with more indentation")
+        self.eat_by_kind(TokenKind.Newline, True, "a new line with more indentation after ':'")
+        self.eat_by_kind(TokenKind.Indent, True, "more indentation after ':'")
 
     def parse_body(self) -> List[AstStatement]:
         self.parse_start_of_body()
@@ -1504,8 +1393,9 @@ class Parser:
 
         signature = self.parse_function_or_method_signature(is_method)
         if strcmp(signature.name, "__init__") == 0 and is_method:
-            fail(self.tokens.location, "Jou does not have a special __init__ method like Python")
+            fail(signature.name_location, "Jou does not have a special __init__ method like Python")
         if signature.takes_varargs:
+            # TODO: Should perhaps be the location of "...", it is kind of hard to access here.
             fail(self.tokens.location, "functions with variadic arguments cannot be defined yet")
 
         old = self.what_are_we_parsing
@@ -1527,32 +1417,23 @@ class Parser:
         self.check_top_level("classes")
         self.tokens++
 
-        if self.tokens.kind != TokenKind.Name:
-            self.tokens.fail_expected_got("a name for the class")
-        name = self.tokens.short_string
-        self.tokens++
-
+        name = self.eat_by_kind(TokenKind.Name, True, "a name for the class").short_string
         generics = List[byte[100]]{}
 
         if self.tokens.is_operator("["):
             self.tokens++
             while not self.tokens.is_operator("]"):
-                if self.tokens.kind != TokenKind.Name:
-                    self.tokens.fail_expected_got("name of a generic type variable (typically 'T')")
-                generics.append(self.tokens.short_string)
-                self.tokens++
-
+                typevar_token = self.eat_by_kind(TokenKind.Name, True, "name of a generic type variable (typically 'T')")
+                generics.append(typevar_token.short_string)
                 if not self.tokens.is_operator(","):
                     break
                 self.tokens++
 
-            if not self.tokens.is_operator("]"):
-                self.tokens.fail_expected_got("a ']'")
+            close_bracket = self.eat_operator("]", True, "a ']'")
             if generics.len == 0:
                 msg: byte[500]
                 snprintf(msg, sizeof(msg), "at least one generic type parameter is needed, e.g. 'class %s[T]:'", name, name)
-                fail(self.tokens.location, msg)
-            self.tokens++
+                fail(close_bracket.location, msg)
 
         old = self.what_are_we_parsing
         self.what_are_we_parsing = WhatAreWeParsing.ClassBody
@@ -1569,11 +1450,9 @@ class Parser:
         }
 
     def parse_union(self) -> List[AstNameTypeValue]:
+        union_keyword = self.eat_keyword("union", False, NULL)
         if self.what_are_we_parsing != WhatAreWeParsing.ClassBody:
-            fail(self.tokens.location, "'union' can only be used inside a class")
-
-        assert self.tokens.is_keyword("union")
-        union_keyword_location = (self.tokens++).location
+            fail(union_keyword.location, "'union' can only be used inside a class")
         self.parse_start_of_body()
 
         result = List[AstNameTypeValue]{}
@@ -1584,11 +1463,10 @@ class Parser:
 
             result.append(field)
             self.eat_newline()
-
         self.tokens++
 
         if result.len < 2:
-            fail(union_keyword_location, "unions must have at least 2 members")
+            fail(union_keyword.location, "unions must have at least 2 members")
         return result
 
     def parse_enum(self) -> AstEnumDef:
@@ -1596,29 +1474,24 @@ class Parser:
         self.check_top_level("enums")
         self.tokens++
 
-        if self.tokens.kind != TokenKind.Name:
-            self.tokens.fail_expected_got("a name for the enum")
-
+        enum_name = self.eat_by_kind(TokenKind.Name, True, "a name for the enum")
         result = AstEnumDef{
-            symbol = GlobalSymbol{name = self.tokens.short_string, kind = GlobalSymbolKind.Type},
-            name_location = self.tokens.location,
+            symbol = GlobalSymbol{name = enum_name.short_string, kind = GlobalSymbolKind.Type},
+            name_location = enum_name.location,
         }
-        self.tokens++
 
         self.parse_start_of_body()
         while self.tokens.kind != TokenKind.Dedent:
-            if self.tokens.kind != TokenKind.Name:
-                self.tokens.fail_expected_got("a name for an enum member")
+            member_name = self.eat_by_kind(TokenKind.Name, True, "a name for an enum member")
 
             for p = result.members.ptr; p < result.members.end(); p++:
-                if strcmp(*p, self.tokens.short_string) == 0:
-                    assert sizeof self.tokens.short_string == 100
+                if strcmp(*p, member_name.short_string) == 0:
+                    assert sizeof member_name.short_string == 100
                     error: byte[200]
-                    sprintf(error, "the enum has two members named '%s'", self.tokens.short_string)
-                    fail(self.tokens.location, error)
+                    sprintf(error, "the enum has two members named '%s'", member_name.short_string)
+                    fail(member_name.location, error)
 
-            result.members.append(self.tokens.short_string)
-            self.tokens++
+            result.members.append(member_name.short_string)
             self.eat_newline()
 
         self.tokens++
