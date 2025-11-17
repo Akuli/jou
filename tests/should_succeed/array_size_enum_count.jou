@@ -1,0 +1,31 @@
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+enum FooBarBaz:
+    Foo
+    Bar
+    Baz
+
+class Thingy:
+    message: byte[50]
+
+def main() -> int:
+    texts: byte*[enum_count(FooBarBaz)] = ["Foo", "Bar", "Baz"]
+
+    # Output: Foo
+    # Output: Bar
+    # Output: Baz
+    for i = 0; i < array_count(texts); i++:
+        puts(texts[i])
+
+    thingies: Thingy[enum_count(FooBarBaz)]
+
+    # Output: Goo
+    # Output: Car
+    # Output: Caz
+    for i = 0; i < array_count(texts); i++:
+        strcpy(thingies[i].message, texts[i])
+        thingies[i].message[0]++
+        puts(thingies[i].message)
+
+    return 0

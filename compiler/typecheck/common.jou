@@ -34,13 +34,16 @@ def array_type_from_ast(jou_file: JouFile*, item_type: Type*, length_ast: AstExp
 def convert_ast_type_to_ast_expression(type: AstType*, gonna_free: List[void*]*) -> AstExpression:
     match type.kind:
         case AstTypeKind.Named:
-            # TODO: figure this out
-            fail(type.location, "cannot evaluate array length at compile time2")
+            return AstExpression{
+                location = type.location,
+                kind = AstExpressionKind.GetVariable,
+                varname = type.name,
+            }
         case AstTypeKind.Array:
-            # TODO: figure this out
+            # TODO: implement this
             fail(type.location, "cannot evaluate array length at compile time")
         case AstTypeKind.Generic:
-            # TODO: figure this out
+            # TODO: implement this
             fail(type.location, "cannot evaluate array length at compile time")
         case AstTypeKind.Pointer | AstTypeKind.FuncPtr | AstTypeKind.BuiltIn:
             # "Foo*" or "funcptr(...) -> ..." or "int" is not a valid expression
