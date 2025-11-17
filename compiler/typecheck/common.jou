@@ -25,7 +25,7 @@ def plural_s(n: int64) -> byte*:
 
 
 def array_type_from_ast(jou_file: JouFile*, item_type: Type*, length_ast: AstExpression*) -> Type*:
-    length = evaluate_array_length(length_ast)
+    length = evaluate_array_length(jou_file, length_ast)
     if length <= 0:
         fail(length_ast.location, "array length must be positive")
     return item_type.array_type(length)
@@ -35,15 +35,15 @@ def convert_ast_type_to_ast_expression(type: AstType*, gonna_free: List[void*]*)
     match type.kind:
         case AstTypeKind.Named:
             # TODO: figure this out
-            fail(type.location, "cannot evaluate array length at compile time")
+            fail(type.location, "cannot evaluate array length at compile time2")
         case AstTypeKind.Array:
             # TODO: figure this out
             fail(type.location, "cannot evaluate array length at compile time")
         case AstTypeKind.Generic:
             # TODO: figure this out
             fail(type.location, "cannot evaluate array length at compile time")
-        case AstTypeKind.Pointer | AstTypeKind.FuncPtr:
-            # Foo* or funcptr(...) is not a valid expression
+        case AstTypeKind.Pointer | AstTypeKind.FuncPtr | AstTypeKind.BuiltIn:
+            # "Foo*" or "funcptr(...) -> ..." or "int" is not a valid expression
             # TODO: test this
             fail(type.location, "invalid syntax in array length")
 
@@ -100,12 +100,8 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
 
     msg: byte[500]
 
-    if asttype.is_void() or asttype.is_none() or asttype.is_noreturn():
-        snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype.name)
-        fail(asttype.location, msg)
-
     match asttype.kind:
-        case AstTypeKind.Named:
+        case AstTypeKind.BuiltIn:
             match asttype.name with strcmp:
                 case "int":
                     return int_type(32)
@@ -121,37 +117,43 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
                     return float_type()
                 case "double":
                     return double_type()
-                case _:
-                    # Are we inside a generic class? When defining List[T], we want to find the T.
-                    if containing_class != NULL:
-                        assert containing_class.kind == TypeKind.Class
-                        cdata = &containing_class.classdata
-                        for p = cdata.generic_params.ptr; p < cdata.generic_params.end(); p++:
-                            if strcmp((*p).name, asttype.name) == 0:
-                                return *p
-
-                    found = find_and_typecheck_type(jou_file, asttype.name)
-                    if found != NULL:
-                        return found
-
-                    # At this point we will show an error for sure.
-                    generic = find_and_typecheck_generic_class(jou_file, asttype.name)
-                    if generic == NULL:
-                        snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype.name)
-                    else:
-                        # Suggest int for all params of the generic class, e.g. List[int]
-                        assert generic.classdata.is_generic()
-                        ints = malloc(10 * generic.classdata.generic_params.len)
-                        assert ints != NULL
-                        strcpy(ints, "int")
-                        for i = 1; i < generic.classdata.generic_params.len; i++:
-                            strcat(ints, ", int")
-                        snprintf(
-                            msg, sizeof(msg),
-                            "%s is a generic class, use e.g. %s[%s] instead of just %s",
-                            generic.name, asttype.name, ints, asttype.name,
-                        )
+                case "void" | "noreturn" | "None":
+                    snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype.name)
                     fail(asttype.location, msg)
+                case _:
+                    assert False
+
+        case AstTypeKind.Named:
+            # Are we inside a generic class? When defining List[T], we want to find the T.
+            if containing_class != NULL:
+                assert containing_class.kind == TypeKind.Class
+                cdata = &containing_class.classdata
+                for p = cdata.generic_params.ptr; p < cdata.generic_params.end(); p++:
+                    if strcmp((*p).name, asttype.name) == 0:
+                        return *p
+
+            found = find_and_typecheck_type(jou_file, asttype.name)
+            if found != NULL:
+                return found
+
+            # At this point we will show an error for sure.
+            generic = find_and_typecheck_generic_class(jou_file, asttype.name)
+            if generic == NULL:
+                snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype.name)
+            else:
+                # Suggest int for all params of the generic class, e.g. List[int]
+                assert generic.classdata.is_generic()
+                ints = malloc(10 * generic.classdata.generic_params.len)
+                assert ints != NULL
+                strcpy(ints, "int")
+                for i = 1; i < generic.classdata.generic_params.len; i++:
+                    strcat(ints, ", int")
+                snprintf(
+                    msg, sizeof(msg),
+                    "%s is a generic class, use e.g. %s[%s] instead of just %s",
+                    generic.name, asttype.name, ints, asttype.name,
+                )
+            fail(asttype.location, msg)
 
         case AstTypeKind.Pointer:
             if asttype.value_type.is_void():

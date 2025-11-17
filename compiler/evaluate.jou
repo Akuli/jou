@@ -166,10 +166,10 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
 
 
 @public
-def evaluate_array_length(expr: AstExpression*) -> int:
+def evaluate_array_length(jou_file: JouFile*, expr: AstExpression*) -> int:
     # TODO: this should probably support int64
     c: Constant
-    if evaluate_constant_expression(NULL, expr, &c, int_type(32)) and c.get_type() == int_type(32):
+    if evaluate_constant_expression(jou_file, expr, &c, int_type(32)) and c.get_type() == int_type(32):
         return c.integer.value as int
     fail(expr.location, "cannot evaluate array length at compile time")
 
