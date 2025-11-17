@@ -283,32 +283,6 @@ def flatten_bitwise_ors(expr: AstExpression) -> List[AstExpression]:
     return result
 
 
-# Some types like Thing[N] are also valid as expressions. This function
-# converts such a type into an expression, and returns NULL for types that have
-# no corresponding expression AST.
-def convert_type_to_expression(type: AstType*) -> AstExpression*:
-    match type.kind:
-        case TypeKind.BuiltIn:
-            return NULL
-        case TypeKind.Named:
-            result: AstExpression* = malloc(sizeof(*result))
-            assert result != NULL
-            *result = AstExpression{
-                location = type.location,
-                kind = AstExpressionKind.GetVariable
-                varname = type.name,
-            }
-            return result
-        case TypeKind.Array:
-            assert
-        case TypeKind.Pointer | TypeKind.FuncPtr:
-            # No expression looks like Blah* or funcptr(...) -> ...
-            return NULL
-                kind = AstExpressionKind.
-    Array           # int[5]
-    Generic         # List[int]
-    ArrayOrGeneric  # Foo[Bar] when we don't know whether Bar is an expression (array length) or type (generic)
-
 # The Jou type `foo[bar]` is ambiguous. It can be:
 #   - an array: MyThing[NUM_THINGS]
 #   - a generic type: List[MyThing]
@@ -460,7 +434,7 @@ class Parser:
             func_ptr = AstFuncPtrType{argtypes=argtypes, takes_varargs=takes_varargs, return_type=ret},
         }
 
-    def parse_type(self, result: AstType*, can_fail: bool) -> AstType:
+    def parse_type(self) -> AstType:
         if self.tokens.is_operator("("):
             self.tokens++
             result = self.parse_type()
