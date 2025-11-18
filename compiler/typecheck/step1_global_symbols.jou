@@ -104,6 +104,8 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
 #
 # Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
 def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSymbolKind) -> AstStatement*:
+    assert jou_file != NULL
+
     # Defined in this file?
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         if stmt.symbol() != NULL and strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:

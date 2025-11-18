@@ -131,25 +131,6 @@ def main() -> int:
     return 0
 ```
 
-Unfortunately, it is currently not possible to use `enum_count()` in an array size:
-
-```python
-enum Operation:
-    Add
-    Subtract
-    Multiply
-
-def main() -> int:
-    enabled_operations: bool[enum_count(operation)]  # Error: expected a type, got the 'enum_count' keyword
-```
-
-For now, the following workaround is recommended:
-
-```python
-enabled_operations: bool[3]
-assert array_count(enabled_operations) == enum_count(Operation)
-```
-
 
 ## Integer conversions
 
@@ -173,10 +154,11 @@ def main() -> int:
 ```
 
 This is sometimes used to assign a string to each enum member.
+Here `descriptions: byte*[enum_count(Operation)]` ensures that if a new `Operation` is added,
+there will be a compiler error on the line that defines the `descriptions` array.
 See above for an explanation of `enum_count`.
 
 ```python
-import "stdlib/assert.jou"
 import "stdlib/io.jou"
 
 enum Operation:
@@ -185,8 +167,7 @@ enum Operation:
     Multiply
 
 def main() -> int:
-    descriptions = ["Add numbers", "Subtract numbers", "Multiply numbers"]
-    assert array_count(descriptions) == enum_count(Operation)
+    descriptions: byte*[enum_count(Operation)] = ["Add numbers", "Subtract numbers", "Multiply numbers"]
     printf("%s\n", descriptions[Operation.Subtract as int])  # Output: Subtract numbers
     return 0
 ```

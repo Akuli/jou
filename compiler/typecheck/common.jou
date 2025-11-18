@@ -93,7 +93,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
 
         case AstTypeKind.Array:
             tmp = type_from_ast(jou_file, containing_class, asttype.array.member_type)
-            len = evaluate_array_length(asttype.array.length)
+            len = evaluate_array_length(jou_file, asttype.array.length)
             if len <= 0:
                 fail(asttype.array.length.location, "array length must be positive")
             return tmp.array_type(len)
