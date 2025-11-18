@@ -84,7 +84,7 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
             return True
 
         case AstExpressionKind.GetVariable:
-            # Can e.g. refer to values of `const` constants
+            # Values of `const` constants, special constants (e.g. WINDOWS)
             c = find_and_typecheck_constant(jou_file, expr.varname)
             if c == NULL:
                 return False
