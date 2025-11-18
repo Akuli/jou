@@ -2,6 +2,7 @@
 # checking steps.
 
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
@@ -124,6 +125,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
                     snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype.name)
                     fail(asttype.location, msg)
                 case _:
+                    puts(asttype.name)
                     assert False
 
         case AstTypeKind.Named:
@@ -231,7 +233,7 @@ def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_clas
         arg = NameAndType{name = astarg.name}
         if (
             strcmp(astarg.name, "self") == 0
-            and astarg.type.kind == AstTypeKind.Named
+            and astarg.type.kind == AstTypeKind.BuiltIn
             and astarg.type.name[0] == '\0'
         ):
             # just "self" without a type after it --> default to "self: Foo*" in class Foo
