@@ -656,7 +656,7 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
     # Let's type-check `obj` and go from there.
     obj = call.function.class_field.instance
     member_name = call.function.class_field.field_name
-    obj_type = typecheck_expression_not_void(state, obj, NULL)
+    obj_type = typecheck_expression_not_void(state, obj, NULL).unwrap_typedef()
 
     if obj_type.kind == TypeKind.Class:
         self_class = obj_type
@@ -1137,7 +1137,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
         case AstExpressionKind.DotOperator:
             # Not enum, that is handled already.
             # It is either instance.field or pointer_to_instance.field.
-            temptype = typecheck_expression_not_void(state, expr.class_field.instance, NULL)
+            temptype = typecheck_expression_not_void(state, expr.class_field.instance, NULL).unwrap_typedef()
             if temptype.kind == TypeKind.Class:
                 expr.kind = AstExpressionKind.GetClassField
                 result = typecheck_class_field(temptype, expr.class_field.field_name, expr.location).type

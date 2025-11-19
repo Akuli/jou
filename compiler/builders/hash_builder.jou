@@ -145,7 +145,7 @@ class HBuilder:
     def class_field_pointer(self, ptr: HBuilderValue, field_name: byte*) -> HBuilderValue:
         # Do not hash field name, renaming fields should not cause recompiling
         assert ptr.type.kind == TypeKind.Pointer
-        classtype = ptr.type.value_type
+        classtype = ptr.type.value_type.unwrap_typedef()
         assert classtype.kind == TypeKind.Class
         field = classtype.find_class_field(field_name)
         assert field != NULL
