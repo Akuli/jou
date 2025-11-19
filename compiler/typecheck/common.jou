@@ -48,7 +48,6 @@ def convert_ast_type_to_ast_expression(type: AstType*, gonna_free: List[void*]*)
             fail(type.location, "cannot evaluate array length at compile time")
         case AstTypeKind.Pointer | AstTypeKind.FuncPtr | AstTypeKind.BuiltIn:
             # "Foo*" or "funcptr(...) -> ..." or "int" is not a valid expression
-            # TODO: test this
             fail(type.location, "invalid syntax in array length")
 
 
