@@ -129,7 +129,8 @@ function transpile_with_python_and_compile() {
             echo "Patching Jou code to use or not use aarch64 depending on config..."
             sed -i -e s/'if not WINDOWS:'/'if LLVM_HAS_AARCH64:'/g compiler/target.jou
             grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if it replaced nothing
-            sed -i -e '1i import "../config.jou"' compiler/target.jou
+            sed -i -e '1i\
+import "../config.jou"'$'\n' compiler/target.jou
         fi
 
         echo "Converting Jou code to C..."
