@@ -454,7 +454,8 @@ class Parser:
     #
     # Some things are valid as both types and expressions, e.g. Name1[Name2] is
     # either an array with length Name2 or a generic class Name1 with parameter
-    # type Name2. TODO: document what is done here...
+    # type Name2. In this case we parse it as a generic class. It will be
+    # corrected later by the type checking code.
     def parse_type_advanced(self, result: AstType*, could_be_an_expression: bool) -> bool:
         if self.tokens.is_operator("("):
             self.tokens++

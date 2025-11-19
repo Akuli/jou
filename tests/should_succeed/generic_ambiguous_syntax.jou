@@ -1,0 +1,21 @@
+import "stdlib/list.jou"
+import "stdlib/io.jou"
+
+class Foo:
+    x: int
+const MaxCount: int = 123
+
+def main() -> int:
+    # These use the same syntax! Parser cannot know which it is, and later
+    # compiling stages will figure it out.
+    foos_list: List[Foo]
+    foos_array: Foo[MaxCount]
+
+    foos_list = List[Foo]{}
+    foos_list.append(Foo{x=123})
+    printf("%d\n", foos_list.pop().x)  # Output: 123
+
+    foos_array[42] = Foo{x=456}
+    printf("%d\n", foos_array[42].x)  # Output: 456
+
+    return 0
