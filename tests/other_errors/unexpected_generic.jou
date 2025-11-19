@@ -2,4 +2,5 @@ class Blah:
     pass
 
 def foo() -> None:
-    x: Blah[int]  # Error: Blah is not generic, use just Blah instead of Blah[something]
+    # Compiler thinks you're trying to do e.g. "x: Blah[5]"
+    x: Blah[int]  # Error: invalid syntax in array length

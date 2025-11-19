@@ -2,4 +2,6 @@ class Foo[T]:
     pass
 
 def foo() -> None:
-    x: Foo[]  # Error: generic class Foo[T] takes 1 type parameter, but it is used with 0 type parameters
+    # TODO: error message is not ideal, could e.g. tell the user that the
+    #       generic type is missing?
+    x: Foo[]  # Error: expected an expression, got ']'
