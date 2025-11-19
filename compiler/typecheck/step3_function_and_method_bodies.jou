@@ -844,34 +844,19 @@ def typecheck_class_field(
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
     t = type_from_ast(state.jou_file, state.fom.symbol.signature.get_self_class(), &inst.type)
-    # Keep the original type (may be a typedef) for error messages and as
-    # the returned expression type. Use the unwrapped typedef when we need
-    # to treat typedefs that alias classes as classes for instantiation.
-    orig_t = t
-    class_t = t.unwrap_typedef()
 
     msg: byte[500]
 
-    # Prefer to show the type name as written in source if available,
-    # e.g. for `typedef MyInt = int` we want the message to say "MyInt",
-    # not "int".
-    typename: byte[500]
-    match inst.type.kind:
-        case AstTypeKind.Named:
-            strcpy(typename, inst.type.name)
-        case _:
-            strcpy(typename, orig_t.name)
-
-    if class_t.kind != TypeKind.Class:
+    if t.unwrap_typedef().kind != TypeKind.Class:
         snprintf(
             msg, sizeof(msg),
             "the %s{...} syntax is only for classes, but %s is %s",
-            typename, typename, orig_t.short_description())
+            t.name, t.name, t.short_description())
         fail(location, msg)
 
     specified_fields = List[ClassField*]{}
     for f = inst.fields.ptr; f < inst.fields.end(); f++:
-        field = typecheck_class_field(class_t, f.name, f.value.location)
+        field = typecheck_class_field(t.unwrap_typedef(), f.name, f.value.location)
 
         snprintf(msg, sizeof msg,
             "value for field '%s' of class %s must be of type <to>, not <from>",
@@ -888,8 +873,7 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
                 fail(inst.fields.ptr[i2].value.location,msg)
 
     free(specified_fields.ptr)
-    # The expression's type should be the original type (typedef or class).
-    return orig_t
+    return t
 
 
 def cast_array_members_to_a_common_type(

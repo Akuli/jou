@@ -12,8 +12,6 @@ else:
 
 typedef Thingy2 = Thingy1
 typedef Thingy = Thingy2
-
-# For regression: typedef alias to a generic class can be instantiated with {}
 typedef L = List[int]
 
 
@@ -29,13 +27,9 @@ def main() -> int:
     # No unnecessary cast warning on any platform even if it is the same type.
     printf(fmt, 12 as Thingy)  # Output: 12
 
+    # https://github.com/Akuli/jou/issues/1057
+    x = L{}
+
     zero: Thingy = 0
     assert get_the_zero(1234) == zero
-    # Exercise the small instantiate typedef test so the function is used.
-    instantiate_typedef_test()
     return zero as int
-
-
-def instantiate_typedef_test() -> int:
-    x = L{}
-    return 0
