@@ -283,28 +283,6 @@ def flatten_bitwise_ors(expr: AstExpression) -> List[AstExpression]:
     return result
 
 
-def is_type_keyword(t: Token*) -> bool:
-    return (
-        t.is_keyword("None")           # only valid as a return type
-        or t.is_keyword("void")        # only valid as a pointer (void*)
-        or t.is_keyword("noreturn")    # only valid as a return type
-        or t.is_keyword("int")
-        or t.is_keyword("int8")
-        or t.is_keyword("int16")
-        or t.is_keyword("int32")
-        or t.is_keyword("int64")
-        or t.is_keyword("uint8")
-        or t.is_keyword("uint16")
-        or t.is_keyword("uint32")
-        or t.is_keyword("uint64")
-        or t.is_keyword("byte")
-        or t.is_keyword("float")
-        or t.is_keyword("double")
-        or t.is_keyword("bool")
-        or t.is_keyword("funcptr")  # more special than other keywords kere
-    )
-
-
 enum WhatAreWeParsing:
     TopLevel  # must be first, so that this is the default (zero)
     ClassBody
@@ -471,12 +449,29 @@ class Parser:
         elif self.tokens.kind == TokenKind.Name:
             t = self.tokens++
             *result = AstType{kind = AstTypeKind.Named, location = t.location, name = t.short_string}
-        elif self.tokens.is_keyword("funcptr"):
-            *result = self.parse_funcptr_type()
-            could_be_an_expression = False
-        elif is_type_keyword(self.tokens):
+        elif (
+            self.tokens.is_keyword("None")           # only valid as a return type
+            or self.tokens.is_keyword("void")        # only valid as a pointer (void*)
+            or self.tokens.is_keyword("noreturn")    # only valid as a return type
+            or self.tokens.is_keyword("int")
+            or self.tokens.is_keyword("int8")
+            or self.tokens.is_keyword("int16")
+            or self.tokens.is_keyword("int32")
+            or self.tokens.is_keyword("int64")
+            or self.tokens.is_keyword("uint8")
+            or self.tokens.is_keyword("uint16")
+            or self.tokens.is_keyword("uint32")
+            or self.tokens.is_keyword("uint64")
+            or self.tokens.is_keyword("byte")
+            or self.tokens.is_keyword("float")
+            or self.tokens.is_keyword("double")
+            or self.tokens.is_keyword("bool")
+        ):
             t = self.tokens++
             *result = AstType{kind = AstTypeKind.BuiltIn, location = t.location, name = t.short_string}
+            could_be_an_expression = False
+        elif self.tokens.is_keyword("funcptr"):
+            *result = self.parse_funcptr_type()
             could_be_an_expression = False
         else:
             if could_be_an_expression:
