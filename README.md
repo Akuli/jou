@@ -295,3 +295,16 @@ autoindent_regexes = {dedent = 'return( .+)?|break|pass|continue', indent = '.*:
 
 To apply this configuration, copy/paste it to end of Porcupine's `filetypes.toml`
 (menubar at top --> *Settings* --> *Config Files* --> *Edit filetypes.toml*).
+
+===
+
+[[language]]
+name = "jou"
+scope = "source.python"
+file-types = ["jou"]
+roots = []
+comment-token = "#"
+indent = { tab-width = 4, unit = "    " }
+language-servers = []
+grammar = "python"
+language-id = "python"
