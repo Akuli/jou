@@ -281,8 +281,12 @@ and you need to disable it for `.jou` files;
 otherwise you get lots of warnings whenever you edit
 Jou code that would be invalid as Python code.
 
-For example, I use the following configuration with the
-[Porcupine](https://github.com/Akuli/porcupine) editor:
+Here are some editor-specific instructions.
+If you get this to work on some other editor, consider adding instructions here :)
+
+<details><summary>Porcupine (my editor)</summary>
+
+I use the following configuration with my [Porcupine](https://github.com/Akuli/porcupine) editor:
 
 ```toml
 [Jou]
@@ -296,8 +300,13 @@ autoindent_regexes = {dedent = 'return( .+)?|break|pass|continue', indent = '.*:
 To apply this configuration, copy/paste it to end of Porcupine's `filetypes.toml`
 (menubar at top --> *Settings* --> *Config Files* --> *Edit filetypes.toml*).
 
-===
+</details>
 
+<details><summary>Helix</summary>
+
+Add the following to `~/.config/helix/languages.toml`:
+
+```toml
 [[language]]
 name = "jou"
 scope = "source.python"
@@ -307,4 +316,7 @@ comment-token = "#"
 indent = { tab-width = 4, unit = "    " }
 language-servers = []
 grammar = "python"
-language-id = "python"
+language-id = "python"  # needed for helix to find runtime/queries/python/*.scm files
+```
+
+</details>
