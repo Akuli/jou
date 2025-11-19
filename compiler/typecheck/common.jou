@@ -47,7 +47,7 @@ def convert_array_length_given_as_type_to_an_expression(type: AstType*) -> AstEx
             fail(type.location, "cannot evaluate array length at compile time")
         case AstTypeKind.Pointer | AstTypeKind.FuncPtr | AstTypeKind.BuiltIn:
             # "Foo*" or "funcptr(...) -> ..." or "int" is not a valid expression
-            fail(type.location, "invalid syntax in array length")
+            fail(type.location, "invalid array length")
 
 
 # This is called when we cannot find a generic class Foo when doing Foo[Bar].
