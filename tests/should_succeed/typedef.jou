@@ -30,6 +30,9 @@ def main() -> int:
 
     # https://github.com/Akuli/jou/issues/1057
     x = L{}
+    x.append(123)
+    printf("%d\n", x.ptr[0])  # Output: 123
+    free(x.ptr)
 
     zero: Thingy = 0
     assert get_the_zero(1234) == zero
