@@ -507,16 +507,13 @@ class Parser:
                     # It is a generic :)
                     params = List[AstType]{}
                     params.append(first_type_inside_brackets)
-                    # TODO: can the loop be restructured to be nicer?
-                    first = True
-                    while not self.tokens.is_operator("]"):
-                        if first:
-                            first = False
-                        else:
-                            params.append(self.parse_type())
-                        if not self.tokens.is_operator(","):
-                            break
+                    if self.tokens.is_operator(","):
                         self.tokens++
+                        while not self.tokens.is_operator("]"):
+                            params.append(self.parse_type())
+                            if not self.tokens.is_operator(","):
+                                break
+                            self.tokens++
                     self.eat_operator("]", True, "a ']'")
                     assert result.kind == AstTypeKind.Named
                     *result = AstType{
