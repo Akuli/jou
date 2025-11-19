@@ -23,16 +23,9 @@ const MAX_ARGS: int = 100
 
 
 @public
-enum AstTypeKind:
-    Named       # byte, int, MyClass
-    Pointer     # byte*
-    Array       # int[5]
-    Generic     # List[int]
-    FuncPtr     # funcptr(int, int) -> int
-
-
-@public
 class AstArrayType:
+    # TODO: These probably shouldn't be pointers, we could instead allocate
+    #       the whole AstArrayType at once.
     member_type: AstType*
     length: AstExpression*
 
@@ -59,6 +52,15 @@ class AstFuncPtrType:
 
 
 @public
+enum AstTypeKind:
+    BuiltIn     # anything specified with keyword: byte, int, noreturn, None, ...
+    Named       # MyClass
+    Pointer     # byte*
+    Array       # int[5]
+    Generic     # List[int]
+    FuncPtr     # funcptr(int, int) -> int
+
+@public
 class AstType:
     kind: AstTypeKind
     location: Location
@@ -71,18 +73,20 @@ class AstType:
         func_ptr: AstFuncPtrType    # AstTypeKind.FuncPtr
 
     def is_void(self) -> bool:
-        return self.kind == AstTypeKind.Named and strcmp(self.name, "void") == 0
+        return self.kind == AstTypeKind.BuiltIn and strcmp(self.name, "void") == 0
 
     def is_none(self) -> bool:
-        return self.kind == AstTypeKind.Named and strcmp(self.name, "None") == 0
+        return self.kind == AstTypeKind.BuiltIn and strcmp(self.name, "None") == 0
 
     def is_noreturn(self) -> bool:
-        return self.kind == AstTypeKind.Named and strcmp(self.name, "noreturn") == 0
+        return self.kind == AstTypeKind.BuiltIn and strcmp(self.name, "noreturn") == 0
 
     def print(self, show_lineno: bool) -> None:
         match self.kind:
+            case AstTypeKind.BuiltIn:
+                printf("<built-in type: %s>", self.name)
             case AstTypeKind.Named:
-                printf("%s", self.name)
+                printf("<named type: %s>", self.name)
             case AstTypeKind.Pointer:
                 self.value_type.print(False)
                 printf("*")
@@ -117,7 +121,7 @@ class AstType:
 
     def free(self) -> None:
         match self.kind:
-            case AstTypeKind.Named:
+            case AstTypeKind.BuiltIn | AstTypeKind.Named:
                 pass
             case AstTypeKind.Pointer:
                 self.value_type.free()

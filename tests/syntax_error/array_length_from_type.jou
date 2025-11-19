@@ -1,0 +1,10 @@
+# This is a funny corner case. The compiler first interprets Foo[x*] as a
+# generic class, but then realizes that Foo is not generic and attempts to
+# interpret x* as an expression instead of a type.
+
+class Foo:
+    pass
+
+def blah() -> None:
+    x = 123
+    y: Foo[x*]  # Error: invalid array length

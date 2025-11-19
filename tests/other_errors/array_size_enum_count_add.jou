@@ -1,0 +1,14 @@
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+enum FooBarBaz:
+    Foo
+    Bar
+    Baz
+    # Then someone adds a fourth enum member...
+    ThisWasJustAdded
+
+def main() -> int:
+    # ...and we should get a compiler error here because this array needs updating
+    texts: byte*[enum_count(FooBarBaz)] = ["Foo", "Bar", "Baz"]  # Error: initial value for variable of type byte*[4] cannot be of type byte*[3]
+    return 0

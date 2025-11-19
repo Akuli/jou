@@ -380,15 +380,6 @@ class Parser:
             resolved_flags = handle_relative_paths_in_linker_flags(flags_token.long_string, flags_token.location.path),
         }
 
-    def parse_named_type(self) -> AstType:
-        assert self.tokens.kind == TokenKind.Name or self.tokens.kind == TokenKind.Keyword
-        t = self.tokens++
-        return AstType{
-            kind = AstTypeKind.Named,
-            location = t.location,
-            name = t.short_string,
-        }
-
     def parse_funcptr_type(self) -> AstType:
         location = self.eat_keyword("funcptr", False, NULL).location
         self.eat_operator("(", True, "a '(' to denote the start of funcptr argument types")
@@ -430,15 +421,38 @@ class Parser:
         }
 
     def parse_type(self) -> AstType:
+        result: AstType
+        ret = self.parse_type_advanced(&result, False)
+        assert ret
+        return result
+
+    # If could_be_an_expression is True, this returns False and leaves the
+    # tokens ptr pointing into some random spot when the thing is actually
+    # an expression and not a type.
+    #
+    # Some things are valid as both types and expressions, e.g. Name1[Name2] is
+    # either an array with length Name2 or a generic class Name1 with parameter
+    # type Name2. In this case we parse it as a generic class. It will be
+    # corrected later by the type checking code.
+    def parse_type_advanced(self, result: AstType*, could_be_an_expression: bool) -> bool:
         if self.tokens.is_operator("("):
             self.tokens++
-            result = self.parse_type()
-            self.eat_operator(")", True, "a ')'")
+            if could_be_an_expression:
+                if not self.parse_type_advanced(result, True):
+                    return False
+                if not self.tokens.is_operator(")"):
+                    return False
+                self.tokens++
+            else:
+                *result = self.parse_type()
+                self.eat_operator(")", True, "a ')'")
+        elif self.tokens.kind == TokenKind.Name:
+            t = self.tokens++
+            *result = AstType{kind = AstTypeKind.Named, location = t.location, name = t.short_string}
         elif (
-            self.tokens.kind == TokenKind.Name
-            or self.tokens.is_keyword("None")
-            or self.tokens.is_keyword("void")
-            or self.tokens.is_keyword("noreturn")
+            self.tokens.is_keyword("None")           # only valid as a return type
+            or self.tokens.is_keyword("void")        # only valid as a pointer (void*)
+            or self.tokens.is_keyword("noreturn")    # only valid as a return type
             or self.tokens.is_keyword("int")
             or self.tokens.is_keyword("int8")
             or self.tokens.is_keyword("int16")
@@ -453,64 +467,78 @@ class Parser:
             or self.tokens.is_keyword("double")
             or self.tokens.is_keyword("bool")
         ):
-            result = self.parse_named_type()
+            t = self.tokens++
+            *result = AstType{kind = AstTypeKind.BuiltIn, location = t.location, name = t.short_string}
+            could_be_an_expression = False
         elif self.tokens.is_keyword("funcptr"):
-            result = self.parse_funcptr_type()
+            *result = self.parse_funcptr_type()
+            could_be_an_expression = False
         else:
-            self.tokens.fail_expected_got("a type")
+            if could_be_an_expression:
+                return False
+            else:
+                self.tokens.fail_expected_got("a type")
 
         while self.tokens.is_operator("*") or self.tokens.is_operator("["):
-            p: AstType* = malloc(sizeof *p)
-            *p = result
-
+            temp_ptr: AstType*
             if self.tokens.is_operator("*"):
                 star = self.tokens++
-                result = AstType{location = star.location, kind = AstTypeKind.Pointer, value_type = p}
+                temp_ptr = malloc(sizeof(*temp_ptr))
+                assert temp_ptr != NULL
+                *temp_ptr = *result
+                *result = AstType{location = star.location, kind = AstTypeKind.Pointer, value_type = temp_ptr}
                 continue
 
             open_bracket = self.eat_operator("[", False, NULL)
 
-            if self.tokens.kind == TokenKind.Integer or result.kind != AstTypeKind.Named:
-                # Array, e.g. int[10]
-                #
-                # TODO: This way to distinguish arrays and generics prevents using
-                # constants defined with `const` as array sizes. See:
-                # https://github.com/Akuli/jou/issues/804
-                len_expression: AstExpression* = malloc(sizeof *len_expression)
-                *len_expression = self.parse_expression()
-                self.eat_operator("]", True, "a ']' to end the array size")
-                result = AstType{
-                    location = open_bracket.location,
-                    kind = AstTypeKind.Array,
-                    array = AstArrayType{
-                        member_type = p,
-                        length = len_expression,
+            old_tokens_ptr = self.tokens
+            if result.kind == AstTypeKind.Named:
+                # Could be a generic or an array
+                first_type_inside_brackets: AstType
+                if (
+                    self.parse_type_advanced(&first_type_inside_brackets, True)
+                    and (self.tokens.is_operator(",") or self.tokens.is_operator("]"))
+                ):
+                    # It is a generic :)
+                    params = List[AstType]{}
+                    params.append(first_type_inside_brackets)
+                    if self.tokens.is_operator(","):
+                        self.tokens++
+                        while not self.tokens.is_operator("]"):
+                            params.append(self.parse_type())
+                            if not self.tokens.is_operator(","):
+                                break
+                            self.tokens++
+                    self.eat_operator("]", True, "a ']'")
+                    assert result.kind == AstTypeKind.Named
+                    *result = AstType{
+                        location = result.location,
+                        kind = AstTypeKind.Generic,
+                        generic = AstGenericType{
+                            class_name = result.name,
+                            param_types = params,
+                        }
                     }
+                    continue
+
+            # Now let's just assume it's an array, e.g. int[10]
+            self.tokens = old_tokens_ptr
+            len_expression: AstExpression* = malloc(sizeof *len_expression)
+            *len_expression = self.parse_expression()
+            self.eat_operator("]", True, "a ']' to end the array size")
+            temp_ptr = malloc(sizeof(*temp_ptr))
+            assert temp_ptr != NULL
+            *temp_ptr = *result
+            *result = AstType{
+                location = open_bracket.location,
+                kind = AstTypeKind.Array,
+                array = AstArrayType{
+                    member_type = temp_ptr,
+                    length = len_expression,
                 }
-            else:
-                # Generic, e.g. List[int]
-                free(p)
+            }
 
-                params = List[AstType]{}
-                while not self.tokens.is_operator("]"):
-                    params.append(self.parse_type())
-                    if not self.tokens.is_operator(","):
-                        break
-                    self.tokens++
-
-                self.eat_operator("]", True, "a ']'")
-
-                assert result.kind == AstTypeKind.Named
-                result = AstType{
-                    location = result.location,
-                    kind = AstTypeKind.Generic,
-                    generic = AstGenericType{
-                        class_name = result.name,
-                        param_types = params,
-                    }
-                }
-
-        return result
+        return True
 
     def parse_typedef(self) -> AstTypeDef:
         self.eat_keyword("typedef", False, NULL)
