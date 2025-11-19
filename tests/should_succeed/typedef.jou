@@ -1,6 +1,7 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "./imported/typedef.jou"
+import "stdlib/list.jou"
 
 if WINDOWS:
     typedef Thingy1 = int64
@@ -11,6 +12,9 @@ else:
 
 typedef Thingy2 = Thingy1
 typedef Thingy = Thingy2
+
+# For regression: typedef alias to a generic class can be instantiated with {}
+typedef L = List[int]
 
 
 def get_the_zero(t: Thingy) -> Thingy:
@@ -27,4 +31,11 @@ def main() -> int:
 
     zero: Thingy = 0
     assert get_the_zero(1234) == zero
+    # Exercise the small instantiate typedef test so the function is used.
+    instantiate_typedef_test()
     return zero as int
+
+
+def instantiate_typedef_test() -> int:
+    x = L{}
+    return 0
