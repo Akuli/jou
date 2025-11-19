@@ -4,6 +4,9 @@ enum FooBar:
     Foo
     Bar
 
+def foobar_names() -> byte*[enum_count(FooBar)]:
+    return ["Foo", "Bar"]
+
 # This will fail compiling if a value is not int.
 #
 # Taking a pointer avoids implicit casts. For example, if b is a byte, then
@@ -30,5 +33,8 @@ def main() -> int:
     num = enum_count(FooBar)
     check_int(&num)
     printf("%d\n", num)  # Output: 2
+
+    names = foobar_names()
+    printf("%s\n", names[FooBar.Bar as int])  # Output: Bar
 
     return 0

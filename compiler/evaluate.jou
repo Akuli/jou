@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
@@ -52,6 +53,8 @@ def evaluate_boolean_and_or(jou_file: JouFile*, expr: AstExpression*, and_or: by
 # Set the type hint to NULL if you don't care about it.
 @public
 def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, result: Constant*, type_hint: Type*) -> bool:
+    assert jou_file != NULL
+
     msg: byte[500]
 
     match expr.kind:
@@ -82,13 +85,8 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
             return True
 
         case AstExpressionKind.GetVariable:
-            if jou_file == NULL:
-                # Only special constants are supported here
-                c = get_special_constant(expr.varname)
-            else:
-                # Can e.g. refer to values of `const` constants
-                c = find_and_typecheck_constant(jou_file, expr.varname)
-
+            # Values of `const` constants, special constants (e.g. WINDOWS)
+            c = find_and_typecheck_constant(jou_file, expr.varname)
             if c == NULL:
                 return False
             *result = c.copy()
@@ -174,13 +172,13 @@ def evaluate_array_length(jou_file: JouFile*, expr: AstExpression*) -> int:
     fail(expr.location, "cannot evaluate array length at compile time")
 
 
-def choose_if_elif_branch(if_stmt: AstIfStatement*) -> List[AstStatement]*:
+def choose_if_elif_branch(jou_file: JouFile*, if_stmt: AstIfStatement*) -> List[AstStatement]*:
     cond: Constant
 
     # Return the first branch whose condition is true.
     # Return NULL if we fail to evaluate a condition and it must be checked at runtime.
     for p = if_stmt.if_and_elifs.ptr; p < if_stmt.if_and_elifs.end(); p++:
-        if (not evaluate_constant_expression(NULL, &p.condition, &cond, bool_type())) or cond.kind != ConstantKind.Bool:
+        if (not evaluate_constant_expression(jou_file, &p.condition, &cond, bool_type())) or cond.kind != ConstantKind.Bool:
             return NULL
 
         if cond.boolean:
@@ -207,14 +205,14 @@ def replace(body: List[AstStatement]*, i: int, new: List[AstStatement]) -> None:
     body.len += new.len - 1  # -1 for index i which was removed
 
 
-def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool) -> None:
+def evaluate_if_statements_in_body(jou_file: JouFile*, body: List[AstStatement]*, must_succeed: bool) -> None:
     # Must use indexes, because mutating the body may reallocate it to different memory location.
     for i = 0; i < body.len; i++:
         match body.ptr[i].kind:
             case AstStatementKind.If:
                 if_stmt = &body.ptr[i].if_statement
 
-                branch = choose_if_elif_branch(if_stmt)
+                branch = choose_if_elif_branch(jou_file, if_stmt)
                 if branch == NULL and must_succeed:
                     fail(body.ptr[i].location, "cannot evaluate condition at compile time")
 
@@ -231,19 +229,19 @@ def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool
                 # Recurse into inner if statements. Needed when compile-time if
                 # statement is inside a runtime if statement.
                 for p = if_stmt.if_and_elifs.ptr; p < if_stmt.if_and_elifs.end(); p++:
-                    evaluate_if_statements_in_body(&p.body, False)
-                evaluate_if_statements_in_body(&if_stmt.else_body, False)
+                    evaluate_if_statements_in_body(jou_file, &p.body, False)
+                evaluate_if_statements_in_body(jou_file, &if_stmt.else_body, False)
 
             case AstStatementKind.WhileLoop:
-                evaluate_if_statements_in_body(&body.ptr[i].while_loop.body, False)
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].while_loop.body, False)
             case AstStatementKind.ForLoop:
-                evaluate_if_statements_in_body(&body.ptr[i].for_loop.body, False)
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].for_loop.body, False)
             case AstStatementKind.Class:
-                evaluate_if_statements_in_body(&body.ptr[i].classdef.body, True)
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].classdef.body, True)
             case AstStatementKind.FunctionDef:
-                evaluate_if_statements_in_body(&body.ptr[i].function.body, False)
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].function.body, False)
             case AstStatementKind.MethodDef:
-                evaluate_if_statements_in_body(&body.ptr[i].method.body, False)
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].method.body, False)
             case (
                 AstStatementKind.ExpressionStatement
                 | AstStatementKind.Link
@@ -281,4 +279,4 @@ def evaluate_if_statements_in_body(body: List[AstStatement]*, must_succeed: bool
 
 @public
 def evaluate_compile_time_if_statements(jou_file: JouFile*) -> None:
-    evaluate_if_statements_in_body(&jou_file.ast, True)
+    evaluate_if_statements_in_body(jou_file, &jou_file.ast, True)
