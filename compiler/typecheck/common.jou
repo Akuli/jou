@@ -3,7 +3,6 @@
 
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
-import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
@@ -32,7 +31,7 @@ def array_type_from_ast(jou_file: JouFile*, item_type: Type*, length_ast: AstExp
     return item_type.array_type(length)
 
 
-def convert_ast_type_to_ast_expression(type: AstType*, gonna_free: List[void*]*) -> AstExpression:
+def convert_array_length_given_as_type_to_an_expression(type: AstType*) -> AstExpression:
     match type.kind:
         case AstTypeKind.Named:
             return AstExpression{
@@ -81,16 +80,8 @@ def handle_bad_generic(jou_file: JouFile*, generic: AstGenericType*, location: L
         snprintf(msg, sizeof(msg), "%s is not generic, use just %s instead of %s[something]", name, name, name)
         fail(location, msg)
 
-    memory_used_in_length_expr = List[void*]{}  # TODO: allocators?
-    length_expr = convert_ast_type_to_ast_expression(&generic.param_types.ptr[0], &memory_used_in_length_expr)
-
-    result = array_type_from_ast(jou_file, item_type, &length_expr)
-
-    for p = memory_used_in_length_expr.ptr; p < memory_used_in_length_expr.end(); p++:
-        free(*p)
-    free(memory_used_in_length_expr.ptr)
-
-    return result
+    length_expr = convert_array_length_given_as_type_to_an_expression(&generic.param_types.ptr[0])
+    return array_type_from_ast(jou_file, item_type, &length_expr)
 
 
 @public
@@ -165,11 +156,8 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             return type_from_ast(jou_file, containing_class, asttype.value_type).pointer_type()
 
         case AstTypeKind.Array:
-            tmp = type_from_ast(jou_file, containing_class, asttype.array.member_type)
-            len = evaluate_array_length(jou_file, asttype.array.length)
-            if len <= 0:
-                fail(asttype.array.length.location, "array length must be positive")
-            return tmp.array_type(len)
+            item_type = type_from_ast(jou_file, containing_class, asttype.array.member_type)
+            return array_type_from_ast(jou_file, item_type, asttype.array.length)
 
         case AstTypeKind.Generic:
             name = asttype.generic.class_name

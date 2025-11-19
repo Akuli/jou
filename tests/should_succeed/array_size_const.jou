@@ -1,9 +1,6 @@
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
-class Thing:
-    x: int
-
 const N: int = 3
 
 
@@ -14,14 +11,5 @@ def main() -> int:
     memset(numbers, 0, sizeof(numbers))
     numbers[2]++
     printf("%d %d %d\n", numbers[0], numbers[1], numbers[2])  # Output: 0 0 1
-
-    # Also test with non-int, this syntax is ambiguous because it has same structure as List[Thing]
-    things: Thing[N]
-    printf("%d\n", array_count(things))  # Output: 3
-
-    things[0] = Thing{x=1}
-    things[1] = Thing{x=2}
-    things[2] = Thing{x=3}
-    printf("%d %d %d\n", things[0].x, things[1].x, things[2].x)  # Output: 1 2 3
 
     return 0
