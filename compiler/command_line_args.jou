@@ -21,14 +21,14 @@ class CommandLineArgs:
     mode: CompilingMode
 
     # Please keep the help printing up to date!
-    argv0: byte*  # Program name
-    infile: byte*  # The "main" Jou file (can import other files)
-    outfile: byte*  # -o
-    optlevel: int  # -O0, -O1, -O2, -O3
-    valgrind: bool  # --valgrind
+    argv0: byte*            # Program name
+    infile: byte*           # The "main" Jou file (can import other files)
+    outfile: byte*          # -o
+    optlevel: int           # -O0, -O1, -O2, -O3
+    valgrind: bool          # --valgrind
     fail_on_warnings: bool  # --fail-on-warnings
-    linker_flags: byte*  # --linker-flags
-    verbosity: int  # -v, -vv etc
+    linker_flags: byte*     # --linker-flags
+    verbosity: int          # -v, -vv etc
 
 
 def print_help(argv0: byte*) -> None:
@@ -90,6 +90,32 @@ def set_mode(args: CommandLineArgs*, new_mode: CompilingMode) -> None:
     args.mode = new_mode
 
 
+def warn_about_meaningless_arg(args: CommandLineArgs*, the_arg: byte*) -> None:
+    fprintf(
+        get_stderr(),
+        "%s: warning: %s does nothing when used together with %s (see \"%s --help\")\n",
+        args.argv0, the_arg, mode_to_flag(args.mode), args.argv0,
+    )
+    fflush(get_stderr())
+
+
+# Must be done after setting mode, because this depends on the mode
+def check_args(args: CommandLineArgs*, optlevel_set: bool) -> None:
+    # -O0, -O1 etc don't make sense if we won't actually compile the code
+    if optlevel_set and args.mode != CompilingMode.Run and args.mode != CompilingMode.CompileToFile:
+        o_flag: byte[10]
+        sprintf(o_flag, "-O%d", args.optlevel)
+        warn_about_meaningless_arg(args, o_flag)
+
+    # valgrinding doesn't make sense if we won't run the code :)
+    if args.valgrind and args.mode != CompilingMode.Run:
+        warn_about_meaningless_arg(args, "--valgrind")
+
+    # linker flags don't make sense if there's nothing to link
+    if args.linker_flags != NULL and args.mode != CompilingMode.Run and args.mode != CompilingMode.CompileToFile:
+        warn_about_meaningless_arg(args, "--linker-flags")
+
+
 @public
 def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
     # Set default optimize to O1, user sets optimize will overwrite the default flag
@@ -104,6 +130,7 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 update_jou_compiler()
                 exit(0)
 
+    optlevel_set = False
     i = 1
     while i < argc:
         match argv[i] with strcmp:
@@ -124,6 +151,7 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 i += 2
             case "-O0" | "-O1" | "-O2" | "-O3":
                 args.optlevel = argv[i][2] - '0'
+                optlevel_set = True
                 i++
             case "--check":
                 set_mode(&args, CompilingMode.Check)
@@ -173,6 +201,8 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
     if args.infile == NULL:
         fprintf(get_stderr(), "%s: missing Jou file name (try \"%s --help\")\n", argv[0], argv[0])
         exit(2)
+
+    check_args(&args, optlevel_set)
 
 #    # Check whether conflicting "modes" were defined (check, run, compile to file, tokenize only etc)
 #    mode = NULL
