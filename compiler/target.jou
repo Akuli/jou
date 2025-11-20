@@ -43,13 +43,12 @@ def init_target(target: Target*) -> None:
     # Currently aarch64 is needed for:
     #   - new M1 macs
     #   - 64-bit raspberry pi
-    if not WINDOWS:
-        if LLVM_HAS_AARCH64:
-            LLVMInitializeAArch64TargetInfo()
-            LLVMInitializeAArch64Target()
-            LLVMInitializeAArch64TargetMC()
-            LLVMInitializeAArch64AsmParser()
-            LLVMInitializeAArch64AsmPrinter()
+    if not WINDOWS and LLVM_HAS_AARCH64:
+        LLVMInitializeAArch64TargetInfo()
+        LLVMInitializeAArch64Target()
+        LLVMInitializeAArch64TargetMC()
+        LLVMInitializeAArch64AsmParser()
+        LLVMInitializeAArch64AsmPrinter()
 
     if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
