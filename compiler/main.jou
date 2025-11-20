@@ -367,36 +367,6 @@ def build_and_analyze_all_uvgs() -> None:
         build_and_analyze_uvgs(jou_file, print_uvgs)
 
 
-# Linker flags come from:
-#   - files with 'link' statements
-#   - command-line --linker-flags argument
-def collect_linker_flags() -> byte*:
-    maxlen = 0 as int64
-    maxlen += strlen("-lm") + 1  # TODO: delete this
-    if global_compiler_state.args.linker_flags != NULL:
-        maxlen += strlen(global_compiler_state.args.linker_flags) + 1
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-            if stmt.kind == AstStatementKind.Link:
-                maxlen += strlen(stmt.link_statement.resolved_flags) + 1
-
-    result: byte* = malloc(maxlen + 1)
-    assert result != NULL
-    strcpy(result, "")
-
-    strcat(result, "-lm ")  # TODO: delete this
-    if global_compiler_state.args.linker_flags != NULL:
-        strcat(result, global_compiler_state.args.linker_flags)
-        strcat(result, " ")
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-            if stmt.kind == AstStatementKind.Link:
-                strcat(result, stmt.link_statement.resolved_flags)
-                strcat(result, " ")
-
-    return result
-
-
 def tokenize_only() -> None:
     tokens = tokenize(global_compiler_state.args.infile, NULL)
     print_tokens(tokens)
@@ -427,21 +397,13 @@ def uvg_only() -> None:
     build_and_analyze_uvgs(mainfile, True)
 
 
-def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
+def check() -> None:
     tokenize_and_parse_all_files()
     typecheck_everything()
     build_and_analyze_all_uvgs()
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         warn_about_unused(jou_file)
-
-    init_target(&global_compiler_state.target)
-    objpaths = List[byte*]{}
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        o_path = find_existing_object_file_or_compile_to_object_file(jou_file)
-        objpaths.append(o_path)
-
-    *linker_flags = collect_linker_flags()
 
     # Check for missing main() as late as possible, so that other errors come first.
     # This way Jou users can work on other functions before main() function is written.
@@ -451,36 +413,41 @@ def compile_to_object_files(linker_flags: byte**) -> List[byte*]:
         fail(Location{path=mainfile.path}, "missing `main` function to execute the program")
 
     fail_if_warnings_and_flag()
+
+
+def compile_to_object_files() -> List[byte*]:
+    check()
+
+    init_target(&global_compiler_state.target)
+    objpaths = List[byte*]{}
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        o_path = find_existing_object_file_or_compile_to_object_file(jou_file)
+        objpaths.append(o_path)
+
     return objpaths
 
 
 def compile_to_jou_compiled_and_run() -> None:
-    linker_flags: byte*
-    objpaths = compile_to_object_files(&linker_flags)
-
+    objpaths = compile_to_object_files()
     exepath = get_jou_compiled_exe_path()
-    run_linker(objpaths, exepath, linker_flags)
+    run_linker(objpaths, exepath)
     run_exe(exepath)
 
     for p = objpaths.ptr; p < objpaths.end(); p++:
         free(*p)
     free(objpaths.ptr)
-    free(linker_flags)
     free(exepath)
 
 
 def compile_to_outfile() -> None:
     assert global_compiler_state.args.outfile != NULL
 
-    linker_flags: byte*
-    objpaths = compile_to_object_files(&linker_flags)
-
-    run_linker(objpaths, global_compiler_state.args.outfile, linker_flags)
+    objpaths = compile_to_object_files()
+    run_linker(objpaths, global_compiler_state.args.outfile)
 
     for p = objpaths.ptr; p < objpaths.end(); p++:
         free(*p)
     free(objpaths.ptr)
-    free(linker_flags)
 
 
 def main(argc: int, argv: byte**) -> int:
@@ -495,10 +462,13 @@ def main(argc: int, argv: byte**) -> int:
             parse_only()
         case CompilingMode.UvgOnly:
             uvg_only()
-        case CompilingMode.Run:
-            compile_to_jou_compiled_and_run()
+        case CompilingMode.Check:
+            check()
+            printf("Checked %d files.\n", global_compiler_state.jou_files.len as int)
         case CompilingMode.CompileToFile:
             compile_to_outfile()
+        case CompilingMode.Run:
+            compile_to_jou_compiled_and_run()
 
     fail_if_warnings_and_flag()
 

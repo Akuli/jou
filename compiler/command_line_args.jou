@@ -10,6 +10,7 @@ import "./update.jou"
 enum CompilingMode:
     Run             # default mode (must be first)
     CompileToFile   # -o
+    Check           # --check
     TokenizeOnly    # --tokenize-only
     ParseOnly       # --parse-only
     UvgOnly         # --uvg-only
@@ -39,6 +40,7 @@ def print_help(argv0: byte*) -> None:
     printf("Options for compiling:\n")
     printf("  -o OUTFILE           output an executable file, don't run the code\n")
     printf("  -O0/-O1/-O2/-O3      set optimization level (0 = no optimization, 1 = default, 3 = runs fastest)\n")
+    printf("  --check              do not output or run anything, just check for errors in code\n")
     printf("  --valgrind           use valgrind when running the code\n")
     printf("  --fail-on-warnings   fail compiling if there were any compiler warnings\n")
     printf("  --linker-flags \"...\" appended to the linker command, just like 'link' statements in code\n")
@@ -58,6 +60,8 @@ def mode_to_flag(m: CompilingMode) -> byte*:
             return ""  # hopefully this never runs...
         case CompilingMode.CompileToFile:
             return "-o"
+        case CompilingMode.Check:
+            return "--check"
         case CompilingMode.TokenizeOnly:
             return "--tokenize-only"
         case CompilingMode.ParseOnly:
@@ -148,6 +152,9 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
             case "-O0" | "-O1" | "-O2" | "-O3":
                 args.optlevel = argv[i][2] - '0'
                 optlevel_set = True
+                i++
+            case "--check":
+                set_mode(&args, CompilingMode.Check)
                 i++
             case "--valgrind":
                 args.valgrind = True

@@ -1,9 +1,11 @@
+import "stdlib/assert.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
+import "./ast.jou"
 import "./state.jou"
 
 if WINDOWS:
@@ -28,8 +30,39 @@ def quote_paths(paths: List[byte*]) -> byte*:
     return result
 
 
+# Linker flags come from:
+#   - files with 'link' statements
+#   - command-line --linker-flags argument
+def collect_linker_flags() -> byte*:
+    maxlen = 0 as int64
+    maxlen += strlen("-lm") + 1  # TODO: delete this
+    if global_compiler_state.args.linker_flags != NULL:
+        maxlen += strlen(global_compiler_state.args.linker_flags) + 1
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+            if stmt.kind == AstStatementKind.Link:
+                maxlen += strlen(stmt.link_statement.resolved_flags) + 1
+
+    result: byte* = malloc(maxlen + 1)
+    assert result != NULL
+    strcpy(result, "")
+
+    strcat(result, "-lm ")  # TODO: delete this
+    if global_compiler_state.args.linker_flags != NULL:
+        strcat(result, global_compiler_state.args.linker_flags)
+        strcat(result, " ")
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+            if stmt.kind == AstStatementKind.Link:
+                strcat(result, stmt.link_statement.resolved_flags)
+                strcat(result, " ")
+
+    return result
+
+
 @public
-def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> None:
+def run_linker(objpaths: List[byte*], exepath: byte*) -> None:
+    linker_flags = collect_linker_flags()
     quoted_object_files = quote_paths(objpaths)
 
     command: byte*
@@ -57,6 +90,7 @@ def run_linker(objpaths: List[byte*], exepath: byte*, linker_flags: byte*) -> No
         # Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
         asprintf(&command, "'%s' %s -o '%s' %s", JOU_CLANG_PATH, quoted_object_files, exepath, linker_flags)
 
+    free(linker_flags)
     free(quoted_object_files)
 
     if global_compiler_state.args.verbosity >= 1:
