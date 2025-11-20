@@ -59,10 +59,19 @@ def main() -> int:
     run_jou("lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
     run_jou("--linker-flags")  # Output: <jouexe>: there must be a string of flags after --linker-flags (try "<jouexe> --help")
     run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try "<jouexe> --help")
-    run_jou("--tokenize-only --tokenize-only")  # Output: <jouexe>: --tokenize-only cannot be given multiple times (try "<jouexe> --help")
-    run_jou("--tokenize-only -O1 examples/hello.jou > tmp/hello-tokens.txt")  # Output: <jouexe>: warning: -O1 does nothing when used together with --tokenize-only (see "<jouexe> --help")
-    run_jou("--tokenize-only --valgrind examples/hello.jou > tmp/hello-tokens.txt")  # Output: <jouexe>: warning: --valgrind does nothing when used together with --tokenize-only (see "<jouexe> --help")
-    run_jou("--tokenize-only --linker-flags foobar examples/hello.jou > tmp/hello-tokens.txt")  # Output: <jouexe>: warning: --linker-flags does nothing when used together with --tokenize-only (see "<jouexe> --help")
+    run_jou("--check --check")  # Output: <jouexe>: --check cannot be given multiple times (try "<jouexe> --help")
+
+    # Output: <jouexe>: warning: -O1 does nothing when used together with --check (see "<jouexe> --help")
+    # Output: Checked 2 files.
+    run_jou("--check -O1 examples/hello.jou")
+
+    # Output: <jouexe>: warning: --valgrind does nothing when used together with --check (see "<jouexe> --help")
+    # Output: Checked 2 files.
+    run_jou("--check --valgrind examples/hello.jou")
+
+    # Output: <jouexe>: warning: --linker-flags does nothing when used together with --check (see "<jouexe> --help")
+    # Output: Checked 2 files.
+    run_jou("--check --linker-flags foobar examples/hello.jou")
 
     # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
     #
