@@ -488,16 +488,17 @@ def main(argc: int, argv: byte**) -> int:
     global_compiler_state.stdlib_path = find_stdlib()
     init_types()
 
-    if global_compiler_state.args.tokenize_only:
-        tokenize_only()
-    elif global_compiler_state.args.parse_only:
-        parse_only()
-    elif global_compiler_state.args.uvg_only:
-        uvg_only()
-    elif global_compiler_state.args.outfile == NULL:
-        compile_to_jou_compiled_and_run()
-    else:
-        compile_to_outfile()
+    match global_compiler_state.args.mode:
+        case CompilingMode.TokenizeOnly:
+            tokenize_only()
+        case CompilingMode.ParseOnly:
+            parse_only()
+        case CompilingMode.UvgOnly:
+            uvg_only()
+        case CompilingMode.Run:
+            compile_to_jou_compiled_and_run()
+        case CompilingMode.CompileToFile:
+            compile_to_outfile()
 
     fail_if_warnings_and_flag()
 
