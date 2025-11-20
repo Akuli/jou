@@ -203,43 +203,4 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
         exit(2)
 
     check_args(&args, optlevel_set)
-
-#    # Check whether conflicting "modes" were defined (check, run, compile to file, tokenize only etc)
-#    mode = NULL
-#    mode_flags_given = [
-#        "-o" if args.outfile != NULL else NULL,
-#        "--check" if args.check else NULL,
-#        "--check" if args.check else NULL,
-#    
-#    # Check for multiple compiling modes
-#    if args.outfile != NULL and args.check:
-#        conflicting_flags(argv, "--check", "--tokenize-only")
-#    if args.check and args.tokenize_only:
-#        conflicting_flags(argv, "--check", "--tokenize-only")
-#    if args.check and args.parse_only:
-#        conflicting_flags(argv, "--check", "--parse-only")
-#
-#    printf("  -o OUTFILE           output an executable file, don't run the code\n")
-#    printf("  -O0/-O1/-O2/-O3      set optimization level (0 = no optimization, 1 = default, 3 = runs fastest)\n")
-#    printf("  --check              do not output or run anything, just check for errors in code\n")
-#    printf("  --valgrind           use valgrind when running the code\n")
-#    printf("  --fail-on-warnings   fail compiling if there were any compiler warnings\n")
-#    printf("  --linker-flags \"...\" appended to the linker command, just like 'link' statements in code\n")
-#    printf("\n")
-#    printf("Options for debugging the compiler:\n")
-#    printf("  -v / --verbose    show briefly what the compiler is doing\n")
-#    printf("  -vv               show even more details\n")
-#    printf("  --tokenize-only   display the output of the tokenizer, do not compile further\n")
-#    printf("  --parse-only      display the AST (parse tree), do not compile further\n")
-#    printf("  --uvg-only        display Undefined Value Graphs, do not compile further\n")
-#
-#    # Handle flags that are meaningless because we will not compile to file
-#
-#    if args.check:
-#        # A lot of flags are meaningless in --check mode
-#        if args.outfile != NULL:
-#            conflicting_flags(argv, "-o", "--check")
-#        if args.valgrind:
-#            conflicting_flags(argv, "-o", "--check")
-
     return args
