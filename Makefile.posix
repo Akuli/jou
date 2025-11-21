@@ -44,3 +44,11 @@ clean:
 	bash -O extglob -c "rm -rvf tmp/!(bootstrap_cache)"
 	rm -vf *.exe config.jou jou jou_bootstrap
 	find . -name jou_compiled -print -exec rm -rf '{}' +
+
+# For profiling on linux, install kcachegrind and run "make kcachegrind" to
+# see what is slowing down "jou --check".
+callgrind.out: jou
+	valgrind --tool=callgrind --callgrind-out-file=callgrind.out ./jou --check compiler/main.jou
+.PHONY: kcachegrind
+kcachegrind: callgrind.out
+	kcachegrind callgrind.out
