@@ -52,3 +52,10 @@ callgrind.out: jou
 .PHONY: kcachegrind
 kcachegrind: callgrind.out
 	kcachegrind callgrind.out
+
+# To compare performance before and after making changes to Jou:
+#   1. Compile an old version of Jou and rename jou executable to oldjou.
+#   2. Make changes (or switch to branch with changes) and run "make hyperfine".
+.PHONY: hyperfine
+hyperfine: jou
+	hyperfine -w2 -m20 'jou --check compiler/main.jou' 'oldjou --check compiler/main.jou'
