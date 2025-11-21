@@ -18,18 +18,93 @@ def is_operator_byte(c: byte) -> bool:
 
 def is_keyword(word: byte*) -> bool:
     # See also: tests/should_succeed/keywords.jou
-    match word with strcmp:
-        case (
-            "import" | "link"
-            | "def" | "declare" | "class" | "union" | "enum" | "typedef" | "global" | "const"
-            | "if" | "elif" | "else" | "while" | "for" | "pass" | "break" | "continue" | "match" | "with" | "case" | "return"
-            | "True" | "False" | "None" | "NULL" | "self"
-            | "and" | "or" | "not" | "as" | "sizeof" | "array_count" | "enum_count" | "assert"
-            | "bool" | "float" | "double" | "byte" | "int"
-            | "int8" | "int16" | "int32" | "int64"| "uint8" | "uint16" | "uint32" | "uint64"
-            | "void" | "noreturn" | "funcptr"
-        ):
-            return True
+    # Let's avoid unnecessary strcmp() calls because they are slow.
+    match word[0]:
+        case 'F':
+            return strcmp(word, "False") == 0
+        case 'N':
+            return strcmp(word, "NULL") == 0 or strcmp(word, "None") == 0
+        case 'T':
+            return strcmp(word, "True") == 0
+        case 'a':
+            return (
+                strcmp(word, "and") == 0
+                or strcmp(word, "as") == 0
+                or strcmp(word, "assert") == 0
+                or strcmp(word, "array_count") == 0
+            )
+        case 'b':
+            return (
+                strcmp(word, "break") == 0
+                or strcmp(word, "bool") == 0
+                or strcmp(word, "byte") == 0
+            )
+        case 'c':
+            return (
+                strcmp(word, "class") == 0
+                or strcmp(word, "const") == 0
+                or strcmp(word, "continue") == 0
+                or strcmp(word, "case") == 0
+            )
+        case 'd':
+            return (
+                strcmp(word, "def") == 0
+                or strcmp(word, "declare") == 0
+                or strcmp(word, "double") == 0
+            )
+        case 'e':
+            return (
+                strcmp(word, "elif") == 0
+                or strcmp(word, "else") == 0
+                or strcmp(word, "enum") == 0
+                or strcmp(word, "enum_count") == 0
+            )
+        case 'f':
+            return (
+                strcmp(word, "for") == 0
+                or strcmp(word, "float") == 0
+                or strcmp(word, "funcptr") == 0
+            )
+        case 'g':
+            return strcmp(word, "global") == 0
+        case 'i':
+            return (
+                strcmp(word, "if") == 0
+                or strcmp(word, "import") == 0
+                or strcmp(word, "int") == 0
+                or strcmp(word, "int8") == 0
+                or strcmp(word, "int16") == 0
+                or strcmp(word, "int32") == 0
+                or strcmp(word, "int64") == 0
+            )
+        case 'l':
+            return strcmp(word, "link") == 0
+        case 'm':
+            return strcmp(word, "match") == 0
+        case 'n':
+            return strcmp(word, "not") == 0 or strcmp(word, "noreturn") == 0
+        case 'o':
+            return strcmp(word, "or") == 0
+        case 'p':
+            return strcmp(word, "pass") == 0
+        case 'r':
+            return strcmp(word, "return") == 0
+        case 's':
+            return strcmp(word, "self") == 0 or strcmp(word, "sizeof") == 0
+        case 't':
+            return strcmp(word, "typedef") == 0
+        case 'u':
+            return (
+                strcmp(word, "union") == 0
+                or strcmp(word, "uint8") == 0
+                or strcmp(word, "uint16") == 0
+                or strcmp(word, "uint32") == 0
+                or strcmp(word, "uint64") == 0
+            )
+        case 'v':
+            return strcmp(word, "void") == 0
+        case 'w':
+            return strcmp(word, "while") == 0 or strcmp(word, "with") == 0
         case _:
             return False
 
