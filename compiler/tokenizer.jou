@@ -690,27 +690,6 @@ class BadChar:
 
 
 def detect_bad_chars(path: byte*, file_content: byte*) -> None:
-    bad_chars = [
-        BadChar{codepoint = 0x00000085, name = "NEXT LINE (NEL)"},
-        BadChar{codepoint = 0x000000A0, name = "NO-BREAK SPACE"},
-        BadChar{codepoint = 0x00001680, name = "OGHAM SPACE MARK"},
-        BadChar{codepoint = 0x00002000, name = "EN QUAD"},
-        BadChar{codepoint = 0x00002001, name = "EM QUAD"},
-        BadChar{codepoint = 0x00002002, name = "EN SPACE"},
-        BadChar{codepoint = 0x00002003, name = "EM SPACE"},
-        BadChar{codepoint = 0x00002004, name = "THREE-PER-EM SPACE"},
-        BadChar{codepoint = 0x00002005, name = "FOUR-PER-EM SPACE"},
-        BadChar{codepoint = 0x00002006, name = "SIX-PER-EM SPACE"},
-        BadChar{codepoint = 0x00002007, name = "FIGURE SPACE"},
-        BadChar{codepoint = 0x00002008, name = "PUNCTUATION SPACE"},
-        BadChar{codepoint = 0x00002009, name = "THIN SPACE"},
-        BadChar{codepoint = 0x0000200A, name = "HAIR SPACE"},
-        BadChar{codepoint = 0x00002028, name = "LINE SEPARATOR"},
-        BadChar{codepoint = 0x00002029, name = "PARAGRAPH SEPARATOR"},
-        BadChar{codepoint = 0x0000202F, name = "NARROW NO-BREAK SPACE"},
-        BadChar{codepoint = 0x0000205F, name = "MEDIUM MATHEMATICAL SPACE"},
-        BadChar{codepoint = 0x00003000, name = "IDEOGRAPHIC SPACE"},
-    ]
     # Ban all UTF-8 whitespace characters (longest one is 3 bytes)
     # Python code used to generate this:
     #
@@ -722,7 +701,7 @@ def detect_bad_chars(path: byte*, file_content: byte*) -> None:
     #            except ValueError:
     #                name = "???"
     #            print('BadChar{codepoint = %#08x, name = "%s"},' % (x, name))
-    bad_chars2 = [
+    bad_chars = [
         BadChar{codepoint = 0x00000085, name = "NEXT LINE (NEL)"},   # name added manually
         BadChar{codepoint = 0x000000a0, name = "NO-BREAK SPACE"},
         BadChar{codepoint = 0x00001680, name = "OGHAM SPACE MARK"},
@@ -743,10 +722,6 @@ def detect_bad_chars(path: byte*, file_content: byte*) -> None:
         BadChar{codepoint = 0x0000205f, name = "MEDIUM MATHEMATICAL SPACE"},
         BadChar{codepoint = 0x00003000, name = "IDEOGRAPHIC SPACE"},
     ]
-    assert sizeof(bad_chars) == sizeof(bad_chars2)
-    for i = 0; i < sizeof(bad_chars)/sizeof(bad_chars[0]); i++:
-        assert bad_chars[i].codepoint == bad_chars2[i].codepoint
-        assert strcmp(bad_chars[i].name, bad_chars2[i].name) == 0
 
     first_bad: BadChar* = NULL
     first_bad_ptr: byte* = NULL
