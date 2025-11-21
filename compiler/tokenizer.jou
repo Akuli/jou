@@ -2,6 +2,7 @@ import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+import "stdlib/utf8.jou"
 import "stdlib/mem.jou"
 import "stdlib/errno.jou"
 import "stdlib/ascii.jou"
@@ -152,55 +153,6 @@ def flip_paren(c: byte) -> byte:
             assert False
 
 
-def detect_banned_whitespace_characters(last_3_bytes: byte[3]) -> byte*:
-    last_2_bytes = [last_3_bytes[1], last_3_bytes[2]]
-
-    # Ban all UTF-8 whitespace characters (longest one is 3 bytes)
-    # Python code used to generate this:
-    #
-    #    import unicodedata
-    #    for x in range(128, 0x110000):  # 128 to skip ascii, chr(0x110000) errors
-    #        if chr(x).isspace():
-    #            try:
-    #                name = unicodedata.name(chr(x))
-    #            except ValueError:
-    #                name = "???"
-    #            print(chr(x).encode('utf-8'), name)
-    length2 = [
-        ["\xc2\x85", "U+00000085 NEXT LINE (NEL)"],
-        ["\xc2\xa0", "U+000000A0 NO-BREAK SPACE"],
-    ]
-    length3 = [
-        ["\xe1\x9a\x80", "U+00001680 OGHAM SPACE MARK"],
-        ["\xe2\x80\x80", "U+00002000 EN QUAD"],
-        ["\xe2\x80\x81", "U+00002001 EM QUAD"],
-        ["\xe2\x80\x82", "U+00002002 EN SPACE"],
-        ["\xe2\x80\x83", "U+00002003 EM SPACE"],
-        ["\xe2\x80\x84", "U+00002004 THREE-PER-EM SPACE"],
-        ["\xe2\x80\x85", "U+00002005 FOUR-PER-EM SPACE"],
-        ["\xe2\x80\x86", "U+00002006 SIX-PER-EM SPACE"],
-        ["\xe2\x80\x87", "U+00002007 FIGURE SPACE"],
-        ["\xe2\x80\x88", "U+00002008 PUNCTUATION SPACE"],
-        ["\xe2\x80\x89", "U+00002009 THIN SPACE"],
-        ["\xe2\x80\x8a", "U+0000200A HAIR SPACE"],
-        ["\xe2\x80\xa8", "U+00002028 LINE SEPARATOR"],
-        ["\xe2\x80\xa9", "U+00002029 PARAGRAPH SEPARATOR"],
-        ["\xe2\x80\xaf", "U+0000202F NARROW NO-BREAK SPACE"],
-        ["\xe2\x81\x9f", "U+0000205F MEDIUM MATHEMATICAL SPACE"],
-        ["\xe3\x80\x80", "U+00003000 IDEOGRAPHIC SPACE"],
-    ]
-
-    for i = 0; i < sizeof(length2)/sizeof(length2[0]); i++:
-        if memcmp(last_2_bytes, length2[i][0], 2) == 0:
-            return length2[i][1]
-
-    for i = 0; i < sizeof(length3)/sizeof(length3[0]); i++:
-        if memcmp(last_3_bytes, length3[i][0], 3) == 0:
-            return length3[i][1]
-
-    return NULL
-
-
 class Tokenizer:
     file_content_ptr: byte*
     file_content_start: byte*
@@ -211,7 +163,6 @@ class Tokenizer:
     # which would make it recurse too deep.
     open_parens: Token[50]
     open_parens_len: int
-    last_3_bytes: byte[3]
 
     def read_byte(self) -> byte:
         c: byte
@@ -221,14 +172,6 @@ class Tokenizer:
             c = *self.file_content_ptr
             if c != '\0':
                 self.file_content_ptr++
-            self.last_3_bytes[0] = self.last_3_bytes[1]
-            self.last_3_bytes[1] = self.last_3_bytes[2]
-            self.last_3_bytes[2] = c
-            bad = detect_banned_whitespace_characters(self.last_3_bytes)
-            if bad != NULL:
-                msg: byte[500]
-                snprintf(msg, sizeof(msg), "source file contains Unicode whitespace character %s", bad)
-                fail(self.location, msg)
 
         if c == '\n':
             self.location.lineno++
@@ -665,6 +608,89 @@ def read_file_to_string(path: byte*, import_location: Location*) -> byte*:
     return bytes_list.ptr
 
 
+class BadChar:
+    codepoint: uint32
+    name: byte*
+
+
+def detect_bad_chars(path: byte*, file_content: byte*) -> None:
+    bad_chars = [
+        BadChar{codepoint = 0x00000085, name = "NEXT LINE (NEL)"},
+        BadChar{codepoint = 0x000000A0, name = "NO-BREAK SPACE"},
+        BadChar{codepoint = 0x00001680, name = "OGHAM SPACE MARK"},
+        BadChar{codepoint = 0x00002000, name = "EN QUAD"},
+        BadChar{codepoint = 0x00002001, name = "EM QUAD"},
+        BadChar{codepoint = 0x00002002, name = "EN SPACE"},
+        BadChar{codepoint = 0x00002003, name = "EM SPACE"},
+        BadChar{codepoint = 0x00002004, name = "THREE-PER-EM SPACE"},
+        BadChar{codepoint = 0x00002005, name = "FOUR-PER-EM SPACE"},
+        BadChar{codepoint = 0x00002006, name = "SIX-PER-EM SPACE"},
+        BadChar{codepoint = 0x00002007, name = "FIGURE SPACE"},
+        BadChar{codepoint = 0x00002008, name = "PUNCTUATION SPACE"},
+        BadChar{codepoint = 0x00002009, name = "THIN SPACE"},
+        BadChar{codepoint = 0x0000200A, name = "HAIR SPACE"},
+        BadChar{codepoint = 0x00002028, name = "LINE SEPARATOR"},
+        BadChar{codepoint = 0x00002029, name = "PARAGRAPH SEPARATOR"},
+        BadChar{codepoint = 0x0000202F, name = "NARROW NO-BREAK SPACE"},
+        BadChar{codepoint = 0x0000205F, name = "MEDIUM MATHEMATICAL SPACE"},
+        BadChar{codepoint = 0x00003000, name = "IDEOGRAPHIC SPACE"},
+    ]
+    # Ban all UTF-8 whitespace characters (longest one is 3 bytes)
+    # Python code used to generate this:
+    #
+    #    import unicodedata
+    #    for x in range(128, 0x110000):  # 128 to skip ascii, chr(0x110000) errors
+    #        if chr(x).isspace():
+    #            try:
+    #                name = unicodedata.name(chr(x))
+    #            except ValueError:
+    #                name = "???"
+    #            print('BadChar{codepoint = %#08x, name = "%s"},' % (x, name))
+    bad_chars2 = [
+        BadChar{codepoint = 0x00000085, name = "NEXT LINE (NEL)"},   # name added manually
+        BadChar{codepoint = 0x000000a0, name = "NO-BREAK SPACE"},
+        BadChar{codepoint = 0x00001680, name = "OGHAM SPACE MARK"},
+        BadChar{codepoint = 0x00002000, name = "EN QUAD"},
+        BadChar{codepoint = 0x00002001, name = "EM QUAD"},
+        BadChar{codepoint = 0x00002002, name = "EN SPACE"},
+        BadChar{codepoint = 0x00002003, name = "EM SPACE"},
+        BadChar{codepoint = 0x00002004, name = "THREE-PER-EM SPACE"},
+        BadChar{codepoint = 0x00002005, name = "FOUR-PER-EM SPACE"},
+        BadChar{codepoint = 0x00002006, name = "SIX-PER-EM SPACE"},
+        BadChar{codepoint = 0x00002007, name = "FIGURE SPACE"},
+        BadChar{codepoint = 0x00002008, name = "PUNCTUATION SPACE"},
+        BadChar{codepoint = 0x00002009, name = "THIN SPACE"},
+        BadChar{codepoint = 0x0000200a, name = "HAIR SPACE"},
+        BadChar{codepoint = 0x00002028, name = "LINE SEPARATOR"},
+        BadChar{codepoint = 0x00002029, name = "PARAGRAPH SEPARATOR"},
+        BadChar{codepoint = 0x0000202f, name = "NARROW NO-BREAK SPACE"},
+        BadChar{codepoint = 0x0000205f, name = "MEDIUM MATHEMATICAL SPACE"},
+        BadChar{codepoint = 0x00003000, name = "IDEOGRAPHIC SPACE"},
+    ]
+    assert sizeof(bad_chars) == sizeof(bad_chars2)
+    for i = 0; i < sizeof(bad_chars)/sizeof(bad_chars[0]); i++:
+        assert bad_chars[i].codepoint == bad_chars2[i].codepoint
+        assert strcmp(bad_chars[i].name, bad_chars2[i].name) == 0
+
+    first_bad: BadChar* = NULL
+    first_bad_ptr: byte* = NULL
+    for bad = &bad_chars[0]; bad < &bad_chars[sizeof(bad_chars)/sizeof(bad_chars[0])]; bad++:
+        search_string = utf8_encode_char(bad.codepoint)
+        bad_ptr = strstr(file_content, search_string)
+        if bad_ptr != NULL and (first_bad_ptr == NULL or bad_ptr < first_bad_ptr):
+            first_bad = bad
+            first_bad_ptr = bad_ptr
+
+    if first_bad != NULL and first_bad_ptr != NULL:
+        lineno = 0
+        for p = file_content; p < first_bad_ptr; p++:
+            if *p == '\n':
+                lineno++
+        msg: byte[200]
+        snprintf(msg, sizeof(msg), "source file contains Unicode whitespace character U+%08X %s", first_bad.codepoint, first_bad.name)
+        fail(Location{path = path, lineno = lineno}, msg)
+
+
 @public
 class TokenizeResult:
     tokens: Token*
@@ -688,6 +714,7 @@ class TokenizeResult:
 @public
 def tokenize(path: byte*, import_location: Location*) -> TokenizeResult:
     file_content = read_file_to_string(path, import_location)
+    detect_bad_chars(path, file_content)
     raw_tokens = tokenize_without_indent_dedent_tokens(path, file_content)
 
     better_tokens = handle_indentations(raw_tokens)
