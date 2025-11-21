@@ -435,52 +435,65 @@ class Tokenizer:
         return result.ptr
 
     def read_operator(self) -> byte[100]:
-        msg: byte[100]
+        while self.pushback.len > 0:
+            # TODO: this is stupid
+            self.pushback.pop()
+            self.file_content_ptr--
 
-        operators = [
-            # Please update the syntax documentation if you add new operators.
-            # Longer operators are first, so that '==' does not tokenize as '=' '='
-            "...", "===", "!==", "<<=", ">>=",
-            "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
-            "&&", "||", "<<", ">>",
-            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "^", "<", ">", "!", "|", "~",
-        ]
-        operator: byte[100] = ""
+        assert is_operator_byte(*self.file_content_ptr)
 
-        # Read as many operator characters as we may need.
-        while strlen(operator) < 3:
-            c = self.read_byte()
-            if not is_operator_byte(c):
-                self.unread_byte(c)
-                break
-            operator[strlen(operator)] = c
+        if starts_with(self.file_content_ptr, "==="):
+            fail(self.location, "use '==' instead of '==='")
+        if starts_with(self.file_content_ptr, "!=="):
+            fail(self.location, "use '!=' instead of '!=='")
+        if starts_with(self.file_content_ptr, "&&"):
+            fail(self.location, "use 'and' instead of '&&'")
+        if starts_with(self.file_content_ptr, "||"):
+            fail(self.location, "use 'or' instead of '||'")
+        if self.file_content_ptr[0] == '!' and self.file_content_ptr[1] != '=':
+            fail(self.location, "use 'not' instead of '!'")
 
-        for i = 0; i < sizeof operators / sizeof operators[0]; i++:
-            if starts_with(operator, operators[i]):
-                # Unread the bytes we didn't use.
-                while strlen(operator) > strlen(operators[i]):
-                    last = &operator[strlen(operator) - 1]
-                    self.unread_byte(*last)
-                    *last = '\0'
+        result: byte[100] = ""
 
-                # These operators are here only to give a better error message when you
-                # accidentally use syntax of another programming language.
-                match operator with strcmp:
-                    case "===":
-                        fail(self.location, "use '==' instead of '==='")
-                    case "!==":
-                        fail(self.location, "use '!=' instead of '!=='")
-                    case "&&":
-                        fail(self.location, "use 'and' instead of '&&'")
-                    case "||":
-                        fail(self.location, "use 'or' instead of '||'")
-                    case "!":
-                        fail(self.location, "use 'not' instead of '!'")
-                    case _:
-                        return operator
+        # Please update the syntax documentation if you add new operators.
+        # Longer operators are first, so that '==' does not tokenize as '=' '='
+        if (
+            starts_with(self.file_content_ptr, "<<=")
+            or starts_with(self.file_content_ptr, ">>=")
+            or starts_with(self.file_content_ptr, "...")
+        ):
+            len = 3
+        elif (
+            starts_with(self.file_content_ptr, "==")
+            or starts_with(self.file_content_ptr, "!=")
+            or starts_with(self.file_content_ptr, "->")
+            or starts_with(self.file_content_ptr, "<=")
+            or starts_with(self.file_content_ptr, ">=")
+            or starts_with(self.file_content_ptr, "++")
+            or starts_with(self.file_content_ptr, "--")
+            or starts_with(self.file_content_ptr, "+=")
+            or starts_with(self.file_content_ptr, "-=")
+            or starts_with(self.file_content_ptr, "*=")
+            or starts_with(self.file_content_ptr, "/=")
+            or starts_with(self.file_content_ptr, "%=")
+            or starts_with(self.file_content_ptr, "&=")
+            or starts_with(self.file_content_ptr, "|=")
+            or starts_with(self.file_content_ptr, "^=")
+            or starts_with(self.file_content_ptr, "<<")
+            or starts_with(self.file_content_ptr, ">>")
+        ):
+            len = 2
+        else:
+            # This assumes that any valid operator character is valid as a
+            # single-character operator. Currently that is true for everything
+            # except '!' which was already handled above.
+            len = 1
 
-        snprintf(msg, sizeof(msg), "there is no '%s' operator", operator)
-        fail(self.location, msg)
+        dest = &result[0]
+        while len --> 0:
+            *dest++ = *self.file_content_ptr++
+        *dest = '\0'
+        return result
 
     def handle_parentheses(self, token: Token*) -> None:
         msg: byte[100]
