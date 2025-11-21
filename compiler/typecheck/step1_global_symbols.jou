@@ -96,34 +96,6 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
     stmt.symbol().status = GlobalSymbolStatus.Ready
 
 
-# If you have a Jou file that has access to printf() function from stdlib/io.jou,
-# then this function returns the `declare` statement in stdlib/io.jou when you
-# call this with the file and the string "printf".
-#
-# This also finds things defined in the same file.
-#
-# Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
-def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSymbolKind) -> AstStatement*:
-    assert jou_file != NULL
-
-    # Defined in this file?
-    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        if stmt.symbol() != NULL and strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:
-            stmt.symbol().used = True
-            return stmt
-
-    # Imported?
-    for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
-        stmt = imported.statement_in_other_file
-        assert stmt.symbol() != NULL
-        if strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:
-            stmt.symbol().used = True
-            imported.the_import.used = True
-            return stmt
-
-    return NULL
-
-
 # Returns True for found, False for not found. If found, constant is placed
 # into the given pointer without copying.
 #
