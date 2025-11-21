@@ -1715,6 +1715,9 @@ def evaluate_constant(ast: AST, jtype: JouType) -> JouValue:
     if ast[0] == "string":
         _, string = ast
         return jou_string(string)
+    if ast[0] == "constant":
+        _, value = ast
+        return value
     raise NotImplementedError(ast)
 
 

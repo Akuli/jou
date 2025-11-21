@@ -110,7 +110,7 @@ function transpile_with_python_and_compile() {
     local number=${bootstrap_transpiler_numbered_commit%%_*}
     local commit=${bootstrap_transpiler_numbered_commit#*_}
 
-    echo "Checking out commit $number ($commit)..."
+    echo "Checking out commit $number into $folder"
     rm -rf $folder
     mkdir -p $folder
     git archive --format=tar $commit | (cd $folder && tar xf -)
@@ -124,6 +124,14 @@ function transpile_with_python_and_compile() {
 
     (
         cd $folder
+
+        if ! [[ "$OS" =~ Windows ]]; then
+            echo "Patching Jou code to use or not use aarch64 depending on config..."
+            sed -i -e s/'if not WINDOWS:'/'if LLVM_HAS_AARCH64:'/g compiler/target.jou
+            grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if it replaced nothing
+            sed -i -e '1i\
+import "../config.jou"'$'\n' compiler/target.jou
+        fi
 
         echo "Converting Jou code to C..."
         "$python" ../../../bootstrap_transpiler.py compiler/main.jou > compiler.c
@@ -159,7 +167,7 @@ function compile_next_jou_compiler() {
 
     echo -e "${CYAN}$0: Using the previous Jou compiler to compile the next Jou compiler.${RESET} ($previous_number --> $number)"
 
-    echo "Checking out commit $commit ($number)..."
+    echo "Checking out commit $number into $folder"
     rm -rf $folder
     mkdir -p $folder
     git archive --format=tar $commit | (cd $folder && tar xf -)
@@ -199,11 +207,13 @@ function compile_next_jou_compiler() {
         echo "Deleting version check..."
         sed -i -e "/Found unsupported LLVM version/d" Makefile.*
 
-        if [ "$(uname)" == "Linux" ] && [ "$(uname -m)" == "aarch64" ] && [ $number -le 21 ]; then
-            # These versions of Jou have support for aarch64 but it is only
-            # enabled on MacOS. We are on linux and we need it.
-            echo "Patching Jou code to support aarch64..."
-            sed -i s/'if MACOS:'/'if True:'/g compiler/target.jou
+        if [ $number -le 23 ] && ! [[ "$OS" =~ Windows ]]; then
+            echo "Patching Jou code to use or not use aarch64 depending on config..."
+            sed -i -e s/'if MACOS:'/'if LLVM_HAS_AARCH64:'/g compiler/target.jou
+            sed -i -e s/'if not WINDOWS:'/'if LLVM_HAS_AARCH64:'/g compiler/target.jou
+            grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if it replaced nothing
+            sed -i -e '1i\
+import "../config.jou"'$'\n' compiler/target.jou
         fi
 
         echo "Running make..."
@@ -217,6 +227,9 @@ function compile_next_jou_compiler() {
             # but it was slow and wasted disk space. Afaik symlinks aren't really a
             # thing on windows.
             make_flags="$make_flags JOU_MINGW_DIR=../../../mingw64"
+        else
+            # Also don't rebuild config.jou
+            make_flags="$make_flags --old-file config.jou"
         fi
 
         $make $make_flags jou$exe_suffix

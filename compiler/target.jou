@@ -14,6 +14,9 @@ import "stdlib/process.jou"
 import "./llvm.jou"
 import "./state.jou"
 
+if not WINDOWS:
+    import "../config.jou"
+
 
 @public
 class Target:
@@ -41,11 +44,13 @@ def init_target(target: Target*) -> None:
     #   - new M1 macs
     #   - 64-bit raspberry pi
     if not WINDOWS:
-        LLVMInitializeAArch64TargetInfo()
-        LLVMInitializeAArch64Target()
-        LLVMInitializeAArch64TargetMC()
-        LLVMInitializeAArch64AsmParser()
-        LLVMInitializeAArch64AsmPrinter()
+        dummy = LLVM_HAS_AARCH64
+        if dummy:
+            LLVMInitializeAArch64TargetInfo()
+            LLVMInitializeAArch64Target()
+            LLVMInitializeAArch64TargetMC()
+            LLVMInitializeAArch64AsmParser()
+            LLVMInitializeAArch64AsmPrinter()
 
     if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
