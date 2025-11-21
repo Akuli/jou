@@ -2,6 +2,7 @@
 # stay in sync with each other.
 
 import "stdlib/assert.jou"
+import "stdlib/sort.jou"
 import "stdlib/list.jou"
 import "stdlib/process.jou"
 import "stdlib/mem.jou"
@@ -30,16 +31,7 @@ def go_to_project_root() -> None:
     exit(1)
 
 
-def add_words_to_list(line: byte*, out: List[byte]*) -> None:
-    line_words = split_by_ascii_whitespace(line)
-    for w = line_words.ptr; w < line_words.end(); w++:
-        if out.len != 0:
-            out.append(' ')
-        out.extend_from_ptr(*w, strlen(*w))
-    free(line_words.ptr)
-
-
-def get_keywords_from_compiler_source() -> byte*:
+def get_keywords_from_compiler_source() -> List[byte*]:
     f = fopen("compiler/tokenizer.jou", "rb")
     assert f != NULL
     line: byte[1024] = ""
@@ -47,27 +39,46 @@ def get_keywords_from_compiler_source() -> byte*:
     # Find the place in compiler source code where the keywords are defined
     while not starts_with(line, "def is_keyword"):
         assert fgets(line, sizeof(line) as int, f) != NULL
-    while strstr(line, "case (") == NULL:
-        assert fgets(line, sizeof(line) as int, f) != NULL
 
     # Extract the list of keywords in a dumb way
-    result = List[byte]{}
+    result = List[byte*]{}
     while True:
         assert fgets(line, sizeof(line) as int, f) != NULL
-        trim_ascii_whitespace(line)
-        if strstr(line, "):") != NULL:
+
+        comment = strstr(line, "#")
+        if comment != NULL:
+            *comment = '\0'
+
+        len = strlen(line)
+        while len > 0 and is_ascii_whitespace(line[len]):
+            line[--len] = '\0'
+        if len == 0:
+            # Skip blank lines and comment-only lines
+            continue
+
+        if line[0] != ' ':
+            # End of function
             break
+
+        # Find all strings
+        start = NULL
         for p = &line[0]; *p != '\0'; p++:
-            if *p == '"' or *p == '|':
-                *p = ' '
-        add_words_to_list(line, &result)
+            if *p == '"':
+                if start == NULL:
+                    # String starts here
+                    start = &p[1]
+                else:
+                    # String ends here
+                    *p = '\0'
+                    result.append(strdup(start))
+                    *p = '"'
+                    start = NULL
 
     fclose(f)
-    result.append('\0')
-    return result.ptr
+    return result
 
 
-def get_keywords_from_documentation() -> byte*:
+def get_keywords_from_documentation() -> List[byte*]:
     f = fopen("doc/compiler_internals/syntax-spec.md", "rb")
     assert f != NULL
     line: byte[1024] = ""
@@ -77,17 +88,32 @@ def get_keywords_from_documentation() -> byte*:
         assert fgets(line, sizeof(line) as int, f) != NULL
 
     # Extract the list of keywords
-    result = List[byte]{}
+    result = List[byte*]{}
     while fgets(line, sizeof(line) as int, f) != NULL:
         trim_ascii_whitespace(line)
         if not starts_with(line, "- `"):
             break
-        for p = &line[0]; *p != '\0'; p++:
-            if *p == '-' or *p == '`':
-                *p = ' '
-        add_words_to_list(line, &result)
+
+        tick1 = &line[2]
+        tick2 = strstr(&tick1[1], "`")
+        assert tick2 != NULL
+        *tick2 = '\0'
+        result.append(strdup(&tick1[1]))
 
     fclose(f)
+    return result
+
+
+# Frees all memory used by the list. Assumes each string is allocated separately.
+def list_to_string(list: List[byte*]) -> byte*:
+    sort_strings(list.ptr, list.len)  # TODO: shouldn't be needed
+    result = List[byte]{}
+    for i = 0; i < list.len; i++:
+        if i > 0:
+            result.append(' ')
+        result.extend_from_ptr(list.ptr[i], strlen(list.ptr[i]))
+        free(list.ptr[i])
+    free(list.ptr)
     result.append('\0')
     return result.ptr
 
@@ -95,8 +121,8 @@ def get_keywords_from_documentation() -> byte*:
 def main() -> int:
     go_to_project_root()
 
-    keywords_compiler = get_keywords_from_compiler_source()
-    keywords_doc = get_keywords_from_documentation()
+    keywords_compiler = list_to_string(get_keywords_from_compiler_source())
+    keywords_doc = list_to_string(get_keywords_from_documentation())
 
     if strcmp(keywords_compiler, keywords_doc) != 0:
         printf("Keywords are defined differently in different places!\n")
