@@ -244,12 +244,14 @@ class Tokenizer:
 
     # TODO: Get rid of read_byte() / unread_byte()?
     def read_byte(self) -> byte:
-        c = *self.file_content_ptr
-        if c != '\0':
-            self.file_content_ptr++
-        if c == '\n':
-            self.location.lineno++
-        return c
+        match *self.file_content_ptr:
+            case '\0':
+                return '\0'
+            case '\n':
+                self.location.lineno++
+                return *self.file_content_ptr++
+            case _:
+                return *self.file_content_ptr++
 
     def unread_byte(self, b: byte) -> None:
         if b == '\0':
