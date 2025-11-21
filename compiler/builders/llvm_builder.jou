@@ -745,11 +745,12 @@ def build_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
     builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
     builder_wrapper = AnyBuilder{lbuilder = &builder}
 
-    for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
-        symbol = imported.statement_in_other_file.symbol()
-        if symbol.kind == GlobalSymbolKind.GlobalVar:
-            assert symbol.type != NULL
-            LLVMAddGlobal(module, type_to_llvm(symbol.type), symbol.name)
+    for avail = jou_file.available_symbols.ptr; avail < jou_file.available_symbols.end(); avail++:
+        if avail.the_import != NULL:
+            symbol = avail.statement.symbol()
+            if symbol.kind == GlobalSymbolKind.GlobalVar:
+                assert symbol.type != NULL
+                LLVMAddGlobal(module, type_to_llvm(symbol.type), symbol.name)
 
     # Add global variables first, so we can refer to them later.
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:

@@ -314,8 +314,8 @@ def make_imported_statements_available() -> None:
                     continue
 
                 # Check if two imported files define something conflicting
-                for old_imported = importer.imported_from_other_files.ptr; old_imported < importer.imported_from_other_files.end(); old_imported++:
-                    if strcmp(old_imported.statement_in_other_file.symbol().name, imported_stmt.symbol().name) == 0:
+                for old_imported = importer.available_symbols.ptr; old_imported < importer.available_symbols.end(); old_imported++:
+                    if strcmp(old_imported.statement.symbol().name, imported_stmt.symbol().name) == 0:
                         snprintf(
                             msg,
                             sizeof(msg),
@@ -326,8 +326,8 @@ def make_imported_statements_available() -> None:
                         )
                         fail(the_import.location, msg)
 
-                importer.imported_from_other_files.append(Imported{
-                    statement_in_other_file = imported_stmt,
+                importer.available_symbols.append(AvailableSymbol{
+                    statement = imported_stmt,
                     the_import = &the_import.import_statement,
                     import_location = the_import.location,
                 })
@@ -337,22 +337,30 @@ def make_imported_statements_available() -> None:
             if stmt.symbol() == NULL:
                 continue
 
-            for old_imported = importer.imported_from_other_files.ptr; old_imported < importer.imported_from_other_files.end(); old_imported++:
-                if strcmp(old_imported.statement_in_other_file.symbol().name, stmt.symbol().name) == 0:
+            for old_imported = importer.available_symbols.ptr; old_imported < importer.available_symbols.end(); old_imported++:
+                assert old_imported.the_import != NULL  # non-imported symbols not added yet
+                if strcmp(old_imported.statement.symbol().name, stmt.symbol().name) == 0:
                     snprintf(
                         msg,
                         sizeof(msg),
                         "a %s named '%s' already exists (imported from \"%s\" on line %d)",
-                        old_imported.statement_in_other_file.symbol().short_description(),
+                        old_imported.statement.symbol().short_description(),
                         stmt.symbol().name,
                         old_imported.the_import.specified_path,
                         old_imported.import_location.lineno,
                     )
                     fail(stmt.location, msg)
 
-        # We have now listed all symbols that will be available. Set up hash
+    # We have now listed all imported that will be available.
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        # Add symbols defined in the file itself
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+            if stmt.symbol() != NULL:
+                jou_file.available_symbols.append(AvailableSymbol{statement = stmt})
+
+        # We have now listed all imported that will be available. Set up hash
         # table for quick access to them.
-        create_global_symbol_lookup_hash_table(importer)
+        create_global_symbol_lookup_hash_table(jou_file)
 
     free(seen_before.ptr)
 
