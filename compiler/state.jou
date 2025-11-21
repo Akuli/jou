@@ -66,6 +66,10 @@ class CompilerState:
     # Initialized somewhat late during compilation, not needed for a lot of things
     target: Target
 
+    # File content is loaded here when tokenizing begins, and it stays here
+    # until tokenizing the next file. We parse immediately after tokenizing, so
+    # this way the parser can access the source code that is still in memory.
+
     # This method exists only to make valgrind happy. It is called only when
     # the compiler is exiting and the operating system is about to free all
     # memory we used anyway.

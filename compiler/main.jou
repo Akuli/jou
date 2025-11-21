@@ -241,15 +241,15 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Tokenizing %s\n", path)
-    tokens = tokenize(jou_file.path, import_location)
+    tokenize_result = tokenize(jou_file.path, import_location)
 
     if global_compiler_state.args.verbosity >= 2:
-        print_tokens(tokens)
+        print_tokens(tokenize_result.tokens)
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Parsing %s\n", path)
-    jou_file.ast = parse(tokens)
-    free_tokens(tokens)
+    jou_file.ast = parse(tokenize_result.tokens)
+    tokenize_result.free()
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Evaluating compile-time if statements in %s\n", path)
@@ -368,23 +368,23 @@ def build_and_analyze_all_uvgs() -> None:
 
 
 def tokenize_only() -> None:
-    tokens = tokenize(global_compiler_state.args.infile, NULL)
-    print_tokens(tokens)
-    free_tokens(tokens)
+    tokenize_result = tokenize(global_compiler_state.args.infile, NULL)
+    print_tokens(tokenize_result.tokens)
+    tokenize_result.free()
 
     fail_if_warnings_and_flag()
 
 
 def parse_only() -> None:
-    tokens = tokenize(global_compiler_state.args.infile, NULL)
-    ast = parse(tokens)
+    tokenize_result = tokenize(global_compiler_state.args.infile, NULL)
+    ast = parse(tokenize_result.tokens)
     printf("===== AST for file \"%s\" =====\n", global_compiler_state.args.infile)
     for p = ast.ptr; p < ast.end(); p++:
         p.print()
     for p = ast.ptr; p < ast.end(); p++:
         p.free()
     free(ast.ptr)
-    free_tokens(tokens)
+    tokenize_result.free()
     fail_if_warnings_and_flag()
 
 
