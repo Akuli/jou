@@ -242,6 +242,7 @@ class Tokenizer:
     open_parens: Token[50]
     open_parens_len: int
 
+    # TODO: Get rid of read_byte() / unread_byte()?
     def read_byte(self) -> byte:
         c = *self.file_content_ptr
         if c != '\0':
