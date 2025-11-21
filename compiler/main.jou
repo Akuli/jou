@@ -351,7 +351,7 @@ def make_imported_statements_available() -> None:
                     )
                     fail(stmt.location, msg)
 
-    # We have now listed all imported that will be available.
+    # We have now listed all imported symbols that will be available.
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         # Add symbols defined in the file itself
         for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
