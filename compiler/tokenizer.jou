@@ -232,7 +232,6 @@ class Tokenizer:
     file_content_ptr: byte*
     file_content_start: byte*
     location: Location
-    pushback: List[byte]
     # Parens array isn't dynamic, so that you can't segfault
     # the compiler by feeding it lots of nested parentheses,
     # which would make it recurse too deep.
@@ -240,14 +239,9 @@ class Tokenizer:
     open_parens_len: int
 
     def read_byte(self) -> byte:
-        c: byte
-        if self.pushback.len > 0:
-            c = self.pushback.pop()
-        else:
-            c = *self.file_content_ptr
-            if c != '\0':
-                self.file_content_ptr++
-
+        c = *self.file_content_ptr
+        if c != '\0':
+            self.file_content_ptr++
         if c == '\n':
             self.location.lineno++
         return c
@@ -256,8 +250,9 @@ class Tokenizer:
         if b == '\0':
             return
 
-        assert b != '\r'
-        self.pushback.append(b)
+        assert self.file_content_ptr > self.file_content_start
+        assert self.file_content_ptr[-1] == b
+        self.file_content_ptr--
         if b == '\n':
             self.location.lineno--
 
@@ -435,11 +430,6 @@ class Tokenizer:
         return result.ptr
 
     def read_operator(self) -> byte[100]:
-        while self.pushback.len > 0:
-            # TODO: this is stupid
-            self.pushback.pop()
-            self.file_content_ptr--
-
         assert is_operator_byte(*self.file_content_ptr)
 
         if starts_with(self.file_content_ptr, "==="):
@@ -587,8 +577,6 @@ def tokenize_without_indent_dedent_tokens(path: byte*, file_content: byte*) -> T
     tokens = List[Token]{}
     while tokens.len == 0 or tokens.end()[-1].kind != TokenKind.EndOfFile:
         tokens.append(tokenizer.read_token())
-
-    free(tokenizer.pushback.ptr)
     return tokens.ptr
 
 
