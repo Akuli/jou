@@ -34,12 +34,16 @@ class JouFile:
     # another file.
     imported_from_other_files: List[Imported]
 
+    # For finding imported symbols quickly
+    symbol_hash_table: int*
+
     def free(self) -> None:
         for p = self.ast.ptr; p < self.ast.end(); p++:
             p.free()
         free(self.ast.ptr)
         free(self.path)
         free(self.imported_from_other_files.ptr)
+        free(self.symbol_hash_table)
 
 
 @public

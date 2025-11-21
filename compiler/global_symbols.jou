@@ -6,10 +6,12 @@
 # the symbols are simply placed inside the AST statement classes.
 
 import "stdlib/assert.jou"
+import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 import "./ast.jou"
 import "./constants.jou"
+import "./hash.jou"
 import "./state.jou"
 import "./types.jou"
 
@@ -66,6 +68,45 @@ class GlobalSymbol:
                 return "constant"
 
 
+# Hash table size = this constant * number of symbols
+# This leaves plenty of room so that lookup is fast because we don't put things
+# into consecutive indexes.
+const HASH_TABLE_FACTOR: int = 4
+
+
+# Called when we know that there will be no more global symbols available in a
+# file. Sets up a hash table that is used to find the symbols quickly.
+@public
+def create_global_symbol_lookup_hash_table(jou_file: JouFile*) -> None:
+    assert jou_file != NULL
+    assert jou_file.symbol_hash_table == NULL
+
+    if jou_file.imported_from_other_files.len == 0:
+        return
+
+    hash_table_len = jou_file.imported_from_other_files.len * HASH_TABLE_FACTOR
+    jou_file.symbol_hash_table = malloc(hash_table_len * sizeof(jou_file.symbol_hash_table[0]))
+    assert jou_file.symbol_hash_table != NULL
+
+    # Mark all entries as empty
+    for i = 0; i < hash_table_len; i++:
+        jou_file.symbol_hash_table[i] = -1
+
+    for imported_index = 0; imported_index < jou_file.imported_from_other_files.len; imported_index++:
+        stmt = jou_file.imported_from_other_files.ptr[imported_index].statement_in_other_file
+        assert stmt.symbol() != NULL
+        hash = new_hash()
+        hash.add_string(stmt.symbol().name)
+
+        # Find empty spot
+        table_index = hash.hash % hash_table_len
+        while jou_file.symbol_hash_table[table_index] != -1:
+            table_index = (table_index+1) % hash_table_len
+
+        # Put it there
+        jou_file.symbol_hash_table[table_index] = imported_index
+
+
 # If you have a Jou file that has access to printf() function from stdlib/io.jou,
 # then this function returns the `declare` statement in stdlib/io.jou when you
 # call this with the file and the string "printf".
@@ -83,13 +124,19 @@ def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSy
             stmt.symbol().used = True
             return stmt
 
-    # Imported?
-    for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
-        stmt = imported.statement_in_other_file
-        assert stmt.symbol() != NULL
-        if strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:
-            stmt.symbol().used = True
-            imported.the_import.used = True
-            return stmt
+    # Imported? Look up from hash table.
+    if jou_file.imported_from_other_files.len != 0:
+        hash = new_hash()
+        hash.add_string(name)
+        hash_table_len = jou_file.imported_from_other_files.len * HASH_TABLE_FACTOR
+        for table_index = hash.hash % hash_table_len; jou_file.symbol_hash_table[table_index] != -1; table_index = (table_index+1) % hash_table_len:
+            imported_index = jou_file.symbol_hash_table[table_index]
+            imported = &jou_file.imported_from_other_files.ptr[imported_index]
+            stmt = imported.statement_in_other_file
+            assert stmt.symbol() != NULL
+            if strcmp(stmt.symbol().name, name) == 0 and stmt.symbol().kind == kind:
+                stmt.symbol().used = True
+                imported.the_import.used = True
+                return stmt
 
     return NULL

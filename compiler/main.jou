@@ -12,6 +12,7 @@ import "./builders/uvg_builder.jou"
 import "./command_line_args.jou"
 import "./errors_and_warnings.jou"
 import "./evaluate.jou"
+import "./global_symbols.jou"
 import "./llvm.jou"
 import "./parser.jou"
 import "./paths.jou"
@@ -348,6 +349,10 @@ def make_imported_statements_available() -> None:
                         old_imported.import_location.lineno,
                     )
                     fail(stmt.location, msg)
+
+        # We have now listed all symbols that will be available. Set up hash
+        # table for quick access to them.
+        create_global_symbol_lookup_hash_table(importer)
 
     free(seen_before.ptr)
 
