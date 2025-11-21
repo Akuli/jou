@@ -2,7 +2,6 @@ import "stdlib/assert.jou"
 import "stdlib/ascii.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
-import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
 import "./token.jou"
@@ -151,24 +150,14 @@ def skip_string_or_byte(s: byte*) -> byte*:
     return s
 
 
-def read_assertion_from_file(start: Token*, end: Token*) -> byte*:
-    assert start.byte_offset >= 0
-    assert end.byte_offset >= 0
-    assert start.byte_offset < end.byte_offset
-    assert strcmp(start.location.path, end.location.path) == 0
+def get_assertion_code_as_string(start: Token*, end: Token*) -> byte*:
+    len = (end.file_content_ptr as int64) - (start.file_content_ptr as int64)
+    assert len > 0
 
-    f = fopen(start.location.path, "rb")
-    assert f != NULL
-
-    # TODO: add fseek to standard library
-    for i = 0; i < start.byte_offset; i++:
-        fgetc(f)
-
-    s: byte* = malloc(end.byte_offset - start.byte_offset + 1)
+    s: byte* = malloc(len + 1)
     assert s != NULL
-    memset(s, 0, end.byte_offset - start.byte_offset + 1)
-    fread(s, 1, end.byte_offset - start.byte_offset, f)
-    fclose(f)
+    memcpy(s, start.file_content_ptr, len)
+    s[len] = '\0'
 
     p = s
     while *p != '\0':
@@ -1026,7 +1015,7 @@ class Parser:
             start = self.tokens
             result.assertion.condition = self.parse_expression()
             end = self.tokens
-            result.assertion.condition_str = read_assertion_from_file(start, end)
+            result.assertion.condition_str = get_assertion_code_as_string(start, end)
         elif self.tokens.is_keyword("pass"):
             self.tokens++
             result.kind = AstStatementKind.Pass

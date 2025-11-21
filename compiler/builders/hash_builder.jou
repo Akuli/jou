@@ -409,13 +409,14 @@ def build_content_hash(jou_file: JouFile*) -> Hash:
 
     builder_wrapper = AnyBuilder{hbuilder = &builder}
 
-    for imported = jou_file.imported_from_other_files.ptr; imported < jou_file.imported_from_other_files.end(); imported++:
-        symbol = imported.statement_in_other_file.symbol()
-        if symbol.kind == GlobalSymbolKind.GlobalVar:
-            builder.hash.add_string("globalimport")
-            builder.hash.add_string(symbol.name)
-            assert symbol.type != NULL
-            hash_type(&builder.hash, symbol.type)
+    for avail = jou_file.available_symbols.ptr; avail < jou_file.available_symbols.end(); avail++:
+        if avail.the_import != NULL:
+            symbol = avail.statement.symbol()
+            if symbol.kind == GlobalSymbolKind.GlobalVar:
+                builder.hash.add_string("globalimport")
+                builder.hash.add_string(symbol.name)
+                assert symbol.type != NULL
+                hash_type(&builder.hash, symbol.type)
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         builder.hash.add_int(stmt.kind as int)

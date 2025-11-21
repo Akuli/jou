@@ -25,7 +25,7 @@ enum TokenKind:
 class Token:
     kind: TokenKind
     location: Location
-    byte_offset: int  # Used for determining the message of `assert` failures
+    file_content_ptr: byte*
 
     union:
         integer_value: uint64   # Integer, Byte

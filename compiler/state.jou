@@ -11,14 +11,15 @@ import "./types.jou"
 
 
 @public
-class Imported:
-    # The statement that defines the thing, e.g. public function definition in other file
-    statement_in_other_file: AstStatement*
+class AvailableSymbol:
+    # The statement that defines the thing. Either in the current file or
+    # something @public-decorated in another file.
+    statement: AstStatement*
 
-    # Import statement in AST of the file that imports
+    # Import statement in AST of current file, or NULL if not imported
     the_import: AstImport*
 
-    # Location of the import statement
+    # Location of the import statement, if imported
     import_location: Location
 
 
@@ -29,17 +30,21 @@ class JouFile:
     is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
     ast: List[AstStatement]
 
-    # Points to @public things in ASTS of other files that have been imported
-    # into this file. Used when figuring out whether something comes in from
-    # another file.
-    imported_from_other_files: List[Imported]
+    # Points to @public things in ASTS of this file and other files that have
+    # been imported into this file. Used when finding basically anything other
+    # than local variables.
+    available_symbols: List[AvailableSymbol]
+
+    # For finding imported symbols quickly
+    symbol_hash_table: int*
 
     def free(self) -> None:
         for p = self.ast.ptr; p < self.ast.end(); p++:
             p.free()
         free(self.ast.ptr)
         free(self.path)
-        free(self.imported_from_other_files.ptr)
+        free(self.available_symbols.ptr)
+        free(self.symbol_hash_table)
 
 
 @public

@@ -1,7 +1,12 @@
+# NOTE: This file is performance critical, especially for `jou --check`. If you
+#       modify this file more than a little bit, please measure the performance
+#       of `jou --check compiler/main.jou` with and without your changes.
+
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+import "stdlib/utf8.jou"
 import "stdlib/mem.jou"
 import "stdlib/errno.jou"
 import "stdlib/ascii.jou"
@@ -17,18 +22,93 @@ def is_operator_byte(c: byte) -> bool:
 
 def is_keyword(word: byte*) -> bool:
     # See also: tests/should_succeed/keywords.jou
-    match word with strcmp:
-        case (
-            "import" | "link"
-            | "def" | "declare" | "class" | "union" | "enum" | "typedef" | "global" | "const"
-            | "if" | "elif" | "else" | "while" | "for" | "pass" | "break" | "continue" | "match" | "with" | "case" | "return"
-            | "True" | "False" | "None" | "NULL" | "self"
-            | "and" | "or" | "not" | "as" | "sizeof" | "array_count" | "enum_count" | "assert"
-            | "bool" | "float" | "double" | "byte" | "int"
-            | "int8" | "int16" | "int32" | "int64"| "uint8" | "uint16" | "uint32" | "uint64"
-            | "void" | "noreturn" | "funcptr"
-        ):
-            return True
+    # Let's avoid unnecessary strcmp() calls because they are slow.
+    match word[0]:
+        case 'F':
+            return strcmp(word, "False") == 0
+        case 'N':
+            return strcmp(word, "NULL") == 0 or strcmp(word, "None") == 0
+        case 'T':
+            return strcmp(word, "True") == 0
+        case 'a':
+            return (
+                strcmp(word, "and") == 0
+                or strcmp(word, "as") == 0
+                or strcmp(word, "assert") == 0
+                or strcmp(word, "array_count") == 0
+            )
+        case 'b':
+            return (
+                strcmp(word, "break") == 0
+                or strcmp(word, "bool") == 0
+                or strcmp(word, "byte") == 0
+            )
+        case 'c':
+            return (
+                strcmp(word, "class") == 0
+                or strcmp(word, "const") == 0
+                or strcmp(word, "continue") == 0
+                or strcmp(word, "case") == 0
+            )
+        case 'd':
+            return (
+                strcmp(word, "def") == 0
+                or strcmp(word, "declare") == 0
+                or strcmp(word, "double") == 0
+            )
+        case 'e':
+            return (
+                strcmp(word, "elif") == 0
+                or strcmp(word, "else") == 0
+                or strcmp(word, "enum") == 0
+                or strcmp(word, "enum_count") == 0
+            )
+        case 'f':
+            return (
+                strcmp(word, "for") == 0
+                or strcmp(word, "float") == 0
+                or strcmp(word, "funcptr") == 0
+            )
+        case 'g':
+            return strcmp(word, "global") == 0
+        case 'i':
+            return (
+                strcmp(word, "if") == 0
+                or strcmp(word, "import") == 0
+                or strcmp(word, "int") == 0
+                or strcmp(word, "int8") == 0
+                or strcmp(word, "int16") == 0
+                or strcmp(word, "int32") == 0
+                or strcmp(word, "int64") == 0
+            )
+        case 'l':
+            return strcmp(word, "link") == 0
+        case 'm':
+            return strcmp(word, "match") == 0
+        case 'n':
+            return strcmp(word, "not") == 0 or strcmp(word, "noreturn") == 0
+        case 'o':
+            return strcmp(word, "or") == 0
+        case 'p':
+            return strcmp(word, "pass") == 0
+        case 'r':
+            return strcmp(word, "return") == 0
+        case 's':
+            return strcmp(word, "self") == 0 or strcmp(word, "sizeof") == 0
+        case 't':
+            return strcmp(word, "typedef") == 0
+        case 'u':
+            return (
+                strcmp(word, "union") == 0
+                or strcmp(word, "uint8") == 0
+                or strcmp(word, "uint16") == 0
+                or strcmp(word, "uint32") == 0
+                or strcmp(word, "uint64") == 0
+            )
+        case 'v':
+            return strcmp(word, "void") == 0
+        case 'w':
+            return strcmp(word, "while") == 0 or strcmp(word, "with") == 0
         case _:
             return False
 
@@ -152,113 +232,34 @@ def flip_paren(c: byte) -> byte:
             assert False
 
 
-def detect_banned_whitespace_characters(last_3_bytes: byte[3]) -> byte*:
-    last_2_bytes = [last_3_bytes[1], last_3_bytes[2]]
-
-    # Ban all UTF-8 whitespace characters (longest one is 3 bytes)
-    # Python code used to generate this:
-    #
-    #    import unicodedata
-    #    for x in range(128, 0x110000):  # 128 to skip ascii, chr(0x110000) errors
-    #        if chr(x).isspace():
-    #            try:
-    #                name = unicodedata.name(chr(x))
-    #            except ValueError:
-    #                name = "???"
-    #            print(chr(x).encode('utf-8'), name)
-    length2 = [
-        ["\xc2\x85", "U+00000085 NEXT LINE (NEL)"],
-        ["\xc2\xa0", "U+000000A0 NO-BREAK SPACE"],
-    ]
-    length3 = [
-        ["\xe1\x9a\x80", "U+00001680 OGHAM SPACE MARK"],
-        ["\xe2\x80\x80", "U+00002000 EN QUAD"],
-        ["\xe2\x80\x81", "U+00002001 EM QUAD"],
-        ["\xe2\x80\x82", "U+00002002 EN SPACE"],
-        ["\xe2\x80\x83", "U+00002003 EM SPACE"],
-        ["\xe2\x80\x84", "U+00002004 THREE-PER-EM SPACE"],
-        ["\xe2\x80\x85", "U+00002005 FOUR-PER-EM SPACE"],
-        ["\xe2\x80\x86", "U+00002006 SIX-PER-EM SPACE"],
-        ["\xe2\x80\x87", "U+00002007 FIGURE SPACE"],
-        ["\xe2\x80\x88", "U+00002008 PUNCTUATION SPACE"],
-        ["\xe2\x80\x89", "U+00002009 THIN SPACE"],
-        ["\xe2\x80\x8a", "U+0000200A HAIR SPACE"],
-        ["\xe2\x80\xa8", "U+00002028 LINE SEPARATOR"],
-        ["\xe2\x80\xa9", "U+00002029 PARAGRAPH SEPARATOR"],
-        ["\xe2\x80\xaf", "U+0000202F NARROW NO-BREAK SPACE"],
-        ["\xe2\x81\x9f", "U+0000205F MEDIUM MATHEMATICAL SPACE"],
-        ["\xe3\x80\x80", "U+00003000 IDEOGRAPHIC SPACE"],
-    ]
-
-    for i = 0; i < sizeof(length2)/sizeof(length2[0]); i++:
-        if memcmp(last_2_bytes, length2[i][0], 2) == 0:
-            return length2[i][1]
-
-    for i = 0; i < sizeof(length3)/sizeof(length3[0]); i++:
-        if memcmp(last_3_bytes, length3[i][0], 3) == 0:
-            return length3[i][1]
-
-    return NULL
-
-
 class Tokenizer:
-    f: FILE*
+    file_content_ptr: byte*
+    file_content_start: byte*
     location: Location
-    byte_offset: int
-    pushback: List[byte]
     # Parens array isn't dynamic, so that you can't segfault
     # the compiler by feeding it lots of nested parentheses,
     # which would make it recurse too deep.
     open_parens: Token[50]
     open_parens_len: int
-    last_3_bytes: byte[3]
 
+    # TODO: Get rid of read_byte() / unread_byte()?
     def read_byte(self) -> byte:
-        c: byte
-        if self.pushback.len > 0:
-            c = self.pushback.pop()
-            self.byte_offset++
-        else:
-            temp = fgetc(self.f)
-            self.byte_offset++
-            if temp == '\r':
-                # On Windows, \r just before \n is ignored.
-                temp = fgetc(self.f)
-                self.byte_offset++
-                if temp != EOF and temp != '\n':
-                    # TODO: test this, if possible?
-                    fail(self.location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
-
-            if temp == EOF:
-                if ferror(self.f) != 0:
-                    # TODO: include errno in the error message
-                    fail(self.location, "cannot read file")
-                # Use the zero byte to denote end of file.
-                c = '\0'
-            elif temp == '\0':
-                fail(self.location, "source file contains a zero byte")
-            else:
-                c = temp as byte
-                self.last_3_bytes[0] = self.last_3_bytes[1]
-                self.last_3_bytes[1] = self.last_3_bytes[2]
-                self.last_3_bytes[2] = c
-                bad = detect_banned_whitespace_characters(self.last_3_bytes)
-                if bad != NULL:
-                    msg: byte[500]
-                    snprintf(msg, sizeof(msg), "source file contains Unicode whitespace character %s", bad)
-                    fail(self.location, msg)
-
-        if c == '\n':
-            self.location.lineno++
-        return c
+        match *self.file_content_ptr:
+            case '\0':
+                return '\0'
+            case '\n':
+                self.location.lineno++
+                return *self.file_content_ptr++
+            case _:
+                return *self.file_content_ptr++
 
     def unread_byte(self, b: byte) -> None:
         if b == '\0':
             return
 
-        assert b != '\r'
-        self.pushback.append(b)
-        self.byte_offset--
+        assert self.file_content_ptr > self.file_content_start
+        assert self.file_content_ptr[-1] == b
+        self.file_content_ptr--
         if b == '\n':
             self.location.lineno--
 
@@ -436,52 +437,60 @@ class Tokenizer:
         return result.ptr
 
     def read_operator(self) -> byte[100]:
-        msg: byte[100]
+        assert is_operator_byte(*self.file_content_ptr)
 
-        operators = [
-            # Please update the syntax documentation if you add new operators.
-            # Longer operators are first, so that '==' does not tokenize as '=' '='
-            "...", "===", "!==", "<<=", ">>=",
-            "==", "!=", "->", "<=", ">=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
-            "&&", "||", "<<", ">>",
-            ".", ",", ":", ";", "=", "(", ")", "{", "}", "[", "]", "&", "%", "*", "/", "+", "-", "^", "<", ">", "!", "|", "~",
-        ]
-        operator: byte[100] = ""
+        if starts_with(self.file_content_ptr, "==="):
+            fail(self.location, "use '==' instead of '==='")
+        if starts_with(self.file_content_ptr, "!=="):
+            fail(self.location, "use '!=' instead of '!=='")
+        if starts_with(self.file_content_ptr, "&&"):
+            fail(self.location, "use 'and' instead of '&&'")
+        if starts_with(self.file_content_ptr, "||"):
+            fail(self.location, "use 'or' instead of '||'")
+        if self.file_content_ptr[0] == '!' and self.file_content_ptr[1] != '=':
+            fail(self.location, "use 'not' instead of '!'")
 
-        # Read as many operator characters as we may need.
-        while strlen(operator) < 3:
-            c = self.read_byte()
-            if not is_operator_byte(c):
-                self.unread_byte(c)
-                break
-            operator[strlen(operator)] = c
+        result: byte[100] = ""
 
-        for i = 0; i < sizeof operators / sizeof operators[0]; i++:
-            if starts_with(operator, operators[i]):
-                # Unread the bytes we didn't use.
-                while strlen(operator) > strlen(operators[i]):
-                    last = &operator[strlen(operator) - 1]
-                    self.unread_byte(*last)
-                    *last = '\0'
+        # Please update the syntax documentation if you add new operators.
+        # Longer operators are first, so that '==' does not tokenize as '=' '='
+        if (
+            starts_with(self.file_content_ptr, "<<=")
+            or starts_with(self.file_content_ptr, ">>=")
+            or starts_with(self.file_content_ptr, "...")
+        ):
+            len = 3
+        elif (
+            starts_with(self.file_content_ptr, "==")
+            or starts_with(self.file_content_ptr, "!=")
+            or starts_with(self.file_content_ptr, "->")
+            or starts_with(self.file_content_ptr, "<=")
+            or starts_with(self.file_content_ptr, ">=")
+            or starts_with(self.file_content_ptr, "++")
+            or starts_with(self.file_content_ptr, "--")
+            or starts_with(self.file_content_ptr, "+=")
+            or starts_with(self.file_content_ptr, "-=")
+            or starts_with(self.file_content_ptr, "*=")
+            or starts_with(self.file_content_ptr, "/=")
+            or starts_with(self.file_content_ptr, "%=")
+            or starts_with(self.file_content_ptr, "&=")
+            or starts_with(self.file_content_ptr, "|=")
+            or starts_with(self.file_content_ptr, "^=")
+            or starts_with(self.file_content_ptr, "<<")
+            or starts_with(self.file_content_ptr, ">>")
+        ):
+            len = 2
+        else:
+            # This assumes that any valid operator character is valid as a
+            # single-character operator. Currently that is true for everything
+            # except '!' which was already handled above.
+            len = 1
 
-                # These operators are here only to give a better error message when you
-                # accidentally use syntax of another programming language.
-                match operator with strcmp:
-                    case "===":
-                        fail(self.location, "use '==' instead of '==='")
-                    case "!==":
-                        fail(self.location, "use '!=' instead of '!=='")
-                    case "&&":
-                        fail(self.location, "use 'and' instead of '&&'")
-                    case "||":
-                        fail(self.location, "use 'or' instead of '||'")
-                    case "!":
-                        fail(self.location, "use 'not' instead of '!'")
-                    case _:
-                        return operator
-
-        snprintf(msg, sizeof(msg), "there is no '%s' operator", operator)
-        fail(self.location, msg)
+        dest = &result[0]
+        while len --> 0:
+            *dest++ = *self.file_content_ptr++
+        *dest = '\0'
+        return result
 
     def handle_parentheses(self, token: Token*) -> None:
         msg: byte[100]
@@ -507,7 +516,7 @@ class Tokenizer:
 
     def read_token(self) -> Token:
         while True:
-            token = Token{location = self.location, byte_offset = self.byte_offset}
+            token = Token{location = self.location, file_content_ptr = self.file_content_ptr}
             b = self.read_byte()
             match b:
                 case ' ':
@@ -565,26 +574,16 @@ class Tokenizer:
             return token
 
 
-def tokenize_without_indent_dedent_tokens(file: FILE*, path: byte*) -> Token*:
+def tokenize_without_indent_dedent_tokens(path: byte*, file_content: byte*) -> Token*:
     tokenizer = Tokenizer{
         location = Location{path = path},
-        byte_offset = -1,  # Compensate for fake newline added below
-        f = file,
+        file_content_ptr = file_content,
+        file_content_start = file_content,
     }
-
-    # Add a fake newline to the beginning. It does a few things:
-    #  * Less special-casing: blank lines in the beginning of the file can
-    #    cause there to be a newline token anyway.
-    #  * It is easier to detect an unexpected indentation in the beginning
-    #    of the file, as it becomes just like any other indentation.
-    #  * Line numbers start at 1.
-    tokenizer.pushback.append('\n')
 
     tokens = List[Token]{}
     while tokens.len == 0 or tokens.end()[-1].kind != TokenKind.EndOfFile:
         tokens.append(tokenizer.read_token())
-
-    free(tokenizer.pushback.ptr)
     return tokens.ptr
 
 
@@ -600,9 +599,9 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
             # This makes it similar to how other newline and dedent tokens work:
             # the dedents always come after a newline token.
             if t > raw_tokens and t[-1].kind != TokenKind.Newline:
-                tokens.append(Token{location = t.location, byte_offset = t.byte_offset, kind = TokenKind.Newline})
+                tokens.append(Token{location = t.location, file_content_ptr = t.file_content_ptr, kind = TokenKind.Newline})
             while level != 0:
-                tokens.append(Token{location = t.location, byte_offset = t.byte_offset, kind = TokenKind.Dedent})
+                tokens.append(Token{location = t.location, file_content_ptr = t.file_content_ptr, kind = TokenKind.Dedent})
                 level -= 4
             tokens.append(*t)
             break
@@ -612,17 +611,16 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
         if t.kind == TokenKind.Newline:
             after_newline = t.location
             after_newline.lineno++
-            byte_offset = t.byte_offset + 1
 
             if t.indentation_level % 4 != 0:
                 fail(after_newline, "indentation must be a multiple of 4 spaces")
 
             while level < t.indentation_level:
-                tokens.append(Token{location = after_newline, byte_offset = byte_offset, kind = TokenKind.Indent})
+                tokens.append(Token{location = after_newline, file_content_ptr = &t.file_content_ptr[1], kind = TokenKind.Indent})
                 level += 4
 
             while level > t.indentation_level:
-                tokens.append(Token{location = after_newline, byte_offset = byte_offset, kind = TokenKind.Dedent})
+                tokens.append(Token{location = after_newline, file_content_ptr = &t.file_content_ptr[1], kind = TokenKind.Dedent})
                 level -= 4
 
     # Delete the newline token in the beginning.
@@ -636,8 +634,7 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     return tokens.ptr
 
 
-@public
-def tokenize(path: byte*, import_location: Location*) -> Token*:
+def read_file_to_string(path: byte*, import_location: Location*) -> byte*:
     file = fopen(path, "rb")
     if file == NULL:
         message: byte[200]
@@ -649,9 +646,135 @@ def tokenize(path: byte*, import_location: Location*) -> Token*:
             snprintf(message, sizeof message, "cannot import from \"%s\": %s", path, strerror(get_errno()))
             fail(*import_location, message)
 
-    raw_tokens = tokenize_without_indent_dedent_tokens(file, path)
+    bytes_list = List[byte]{}
+
+    # Add a fake newline to the beginning. It does a few things:
+    #  * Less special-casing: blank lines in the beginning of the file can
+    #    cause there to be a newline token anyway.
+    #  * It is easier to detect an unexpected indentation in the beginning
+    #    of the file, as it becomes just like any other indentation.
+    #  * Line numbers start at 1.
+    bytes_list.append('\n')
+
+    buf: byte[4096]
+    while True:
+        num_read = fread(buf, 1, sizeof buf, file)
+        if num_read == 0:
+            if ferror(file) != 0:
+                # TODO: include errno in the error message?
+                # TODO: test this?
+                fail(Location{path = path}, "cannot read file")
+            break
+        bytes_list.extend_from_ptr(buf, num_read)
     fclose(file)
+
+    # Make sure we have room to add a zero byte later.
+    bytes_list.grow(bytes_list.len + 1)
+
+    location = Location{path = path}
+    dest = bytes_list.ptr
+    for src = bytes_list.ptr; src < bytes_list.end(); src++:
+        match *src:
+            case '\0':
+                fail(location, "source file contains a zero byte")
+            case '\r':
+                # Handle \r\n line endings
+                if &src[1] < bytes_list.end() and src[1] == '\n':
+                    continue  # Delete \r from string
+                # TODO: test this, if possible?
+                fail(location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
+            case '\n':
+                location.lineno++
+        *dest++ = *src
+
+    *dest = '\0'
+    return bytes_list.ptr
+
+
+class BadChar:
+    codepoint: uint32
+    name: byte*
+
+
+def detect_bad_chars(path: byte*, file_content: byte*) -> None:
+    # Ban all UTF-8 whitespace characters (longest one is 3 bytes)
+    # Python code used to generate this:
+    #
+    #    import unicodedata
+    #    for x in range(128, 0x110000):  # 128 to skip ascii, chr(0x110000) errors
+    #        if chr(x).isspace():
+    #            try:
+    #                name = unicodedata.name(chr(x))
+    #            except ValueError:
+    #                name = "???"
+    #            print('BadChar{codepoint = %#08x, name = "%s"},' % (x, name))
+    bad_chars = [
+        BadChar{codepoint = 0x00000085, name = "NEXT LINE (NEL)"},   # name added manually
+        BadChar{codepoint = 0x000000a0, name = "NO-BREAK SPACE"},
+        BadChar{codepoint = 0x00001680, name = "OGHAM SPACE MARK"},
+        BadChar{codepoint = 0x00002000, name = "EN QUAD"},
+        BadChar{codepoint = 0x00002001, name = "EM QUAD"},
+        BadChar{codepoint = 0x00002002, name = "EN SPACE"},
+        BadChar{codepoint = 0x00002003, name = "EM SPACE"},
+        BadChar{codepoint = 0x00002004, name = "THREE-PER-EM SPACE"},
+        BadChar{codepoint = 0x00002005, name = "FOUR-PER-EM SPACE"},
+        BadChar{codepoint = 0x00002006, name = "SIX-PER-EM SPACE"},
+        BadChar{codepoint = 0x00002007, name = "FIGURE SPACE"},
+        BadChar{codepoint = 0x00002008, name = "PUNCTUATION SPACE"},
+        BadChar{codepoint = 0x00002009, name = "THIN SPACE"},
+        BadChar{codepoint = 0x0000200a, name = "HAIR SPACE"},
+        BadChar{codepoint = 0x00002028, name = "LINE SEPARATOR"},
+        BadChar{codepoint = 0x00002029, name = "PARAGRAPH SEPARATOR"},
+        BadChar{codepoint = 0x0000202f, name = "NARROW NO-BREAK SPACE"},
+        BadChar{codepoint = 0x0000205f, name = "MEDIUM MATHEMATICAL SPACE"},
+        BadChar{codepoint = 0x00003000, name = "IDEOGRAPHIC SPACE"},
+    ]
+
+    first_bad: BadChar* = NULL
+    first_bad_ptr: byte* = NULL
+    for bad = &bad_chars[0]; bad < &bad_chars[sizeof(bad_chars)/sizeof(bad_chars[0])]; bad++:
+        search_string = utf8_encode_char(bad.codepoint)
+        bad_ptr = strstr(file_content, search_string)
+        if bad_ptr != NULL and (first_bad_ptr == NULL or bad_ptr < first_bad_ptr):
+            first_bad = bad
+            first_bad_ptr = bad_ptr
+
+    if first_bad != NULL and first_bad_ptr != NULL:
+        lineno = 0
+        for p = file_content; p < first_bad_ptr; p++:
+            if *p == '\n':
+                lineno++
+        msg: byte[200]
+        snprintf(msg, sizeof(msg), "source file contains Unicode whitespace character U+%08X %s", first_bad.codepoint, first_bad.name)
+        fail(Location{path = path, lineno = lineno}, msg)
+
+
+@public
+class TokenizeResult:
+    tokens: Token*
+
+    # Content of the whole file as one big string.
+    #
+    # Cannot be freed before parsing, because the code included in `assert`
+    # statements comes from here during parsing. It cannot be attached directly
+    # to the tokens because we don't know where each assertion ends when
+    # parsing. It is not necessarily a newline, because e.g. this is allowed:
+    #
+    #   for assert whatever; ...; ...:
+    #       ...
+    file_content: byte*
+
+    def free(self) -> None:
+        free_tokens(self.tokens)
+        free(self.file_content)
+
+
+@public
+def tokenize(path: byte*, import_location: Location*) -> TokenizeResult:
+    file_content = read_file_to_string(path, import_location)
+    detect_bad_chars(path, file_content)
+    raw_tokens = tokenize_without_indent_dedent_tokens(path, file_content)
 
     better_tokens = handle_indentations(raw_tokens)
     free(raw_tokens)
-    return better_tokens
+    return TokenizeResult{tokens = better_tokens, file_content = file_content}

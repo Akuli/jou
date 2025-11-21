@@ -870,6 +870,7 @@ class AstStatement:
             case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
                 pass
 
+    @inline
     def symbol(self) -> GlobalSymbol*:
         match self.kind:
             case (
