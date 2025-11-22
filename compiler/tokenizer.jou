@@ -239,30 +239,41 @@ class Tokenizer:
     open_parens: Token[50]
     open_parens_len: int
 
-    def read_identifier_or_number(self) -> byte[100]:
-        is_number = is_ascii_digit(*self.file_content_ptr)
+    def read_identifier(self) -> byte[100]:
         len = 1  # first byte should already be valid when this is called
 
-        while True:
-            b = self.file_content_ptr[len]
-            if (
-                is_identifier_or_number_byte(b)
-                or (is_number and (b == '.' or (b == '-' and self.file_content_ptr[len-1] == 'e')))
-            ):
-                len++
-            else:
-                result: byte[100]
-                if len >= sizeof(result):
-                    if is_number:
-                        sprintf(result, "number is too long: %.20s...", self.file_content_ptr)
-                    else:
-                        sprintf(result, "name is too long: %.20s...", self.file_content_ptr)
-                    fail(self.location, result)
+        while is_identifier_or_number_byte(self.file_content_ptr[len]):
+            len++
 
-                memcpy(result, self.file_content_ptr, len)
-                result[len] = '\0'
-                self.file_content_ptr = &self.file_content_ptr[len]
-                return result
+        result: byte[100]
+        if len >= sizeof(result):
+            sprintf(result, "name is too long: %.20s...", self.file_content_ptr)
+            fail(self.location, result)
+
+        memcpy(result, self.file_content_ptr, len)
+        result[len] = '\0'
+        self.file_content_ptr = &self.file_content_ptr[len]
+        return result
+
+    def read_number(self) -> byte[100]:
+        len = 1  # first byte should already be valid when this is called
+
+        while (
+            is_identifier_or_number_byte(self.file_content_ptr[len])
+            or self.file_content_ptr[len] == '.'
+            or (self.file_content_ptr[len] == '-' and self.file_content_ptr[len-1] == 'e')
+        ):
+            len++
+
+        result: byte[100]
+        if len >= sizeof(result):
+            sprintf(result, "number is too long: %.20s...", self.file_content_ptr)
+            fail(self.location, result)
+
+        memcpy(result, self.file_content_ptr, len)
+        result[len] = '\0'
+        self.file_content_ptr = &self.file_content_ptr[len]
+        return result
 
     # Returns the indentation level for the next line
     def read_newline_token(self) -> int:
@@ -506,7 +517,7 @@ class Tokenizer:
                     token.integer_value = self.read_byte_literal()
                 case '@':
                     token.kind = TokenKind.Decorator
-                    token.short_string = self.read_identifier_or_number()
+                    token.short_string = self.read_identifier()
                 case '\t':
                     self.file_content_ptr++
                     fail(self.location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
@@ -518,22 +529,20 @@ class Tokenizer:
                 ):
                     token.kind = TokenKind.Operator
                     token.short_string = self.read_operator()
+                case '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
+                    token.short_string = self.read_number()
+                    if is_valid_double(token.short_string):
+                        token.kind = TokenKind.Double
+                    elif is_valid_float(token.short_string):
+                        token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
+                        token.kind = TokenKind.Float
+                    else:
+                        token.kind = TokenKind.Integer
+                        token.integer_value = parse_integer(token.short_string, token.location)
                 case _:
                     if is_identifier_or_number_byte(*self.file_content_ptr):
-                        token.short_string = self.read_identifier_or_number()
-                        if is_keyword(token.short_string):
-                            token.kind = TokenKind.Keyword
-                        elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
-                            if is_valid_double(token.short_string):
-                                token.kind = TokenKind.Double
-                            elif is_valid_float(token.short_string):
-                                token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
-                                token.kind = TokenKind.Float
-                            else:
-                                token.kind = TokenKind.Integer
-                                token.integer_value = parse_integer(token.short_string, token.location)
-                        else:
-                            token.kind = TokenKind.Name
+                        token.short_string = self.read_identifier()
+                        token.kind = TokenKind.Keyword if is_keyword(token.short_string) else TokenKind.Name
                     else:
                         message: byte[100]
                         if is_ascii_printable(*self.file_content_ptr):
