@@ -1,11 +1,14 @@
 import "stdlib/list.jou"
+import "stdlib/process.jou"
 import "stdlib/mem.jou"
+import "stdlib/io.jou"
 
 import "./ast.jou"
 import "./constants.jou"
 import "./command_line_args.jou"
 import "./errors_and_warnings.jou"
 import "./hash.jou"
+import "./llvm.jou"
 import "./target.jou"
 import "./types.jou"
 
@@ -38,6 +41,9 @@ class JouFile:
     # For finding imported symbols quickly
     symbol_hash_table: int*
 
+    # Path of .o file in jou_compiled. Includes hashes, see doc/compiler_internals/lazy-recompile.md
+    object_file_path: byte*
+
     def free(self) -> None:
         for p = self.ast.ptr; p < self.ast.end(); p++:
             p.free()
@@ -45,6 +51,7 @@ class JouFile:
         free(self.path)
         free(self.available_symbols.ptr)
         free(self.symbol_hash_table)
+        free(self.object_file_path)
 
 
 @public
@@ -54,7 +61,7 @@ class SpecialConstant:
 
 
 @public
-class CompilerState:
+class GlobalCompilerState:
     args: CommandLineArgs
     stdlib_path: byte*  # owned
     types: TypeState
@@ -69,7 +76,7 @@ class CompilerState:
     jou_files: List[JouFile]
 
     # Initialized somewhat late during compilation, not needed for a lot of things
-    target: Target
+    target: GlobalTarget
 
     # This method exists only to make valgrind happy. It is called only when
     # the compiler is exiting and the operating system is about to free all
@@ -87,4 +94,25 @@ class CompilerState:
 # For now, there wouldn't be much advantage in passing this around.
 # Can be cleaned up later if needed.
 @public
-global global_compiler_state: CompilerState
+global global_compiler_state: GlobalCompilerState
+
+
+@public
+class ThreadLocalCompilerState:
+    target: ThreadLocalTarget
+    llvm_context: LLVMContext*
+
+    # If you don't call this, each thread leaks memory
+    def free(self) -> None:
+        self.target.free()
+        LLVMContextDispose(self.llvm_context)
+
+
+@public
+def create_thread_local_compiler_state() -> ThreadLocalCompilerState:
+    target = init_thread_local_target()
+    ctx = LLVMContextCreate()
+    if ctx == NULL:
+        fprintf(get_stderr(), "LLVMContextCreate() failed\n")
+        exit(1)
+    return ThreadLocalCompilerState{target = target, llvm_context = ctx}

@@ -1,0 +1,55 @@
+# TODO: move this to stdlib?
+
+@public
+typedef pthread_t = int64  # usually size of pointer, so this assumes 64-bit platform
+
+# Returns an ID describing the current thread. Useful for debug printing.
+@public
+declare pthread_self() -> pthread_t
+
+# Creates and starts a new thread.
+@public
+declare pthread_create(
+    thread: pthread_t*,
+    attr: void*,  # Please pass NULL, or create an issue on GitHub if that won't work for you
+    callback_function: funcptr(void*) -> void*,  # return value goes to pthread_join()
+    callback_arg: void*,  # This is passed to callback function as argument.
+) -> int
+
+# Waits for a thread to complete.
+#
+# When the thread is done, its return value is placed to pointer_to_retval. It
+# can be NULL if you don't care about the return value.
+@public
+declare pthread_join(
+    thread: pthread_t,
+    pointer_to_retval: void*  # Either NULL or &retval. If not NULL, value returned by thread function goes there.
+) -> int
+
+
+# TODO: figure out platform-specific size, e.g. 40 bytes on 64-bit linux.
+#       This is 80 bytes so should be enough for pretty much everything...
+@public
+typedef pthread_mutex_t = int64[10]
+
+# Creates a new mutex.
+@public
+declare pthread_mutex_init(
+    mutex: pthread_mutex_t*,
+    attr: void*,  # Please pass NULL, or create an issue on GitHub if that won't work for you
+) -> int
+
+# Frees memory used by a mutex.
+#
+# POSIX says that this produces UB if the mutex is locked. I haven't tried what
+# would actually happen in reality.
+@public
+declare pthread_mutex_destroy(mutex: pthread_mutex_t*) -> int
+
+# Waits until no other threads have the mutex locked and then lock it.
+@public
+declare pthread_mutex_lock(mutex: pthread_mutex_t*) -> int
+
+# Allows other threads to lock the mutex again.
+@public
+declare pthread_mutex_unlock(mutex: pthread_mutex_t*) -> int
