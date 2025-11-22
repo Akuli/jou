@@ -416,29 +416,9 @@ TODO: not documented yet, sorry :(
 TODO: not documented yet, sorry :(
 
 
-## `int`
+## `int`, `int8`, `int16`, `int32`, `int64`
 
-TODO: not documented yet, sorry :(
-
-
-## `int8`
-
-TODO: not documented yet, sorry :(
-
-
-## `int16`
-
-TODO: not documented yet, sorry :(
-
-
-## `int32`
-
-TODO: not documented yet, sorry :(
-
-
-## `int64`
-
-TODO: not documented yet, sorry :(
+These are [built-in signed integer types](types.md#integers).
 
 
 ## `link`
@@ -516,24 +496,9 @@ TODO: not documented yet, sorry :(
 TODO: not documented yet, sorry :(
 
 
-## `uint8`
+## `uint8`, `uint16`, `uint32`, `uint64`
 
-TODO: not documented yet, sorry :(
-
-
-## `uint16`
-
-TODO: not documented yet, sorry :(
-
-
-## `uint32`
-
-TODO: not documented yet, sorry :(
-
-
-## `uint64`
-
-TODO: not documented yet, sorry :(
+These are [built-in unsigned integer types](types.md#integers).
 
 
 ## `union`
