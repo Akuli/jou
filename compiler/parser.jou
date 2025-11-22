@@ -479,6 +479,8 @@ class Parser:
                 continue
 
             open_bracket = self.eat_operator("[", False, NULL)
+            if self.tokens.is_operator("]"):
+                fail(self.tokens.location, "array length must be specified, e.g. int[10] instead of int[]")
 
             old_tokens_ptr = self.tokens
             if result.kind == AstTypeKind.Named:
