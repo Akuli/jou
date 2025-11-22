@@ -263,11 +263,12 @@ class Tokenizer:
         if b == '\n':
             self.location.lineno--
 
-    def read_identifier_or_number(self, first_byte: byte) -> byte[100]:
+    def read_identifier_or_number(self) -> byte[100]:
         dest: byte[100]
         memset(&dest, 0, sizeof dest)
         destlen = 0
 
+        first_byte = *self.file_content_ptr++
         assert is_identifier_or_number_byte(first_byte) or first_byte == '@'
         dest[destlen++] = first_byte
         is_number = '0' <= first_byte and first_byte <= '9'
@@ -302,21 +303,22 @@ class Tokenizer:
     def read_newline_token(self) -> int:
         level = 0
         while True:
-            c = self.read_byte()
-            match c:
+            match *self.file_content_ptr:
                 case '\0':
                     # End of file. Do not validate that indentation is a
                     # multiple of 4 spaces. Add a trailing newline implicitly
                     # if needed.
                     return 0
                 case '\n':
+                    self.location.lineno++
+                    self.file_content_ptr++
                     level = 0
                 case '#':
                     self.consume_rest_of_line()
                 case ' ':
+                    self.file_content_ptr++
                     level++
                 case _:
-                    self.unread_byte(c)
                     return level
 
     def read_hex_escape_byte(self) -> byte:
@@ -326,8 +328,10 @@ class Tokenizer:
             fail(self.location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte")
         return (n1*16 + n2) as byte
 
-    # Assumes the initial ' has been read.
     def read_byte_literal(self) -> byte:
+        assert *self.file_content_ptr == '\''
+        self.file_content_ptr++
+
         c = self.read_byte()
         if c == '\'':
             fail(self.location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
@@ -381,8 +385,10 @@ class Tokenizer:
 
         return c
 
-    # Assumes the initial " has been read.
     def read_string(self) -> byte*:
+        assert *self.file_content_ptr == '"'
+        self.file_content_ptr++
+
         result = List[byte]{}
         msg: byte[100]
 
@@ -517,15 +523,17 @@ class Tokenizer:
     def read_token(self) -> Token:
         while True:
             token = Token{location = self.location, file_content_ptr = self.file_content_ptr}
-            b = self.read_byte()
-            match b:
+            match *self.file_content_ptr:
                 case ' ':
+                    self.file_content_ptr++
                     continue
                 case '#':
                     self.consume_rest_of_line()
                     continue
                 case '\n':
                     if self.open_parens_len > 0:
+                        self.file_content_ptr++
+                        self.location.lineno++
                         continue
                     token.kind = TokenKind.Newline
                     token.indentation_level = self.read_newline_token()
@@ -537,14 +545,14 @@ class Tokenizer:
                     token.integer_value = self.read_byte_literal()
                 case '@':
                     token.kind = TokenKind.Decorator
-                    token.short_string = self.read_identifier_or_number(b)
+                    token.short_string = self.read_identifier_or_number()
                 case '\t':
                     fail(self.location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
                 case '\0':
                     token.kind = TokenKind.EndOfFile
                 case _:
-                    if is_identifier_or_number_byte(b):
-                        token.short_string = self.read_identifier_or_number(b)
+                    if is_identifier_or_number_byte(*self.file_content_ptr):
+                        token.short_string = self.read_identifier_or_number()
                         if is_keyword(token.short_string):
                             token.kind = TokenKind.Keyword
                         elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
@@ -558,16 +566,15 @@ class Tokenizer:
                                 token.integer_value = parse_integer(token.short_string, token.location)
                         else:
                             token.kind = TokenKind.Name
-                    elif is_operator_byte(b):
-                        self.unread_byte(b)
+                    elif is_operator_byte(*self.file_content_ptr):
                         token.kind = TokenKind.Operator
                         token.short_string = self.read_operator()
                     else:
                         message: byte[100]
-                        if is_ascii_printable(b):
-                            sprintf(message, "unexpected byte '%c' (%#02x)", b, b)
+                        if is_ascii_printable(*self.file_content_ptr):
+                            sprintf(message, "unexpected byte '%c' (%#02x)", *self.file_content_ptr, *self.file_content_ptr)
                         else:
-                            sprintf(message, "unexpected byte %#02x", b)
+                            sprintf(message, "unexpected byte %#02x", *self.file_content_ptr)
                         fail(self.location, message)
 
             self.handle_parentheses(&token)
