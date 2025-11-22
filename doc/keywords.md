@@ -170,3 +170,208 @@ A `const` statement can be marked with `@public` so that it can be [imported](im
 @public
 const MAX_NUMBER_OF_THINGS: int = 100
 ```
+
+
+## `continue`
+
+TODO: not documented yet, sorry :(
+
+
+## `declare`
+
+TODO: not documented yet, sorry :(
+
+
+## `def`
+
+TODO: not documented yet, sorry :(
+
+
+## `double`
+
+TODO: not documented yet, sorry :(
+
+
+## `elif`
+
+TODO: not documented yet, sorry :(
+
+
+## `else`
+
+TODO: not documented yet, sorry :(
+
+
+## `enum`
+
+TODO: not documented yet, sorry :(
+
+
+## `enum_count`
+
+TODO: not documented yet, sorry :(
+
+
+## `False`
+
+TODO: not documented yet, sorry :(
+
+
+## `float`
+
+TODO: not documented yet, sorry :(
+
+
+## `for`
+
+TODO: not documented yet, sorry :(
+
+
+## `funcptr`
+
+TODO: not documented yet, sorry :(
+
+
+## `global`
+
+TODO: not documented yet, sorry :(
+
+
+## `if`
+
+TODO: not documented yet, sorry :(
+
+
+## `import`
+
+TODO: not documented yet, sorry :(
+
+
+## `int`
+
+TODO: not documented yet, sorry :(
+
+
+## `int8`
+
+TODO: not documented yet, sorry :(
+
+
+## `int16`
+
+TODO: not documented yet, sorry :(
+
+
+## `int32`
+
+TODO: not documented yet, sorry :(
+
+
+## `int64`
+
+TODO: not documented yet, sorry :(
+
+
+## `link`
+
+TODO: not documented yet, sorry :(
+
+
+## `match`
+
+TODO: not documented yet, sorry :(
+
+
+## `None`
+
+TODO: not documented yet, sorry :(
+
+
+## `noreturn`
+
+TODO: not documented yet, sorry :(
+
+
+## `not`
+
+TODO: not documented yet, sorry :(
+
+
+## `NULL`
+
+TODO: not documented yet, sorry :(
+
+
+## `or`
+
+TODO: not documented yet, sorry :(
+
+
+## `pass`
+
+TODO: not documented yet, sorry :(
+
+
+## `return`
+
+TODO: not documented yet, sorry :(
+
+
+## `self`
+
+TODO: not documented yet, sorry :(
+
+
+## `sizeof`
+
+TODO: not documented yet, sorry :(
+
+
+## `True`
+
+TODO: not documented yet, sorry :(
+
+
+## `typedef`
+
+TODO: not documented yet, sorry :(
+
+
+## `uint8`
+
+TODO: not documented yet, sorry :(
+
+
+## `uint16`
+
+TODO: not documented yet, sorry :(
+
+
+## `uint32`
+
+TODO: not documented yet, sorry :(
+
+
+## `uint64`
+
+TODO: not documented yet, sorry :(
+
+
+## `union`
+
+TODO: not documented yet, sorry :(
+
+
+## `void`
+
+TODO: not documented yet, sorry :(
+
+
+## `while`
+
+TODO: not documented yet, sorry :(
+
+
+## `with`
+
+TODO: not documented yet, sorry :(
