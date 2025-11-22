@@ -361,7 +361,7 @@ it will be `False`.
 
 ## `float`
 
-TODO: not documented yet, sorry :(
+This is [the built-in `float` type](types.md#floating-point-numbers).
 
 
 ## `for`
