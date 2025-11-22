@@ -318,7 +318,7 @@ This keyword is used with [if](#if) statements and it does what any programmer w
 
 ## `enum`
 
-TODO: not documented yet, sorry :(
+Used to define an enum. See [enums.md](enums.md).
 
 
 ## `enum_count`
