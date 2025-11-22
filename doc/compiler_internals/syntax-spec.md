@@ -67,63 +67,12 @@ Jou has a few different kinds of tokens:
 - **Name tokens** consist of one or more letters A-Z or a-z, numbers 0-9 and underscores `_`.
     The first character of a name token cannot be a number.
 
-    If the name token is in the keyword list below, it is not actually a name token
+    If the name token is [a keyword](../keywords.md), it is not actually a name token
     and it turns into a keyword token instead.
     This means that keywords cannot be used in places that use a name token,
     such as variable names and function names.
 
-- **Keyword tokens** are any of the following:
-    - `import`
-    - `link`
-    - `def`
-    - `declare`
-    - `class`
-    - `union`
-    - `enum`
-    - `typedef`
-    - `global`
-    - `const`
-    - `if`
-    - `elif`
-    - `else`
-    - `while`
-    - `for`
-    - `pass`
-    - `break`
-    - `continue`
-    - `match`
-    - `with`
-    - `case`
-    - `return`
-    - `True`
-    - `False`
-    - `None`
-    - `NULL`
-    - `self`
-    - `and`
-    - `or`
-    - `not`
-    - `as`
-    - `sizeof`
-    - `array_count`
-    - `enum_count`
-    - `assert`
-    - `bool`
-    - `float`
-    - `double`
-    - `byte`
-    - `int`
-    - `int8`
-    - `int16`
-    - `int32`
-    - `int64`
-    - `uint8`
-    - `uint16`
-    - `uint32`
-    - `uint64`
-    - `void`
-    - `noreturn`
-    - `funcptr`
+- **Keyword tokens** are any of the keywords documented in [keywords.md](../keywords.md).
 - **Newline tokens** occur at the end of a line of code.
     Lines that only contain spaces and comments do not produce a newline token;
     this ensures that blank lines are ignored as they should be.

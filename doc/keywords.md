@@ -15,7 +15,7 @@ Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo`
 
 Use `array_count(array)` to get the number of elements in [an array](types.md#pointers-and-arrays) as `int`.
 The parentheses are optional.
-The number of elements of an array is always known at compile time, and in fact,
+The number of elements in an array is always known at compile time, and in fact,
 the `array` is not evaluated when the program runs.
 
 For example:
@@ -34,6 +34,15 @@ Another way to get the size of an array is to do `sizeof(array) / sizeof(array[0
 For example, in the above example, this would calculate `40 / 4`,
 because [the array is just 10 `int`s next to each other](types.md#pointers-and-arrays)
 and [each `int` is 4 bytes](types.md#integers).
+
+Unlike the `sizeof` trick, `array_count(array)` will fail to compile
+if you accidentally call it on a pointer:
+
+```python
+def main() -> int:
+    x = 123
+    n = array_count(&x)  # Error: array_count must be called on an array, not int*
+```
 
 
 ## `as`
@@ -204,7 +213,7 @@ Unlike most other keywords in Jou, this keyword has two meanings.
 However, they are easy to distinguish:
 `declare global` means a different thing than `declare` followed by anything else.
 
-**The first**, most common use for `declare` is to declare functions.
+**The first, most common use** for `declare` is to declare functions.
 This means telling the compiler that a function exists without defining it.
 For example, in the example below, the `declare` statement means that
 there is a function `puts()`, and it takes a string.
@@ -230,7 +239,7 @@ A `declare` statement can be decorated with `@public` so that it can be [importe
 
 For many more examples of declaring functions, look at [stdlib/io.jou](../stdlib/io.jou) or other stdlib files.
 
-The second way to use `declare` is `declare global`.
+**The second, rarely needed** way to use `declare` is `declare global`.
 It tells the compiler that a global variable exists without defining it.
 For example, on Linux, [stdlib/io.jou](../stdlib/io.jou) does this
 to access the `stdin`, `stdout` and `stderr` variables defined in C's standard library:
@@ -248,7 +257,8 @@ A `declare global` statement can be decorated with `@public`, but this is rarely
 
 ## `def`
 
-The `def` keyword defines a function. For example:
+The `def` keyword defines a function, or if placed inside a class, it [defines a method](classes.md#methods).
+For example:
 
 ```python
 import "stdlib/io.jou"
@@ -264,10 +274,11 @@ def main() -> int:
     return 0
 ```
 
-Compared to e.g. Python, Jou's function definitions are quite simple:
-there are no keyword arguments or default values, for example.
+Compared to e.g. Python, Jou's function and method definitions are quite simple.
+For example, there are no keyword-only arguments, positional-only arguments or default values:
+just argument names and their types.
 
-It is currently it is not possible to define a variadic function like `printf()`,
+It is currently not possible to define a variadic function like `printf()`,
 but it is possible to [declare](#declare) a variadic function.
 
 **See also:** [declare](#declare), [None](#none), [noreturn](#noreturn)
@@ -347,7 +358,7 @@ def main() -> int:
 
 Unlike a simple `states = [False, False]`, or `states: bool[2]` followed by the `memset()`,
 the above example won't write beyond the end of the `states` array
-if someone adds support for a `Middle` mouse button in the future<.
+if someone adds support for a `Middle` mouse button in the future.
 
 
 ## `False`
@@ -392,6 +403,11 @@ Each of `init`, `cond` and `incr` are optional.
 If `cond` is omitted, it defaults to `True`.
 As an extreme example, `for ;;:` creates an infinite loop,
 but `while True:` is much more readable and hence recommended.
+
+Jou does not have a `for thing in collection:` loop,
+because different kinds of collections (list, array, string, custom data structure, ...)
+would need to be handled differently,
+and Jou is a simple language without much hidden magic.
 
 **See also:** [while](#while), [break](#break), [continue](#continue)
 
@@ -475,13 +491,13 @@ import "stdlib/io.jou"
 import "stdlib/process.jou"
 
 def fail(message: byte*) -> None:
-    fprintf(get_stderr(), "Error: %s\n", message)
-    exit(123)
+    fprintf(get_stderr(), "Well, it seems like we %s :(\n", message)
+    exit(1)
 
 def main() -> int:
     f = fopen("thingy.txt", "r")
     if f == NULL:  # Warning: function 'main' doesn't seem to return a value in all cases
-        fail("cannot open file")  # Output: Error: cannot open file
+        fail("cannot open file")  # Output: Well, it seems like we cannot open file :(
     else:
         fclose(f)
         return 0
@@ -504,10 +520,9 @@ Type type of `foo` must be `bool`.
 
 ## `NULL`
 
-`NULL` is a special pointer that is used as a special "missing" value with pointers.
-It can only be used with pointer types.
+`NULL` is a special pointer that is used as a special "missing" value.
 Jou's `NULL` constant has type [`void*`](types.md#pointers-and-arrays),
-so it converts implicitly to any other type.
+so it converts implicitly to any other pointer type.
 
 For example, the `strstr()` function declared in [stdlib/str.jou](../stdlib/str.jou)
 finds a substring from a string, and returns a pointer to the substring it finds,
@@ -544,7 +559,7 @@ Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo`
 
 ## `pass`
 
-The `pass` statement does nothing, just like in Python.
+The `pass` statement does nothing, [just like in Python](https://stackoverflow.com/questions/13886168/how-to-use-pass-statement).
 For example:
 
 ```python
@@ -558,7 +573,7 @@ def main() -> int:
     elif x < 0:
         printf("Way too small\n")
     elif x == 5:
-        pass  # Just right, no need to print error message
+        pass  # Just right, no need to print a message
     else:
         printf("Close, but not quite...\n")  # Output: Close, but not quite...
 
@@ -566,8 +581,8 @@ def main() -> int:
 ```
 
 Without the `pass`, you would get a compiler error,
-because the next line after `elif whatever:` must be indented, but the `else` line isn't.
-A comments or a blank line is not enough, because the compiler ignores comments and blank lines.
+because the next line after `elif whatever:` must be indented, but the `else` line is not indented.
+A comment or blank line is not enough, because the compiler ignores comments and blank lines.
 
 In the above example, you could instead write `elif x != 5`,
 but that's not always possible.
