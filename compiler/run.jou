@@ -23,6 +23,7 @@ def get_quoted_object_file_paths() -> byte*:
         result.append('"')
         result.extend_from_ptr(jou_file.object_file_path, strlen(jou_file.object_file_path))
         result.append('"')
+    result.append('\0')
     return result.ptr
 
 

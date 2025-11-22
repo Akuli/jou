@@ -6,7 +6,6 @@ import "stdlib/str.jou"
 import "stdlib/process.jou"
 
 import "./ast.jou"
-import "./builders/hash_builder.jou"
 import "./builders/llvm_builder.jou"
 import "./builders/uvg_builder.jou"
 import "./command_line_args.jou"
@@ -155,22 +154,21 @@ def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
     return mod
 
 
-def find_existing_object_file_or_compile_to_object_file(jou_file: JouFile*) -> byte*:
-    content_hash = build_content_hash(jou_file)
+def find_existing_object_file_or_compile_to_object_file(jou_file: JouFile*) -> None:
+    assert jou_file.object_file_path == NULL
+
     exists: bool
-    o_path = get_path_to_object_file_in_jou_compiled(jou_file.path, content_hash, &exists)
+    jou_file.object_file_path = get_path_to_object_file_in_jou_compiled(jou_file, &exists)
 
     if exists:
         if global_compiler_state.args.verbosity >= 1:
-            printf("Reusing previously compiled file: %s\n", o_path)
+            printf("Reusing previously compiled file: %s\n", jou_file.object_file_path)
     else:
         mod = build_and_verify_llvm_ir(jou_file)
         if global_compiler_state.args.optlevel != 0:
             optimize(mod, global_compiler_state.args.optlevel)
-        write_llvm_ir_to_file(mod, o_path)
+        write_llvm_ir_to_file(mod, jou_file.object_file_path)
         LLVMDisposeModule(mod)
-
-    return o_path
 
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
@@ -433,9 +431,7 @@ def compile_to_object_files() -> None:
 
     init_target(&global_compiler_state.target)
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        o_path = find_existing_object_file_or_compile_to_object_file(jou_file)
-        assert jou_file.object_file_path == NULL
-        object_file_path = o_path
+        find_existing_object_file_or_compile_to_object_file(jou_file)
 
 
 def compile_to_jou_compiled_and_run() -> int:

@@ -8,6 +8,7 @@ import "stdlib/process.jou"
 
 import "./state.jou"
 import "./hash.jou"
+import "./builders/hash_builder.jou"
 
 if WINDOWS:
     declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
@@ -371,11 +372,12 @@ def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
 
 
 @public
-def get_path_to_object_file_in_jou_compiled(jou_file_path: byte*, content_hash: Hash, exists: bool*) -> byte*:
+def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, exists: bool*) -> byte*:
     subfolder = get_path_to_jou_compiled_subfolder()
 
-    simple_name = get_simple_name(jou_file_path)
-    identifier_hash = calculate_identifier_hash(jou_file_path)
+    simple_name = get_simple_name(jou_file.path)
+    content_hash = build_content_hash(jou_file)
+    identifier_hash = calculate_identifier_hash(jou_file.path)
 
     # See doc/lazy-recompile.md for an explaanation of the file naming.
     # Example file name: simple_name_0011223344556677_8899aabbccddeeff.o
