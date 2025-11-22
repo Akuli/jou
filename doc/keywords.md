@@ -413,7 +413,8 @@ TODO: not documented yet, sorry :(
 
 ## `import`
 
-TODO: not documented yet, sorry :(
+The `import` keyword is used to access things defined with `@public` in another file.
+See [imports.md](imports.md).
 
 
 ## `int`, `int8`, `int16`, `int32`, `int64`
