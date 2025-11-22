@@ -125,3 +125,48 @@ This keyword can only be used in `match` statements. See [match.md](match.md).
 ## `class`
 
 Used to define a class. See [classes.md](classes.md).
+
+
+## `const`
+
+The `const FOO: SomeType = value` syntax is used to create a name for a compile-time constant.
+This is similar to [global variables](#global) except that `const`s cannot be changed.
+By convention, constants are usually named with UPPERCASE.
+
+For example:
+
+```python
+import "stdlib/io.jou"
+
+const MESSAGE: byte* = "Hello World!"
+
+def main() -> int:
+    puts(MESSAGE)   # Output: Hello World!
+    return 0
+```
+
+The values of `const` constants can be used in various other places too,
+such as array sizes and other `const` constants.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+const THE_ACTUAL_SIZE: int = 123
+const SIZE: int = THE_ACTUAL_SIZE
+
+def main() -> int:
+    array: int[SIZE]
+
+    # Output: The array has room for 123 ints.
+    printf("The array has room for %d ints.\n", array_count(array))
+
+    return 0
+```
+
+A `const` statement can be marked with `@public` so that it can be [imported](import.md) into other files:
+
+```python
+@public
+const MAX_NUMBER_OF_THINGS: int = 100
+```
