@@ -6,7 +6,7 @@ This file documents what each keyword in the Jou language does.
 ## `and`
 
 The result of `foo and bar` is `True` if `foo` and `bar` are both `True`, and otherwise `False`.
-Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo` is `False`.
+Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo` evaluates to `False`.
 
 **See also:** [or](#or), [not](#not)
 
@@ -534,7 +534,9 @@ Accessing a NULL pointer [produces UB, and typically crashes the program](ub.md#
 
 ## `or`
 
-TODO: not documented yet, sorry :(
+The result of `foo or bar` is `True` if either `foo` or `bar` is `True`, or both are `True`,
+and `False` if neither is `True`.
+Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo` evaluates to `True`.
 
 **See also:** [and](#and), [not](#not)
 
