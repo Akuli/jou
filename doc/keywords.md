@@ -280,7 +280,35 @@ This is [the built-in `double` type](types.md#floating-point-numbers).
 
 ## `elif`
 
-TODO: not documented yet, sorry :(
+The `elif` keyword is similar to `else if` in languages like C. For example, consider the following:
+
+```python
+if foo:
+    ...
+else:
+    if bar:
+        ...
+    else:
+        if baz:
+            ...
+        else:
+            ...
+```
+
+With `elif`, this can be written much more cleanly:
+
+```python
+if foo:
+    ...
+elif bar:
+    ...
+elif baz:
+    ...
+else:
+    ...
+```
+
+**See also:** [if](#if), [else](#else), [match](#match)
 
 
 ## `else`
