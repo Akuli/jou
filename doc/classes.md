@@ -145,7 +145,7 @@ For convenience, the `.` operator can also be applied to a pointer to an instanc
 ## Methods
 
 The above `increment_y()` function does something with a point,
-so instead of a function, it would be better to write it as a method in the `Point` class:
+so instead of a function, we can also write it as a method in the `Point` class:
 
 ```python
 import "stdlib/io.jou"
