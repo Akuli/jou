@@ -429,7 +429,8 @@ TODO: not documented yet, sorry :(
 
 ## `match`
 
-TODO: not documented yet, sorry :(
+The `match` statement is basically a way to write long [if](#if)/[elif](#elif)/[else](#else) chains nicely.
+See [match.md](match.md).
 
 
 ## `None`
