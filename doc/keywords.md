@@ -5,8 +5,8 @@ This file documents what each keyword in the Jou language does.
 
 ## `and`
 
-`foo and bar` evaluates to `True` if `foo` and `bar` are both True.
-Both `foo` and `bar` must be `bool`s, and `bar` will not be evaluated at all if `foo` is `False`.
+The result of `foo and bar` is `True` if `foo` and `bar` are both `True`, and otherwise `False`.
+Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo` is `False`.
 
 **See also:** [or](#or), [not](#not)
 
@@ -56,13 +56,13 @@ def main() -> int:
     assert x == 1   # does nothing
     assert x > 5    # Output: Assertion 'x > 5' failed in file "test.jou", line 7.
 
-    # These will not run, because the failing assertion stopped the program.
+    # These don't run, because the failing assertion stopped the program.
     printf("Hello\n")
     return 0
 ```
 
 You need to import [stdlib/assert.jou](../stdlib/assert.jou) to use `assert`.
-The compiler will tell you to do so if you forget it:
+The compiler tells you what to do if you forget it:
 
 ```python
 def main() -> int:
@@ -346,15 +346,15 @@ def main() -> int:
 ```
 
 Unlike a simple `states = [False, False]`, or `states: bool[2]` followed by the `memset()`,
-the above example will not write beyond the end of the `states` array
-if someone adds support for a `Middle` mouse button in the future.
+the above example won't write beyond the end of the `states` array
+if someone adds support for a `Middle` mouse button in the future<.
 
 
 ## `False`
 
 This is a constant of type [bool](#bool) represented by a zero byte in memory.
-This means that if you initialize the memory to zero and interpret it as a `bool`,
-it will be `False`.
+This means that if you initialize some memory to zero and interpret it as a `bool`,
+you get `False`.
 
 **See also:** [True](#true), [bool](#bool)
 
@@ -457,11 +457,12 @@ def main() -> int:
 
 ## `noreturn`
 
-The `noreturn` keyword can only be used after `->` in a function [definition](#def) or [declaration](#declare)
-that the function will **never return at all**, not with a value or without a value.
-In other words, `noreturn` should only be used for functions that
-do an infinite loop or stop the whole program.
+The `noreturn` keyword can only be used after `->` in a function [definition](#def) or [declaration](#declare).
+It means that the function **never returns at all**, not with a value or without a value.
 Use [None](#none) instead if you want to say that a function does not return a value.
+
+Basically, `noreturn` should only be used for functions that
+do an infinite loop or stop the whole program.
 
 One use case for `noreturn` is error handling functions that stop the program.
 For example, consider the following code.
