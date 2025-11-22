@@ -19,20 +19,32 @@ if not WINDOWS:
 
 
 @public
-class Target:
+class GlobalTarget:
+    # Stuff that LLVM wants to share among all threads
     ready: bool
     triple: byte[100]
-    data_layout: byte[500]
     target: LLVMTarget*
-    target_machine: LLVMTargetMachine*
-    target_data: LLVMTargetData*
+    data_layout: byte[500]
 
 
 @public
-def init_target(target: Target*) -> None:
+class ThreadLocalTarget:
+    # Stuff that LLVM wants to be thread local for some reason. If you get this
+    # distinction wrong, you will get random crashes that are hard to debug.
+    machine: LLVMTargetMachine*
+    data: LLVMTargetData*
+
+    def free(self) -> None:
+        LLVMDisposeTargetMachine(self.machine)
+        LLVMDisposeTargetData(self.data)
+
+
+@public
+def init_global_target() -> None:
     # This should be called only once because this affects LLVM's global state and
     # there's no cleanup to some of the things this does.
-    assert not target.ready
+    assert not global_compiler_state.target.ready
+    global_compiler_state.target.ready = True
 
     LLVMInitializeX86TargetInfo()
     LLVMInitializeX86Target()
@@ -54,44 +66,54 @@ def init_target(target: Target*) -> None:
 
     if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
-        target.triple = "x86_64-pc-windows-gnu"
+        global_compiler_state.target.triple = "x86_64-pc-windows-gnu"
     else:
         triple = LLVMGetDefaultTargetTriple()
-        assert strlen(triple) < sizeof target.triple
-        strcpy(target.triple, triple)
+        assert strlen(triple) < sizeof global_compiler_state.target.triple
+        strcpy(global_compiler_state.target.triple, triple)
         LLVMDisposeMessage(triple)
 
     error: byte* = NULL
-    if LLVMGetTargetFromTriple(target.triple, &target.target, &error) != 0:
+    if LLVMGetTargetFromTriple(global_compiler_state.target.triple, &global_compiler_state.target.target, &error) != 0:
         assert error != NULL
-        fprintf(get_stderr(), "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", target.triple, error)
+        fprintf(get_stderr(), "LLVMGetTargetFromTriple(\"%s\") failed: %s\n", global_compiler_state.target.triple, error)
         exit(1)
     assert error == NULL
-    assert target.target != NULL
+    assert global_compiler_state.target.target != NULL
 
-    # TODO: This should be thread local!!!
-    target.target_machine = LLVMCreateTargetMachine(
-        target.target,
-        target.triple,
+    # The data layout is a string, hence always the same in all threads. But to
+    # create it, we need an LLVMTargetData which is usually thread specific.
+    #
+    # LLVM is awesome, isn't it? All this just to get things to work without
+    # corner cases where either the compiler or the program crashes...
+    dummy_target = init_thread_local_target()
+    tmp = LLVMCopyStringRepOfTargetData(dummy_target.data)
+    assert strlen(tmp) < sizeof global_compiler_state.target.data_layout
+    strcpy(global_compiler_state.target.data_layout, tmp)
+    LLVMDisposeMessage(tmp)
+    dummy_target.free()
+
+    if global_compiler_state.args.verbosity >= 2:
+        printf("Target triple: %s\n", global_compiler_state.target.triple)
+        printf("Data layout: %s\n", global_compiler_state.target.data_layout)
+
+
+@public
+def init_thread_local_target() -> ThreadLocalTarget:
+    assert global_compiler_state.target.ready
+
+    machine = LLVMCreateTargetMachine(
+        global_compiler_state.target.target,
+        global_compiler_state.target.triple,
         "",
         "",
         LLVMCodeGenOptLevel.Default,
         LLVMRelocMode.PIC,
         LLVMCodeModel.Default,
     )
-    assert target.target_machine != NULL
+    assert machine != NULL
 
-    # TODO: This should be thread local!!!
-    target.target_data = LLVMCreateTargetDataLayout(target.target_machine)
-    assert target.target_data != NULL
+    data = LLVMCreateTargetDataLayout(machine)
+    assert data != NULL
 
-    tmp = LLVMCopyStringRepOfTargetData(target.target_data)
-    assert strlen(tmp) < sizeof target.data_layout
-    strcpy(target.data_layout, tmp)
-    LLVMDisposeMessage(tmp)
-
-    if global_compiler_state.args.verbosity >= 2:
-        printf("Target triple: %s\n", target.triple)
-        printf("Data layout: %s\n", target.data_layout)
-
-    target.ready = True
+    return ThreadLocalTarget{machine = machine, data = data}

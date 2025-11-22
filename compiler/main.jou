@@ -324,7 +324,7 @@ def check() -> None:
 
 def compile_to_object_files() -> None:
     check()
-    init_target(&global_compiler_state.target)
+    init_global_target()
 
     needs_compiling = List[JouFile*]{}
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:

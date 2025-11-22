@@ -6,6 +6,7 @@ import "./constants.jou"
 import "./command_line_args.jou"
 import "./errors_and_warnings.jou"
 import "./hash.jou"
+import "./llvm.jou"
 import "./target.jou"
 import "./types.jou"
 
@@ -58,7 +59,7 @@ class SpecialConstant:
 
 
 @public
-class CompilerState:
+class GlobalCompilerState:
     args: CommandLineArgs
     stdlib_path: byte*  # owned
     types: TypeState
@@ -73,7 +74,7 @@ class CompilerState:
     jou_files: List[JouFile]
 
     # Initialized somewhat late during compilation, not needed for a lot of things
-    target: Target
+    target: GlobalTarget
 
     # This method exists only to make valgrind happy. It is called only when
     # the compiler is exiting and the operating system is about to free all
@@ -86,9 +87,19 @@ class CompilerState:
         self.types.free()
 
 
+@public
+class ThreadLocalCompilerState:
+    target: ThreadLocalTarget
+    llvm_context: LLVMContext*
+
+    def free(self) -> None:
+        self.target.free()
+        LLVMContextDispose(self.llvm_context)
+
+
 # Yes, I know, everyone hates global variables, especially public global variables...
 #
 # For now, there wouldn't be much advantage in passing this around.
 # Can be cleaned up later if needed.
 @public
-global global_compiler_state: CompilerState
+global global_compiler_state: GlobalCompilerState
