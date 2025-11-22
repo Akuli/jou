@@ -69,7 +69,6 @@ def choose_num_threads(files_to_compile: List[JouFile*]) -> int:
     if num_threads == 0:
         # Argument not given on command line
         num_threads = get_number_of_cpus()
-        return 0  # TODO: delete this to use threading by default, still fails CI randomly so disable for now
 
     if num_threads > files_to_compile.len:
         num_threads = files_to_compile.len as int
@@ -176,7 +175,7 @@ def compile_to_object_file(state: ThreadLocalCompilerState*, jou_file: JouFile*)
     LLVMDisposeModule(mod)
 
 
-class ThreadInputs:
+class FileQueue:
     jou_files_ptr: JouFile**
     jou_files_end: JouFile**
     mutex: pthread_mutex_t
@@ -201,6 +200,11 @@ class ThreadInputs:
         return jou_file
 
 
+class ThreadInputs:
+    queue: FileQueue*
+    state: ThreadLocalCompilerState
+
+
 # This is the function that runs in another thread
 def pthreads_callback(inputs_ptr: void*) -> void*:
     inputs: ThreadInputs* = inputs_ptr
@@ -208,18 +212,15 @@ def pthreads_callback(inputs_ptr: void*) -> void*:
     if global_compiler_state.args.verbosity >= 2:
         printf("[thread %llx] Started...\n", pthread_self() as uint64)
 
-    state = create_thread_local_compiler_state()
-
     while True:
-        jou_file = inputs.get_next_file()
+        jou_file = inputs.queue.get_next_file()
         if jou_file == NULL:
             break
-        compile_to_object_file(&state, jou_file)
+        compile_to_object_file(&inputs.state, jou_file)
 
     if global_compiler_state.args.verbosity >= 2:
         printf("[thread %llx] Done\n", pthread_self())
 
-    state.free()
     return NULL
 
 
@@ -238,18 +239,20 @@ def compile_to_object_files_in_parallel(files_to_compile: List[JouFile*]) -> Non
         state.free()
         return
 
-    inputs = ThreadInputs{jou_files_ptr = files_to_compile.ptr, jou_files_end = files_to_compile.end()}
-
-    ret = pthread_mutex_init(&inputs.mutex, NULL)
+    queue = FileQueue{jou_files_ptr = files_to_compile.ptr, jou_files_end = files_to_compile.end()}
+    ret = pthread_mutex_init(&queue.mutex, NULL)
     if ret != 0:
         fprintf(get_stderr(), "pthread_mutex_init failed: %s\n", strerror(ret))
         exit(1)
 
     threads: pthread_t* = malloc(sizeof(threads[0]) * num_threads)
     assert threads != NULL
+    inputs: ThreadInputs* = malloc(sizeof(inputs[0]) * num_threads)
+    assert threads != NULL
 
     for i = 0; i < num_threads; i++:
-        ret = pthread_create(&threads[i], NULL, pthreads_callback, &inputs)
+        inputs[i] = ThreadInputs{queue = &queue, state = create_thread_local_compiler_state()}
+        ret = pthread_create(&threads[i], NULL, pthreads_callback, &inputs[i])
         if ret != 0:
             fprintf(get_stderr(), "pthread_create failed: %s\n", strerror(ret))
             exit(1)
@@ -259,6 +262,7 @@ def compile_to_object_files_in_parallel(files_to_compile: List[JouFile*]) -> Non
         if ret != 0:
             fprintf(get_stderr(), "pthread_join failed: %d\n", ret)
             exit(1)
+        inputs[i].state.free()
 
-    pthread_mutex_destroy(&inputs.mutex)
+    pthread_mutex_destroy(&queue.mutex)
     free(threads)
