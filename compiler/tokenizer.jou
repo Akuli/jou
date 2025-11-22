@@ -261,33 +261,29 @@ class Tokenizer:
             self.location.lineno--
 
     def read_identifier_or_number(self) -> byte[100]:
-        dest: byte[100]
-        memset(&dest, 0, sizeof dest)
-        destlen = 0
-
-        first_byte = *self.file_content_ptr++
-        assert is_identifier_or_number_byte(first_byte) or first_byte == '@'
-        dest[destlen++] = first_byte
-        is_number = '0' <= first_byte and first_byte <= '9'
+        is_number = is_ascii_digit(*self.file_content_ptr)
+        len = 1  # first byte should already be valid when this is called
 
         while True:
-            b = self.read_byte()
+            b = self.file_content_ptr[len]
             if (
                 is_identifier_or_number_byte(b)
-                or (is_number and (b == '.' or (b == '-' and dest[destlen-1] == 'e')))
+                or (is_number and (b == '.' or (b == '-' and self.file_content_ptr[len-1] == 'e')))
             ):
-                if destlen == sizeof dest - 1:
-                    if is_number:
-                        template = "number is too long: %.20s..."
-                    else:
-                        template = "name is too long: %.20s..."
-                    message: byte[100]
-                    sprintf(message, template, dest)
-                    fail(self.location, message)
-                dest[destlen++] = b
+                len++
             else:
-                self.unread_byte(b)
-                return dest
+                result: byte[100]
+                if len >= sizeof(result):
+                    if is_number:
+                        sprintf(result, "number is too long: %.20s...", self.file_content_ptr)
+                    else:
+                        sprintf(result, "name is too long: %.20s...", self.file_content_ptr)
+                    fail(self.location, result)
+
+                memcpy(result, self.file_content_ptr, len)
+                result[len] = '\0'
+                self.file_content_ptr = &self.file_content_ptr[len]
+                return result
 
     # Returns the indentation level for the next line
     def read_newline_token(self) -> int:
