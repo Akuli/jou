@@ -30,9 +30,11 @@ import "./pthreads.jou"
 # TODO: stdlib?
 declare rename(oldpath: byte*, newpath: byte*) -> int
 
-if not WINDOWS:
+if WINDOWS:
+    declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
+    const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
+else:
     declare sysconf(n: int) -> int64
-
     if MACOS:
         const _SC_NPROCESSORS_ONLN: int = 58
     elif NETBSD:
@@ -44,11 +46,13 @@ if not WINDOWS:
 
 def get_number_of_cpus() -> int:
     if WINDOWS:
-        return 2  # TODO
+        result = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) as int
     else:
-        result = sysconf(_SC_NPROCESSORS_ONLN)
-        printf("*** DEBUG: sysconf(%d) returned %d\n", _SC_NPROCESSORS_ONLN, result as int)
-        return result as int
+        result = sysconf(_SC_NPROCESSORS_ONLN) as int
+
+    if global_compiler_state.args.verbosity >= 2:
+        printf("%d CPU cores\n", result)
+    return result
 
 
 def choose_num_threads(files_to_compile: List[JouFile*]) -> int:
