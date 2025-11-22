@@ -275,7 +275,7 @@ but it is possible to [declare](#declare) a variadic function.
 
 ## `double`
 
-TODO: not documented yet, sorry :(
+This is [the built-in `double` type](types.md#floating-point-numbers).
 
 
 ## `elif`
