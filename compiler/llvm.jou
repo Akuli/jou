@@ -284,8 +284,10 @@ declare LLVMFloatTypeInContext(C: LLVMContext*) -> LLVMType*
 declare LLVMDoubleTypeInContext(C: LLVMContext*) -> LLVMType*
 @public
 declare LLVMFunctionType(ReturnType: LLVMType*, ParamTypes: LLVMType**, ParamCount: int, IsVarArg: int) -> LLVMType*
+#@public
+#declare LLVMStructType(ElementTypes: LLVMType**, ElementCount: int, Packed: int) -> LLVMType*
 @public
-declare LLVMStructType(ElementTypes: LLVMType**, ElementCount: int, Packed: int) -> LLVMType*
+declare LLVMStructTypeInContext(C: LLVMContext*, ElementTypes: LLVMType**, ElementCount: int, Packed: int) -> LLVMType*
 @public
 declare LLVMArrayType(ElementType: LLVMType*, ElementCount: int) -> LLVMType*
 #@public

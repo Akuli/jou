@@ -78,7 +78,7 @@ def class_type_to_llvm(type: Type*, ctx: LLVMContext*) -> LLVMType*:
             end++
         combined[combinedlen++] = union_type_to_llvm(&flat_elems[start], end-start, ctx)
 
-    result = LLVMStructType(combined, combinedlen, False as int)
+    result = LLVMStructTypeInContext(ctx, combined, combinedlen, False as int)
     free(flat_elems)
     free(combined)
     return result
