@@ -213,7 +213,7 @@ def find_stdlib() -> byte*:
     while WINDOWS and strstr(exedir, "\\") != NULL:
         *strstr(exedir, "\\") = '/'
 
-    for i = 0; i < sizeof checked / sizeof checked[0]; i++:
+    for i = 0; i < array_count(checked); i++:
         tmp = strdup(dirname(exedir))
         free(exedir)
         exedir = tmp
@@ -240,7 +240,7 @@ def find_stdlib() -> byte*:
 
     # TODO: test this
     fprintf(get_stderr(), "error: cannot find the Jou standard library in any of the following locations:\n")
-    for i = 0; i < sizeof checked / sizeof checked[0] and checked[i] != NULL; i++:
+    for i = 0; i < array_count(checked) and checked[i] != NULL; i++:
         fprintf(get_stderr(), "  %s\n", checked[i])
     exit(1)
 

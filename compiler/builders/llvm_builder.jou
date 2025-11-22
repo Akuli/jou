@@ -118,8 +118,7 @@ def funcptr_type_to_llvm(t: Type*) -> LLVMType*:
     assert t.kind == TypeKind.FuncPtr
 
     assert t.func_ptr.argtypes.len <= MAX_ARGS
-    assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
-    argtypes: LLVMType*[100]
+    argtypes: LLVMType*[MAX_ARGS]
     for i = 0; i < t.func_ptr.argtypes.len; i++:
         argtypes[i] = type_to_llvm(t.func_ptr.argtypes.ptr[i])
 
@@ -464,8 +463,7 @@ class LBuilder:
 
     def call_function(self, funcptr_type: Type*, func: LBuilderValue, args: LBuilderValue*, nargs: int) -> LBuilderValue:
         assert nargs <= MAX_ARGS
-        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
-        llvm_args: LLVMValue*[100]
+        llvm_args: LLVMValue*[MAX_ARGS]
         for i = 0; i < nargs; i++:
             llvm_args[i] = args[i].llvm_value
 
@@ -490,8 +488,7 @@ class LBuilder:
             assert sig.takes_varargs
 
         assert nargs <= MAX_ARGS
-        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
-        llvm_args: LLVMValue*[100]
+        llvm_args: LLVMValue*[MAX_ARGS]
         for i = 0; i < nargs; i++:
             llvm_args[i] = args[i].llvm_value
 

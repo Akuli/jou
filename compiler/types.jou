@@ -2,6 +2,7 @@ import "stdlib/assert.jou"
 import "stdlib/mem.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+import "stdlib/limits.jou"
 
 import "./ast.jou"
 import "./state.jou"
@@ -125,15 +126,13 @@ class Type:
             case TypeKind.SignedInteger:
                 match self.size_in_bits:
                     case 8:
-                        return -0x80
+                        return INT8_MIN
                     case 16:
-                        return -0x8000
+                        return INT16_MIN
                     case 32:
-                        # TODO: This is more difficult than it should be.
-                        return -(0x8000_0000 as int64)
+                        return INT32_MIN
                     case 64:
-                        # TODO: This is more difficult than it should be. Relies on overflow.
-                        return (0x8000_0000_0000_0000 as uint64) as int64
+                        return INT64_MIN
                     case _:
                         assert False
             case TypeKind.UnsignedInteger:
@@ -291,8 +290,7 @@ class Type:
             case TypeKind.FuncPtr:
                 nargs = self.func_ptr.argtypes.len
                 assert nargs <= MAX_ARGS
-                assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
-                new_argtypes: Type*[100]
+                new_argtypes: Type*[MAX_ARGS]
 
                 for i = 0; i < nargs; i++:
                     new_argtypes[i] = self.func_ptr.argtypes.ptr[i].substitute_generic_params(from, to, n)
@@ -440,9 +438,9 @@ class TypeState:
         self.floater.free_related_types()
         self.doublelele.free_related_types()
         self.voidptr.free_related_types()
-        for i = 0; i < sizeof(self.ints)/sizeof(self.ints[0]); i++:
+        for i = 0; i < array_count(self.ints); i++:
             self.ints[i].free_related_types()
-        for i = 0; i < sizeof(self.uints)/sizeof(self.uints[0]); i++:
+        for i = 0; i < array_count(self.uints); i++:
             self.uints[i].free_related_types()
         for p = self.funcptr_types.ptr; p < self.funcptr_types.end(); p++:
             free_type(&(*p).type)
@@ -780,8 +778,7 @@ class Signature:
     # Turns "strcmp(s1: byte*, s2: byte*) -> int" into "funcptr(byte*, byte*) -> int"
     def to_funcptr_type(self) -> Type*:
         assert self.args.len <= MAX_ARGS
-        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
-        argtypes: Type*[100]
+        argtypes: Type*[MAX_ARGS]
         for i = 0; i < self.args.len; i++:
             argtypes[i] = self.args.ptr[i].type
         return funcptr_type(argtypes, self.args.len, self.takes_varargs, self.return_type, self.is_noreturn)
