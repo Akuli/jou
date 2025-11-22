@@ -1,0 +1,99 @@
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+import "stdlib/time.jou"
+
+typedef pthread_t = int64  # assumes 64-bit platform
+
+declare pthread_create(
+    thread: pthread_t*,
+    attr: void*,  # TODO: figure out the size of this thing?
+    start_routine: funcptr(void*) -> void*,
+    arg: void*,
+) -> int
+
+declare pthread_join(
+    thread: pthread_t,
+    pointer_to_retval: void*  # Either NULL or &retval. If not NULL, value returned by thread function goes there.
+) -> int
+
+# TODO: figure out platform-specific size, e.g. 40 bytes on 64-bit linux.
+# This is 64 bytes so should be enough...
+typedef pthread_mutex_t = int64[10]
+
+declare pthread_mutex_init(
+    mutex: pthread_mutex_t*,
+    attr: void*,  # TODO: figure out the size of this thing?
+) -> int
+
+declare pthread_mutex_destroy(mutex: pthread_mutex_t*) -> int
+
+declare pthread_mutex_lock(mutex: pthread_mutex_t*) -> int
+declare pthread_mutex_unlock(mutex: pthread_mutex_t*) -> int
+
+declare pthread_self() -> pthread_t
+
+
+class SharedState:
+    jobs: List[int]
+    mutex: pthread_mutex_t
+
+def my_thread(state_ptr: void*) -> void*:
+    printf("[thread %llx] Starting...\n", pthread_self())
+
+    state: SharedState* = state_ptr
+
+    while True:
+        ret = pthread_mutex_lock(&state.mutex)
+        if ret != 0:
+            printf("pthread_mutex_lock failed!!\n", ret)
+            exit(1)
+
+        if state.jobs.len > 0:
+            task = state.jobs.pop()
+        else:
+            task = -1
+        printf("[thread %llx] Picked up %d...\n", pthread_self(), task)
+
+        ret = pthread_mutex_unlock(&state.mutex)
+        if ret != 0:
+            printf("pthread_mutex_unlock failed!!\n", ret)
+            exit(1)
+
+        if task == -1:
+            # Done! No more files to compile.
+            return NULL
+
+        start = time(NULL)
+        for i = 1; i <= task; i++:
+            printf("[thread %llx] Working on %d...\n", pthread_self(), task)
+            system("sleep 1")
+        printf("[thread %llx] Task %d done!\n", pthread_self(), task)
+
+
+def main() -> int:
+    shared_state = SharedState{}
+    if pthread_mutex_init(&shared_state.mutex, NULL) != 0:
+        printf("Creating mutex failed!!!\n")
+
+    for i = 0; i < 5; i++:
+        shared_state.jobs.append(i)
+
+    threads: pthread_t[2]
+    for i = 0; i < array_count(threads); i++:
+        ret = pthread_create(&threads[i], NULL, my_thread, &shared_state)
+        if ret != 0:
+            printf("Failed to start thread!!!!\n")
+            return 1
+
+    for i = 0; i < array_count(threads); i++:
+        ret = pthread_join(threads[i], NULL)
+        if ret != 0:
+            printf("Join Error!!! %d\n", ret)
+            return 1
+        printf("Thread %d was joined.\n", i)
+
+    printf("mutex destroy --> %d\n", pthread_mutex_destroy(&shared_state.mutex))
+    free(shared_state.jobs.ptr)
+    return 0
