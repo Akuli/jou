@@ -16,7 +16,24 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10  # may need to bootstrap
     steps:
-      - run: env
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+      - run: source activate && ./windows_setup.sh
+        shell: bash
+      - run: source activate && mingw32-make
+        shell: bash
+      - run: |
+          cat > file.jou
+          import "stdlib/io.jou"
+          const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
+          declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
+          def main() -> int:
+              printf("%d\n", GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) as int)
+              return 0
+          EOF
+        shell: bash
+      - run: jou file.jou
         shell: bash
   build-zip:
     if: false
