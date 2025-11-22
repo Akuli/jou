@@ -2,6 +2,6 @@ class Foo[T]:
     pass
 
 def foo() -> None:
-    # TODO: error message is not ideal, could e.g. tell the user that the
-    #       generic type is missing?
-    x: Foo[]  # Error: expected an expression, got ']'
+    # Error message talks about arrays rather than generics. IMO that's fine
+    # because the same syntax is much more commonly used for arrays.
+    x: Foo[]  # Error: array length must be specified, e.g. int[10] instead of int
