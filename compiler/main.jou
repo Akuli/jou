@@ -440,16 +440,17 @@ def compile_to_object_files() -> List[byte*]:
     return objpaths
 
 
-def compile_to_jou_compiled_and_run() -> None:
+def compile_to_jou_compiled_and_run() -> int:
     objpaths = compile_to_object_files()
     exepath = get_jou_compiled_exe_path()
     run_linker(objpaths, exepath)
-    run_exe(exepath)
+    ret = run_exe(exepath)
 
     for p = objpaths.ptr; p < objpaths.end(); p++:
         free(*p)
     free(objpaths.ptr)
     free(exepath)
+    return ret
 
 
 def compile_to_outfile() -> None:
@@ -468,6 +469,7 @@ def main(argc: int, argv: byte**) -> int:
     global_compiler_state.stdlib_path = find_stdlib()
     init_types()
 
+    ret = 0
     match global_compiler_state.args.mode:
         case CompilingMode.TokenizeOnly:
             tokenize_only()
@@ -481,11 +483,11 @@ def main(argc: int, argv: byte**) -> int:
         case CompilingMode.CompileToFile:
             compile_to_outfile()
         case CompilingMode.Run:
-            compile_to_jou_compiled_and_run()
+            ret = compile_to_jou_compiled_and_run()
 
     fail_if_warnings_and_flag()
 
     # not really necessary, but makes valgrind much happier
     global_compiler_state.free()
 
-    return 0
+    return ret

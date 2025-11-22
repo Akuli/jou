@@ -102,7 +102,7 @@ def run_linker(objpaths: List[byte*], exepath: byte*) -> None:
 
 
 @public
-def run_exe(exepath: byte*) -> None:
+def run_exe(exepath: byte*) -> int:
     if global_compiler_state.args.verbosity >= 1:
         printf("Run: %s\n", exepath)
 
@@ -122,7 +122,9 @@ def run_exe(exepath: byte*) -> None:
     fflush(get_stderr())
 
     ret = system(command)
-    if ret != 0:  # TODO: extract actual error code / return value
-        exit(1)
-
     free(command)
+
+    # Do not exit immediately, so that the compiler can clean up the memory it
+    # uses. This makes error messages much shorter when running tests with
+    # valgrind fails.
+    return 0 if ret == 0 else 1  # TODO: extract actual error code / return value
