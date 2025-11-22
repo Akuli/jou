@@ -69,6 +69,7 @@ def choose_num_threads(files_to_compile: List[JouFile*]) -> int:
     if num_threads == 0:
         # Argument not given on command line
         num_threads = get_number_of_cpus()
+        return 0  # TODO: delete this to use threading by default, still fails CI randomly so disable for now
 
     if num_threads > files_to_compile.len:
         num_threads = files_to_compile.len as int
