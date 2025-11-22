@@ -323,7 +323,31 @@ Used to define an enum. See [enums.md](enums.md).
 
 ## `enum_count`
 
-TODO: not documented yet, sorry :(
+Use `enum_count(SomeEnum)` to get the number of members in [an enum](enums.md) as `int`.
+For example:
+
+```python
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+enum MouseButton:
+    Left
+    Right
+
+def main() -> int:
+    states: bool[enum_count(MouseButton)]
+    memset(states, 0, sizeof(states))  # set all to False
+
+    states[MouseButton.Right as int] = True
+    if states[MouseButton.Right as int]:
+        printf("Right-click!\n")  # Output: Right-click!
+
+    return 0
+```
+
+Unlike a simple `states = [False, False]`, or `states: bool[2]` followed by the `memset()`,
+the above example will not write beyond the end of the `states` array
+if someone adds support for a `Middle` mouse button in the future.
 
 
 ## `False`
