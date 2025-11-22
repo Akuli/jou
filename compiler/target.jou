@@ -69,6 +69,7 @@ def init_target(target: Target*) -> None:
     assert error == NULL
     assert target.target != NULL
 
+    # TODO: This should be thread local!!!
     target.target_machine = LLVMCreateTargetMachine(
         target.target,
         target.triple,
@@ -80,6 +81,7 @@ def init_target(target: Target*) -> None:
     )
     assert target.target_machine != NULL
 
+    # TODO: This should be thread local!!!
     target.target_data = LLVMCreateTargetDataLayout(target.target_machine)
     assert target.target_data != NULL
 

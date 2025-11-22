@@ -37,7 +37,7 @@ declare rename(oldpath: byte*, newpath: byte*) -> int
 def get_number_of_cpus() -> int:
     if WINDOWS:
         # TODO
-        return 1
+        return 2
     else:
         # TODO: do this in a nicer way than subpocess
         p = popen("nproc", "r")
@@ -182,22 +182,32 @@ def pthreads_callback(state_ptr: void*) -> void*:
         if jou_file == NULL:
             if global_compiler_state.args.verbosity >= 2:
                 printf("[thread %llx] Done\n", pthread_self())
-            LLVMContextDispose(llvm_context)
+            #LLVMContextDispose(llvm_context)
             return NULL
+
+        llvm_context = LLVMContextCreate()
+        if llvm_context == NULL:
+            fprintf(get_stderr(), "[thread %llx] LLVMContextCreate failed\n", pthread_self() as uint64)
+            exit(1)
 
         if global_compiler_state.args.verbosity >= 1:
             printf("[thread %llx] Compiling %s\n", pthread_self(), jou_file.path)
         compile_to_object_file(llvm_context, jou_file)
 
+        LLVMContextDispose(llvm_context)
+
 
 @public
 def compile_to_object_files_in_parallel(files_to_compile: List[JouFile*]) -> None:
-    num_threads = global_compiler_state.args.parallelism
-    if num_threads == 0:
-        num_threads = get_number_of_cpus()
+    if LLVMIsMultithreaded() == 0:
+        num_threads = 1
+    else:
+        num_threads = global_compiler_state.args.parallelism
+        if num_threads == 0:
+            num_threads = get_number_of_cpus()
 
-    if num_threads > files_to_compile.len:
-        num_threads = files_to_compile.len as int
+        if num_threads > files_to_compile.len:
+            num_threads = files_to_compile.len as int
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Making %d object files using LLVM and %d threads...\n", files_to_compile.len as int, num_threads)
