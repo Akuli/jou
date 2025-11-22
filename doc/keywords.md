@@ -612,7 +612,8 @@ TODO: not documented yet, sorry :(
 
 ## `void`
 
-TODO: not documented yet, sorry :(
+This keyword can only be used to specify [the void pointer type](types.md#pointers-and-arrays) by writing `void*`.
+Use [None](#none) when a function does not return a value.
 
 **See also:** [None](#none), [NULL](#null)
 
