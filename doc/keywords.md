@@ -120,3 +120,8 @@ def main() -> int:
 ## `case`
 
 This keyword can only be used in `match` statements. See [match.md](match.md).
+
+
+## `class`
+
+Used to define a class. See [classes.md](classes.md).
