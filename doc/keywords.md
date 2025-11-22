@@ -243,7 +243,7 @@ declare global stderr: FILE*
 
 A `declare global` statement can be decorated with `@public`, but this is rarely needed.
 
-**See also:** [def](#def), [global](#global), [noreturn](#noreturn), [None](#none)
+**See also:** [def](#def), [global](#global), [None](#none), [noreturn](#noreturn)
 
 
 ## `def`
@@ -270,7 +270,7 @@ there are no keyword arguments or default values, for example.
 It is currently it is not possible to define a variadic function like `printf()`,
 but it is possible to [declare](#declare) a variadic function.
 
-**See also:** [declare](#declare), [noreturn](#noreturn), [None](#none)
+**See also:** [declare](#declare), [None](#none), [noreturn](#noreturn)
 
 
 ## `double`
@@ -435,16 +435,30 @@ See [match.md](match.md).
 
 ## `None`
 
-TODO: not documented yet, sorry :(
+The `None` keyword can only be used to indicate that a function does not return a value.
+It has no other uses.
 
-**See also:** [declare](#declare), [def](#def), [noreturn](#noreturn), [NULL](null), [void](void)
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def foo() -> None:
+    printf("Hello\n")
+
+def main() -> int:
+    foo()
+    return 0
+```
+
+**See also:** [NULL](null), [void](void), [noreturn](#noreturn), [declare](#declare), [def](#def)
 
 
 ## `noreturn`
 
 TODO: not documented yet, sorry :(
 
-**See also:** [declare](#declare), [def](#def), [None](#none)
+**See also:** [None](#none), [declare](#declare), [def](#def)
 
 
 ## `not`
