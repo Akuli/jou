@@ -164,7 +164,7 @@ def main() -> int:
     return 0
 ```
 
-A `const` statement can be marked with `@public` so that it can be [imported](import.md) into other files:
+A `const` statement can be decorated with `@public` so that it can be [imported](import.md) into other files:
 
 ```python
 @public
@@ -198,7 +198,43 @@ def main() -> int:
 
 ## `declare`
 
-TODO: not documented yet, sorry :(
+Unlike most other keywords in Jou, this keyword has two meanings.
+However, they are easy to distinguish:
+`declare global` means a different thing than `declare` followed by anything else.
+
+**The first**, most common use for `declare` is to declare functions.
+This means telling the compiler that a function exists without defining it.
+For example, in the example below, the `declare` statement means that
+there is a function `puts()`, and it takes a string.
+The `puts()` function is actually defined in [C's standard library](tutorial.md#cs-standard-library-libc),
+and that's why the code compiles and runs even though it doesn't define `puts()`.
+
+```python3
+# No import statements!
+
+declare puts(string: byte*) -> int
+
+def main() -> int:
+    puts("Hello")  # Output: Hello
+    return 0
+```
+
+A `declare` statement can be decorated with `@public` so that it can be [imported](import.md) into other files.
+
+For many more examples of declaring functions, look at [stdlib/io.jou](../stdlib/io.jou) or other stdlib files.
+
+The second way to use `declare` is `declare global`.
+It tells the compiler that a global variable exists without defining it.
+For example, on Linux, [stdlib/io.jou](../stdlib/io.jou) does this
+to access the `stdin`, `stdout` and `stderr` variables defined in C's standard library:
+
+```python
+declare global stdin: FILE*
+declare global stdout: FILE*
+declare global stderr: FILE*
+```
+
+A `declare global` statement can be decorated with `@public`, but this is rarely needed.
 
 
 ## `def`
