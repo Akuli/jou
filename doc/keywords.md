@@ -366,7 +366,32 @@ This is [the built-in `float` type](types.md#floating-point-numbers).
 
 ## `for`
 
-TODO: not documented yet, sorry :(
+The `for` keyword is used to do `for` loops.
+A for loop looks like `for init; cond; incr:` followed by a body, where:
+- `init` is a statement that runs before the loop starts (typically `i = 0`)
+- `cond` is an expression that must evaluate to a `bool`, checked when each iteration begins so that `False` stops the loop
+- `incr` is a statement that runs at the end of each iteration, even if [continue](#continue) was used.
+
+Note that there must be semicolons between the three things.
+
+Basically, the following two loops do the same thing:
+
+```python
+init
+while cond:
+    body
+    incr
+
+for init; cond; incr:
+    body
+```
+
+However, this is not quite true if [continue](#continue) is used.
+
+Each of `init`, `cond` and `incr` are optional.
+If `cond` is omitted, it defaults to `True`.
+As an extreme example, `for ;;:` creates an infinite loop,
+but `while True:` is much more readable and hence recommended.
 
 **See also:** [while](#while), [break](#break), [continue](#continue)
 
