@@ -313,7 +313,7 @@ else:
 
 ## `else`
 
-TODO: not documented yet, sorry :(
+This keyword is used with [if](#if) statements and it does what any programmer would expect.
 
 
 ## `enum`
