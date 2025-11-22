@@ -297,8 +297,6 @@ declare LLVMArrayType(ElementType: LLVMType*, ElementCount: int) -> LLVMType*
 declare LLVMPointerTypeInContext(C: LLVMContext*, AddressSpace: uint32) -> LLVMType*
 @public
 declare LLVMDisposeMessage(Message: byte*) -> None
-#@public
-#declare LLVMModuleCreateWithName(ModuleID: byte*) -> LLVMModule*
 @public
 declare LLVMModuleCreateWithNameInContext(ModuleID: byte*, C: LLVMContext*) -> LLVMModule*
 @public
@@ -319,24 +317,14 @@ declare LLVMAddFunction(M: LLVMModule*, Name: byte*, FunctionTy: LLVMType*) -> L
 declare LLVMGetNamedFunction(M: LLVMModule*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMGetTypeKind(Ty: LLVMType*) -> LLVMTypeKind
-#@public
-#declare LLVMInt1Type() -> LLVMType*
 @public
 declare LLVMInt1TypeInContext(C: LLVMContext*) -> LLVMType*
-#@public
-#declare LLVMInt8Type() -> LLVMType*
 @public
 declare LLVMInt8TypeInContext(C: LLVMContext*) -> LLVMType*
-#@public
-#declare LLVMInt32Type() -> LLVMType*
 @public
 declare LLVMInt32TypeInContext(C: LLVMContext*) -> LLVMType*
-#@public
-#declare LLVMInt64Type() -> LLVMType*
 @public
 declare LLVMInt64TypeInContext(C: LLVMContext*) -> LLVMType*
-#@public
-#declare LLVMIntType(NumBits: int) -> LLVMType*
 @public
 declare LLVMIntTypeInContext(C: LLVMContext*, NumBits: int) -> LLVMType*
 @public
@@ -355,8 +343,6 @@ declare LLVMGetUndef(Ty: LLVMType*) -> LLVMValue*
 declare LLVMConstInt(IntTy: LLVMType*, N: int64, SignExtend: int) -> LLVMValue*
 @public
 declare LLVMConstRealOfString(RealTy: LLVMType*, Text: byte*) -> LLVMValue*
-#@public
-#declare LLVMConstString(Str: byte*, Length: uint32, DontNullTerminate: int) -> LLVMValue*
 @public
 declare LLVMConstStringInContext(C: LLVMContext*, Str: byte*, Length: uint32, DontNullTerminate: int) -> LLVMValue*
 @public
@@ -369,12 +355,8 @@ declare LLVMAddGlobal(M: LLVMModule*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMGetNamedGlobal(M: LLVMModule*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> None
-#@public
-#declare LLVMAppendBasicBlock(Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
 @public
 declare LLVMAppendBasicBlockInContext(C: LLVMContext*, Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
-#@public
-#declare LLVMCreateBuilder() -> LLVMBuilder*
 @public
 declare LLVMCreateBuilderInContext(C: LLVMContext*) -> LLVMBuilder*
 @public
