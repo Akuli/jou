@@ -67,10 +67,10 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     LLVMDisposeMessage(llvm_ir_string)
 
 
-def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
+def build_and_verify_llvm_ir(llvm_context: LLVMContext*, jou_file: JouFile*) -> LLVMModule*:
     if global_compiler_state.args.verbosity >= 1:
         printf("[thread %llx] Building LLVM IR: %s\n", pthread_self() as uint64, jou_file.path)
-    mod = build_llvm_ir(jou_file)
+    mod = build_llvm_ir(llvm_context, jou_file)
     if global_compiler_state.args.verbosity >= 2:
         print_llvm_ir(mod, False)
 
@@ -137,9 +137,8 @@ def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
     free(o_path_2)
 
 
-# TODO: This should probably take an LLVM context as parameter and use that.
-def compile_to_object_file(jou_file: JouFile*) -> None:
-    mod = build_and_verify_llvm_ir(jou_file)
+def compile_to_object_file(llvm_context: LLVMContext*, jou_file: JouFile*) -> None:
+    mod = build_and_verify_llvm_ir(llvm_context, jou_file)
     if global_compiler_state.args.optlevel != 0:
         optimize(mod, global_compiler_state.args.optlevel)
     write_llvm_ir_to_file(mod, jou_file.object_file_path)
@@ -147,8 +146,8 @@ def compile_to_object_file(jou_file: JouFile*) -> None:
 
 
 class SharedState:
-    tasks_ptr: JouFile**
-    tasks_end: JouFile**
+    jou_files_ptr: JouFile**
+    jou_files_end: JouFile**
     mutex: pthread_mutex_t
 
 
@@ -170,25 +169,25 @@ def pthreads_callback(state_ptr: void*) -> void*:
             fprintf(get_stderr(), "[thread %llx] pthread_mutex_lock failed: %d\n", pthread_self() as uint64, ret)
             exit(1)
 
-        if state.tasks_ptr < state.tasks_end:
-            task = *state.tasks_ptr++
+        if state.jou_files_ptr < state.jou_files_end:
+            jou_file = *state.jou_files_ptr++
         else:
-            task = NULL
+            jou_file = NULL
 
         ret = pthread_mutex_unlock(&state.mutex)
         if ret != 0:
             fprintf(get_stderr(), "[thread %llx] pthread_mutex_unlock failed: %d\n", pthread_self() as uint64, ret)
             exit(1)
 
-        if task == NULL:
+        if jou_file == NULL:
             if global_compiler_state.args.verbosity >= 2:
                 printf("[thread %llx] Done\n", pthread_self())
             LLVMContextDispose(llvm_context)
             return NULL
 
         if global_compiler_state.args.verbosity >= 1:
-            printf("[thread %llx] Compiling %s\n", pthread_self(), task.path)
-        compile_to_object_file(task)
+            printf("[thread %llx] Compiling %s\n", pthread_self(), jou_file.path)
+        compile_to_object_file(llvm_context, jou_file)
 
 
 @public
@@ -203,7 +202,7 @@ def compile_to_object_files_in_parallel(files_to_compile: List[JouFile*]) -> Non
     if global_compiler_state.args.verbosity >= 1:
         printf("Making %d object files using LLVM and %d threads...\n", files_to_compile.len as int, num_threads)
 
-    shared_state = SharedState{tasks_ptr = files_to_compile.ptr, tasks_end = files_to_compile.end()}
+    shared_state = SharedState{jou_files_ptr = files_to_compile.ptr, jou_files_end = files_to_compile.end()}
     threads: pthread_t* = malloc(sizeof(threads[0]) * num_threads)
     assert threads != NULL
 
