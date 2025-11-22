@@ -368,8 +368,10 @@ declare LLVMAddGlobal(M: LLVMModule*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
 declare LLVMGetNamedGlobal(M: LLVMModule*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> None
+#@public
+#declare LLVMAppendBasicBlock(Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
 @public
-declare LLVMAppendBasicBlock(Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
+declare LLVMAppendBasicBlockInContext(C: LLVMContext*, Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
 #@public
 #declare LLVMCreateBuilder() -> LLVMBuilder*
 @public

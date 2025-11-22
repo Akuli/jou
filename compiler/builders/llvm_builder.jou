@@ -371,8 +371,9 @@ class LBuilder:
         self.llvm_func = declare_in_llvm(sig, self.llvm_module, self.llvm_context)
         self.returns_a_value = sig.return_type != NULL
 
-        self.alloca_block = LLVMAppendBasicBlock(self.llvm_func, "alloca")
-        self.code_start_block = LLVMAppendBasicBlock(self.llvm_func, "code_start")
+        assert self.llvm_context != NULL
+        self.alloca_block = LLVMAppendBasicBlockInContext(self.llvm_context, self.llvm_func, "alloca")
+        self.code_start_block = LLVMAppendBasicBlockInContext(self.llvm_context, self.llvm_func, "code_start")
         LLVMPositionBuilderAtEnd(self.llvm_builder, self.code_start_block)
         self.current_block = self.code_start_block
 
@@ -729,7 +730,7 @@ class LBuilder:
 
     # Blocks are used to implement e.g. if statements and loops.
     def add_block(self) -> LLVMBasicBlock*:
-        return LLVMAppendBasicBlock(self.llvm_func, "block")
+        return LLVMAppendBasicBlockInContext(self.llvm_context, self.llvm_func, "block")
 
     # Decide which block will contain the resulting instructions.
     def set_current_block(self, block: LLVMBasicBlock*) -> None:
