@@ -1,0 +1,216 @@
+# This file invokes LLVM on many files at once using threads.
+#
+# There are several reasons to parallelize only LLVM stuff:
+#
+#   1.  Compilation steps before LLVM often handle multiple different files.
+#       For example, during type checking, one file might need to access
+#       something defined in another file, or inline a function defined in
+#       another file. I don't want to set up mutexes and such to protect all
+#       that from race conditions.
+#
+#   2.  LLVM is by far the slowest part of the Jou compiler.
+#
+#   3.  It is harder to make LLVM faster than other parts of the compiler,
+#       because I did not create LLVM.
+
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+
+import "./builders/llvm_builder.jou"
+import "./llvm.jou"
+import "./pthreads.jou"
+import "./state.jou"
+
+
+if not WINDOWS:
+    import "stdlib/str.jou"
+    declare popen(command: byte*, type: byte*) -> FILE*
+    declare pclose(stream: FILE*) -> int
+
+# TODO: stdlib?
+declare rename(oldpath: byte*, newpath: byte*) -> int
+
+
+def get_number_of_cpus() -> int:
+    if WINDOWS:
+        # TODO
+        return 1
+    else:
+        # TODO: do this in a nicer way than subpocess
+        p = popen("nproc", "r")
+        if p != NULL:
+            line: byte[10]
+            fgets(line, sizeof(line) as int, p)
+            pclose(p)
+            n = atoi(line)
+            if n > 0:
+                return n
+        # Something went wrong --> use reasonable default
+        return 1
+
+
+def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
+    if is_optimized:
+        opt_or_unopt = "Optimized"
+    else:
+        opt_or_unopt = "Unoptimized"
+
+    llvm_ir_string = LLVMPrintModuleToString(module)
+
+    len = 0 as int64
+    filename = LLVMGetSourceFileName(module, &len)  # returns a reference, not copy
+
+    printf("===== %s LLVM IR for file \"%.*s\" =====\n%s\n", opt_or_unopt, len as int, filename, llvm_ir_string)
+    LLVMDisposeMessage(llvm_ir_string)
+
+
+def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
+    if global_compiler_state.args.verbosity >= 1:
+        printf("[thread %llx] Building LLVM IR: %s\n", pthread_self() as uint64, jou_file.path)
+    mod = build_llvm_ir(jou_file)
+    if global_compiler_state.args.verbosity >= 2:
+        print_llvm_ir(mod, False)
+
+    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
+    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
+    LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
+
+    return mod
+
+
+def optimize(module: LLVMModule*, level: int) -> None:
+    if global_compiler_state.args.verbosity >= 2:
+        len = 0 as int64
+        filename = LLVMGetSourceFileName(module, &len)
+        printf("[thread %llx] Optimizing %s (level %d)\n", pthread_self() as uint64, filename, level)
+
+    assert 1 <= level and level <= 3
+    passes: byte[100]
+    sprintf(passes, "default<O%d>", level)
+
+    options = LLVMCreatePassBuilderOptions()
+    error = LLVMRunPasses(module, passes, global_compiler_state.target.target_machine, options)
+    LLVMDisposePassBuilderOptions(options)
+
+    if error != NULL:
+        msg = LLVMGetErrorMessage(error)
+        fprintf(get_stderr(), "Optimizing with LLVM failed: %s\n", msg)
+        fprintf(get_stderr(), "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
+        exit(1)
+
+    if global_compiler_state.args.verbosity >= 2:
+        print_llvm_ir(module, True)
+
+
+def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
+    if global_compiler_state.args.verbosity >= 1:
+        printf("[thread %llx] Writing LLVM IR to %s\n", pthread_self() as uint64, o_path)
+
+    # If we want to create foo.o, first write to foo_temp.o. This way we don't
+    # end up with a corrupted foo.o if the compiler is interrupted or another
+    # thread crashes.
+    #
+    # See also https://github.com/Akuli/jou/issues/873
+    assert ends_with(o_path, ".o")
+    o_path_2: byte*
+    asprintf(&o_path_2, "%.*s_temp.o", (strlen(o_path) - 2) as int, o_path)
+
+    error: byte* = NULL
+    if LLVMTargetMachineEmitToFile(
+        global_compiler_state.target.target_machine,
+        mod,
+        o_path_2,
+        LLVMCodeGenFileType.ObjectFile,
+        &error,
+    ) != 0:
+        assert error != NULL
+        fprintf(get_stderr(), "failed to emit object file \"%s\": %s\n", o_path, error)
+        exit(1)
+
+    if rename(o_path_2, o_path) != 0:
+        fprintf(get_stderr(), "renaming object file failed (%s --> %s)\n", o_path_2, o_path)
+        exit(1)
+
+    free(o_path_2)
+
+
+# TODO: This should probably take an LLVM context as parameter and use that.
+def compile_to_object_file(jou_file: JouFile*) -> None:
+    mod = build_and_verify_llvm_ir(jou_file)
+    if global_compiler_state.args.optlevel != 0:
+        optimize(mod, global_compiler_state.args.optlevel)
+    write_llvm_ir_to_file(mod, jou_file.object_file_path)
+    LLVMDisposeModule(mod)
+
+
+class SharedState:
+    tasks_ptr: JouFile**
+    tasks_end: JouFile**
+    mutex: pthread_mutex_t
+
+
+# This is the function that runs in another thread
+def pthreads_callback(state_ptr: void*) -> void*:
+    state: SharedState* = state_ptr
+
+    if global_compiler_state.args.verbosity >= 2:
+        printf("[thread %llx] Started...\n", pthread_self() as uint64)
+
+    while True:
+        ret = pthread_mutex_lock(&state.mutex)
+        if ret != 0:
+            fprintf(get_stderr(), "[thread %llx] pthread_mutex_lock failed: %d\n", pthread_self() as uint64, ret)
+            exit(1)
+
+        if state.tasks_ptr < state.tasks_end:
+            task = *state.tasks_ptr++
+        else:
+            task = NULL
+
+        ret = pthread_mutex_unlock(&state.mutex)
+        if ret != 0:
+            fprintf(get_stderr(), "[thread %llx] pthread_mutex_unlock failed: %d\n", pthread_self() as uint64, ret)
+            exit(1)
+
+        if task == NULL:
+            if global_compiler_state.args.verbosity >= 2:
+                printf("[thread %llx] Done\n", pthread_self())
+            return NULL
+
+        if global_compiler_state.args.verbosity >= 1:
+            printf("[thread %llx] Compiling %s\n", pthread_self(), task.path)
+        compile_to_object_file(task)
+
+
+@public
+def compile_to_object_files_in_parallel(files_to_compile: List[JouFile*]) -> None:
+    num_threads = global_compiler_state.args.parallelism
+    if num_threads == 0:
+        num_threads = get_number_of_cpus()
+
+    if num_threads > files_to_compile.len:
+        num_threads = files_to_compile.len as int
+
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Making %d object files using LLVM and %d threads...\n", files_to_compile.len as int, num_threads)
+
+    shared_state = SharedState{tasks_ptr = files_to_compile.ptr, tasks_end = files_to_compile.end()}
+    threads: pthread_t* = malloc(sizeof(threads[0]) * num_threads)
+    assert threads != NULL
+
+    for i = 0; i < num_threads; i++:
+        ret = pthread_create(&threads[i], NULL, pthreads_callback, &shared_state)
+        if ret != 0:
+            fprintf(get_stderr(), "pthread_create failed: %d\n", ret)
+            exit(1)
+
+    for i = 0; i < num_threads; i++:
+        ret = pthread_join(threads[i], NULL)
+        if ret != 0:
+            fprintf(get_stderr(), "pthread_join failed: %d\n", ret)
+            exit(1)
+
+    free(threads)

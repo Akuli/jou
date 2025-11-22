@@ -3,16 +3,14 @@ import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
-import "stdlib/process.jou"
 
 import "./ast.jou"
-import "./builders/llvm_builder.jou"
 import "./builders/uvg_builder.jou"
 import "./command_line_args.jou"
 import "./errors_and_warnings.jou"
 import "./evaluate.jou"
 import "./global_symbols.jou"
-import "./llvm.jou"
+import "./parallel_compile.jou"
 import "./parser.jou"
 import "./paths.jou"
 import "./run.jou"
@@ -31,77 +29,6 @@ def defines_main(jou_file: JouFile*) -> bool:
         if stmt.kind == AstStatementKind.FunctionDef and stmt.symbol().signature.is_main_function():
             return True
     return False
-
-
-def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
-    if is_optimized:
-        opt_or_unopt = "Optimized"
-    else:
-        opt_or_unopt = "Unoptimized"
-
-    llvm_ir_string = LLVMPrintModuleToString(module)
-
-    len = 0 as int64
-    filename = LLVMGetSourceFileName(module, &len)  # returns a reference, not copy
-
-    printf("===== %s LLVM IR for file \"%.*s\" =====\n%s\n", opt_or_unopt, len as int, filename, llvm_ir_string)
-    LLVMDisposeMessage(llvm_ir_string)
-
-
-def optimize(module: LLVMModule*, level: int) -> None:
-    if global_compiler_state.args.verbosity >= 1:
-        len = 0 as int64
-        filename = LLVMGetSourceFileName(module, &len)
-        printf("Optimizing %s (level %d)\n", filename, level)
-
-    assert 1 <= level and level <= 3
-    passes: byte[100]
-    sprintf(passes, "default<O%d>", level)
-
-    options = LLVMCreatePassBuilderOptions()
-    error = LLVMRunPasses(module, passes, global_compiler_state.target.target_machine, options)
-    LLVMDisposePassBuilderOptions(options)
-
-    if error != NULL:
-        msg = LLVMGetErrorMessage(error)
-        fprintf(get_stderr(), "Optimizing with LLVM failed: %s\n", msg)
-        fprintf(get_stderr(), "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
-        exit(1)
-
-    if global_compiler_state.args.verbosity >= 2:
-        print_llvm_ir(module, True)
-
-
-declare rename(oldpath: byte*, newpath: byte*) -> int
-
-def write_llvm_ir_to_file(mod: LLVMModule*, o_path: byte*) -> None:
-    if global_compiler_state.args.verbosity >= 1:
-        printf("Writing LLVM IR to %s\n", o_path)
-
-    # If we want to create foo.o, first write to foo_temp.o.
-    # This way we don't end up with a corrupted foo.o if the compiler is interrupted.
-    # See also https://github.com/Akuli/jou/issues/873
-    assert ends_with(o_path, ".o")
-    o_path_2: byte*
-    asprintf(&o_path_2, "%.*s_temp.o", (strlen(o_path) - 2) as int, o_path)
-
-    error: byte* = NULL
-    if LLVMTargetMachineEmitToFile(
-        global_compiler_state.target.target_machine,
-        mod,
-        o_path_2,
-        LLVMCodeGenFileType.ObjectFile,
-        &error,
-    ) != 0:
-        assert error != NULL
-        fprintf(get_stderr(), "failed to emit object file \"%s\": %s\n", o_path, error)
-        exit(1)
-
-    if rename(o_path_2, o_path) != 0:
-        fprintf(get_stderr(), "renaming object file failed (%s --> %s)\n", o_path_2, o_path)
-        exit(1)
-
-    free(o_path_2)
 
 
 def warn_about_unused(jou_file: JouFile*) -> None:
@@ -138,20 +65,6 @@ def warn_about_unused(jou_file: JouFile*) -> None:
                 snprintf(msg, sizeof(msg), "%s '%s' defined but not used", short_desc, symbol.name)
 
         show_warning(stmt.location, msg)
-
-
-def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
-    if global_compiler_state.args.verbosity >= 1:
-        printf("Building LLVM IR: %s\n", jou_file.path)
-    mod = build_llvm_ir(jou_file)
-    if global_compiler_state.args.verbosity >= 2:
-        print_llvm_ir(mod, False)
-
-    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
-    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
-    LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
-
-    return mod
 
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
@@ -409,36 +322,25 @@ def check() -> None:
     fail_if_warnings_and_flag()
 
 
-def compile_to_object_file(jou_file: JouFile*) -> None:
-    mod = build_and_verify_llvm_ir(jou_file)
-    if global_compiler_state.args.optlevel != 0:
-        optimize(mod, global_compiler_state.args.optlevel)
-    write_llvm_ir_to_file(mod, jou_file.object_file_path)
-    LLVMDisposeModule(mod)
-
-
-def run_in_parallel(tasks: JouFile**, ntasks: int, do_task: funcptr(JouFile*) -> None) -> None:
-    # TODO: Actually do them in parallel...
-    for i = 0; i < ntasks; i++:
-        do_task(tasks[i])
-
-
 def compile_to_object_files() -> None:
     check()
     init_target(&global_compiler_state.target)
 
     needs_compiling = List[JouFile*]{}
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        assert jou_file.object_file_path == NULL
         exists: bool
+        assert jou_file.object_file_path == NULL
         jou_file.object_file_path = get_path_to_object_file_in_jou_compiled(jou_file, &exists)
+        assert jou_file.object_file_path != NULL
+
         if exists:
             if global_compiler_state.args.verbosity >= 1:
                 printf("Reusing previously compiled file: %s\n", jou_file.object_file_path)
         else:
             needs_compiling.append(jou_file)
 
-    run_in_parallel(needs_compiling.ptr, needs_compiling.len as int, compile_to_object_file)
+    compile_to_object_files_in_parallel(needs_compiling)
+    free(needs_compiling.ptr)
 
 
 def compile_to_jou_compiled_and_run() -> int:
