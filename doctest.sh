@@ -57,7 +57,7 @@ for file in "${files[@]}"; do
     mkdir "$temp_dir"
 
     for start_marker_lineno in $(grep -n '^```python$' "$file" | cut -d: -f1); do
-        outfile="$temp_dir/$((start_marker_lineno + 1)).jou"
+        outfile="$(printf "%s/%05d.jou" $temp_dir $((start_marker_lineno + 1)) )"
         awk -v n=$start_marker_lineno '(/^```$/ && line > n) { stop=1 } (++line > n && !stop) { print }' "$file" > "$outfile"
 
         # Do not test if there is no expected output/errors
@@ -74,7 +74,7 @@ cd tmp/doctest
 for file in */*.jou; do
     # Print file and line number, as in "doc/foo.md:123: "
     # Newline is deleted to avoid warning on NetBSD 9.3, see issue #500
-    echo -n "$(basename "$(dirname "$file")" | tr -d '\n' | base64 -d):$(basename "$file" | cut -d'.' -f1): "
+    echo -n "$(basename "$(dirname "$file")" | tr -d '\n' | base64 -d):$(basename "$file" | cut -d'.' -f1 | sed 's/^0*//'): "
 
     cp "$file" test.jou
     if $diff --text -u <(generate_expected_output test.jou | tr -d '\r') <( ("$jou" test.jou 2>&1 || true) | tr -d '\r'); then
