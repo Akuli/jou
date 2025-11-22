@@ -84,3 +84,29 @@ if you want to define your own `_jou_assert_fail()` function and you run into th
 ## `bool`
 
 This is [the built-in Boolean type](types.md#other-types).
+
+
+## `break`
+
+The `break` keyword stops the innermost [while](#while) or [for](#for) loop it's in.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    # Output: Before 0
+    # Output: After 0
+    # Output: Before 1
+    # Output: After 1
+    # Output: Before 2
+    # Output: Stop!!!
+    for i = 0; i < 10; i++:
+        printf("Before %d\n", i)
+        if i == 2:
+            printf("Stop!!!\n", i)
+            break
+        printf("After %d\n", i)
+
+    return 0
+```
