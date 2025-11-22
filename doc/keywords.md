@@ -493,7 +493,8 @@ because then the compiler knows that it doesn't need to worry about what happens
 
 ## `not`
 
-TODO: not documented yet, sorry :(
+The result of `not foo` is `True` if `foo` is `False`, and `False` if `foo` is `True`.
+Type type of `foo` must be `bool`.
 
 **See also:** [and](#and), [or](#or)
 
