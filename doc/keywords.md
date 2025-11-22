@@ -435,7 +435,8 @@ See [match.md](match.md).
 
 ## `None`
 
-The `None` keyword can only be used to indicate that a function does not return a value.
+The `None` keyword can only be used after `->` in a function [definition](#def) or [declaration](#declare)
+to indicate that the function does not return a value.
 It has no other uses.
 
 For example:
@@ -456,7 +457,36 @@ def main() -> int:
 
 ## `noreturn`
 
-TODO: not documented yet, sorry :(
+The `noreturn` keyword can only be used after `->` in a function [definition](#def) or [declaration](#declare)
+that the function will **never return at all**, not with a value or without a value.
+In other words, `noreturn` should only be used for functions that
+do an infinite loop or stop the whole program.
+Use [None](#none) instead if you want to say that a function does not return a value.
+
+One use case for `noreturn` is error handling functions that stop the program.
+For example, consider the following code.
+It gives a compiler warning on the `if f == NULL` line:
+
+```python
+import "stdlib/io.jou"
+import "stdlib/process.jou"
+
+def fail(message: byte*) -> None:
+    fprintf(get_stderr(), "Error: %s\n", message)
+    exit(123)
+
+def main() -> int:
+    f = fopen("thingy.txt", "r")
+    if f == NULL:  # Warning: function 'main' doesn't seem to return a value in all cases
+        fail("cannot open file")
+    else:
+        fclose(f)
+        return 0
+```
+
+If you change the return type of `fail()` from `-> None` to `-> noreturn`,
+the warning goes away,
+because then the compiler knows that it doesn't need to worry about what happens after calling `fail()`.
 
 **See also:** [None](#none), [declare](#declare), [def](#def)
 
