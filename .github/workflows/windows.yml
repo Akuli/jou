@@ -19,12 +19,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-      - run: source activate && ./windows_setup.sh
+      - run: source activate && ./windows_setup.sh --small
         shell: bash
       - run: source activate && mingw32-make
         shell: bash
       - run: |
-          cat > file.jou
+          cat > file.jou <<EOF
           import "stdlib/io.jou"
           const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
           declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
