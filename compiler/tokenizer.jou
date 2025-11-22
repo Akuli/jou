@@ -377,18 +377,17 @@ class Tokenizer:
         msg: byte[100]
 
         while True:
-            c = self.read_byte()
+            c = *self.file_content_ptr++
             match c:
                 case '"':
                     break
                 case '\n':
-                    self.location.lineno--
                     fail(self.location, "missing \" to end the string")
                 case '\0':
                     fail(self.location, "missing \" to end the string")
                 case '\\':
                     # \n means newline, for example
-                    after_backslash = self.read_byte()
+                    after_backslash = *self.file_content_ptr++
                     match after_backslash:
                         case '\0':
                             fail(self.location, "missing \" to end the string")
@@ -413,7 +412,7 @@ class Tokenizer:
                             result.append(b)
                         case '\n':
                             # \ at end of line, string continues on next line
-                            pass
+                            self.location.lineno++
                         case _:
                             if is_ascii_printable(after_backslash):
                                 snprintf(msg, sizeof(msg), "unknown escape: '\\%c'", after_backslash)
