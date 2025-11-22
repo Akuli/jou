@@ -120,8 +120,6 @@ def check_args(args: CommandLineArgs*, optlevel_set: bool) -> None:
 
     # Parallelism doesn't make sense if we won't invoke LLVM, because only LLVM
     # stuff is parallelized.
-    #
-    # TODO: test this, and test the -j flag in general...
     if args.parallelism != 0 and args.mode != CompilingMode.Run and args.mode != CompilingMode.CompileToFile:
         flag: byte[100]
         sprintf(flag, "-j%d", args.parallelism)
