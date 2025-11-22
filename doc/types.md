@@ -177,7 +177,7 @@ def main() -> int:
 ```
 
 
-### Type Inference
+## Type Inference
 
 When the Jou compiler is determining the type of a string or integer in the code,
 it considers how it is going to be used.

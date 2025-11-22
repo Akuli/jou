@@ -32,3 +32,8 @@ Another way to get the size of an array is to do `sizeof(array) / sizeof(array[0
 For example, in the above example, this would calculate `40 / 4`,
 because [the array is just 10 `int`s next to each other](types.md#pointers-and-arrays)
 and [each `int` is 4 bytes](types.md#integers).
+
+
+## `as`
+
+The `as` keyword does an explicit cast. See [the documentation on casts](types.md#casts).
