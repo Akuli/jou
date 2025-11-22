@@ -266,34 +266,33 @@ enum LLVMRealPredicate:
     UNE
     AlwaysTrue
 
+# It is important to use LLVM functions that take a context when possible.
+# Otherwise compiling with multiple threads won't work.
+#
+# Example: LLVMVoidType bad, LLVMVoidTypeInContext good
+#
+# If there's no InContext version of some LLVM function, it means that the
+# function gets the context from one of its arguments. For example, there's no
+# LLVMArrayTypeInContext(), just LLVMArrayType(), because the item type of the
+# array contains a pointer to the context somewhere in its internals.
 @public
 declare LLVMIsMultithreaded() -> int
 @public
 declare LLVMContextCreate() -> LLVMContext*
 @public
 declare LLVMContextDispose(C: LLVMContext*) -> None
-#@public
-#declare LLVMVoidType() -> LLVMType*
 @public
 declare LLVMVoidTypeInContext(C: LLVMContext*) -> LLVMType*
-#@public
-#declare LLVMFloatType() -> LLVMType*
 @public
 declare LLVMFloatTypeInContext(C: LLVMContext*) -> LLVMType*
-#@public
-#declare LLVMDoubleType() -> LLVMType*
 @public
 declare LLVMDoubleTypeInContext(C: LLVMContext*) -> LLVMType*
 @public
 declare LLVMFunctionType(ReturnType: LLVMType*, ParamTypes: LLVMType**, ParamCount: int, IsVarArg: int) -> LLVMType*
-#@public
-#declare LLVMStructType(ElementTypes: LLVMType**, ElementCount: int, Packed: int) -> LLVMType*
 @public
 declare LLVMStructTypeInContext(C: LLVMContext*, ElementTypes: LLVMType**, ElementCount: int, Packed: int) -> LLVMType*
 @public
 declare LLVMArrayType(ElementType: LLVMType*, ElementCount: int) -> LLVMType*
-#@public
-#declare LLVMPointerType(ElementType: LLVMType*, AddressSpace: uint32) -> LLVMType*
 @public
 declare LLVMPointerTypeInContext(C: LLVMContext*, AddressSpace: uint32) -> LLVMType*
 @public

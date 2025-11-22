@@ -1,5 +1,7 @@
 import "stdlib/list.jou"
+import "stdlib/process.jou"
 import "stdlib/mem.jou"
+import "stdlib/io.jou"
 
 import "./ast.jou"
 import "./constants.jou"
@@ -87,19 +89,30 @@ class GlobalCompilerState:
         self.types.free()
 
 
-@public
-class ThreadLocalCompilerState:
-    target: ThreadLocalTarget
-    llvm_context: LLVMContext*
-
-    def free(self) -> None:
-        self.target.free()
-        LLVMContextDispose(self.llvm_context)
-
-
 # Yes, I know, everyone hates global variables, especially public global variables...
 #
 # For now, there wouldn't be much advantage in passing this around.
 # Can be cleaned up later if needed.
 @public
 global global_compiler_state: GlobalCompilerState
+
+
+@public
+class ThreadLocalCompilerState:
+    target: ThreadLocalTarget
+    llvm_context: LLVMContext*
+
+    # If you don't call this, each thread leaks memory
+    def free(self) -> None:
+        self.target.free()
+        LLVMContextDispose(self.llvm_context)
+
+
+@public
+def create_thread_local_compiler_state() -> ThreadLocalCompilerState:
+    target = init_thread_local_target()
+    ctx = LLVMContextCreate()
+    if ctx == NULL:
+        fprintf(get_stderr(), "LLVMContextCreate() failed\n")
+        exit(1)
+    return ThreadLocalCompilerState{target = target, llvm_context = ctx}

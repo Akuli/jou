@@ -14,13 +14,13 @@
 #       because I did not create LLVM.
 
 import "stdlib/assert.jou"
+import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/process.jou"
 
 import "./builders/llvm_builder.jou"
-import "./target.jou"
 import "./state.jou"
 import "./llvm.jou"
 import "./pthreads.jou"
@@ -36,10 +36,7 @@ declare rename(oldpath: byte*, newpath: byte*) -> int
 
 
 def get_number_of_cpus() -> int:
-    if WINDOWS:
-        # TODO
-        return 2
-    else:
+    if not WINDOWS:  # TODO
         # TODO: do this in a nicer way than subpocess
         p = popen("nproc", "r")
         if p != NULL:
@@ -49,8 +46,33 @@ def get_number_of_cpus() -> int:
             n = atoi(line)
             if n > 0:
                 return n
-        # Something went wrong --> use reasonable default
-        return 1
+
+    # Something went wrong --> use reasonable default
+    return 2
+
+
+def choose_num_threads(files_to_compile: List[JouFile*]) -> int:
+    if LLVMIsMultithreaded() == 0:
+        if global_compiler_state.args.verbosity >= 1:
+            printf("LLVMIsMultithreaded() returns 0. Not using threads.\n")
+        return 0
+
+    if files_to_compile.len < 2:
+        # Multiple threads wouldn't make this faster :)
+        return 0
+
+    num_threads = global_compiler_state.args.parallelism
+    if num_threads == 0:
+        # Argument not given on command line
+        num_threads = get_number_of_cpus()
+
+    if num_threads > files_to_compile.len:
+        num_threads = files_to_compile.len as int
+
+    if num_threads < 2:
+        return 0
+
+    return num_threads
 
 
 def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
@@ -69,7 +91,7 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
 
 
 def build_and_verify_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMModule*:
-    if global_compiler_state.args.verbosity >= 1:
+    if global_compiler_state.args.verbosity >= 2:
         printf("[thread %llx] Building LLVM IR: %s\n", pthread_self() as uint64, jou_file.path)
     mod = build_llvm_ir(state, jou_file)
     if global_compiler_state.args.verbosity >= 2:
@@ -139,6 +161,9 @@ def write_llvm_ir_to_file(state: ThreadLocalCompilerState*, mod: LLVMModule*, o_
 
 
 def compile_to_object_file(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> None:
+    if global_compiler_state.args.verbosity >= 1:
+        printf("[thread %llx] Compiling %s\n", pthread_self(), jou_file.path)
+
     mod = build_and_verify_llvm_ir(state, jou_file)
     if global_compiler_state.args.optlevel != 0:
         optimize(state, mod, global_compiler_state.args.optlevel)
@@ -149,7 +174,26 @@ def compile_to_object_file(state: ThreadLocalCompilerState*, jou_file: JouFile*)
 class ThreadInputs:
     jou_files_ptr: JouFile**
     jou_files_end: JouFile**
-    jou_files_mutex: pthread_mutex_t
+    mutex: pthread_mutex_t
+
+    # If multiple threads call this, each will get a different file.
+    def get_next_file(self) -> JouFile*:
+        ret = pthread_mutex_lock(&self.mutex)
+        if ret != 0:
+            fprintf(get_stderr(), "[thread %llx] pthread_mutex_lock failed: %d\n", pthread_self() as uint64, ret)
+            exit(1)
+
+        if self.jou_files_ptr < self.jou_files_end:
+            jou_file = *self.jou_files_ptr++
+        else:
+            jou_file = NULL
+
+        ret = pthread_mutex_unlock(&self.mutex)
+        if ret != 0:
+            fprintf(get_stderr(), "[thread %llx] pthread_mutex_unlock failed: %d\n", pthread_self() as uint64, ret)
+            exit(1)
+
+        return jou_file
 
 
 # This is the function that runs in another thread
@@ -159,64 +203,50 @@ def pthreads_callback(inputs_ptr: void*) -> void*:
     if global_compiler_state.args.verbosity >= 2:
         printf("[thread %llx] Started...\n", pthread_self() as uint64)
 
-    state = ThreadLocalCompilerState{
-        target = init_thread_local_target(),
-        llvm_context = LLVMContextCreate(),
-    }
-    if state.llvm_context == NULL:
-        fprintf(get_stderr(), "[thread %llx] LLVMContextCreate failed\n", pthread_self() as uint64)
-        exit(1)
+    state = create_thread_local_compiler_state()
 
     while True:
-        ret = pthread_mutex_lock(&inputs.jou_files_mutex)
-        if ret != 0:
-            fprintf(get_stderr(), "[thread %llx] pthread_mutex_lock failed: %d\n", pthread_self() as uint64, ret)
-            exit(1)
-
-        if inputs.jou_files_ptr < inputs.jou_files_end:
-            jou_file = *inputs.jou_files_ptr++
-        else:
-            jou_file = NULL
-
-        ret = pthread_mutex_unlock(&inputs.jou_files_mutex)
-        if ret != 0:
-            fprintf(get_stderr(), "[thread %llx] pthread_mutex_unlock failed: %d\n", pthread_self() as uint64, ret)
-            exit(1)
-
+        jou_file = inputs.get_next_file()
         if jou_file == NULL:
-            if global_compiler_state.args.verbosity >= 2:
-                printf("[thread %llx] Done\n", pthread_self())
-            state.free()
-            return NULL
-
-        if global_compiler_state.args.verbosity >= 1:
-            printf("[thread %llx] Compiling %s\n", pthread_self(), jou_file.path)
+            break
         compile_to_object_file(&state, jou_file)
+
+    if global_compiler_state.args.verbosity >= 2:
+        printf("[thread %llx] Done\n", pthread_self())
+
+    state.free()
+    return NULL
 
 
 @public
 def compile_to_object_files_in_parallel(files_to_compile: List[JouFile*]) -> None:
-    if LLVMIsMultithreaded() == 0:
-        num_threads = 1
-    else:
-        num_threads = global_compiler_state.args.parallelism
-        if num_threads == 0:
-            num_threads = get_number_of_cpus()
-
-        if num_threads > files_to_compile.len:
-            num_threads = files_to_compile.len as int
+    num_threads = choose_num_threads(files_to_compile)
+    assert num_threads != 1  # making just one thread would be pointless
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Making %d object files using LLVM and %d threads...\n", files_to_compile.len as int, num_threads)
 
-    shared_state = ThreadInputs{jou_files_ptr = files_to_compile.ptr, jou_files_end = files_to_compile.end()}
+    if num_threads == 0:
+        state = create_thread_local_compiler_state()
+        for i = 0; i < files_to_compile.len; i++:
+            compile_to_object_file(&state, files_to_compile.ptr[i])
+        state.free()
+        return
+
+    inputs = ThreadInputs{jou_files_ptr = files_to_compile.ptr, jou_files_end = files_to_compile.end()}
+
+    ret = pthread_mutex_init(&inputs.mutex, NULL)
+    if ret != 0:
+        fprintf(get_stderr(), "pthread_mutex_init failed: %s\n", strerror(ret))
+        exit(1)
+
     threads: pthread_t* = malloc(sizeof(threads[0]) * num_threads)
     assert threads != NULL
 
     for i = 0; i < num_threads; i++:
-        ret = pthread_create(&threads[i], NULL, pthreads_callback, &shared_state)
+        ret = pthread_create(&threads[i], NULL, pthreads_callback, &inputs)
         if ret != 0:
-            fprintf(get_stderr(), "pthread_create failed: %d\n", ret)
+            fprintf(get_stderr(), "pthread_create failed: %s\n", strerror(ret))
             exit(1)
 
     for i = 0; i < num_threads; i++:
@@ -225,4 +255,5 @@ def compile_to_object_files_in_parallel(files_to_compile: List[JouFile*]) -> Non
             fprintf(get_stderr(), "pthread_join failed: %d\n", ret)
             exit(1)
 
+    pthread_mutex_destroy(&inputs.mutex)
     free(threads)
