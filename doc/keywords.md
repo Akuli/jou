@@ -590,7 +590,9 @@ TODO: not documented yet, sorry :(
 
 ## `True`
 
-TODO: not documented yet, sorry :(
+This is a constant of type [bool](#bool) represented by a 1 byte in memory.
+
+**See also:** [False](#false), [bool](#bool)
 
 
 ## `typedef`
