@@ -239,27 +239,6 @@ class Tokenizer:
     open_parens: Token[50]
     open_parens_len: int
 
-    # TODO: Get rid of read_byte() / unread_byte()?
-    def read_byte(self) -> byte:
-        match *self.file_content_ptr:
-            case '\0':
-                return '\0'
-            case '\n':
-                self.location.lineno++
-                return *self.file_content_ptr++
-            case _:
-                return *self.file_content_ptr++
-
-    def unread_byte(self, b: byte) -> None:
-        if b == '\0':
-            return
-
-        assert self.file_content_ptr > self.file_content_start
-        assert self.file_content_ptr[-1] == b
-        self.file_content_ptr--
-        if b == '\n':
-            self.location.lineno--
-
     def read_identifier_or_number(self) -> byte[100]:
         is_number = is_ascii_digit(*self.file_content_ptr)
         len = 1  # first byte should already be valid when this is called
