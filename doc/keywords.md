@@ -438,7 +438,6 @@ See [match.md](match.md).
 The `None` keyword can only be used after `->` in a function [definition](#def) or [declaration](#declare)
 to indicate that the function does not return a value.
 It has no other uses.
-
 For example:
 
 ```python
@@ -451,6 +450,9 @@ def main() -> int:
     foo()
     return 0
 ```
+
+If you want to say that a value may be missing,
+you can use e.g. [NULL](#null) or `-1` depending on the data type.
 
 **See also:** [NULL](null), [void](void), [noreturn](#noreturn), [declare](#declare), [def](#def)
 
@@ -502,7 +504,30 @@ Type type of `foo` must be `bool`.
 
 ## `NULL`
 
-TODO: not documented yet, sorry :(
+`NULL` is a special pointer that is used as a special "missing" value with pointers.
+It can only be used with pointer types.
+Jou's `NULL` constant has type [`void*`](types.md#pointers-and-arrays),
+so it converts implicitly to any other type.
+
+For example, the `strstr()` function declared in [stdlib/str.jou](../stdlib/str.jou)
+finds a substring from a string, and returns a pointer to the substring it finds,
+or `NULL` for not found:
+
+```python
+import "stdlib/str.jou"
+
+def main() -> int:
+    string = "Hello World"
+    if strstr(string, "Test") == NULL:
+        printf("does not contain Test\n")    # Output: does not contain Test
+    return 0
+```
+
+The `NULL` pointer is represented in memory as zero bytes.
+This means that if you initialize some memory to zero and interpret it as a pointer,
+you get `NULL`.
+
+Accessing a NULL pointer [produces UB, and typically crashes the program](ub.md#null-pointer-errors).
 
 **See also:** [None](#none), [void](#void)
 
