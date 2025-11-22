@@ -17,9 +17,6 @@ def is_identifier_or_number_byte(b: byte) -> bool:
     # Allows non-ASCII variable names (bytes 128-255)
     return b >= 128 or is_ascii_letter(b) or is_ascii_digit(b) or b == '_'
 
-def is_operator_byte(c: byte) -> bool:
-    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|^~", c) != NULL
-
 def is_keyword(word: byte*) -> bool:
     # See also: tests/should_succeed/keywords.jou
     # Let's avoid unnecessary strcmp() calls because they are slow.
@@ -443,8 +440,6 @@ class Tokenizer:
         return result.ptr
 
     def read_operator(self) -> byte[100]:
-        assert is_operator_byte(*self.file_content_ptr)
-
         if starts_with(self.file_content_ptr, "==="):
             fail(self.location, "use '==' instead of '==='")
         if starts_with(self.file_content_ptr, "!=="):
@@ -547,9 +542,16 @@ class Tokenizer:
                     token.kind = TokenKind.Decorator
                     token.short_string = self.read_identifier_or_number()
                 case '\t':
+                    self.file_content_ptr++
                     fail(self.location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
                 case '\0':
                     token.kind = TokenKind.EndOfFile
+                case (
+                    '=' | '<' | '>' | '!' | '.' | ',' | '(' | ')' | '[' | ']' | '{' | '}'
+                    | ';' | ':' | '+' | '-' | '*' | '/' | '&' | '%' | '|' | '^' | '~'
+                ):
+                    token.kind = TokenKind.Operator
+                    token.short_string = self.read_operator()
                 case _:
                     if is_identifier_or_number_byte(*self.file_content_ptr):
                         token.short_string = self.read_identifier_or_number()
@@ -566,9 +568,6 @@ class Tokenizer:
                                 token.integer_value = parse_integer(token.short_string, token.location)
                         else:
                             token.kind = TokenKind.Name
-                    elif is_operator_byte(*self.file_content_ptr):
-                        token.kind = TokenKind.Operator
-                        token.short_string = self.read_operator()
                     else:
                         message: byte[100]
                         if is_ascii_printable(*self.file_content_ptr):
