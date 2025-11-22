@@ -39,13 +39,13 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     else:
         opt_or_unopt = "Unoptimized"
 
-    len = 0 as int64
-    filename = LLVMGetSourceFileName(module, &len)
-    printf("===== %s LLVM IR for file \"%.*s\" =====\n", opt_or_unopt, len as int, filename)
+    llvm_ir_string = LLVMPrintModuleToString(module)
 
-    s = LLVMPrintModuleToString(module)
-    puts(s)
-    LLVMDisposeMessage(s)
+    len = 0 as int64
+    filename = LLVMGetSourceFileName(module, &len)  # returns a reference, not copy
+
+    printf("===== %s LLVM IR for file \"%.*s\" =====\n%s\n", opt_or_unopt, len as int, filename, llvm_ir_string)
+    LLVMDisposeMessage(llvm_ir_string)
 
 
 def optimize(module: LLVMModule*, level: int) -> None:
@@ -152,23 +152,6 @@ def build_and_verify_llvm_ir(jou_file: JouFile*) -> LLVMModule*:
     LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
 
     return mod
-
-
-def find_existing_object_file_or_compile_to_object_file(jou_file: JouFile*) -> None:
-    assert jou_file.object_file_path == NULL
-
-    exists: bool
-    jou_file.object_file_path = get_path_to_object_file_in_jou_compiled(jou_file, &exists)
-
-    if exists:
-        if global_compiler_state.args.verbosity >= 1:
-            printf("Reusing previously compiled file: %s\n", jou_file.object_file_path)
-    else:
-        mod = build_and_verify_llvm_ir(jou_file)
-        if global_compiler_state.args.optlevel != 0:
-            optimize(mod, global_compiler_state.args.optlevel)
-        write_llvm_ir_to_file(mod, jou_file.object_file_path)
-        LLVMDisposeModule(mod)
 
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
@@ -426,12 +409,36 @@ def check() -> None:
     fail_if_warnings_and_flag()
 
 
+def compile_to_object_file(jou_file: JouFile*) -> None:
+    mod = build_and_verify_llvm_ir(jou_file)
+    if global_compiler_state.args.optlevel != 0:
+        optimize(mod, global_compiler_state.args.optlevel)
+    write_llvm_ir_to_file(mod, jou_file.object_file_path)
+    LLVMDisposeModule(mod)
+
+
+def run_in_parallel(tasks: JouFile**, ntasks: int, do_task: funcptr(JouFile*) -> None) -> None:
+    # TODO: Actually do them in parallel...
+    for i = 0; i < ntasks; i++:
+        do_task(tasks[i])
+
+
 def compile_to_object_files() -> None:
     check()
-
     init_target(&global_compiler_state.target)
+
+    needs_compiling = List[JouFile*]{}
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        find_existing_object_file_or_compile_to_object_file(jou_file)
+        assert jou_file.object_file_path == NULL
+        exists: bool
+        jou_file.object_file_path = get_path_to_object_file_in_jou_compiled(jou_file, &exists)
+        if exists:
+            if global_compiler_state.args.verbosity >= 1:
+                printf("Reusing previously compiled file: %s\n", jou_file.object_file_path)
+        else:
+            needs_compiling.append(jou_file)
+
+    run_in_parallel(needs_compiling.ptr, needs_compiling.len as int, compile_to_object_file)
 
 
 def compile_to_jou_compiled_and_run() -> int:
