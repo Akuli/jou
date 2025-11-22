@@ -211,7 +211,7 @@ there is a function `puts()`, and it takes a string.
 The `puts()` function is actually defined in [C's standard library](tutorial.md#cs-standard-library-libc),
 and that's why the code compiles and runs even though it doesn't define `puts()`.
 
-```python3
+```python
 # No import statements!
 
 declare puts(string: byte*) -> int
@@ -481,7 +481,7 @@ def fail(message: byte*) -> None:
 def main() -> int:
     f = fopen("thingy.txt", "r")
     if f == NULL:  # Warning: function 'main' doesn't seem to return a value in all cases
-        fail("cannot open file")
+        fail("cannot open file")  # Output: Error: cannot open file
     else:
         fclose(f)
         return 0
@@ -514,6 +514,7 @@ finds a substring from a string, and returns a pointer to the substring it finds
 or `NULL` for not found:
 
 ```python
+import "stdlib/io.jou"
 import "stdlib/str.jou"
 
 def main() -> int:
@@ -547,6 +548,8 @@ The `pass` statement does nothing, just like in Python.
 For example:
 
 ```python
+import "stdlib/io.jou"
+
 def main() -> int:
     x = 7
 
