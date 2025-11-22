@@ -31,6 +31,28 @@ def go_to_project_root() -> None:
     exit(1)
 
 
+def case_insensitive_comparator(p1: byte**, p2: byte**) -> int:
+    copy1 = strdup(*p1)
+    copy2 = strdup(*p2)
+
+    for i = 0; i < 2; i++:
+        s = copy1 if i == 0 else copy2
+
+        # By default, int8 doesn't sort before int16 because '8' > '1'
+        if strcmp(s, "int8") == 0 or strcmp(s, "uint8") == 0:
+            s[strlen(s)-1] = '1'  # int8 becomes int1
+
+        # Make everything lowercase
+        for p = s; *p != '\0'; p++:
+            if 'A' <= *p and *p <= 'Z':
+                *p ^= ('A' ^ 'a')  # toggle case
+
+    r = strcmp(copy1, copy2)
+    free(copy1)
+    free(copy2)
+    return r
+
+
 def get_keywords_from_compiler_source() -> List[byte*]:
     f = fopen("compiler/tokenizer.jou", "rb")
     assert f != NULL
@@ -75,30 +97,33 @@ def get_keywords_from_compiler_source() -> List[byte*]:
                     start = NULL
 
     fclose(f)
+    Sorter[byte*]{}.sort(result.ptr, result.len, case_insensitive_comparator)
     return result
 
 
 def get_keywords_from_documentation() -> List[byte*]:
-    f = fopen("doc/compiler_internals/syntax-spec.md", "rb")
+    f = fopen("doc/keywords.md", "rb")
     assert f != NULL
     line: byte[1024] = ""
 
-    # Find the place in documentation where the keywords are listed
-    while strstr(line, "- **Keyword tokens**") == NULL:
-        assert fgets(line, sizeof(line) as int, f) != NULL
-
-    # Extract the list of keywords
     result = List[byte*]{}
     while fgets(line, sizeof(line) as int, f) != NULL:
-        trim_ascii_whitespace(line)
-        if not starts_with(line, "- `"):
-            break
+        if not starts_with(line, "## `"):
+            continue
 
-        tick1 = &line[2]
-        tick2 = strstr(&tick1[1], "`")
-        assert tick2 != NULL
-        *tick2 = '\0'
-        result.append(strdup(&tick1[1]))
+        # Find all things between backticks
+        start = NULL
+        for p = &line[0]; *p != '\0'; p++:
+            if *p == '`':
+                if start == NULL:
+                    # `foo` starts here
+                    start = &p[1]
+                else:
+                    # `foo` ends here
+                    *p = '\0'
+                    result.append(strdup(start))
+                    *p = '`'
+                    start = NULL
 
     fclose(f)
     return result
@@ -106,7 +131,6 @@ def get_keywords_from_documentation() -> List[byte*]:
 
 # Frees all memory used by the list. Assumes each string is allocated separately.
 def list_to_string(list: List[byte*]) -> byte*:
-    sort_strings(list.ptr, list.len)  # TODO: shouldn't be needed
     result = List[byte]{}
     for i = 0; i < list.len; i++:
         if i > 0:
@@ -126,8 +150,8 @@ def main() -> int:
 
     if strcmp(keywords_compiler, keywords_doc) != 0:
         printf("Keywords are defined differently in different places!\n")
-        printf("  Compiler:     %s\n", keywords_compiler)
-        printf("  Syntax doc:   %s\n", keywords_doc)
+        printf("  Compiler:      %s\n", keywords_compiler)
+        printf("  Documentation: %s\n", keywords_doc)
         return 1
 
     printf("ok\n")  # Output: ok

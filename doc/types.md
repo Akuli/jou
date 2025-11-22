@@ -72,16 +72,7 @@ The array length `n` must be known at compile time,
 because in Jou, the compiler knows the sizes of all types.
 Use [lists](lists.md) if you want an array that grows dynamically as items are added to it.
 
-To get the number of elements of an array as `int`, you can use the `array_count` built-in:
-
-```python
-import "stdlib/io.jou"
-
-def main() -> int:
-    array: int[10]
-    printf("%d\n", array_count(array))  # Output: 10
-    return 0
-```
+To get the number of elements of an array as `int`, you can use the [`array_count`](keywords.md#array_count) built-in.
 
 Pointers and arrays can be combined with each other.
 For example, `byte[100]*` means a pointer to an array of 100 bytes,
