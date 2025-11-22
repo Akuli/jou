@@ -309,11 +309,12 @@ class Tokenizer:
                     return level
 
     def read_hex_escape_byte(self) -> byte:
-        n1 = hexdigit_value(self.read_byte())
-        n2 = hexdigit_value(self.read_byte())
-        if n1 == -1 or n2 == -1:
-            fail(self.location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte")
-        return (n1*16 + n2) as byte
+        n1 = hexdigit_value(*self.file_content_ptr++)
+        if n1 != -1:
+            n2 = hexdigit_value(*self.file_content_ptr++)
+            if n2 != -1:
+                return (n1*16 + n2) as byte
+        fail(self.location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte")
 
     def read_byte_literal(self) -> byte:
         assert *self.file_content_ptr == '\''
