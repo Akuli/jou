@@ -578,7 +578,9 @@ TODO: not documented yet, sorry :(
 
 ## `self`
 
-TODO: not documented yet, sorry :(
+The `self` keyword can only be used inside a method,
+and it is a pointer to the instance (or the instance itself) whose method is being called.
+See [the documentation about methods](classes.md#methods) for details.
 
 
 ## `sizeof`
