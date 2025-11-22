@@ -451,7 +451,7 @@ See [match.md](match.md).
 
 ## `None`
 
-The `None` keyword can only be used after `->` in a function [definition](#def) or [declaration](#declare)
+The `None` keyword can be used only after `->` in a function [definition](#def) or [declaration](#declare)
 to indicate that the function does not return a value.
 It has no other uses.
 For example:
@@ -475,7 +475,7 @@ you can use e.g. [NULL](#null) or `-1` depending on the data type.
 
 ## `noreturn`
 
-The `noreturn` keyword can only be used after `->` in a function [definition](#def) or [declaration](#declare).
+The `noreturn` keyword can be used only after `->` in a function [definition](#def) or [declaration](#declare).
 It means that the function **never returns at all**, not with a value or without a value.
 Use [None](#none) instead if you want to say that a function does not return a value.
 
@@ -596,7 +596,7 @@ TODO: not documented yet, sorry :(
 
 ## `self`
 
-The `self` keyword can only be used inside a method,
+The `self` keyword can be used only inside a method,
 and it is a pointer to the instance (or the instance itself) whose method is being called.
 See [the documentation about methods](classes.md#methods) for details.
 
@@ -630,7 +630,7 @@ TODO: not documented yet, sorry :(
 
 ## `void`
 
-This keyword can only be used to specify [the void pointer type](types.md#pointers-and-arrays) by writing `void*`.
+This keyword can be used only to specify [the void pointer type](types.md#pointers-and-arrays) by writing `void*`.
 Use [None](#none) when a function does not return a value.
 
 **See also:** [None](#none), [NULL](#null)
@@ -645,4 +645,4 @@ TODO: not documented yet, sorry :(
 
 ## `with`
 
-This keyword can only be used to [specify a function in a `match` statement](match.md#using-match--with-strcmp-to-match-strings).
+This keyword can be used only to [specify a function in a `match` statement](match.md#using-match--with-strcmp-to-match-strings).
