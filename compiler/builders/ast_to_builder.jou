@@ -184,8 +184,7 @@ class AstToBuilder:
             # Dummy value to silence compiler warning
             func_ptr = AnyBuilderValue{}
 
-        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
-        args: AnyBuilderValue[100]
+        args: AnyBuilderValue[MAX_ARGS]
         nargs = 0
 
         if call.method_call_self != NULL:
