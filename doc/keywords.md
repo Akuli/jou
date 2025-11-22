@@ -110,3 +110,8 @@ def main() -> int:
 
     return 0
 ```
+
+
+## `byte`
+
+[This is another name for `uint8`.](types.md#integers)
