@@ -352,7 +352,11 @@ if someone adds support for a `Middle` mouse button in the future.
 
 ## `False`
 
-TODO: not documented yet, sorry :(
+This is a constant of type [bool](#bool) represented by a zero byte in memory.
+This means that if you initialize the memory to zero and interpret it as a `bool`,
+it will be `False`.
+
+**See also:** [True](#true), [bool](#bool)
 
 
 ## `float`
