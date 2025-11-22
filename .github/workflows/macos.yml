@@ -21,12 +21,12 @@ jobs:
             echo "Triggered manually"
             echo "run=true" >> $GITHUB_OUTPUT
           elif [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
-            echo "Pull request, checking PR title..."
-            if cat "$GITHUB_EVENT_PATH" | jq -r .pull_request.title | grep --color=always -i MacOS; then
-              echo "It mentions MacOS, let's run MacOS tests on this pull request"
+            echo "Pull request, checking PR labels..."
+            if cat "$GITHUB_EVENT_PATH" | jq -r '.pull_request.labels[].name' | grep --color=always -i '^run macos tests$'; then
+              echo "Label 'run macos tests' found, let's run MacOS tests on this pull request"
               echo "run=true" >> $GITHUB_OUTPUT
             else
-              echo "MacOS not mentioned, skipping"
+              echo "Label 'run macos tests' not found, skipping"
               echo "run=false" >> $GITHUB_OUTPUT
             fi
           else
