@@ -115,3 +115,8 @@ def main() -> int:
 ## `byte`
 
 [This is another name for `uint8`.](types.md#integers)
+
+
+## `case`
+
+This keyword can only be used in `match` statements. See [match.md](match.md).
