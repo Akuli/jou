@@ -562,34 +562,13 @@ def main() -> int:
     return 0
 ```
 
-Without the `pass` statement, you would get a compiler error,
+Without the `pass`, you would get a compiler error,
 because the next line after `elif whatever:` must be indented, but the `else` line isn't.
 A comments or a blank line is not enough, because the compiler ignores comments and blank lines.
 
 In the above example, you could instead write `elif x != 5`,
-but that's not possible when you want to do nothing in some case
-when using `match` statement with an enum.
-For example:
-
-```python
-enum ThingyKind:
-    File
-    String
-    Number
-
-class Thingy:
-    kind: ThingyKind
-    ...
-
-def free_thingy(thingy: Thingy*) -> None:
-    match thingy.kind:
-        case ThingyKind.File:
-            # ... close the file ...
-        case ThingyKind.String:
-            # ... free memory used by the string
-        case ThingyKind.Number:
-            pass
-```
+but that's not always possible.
+For example, [`pass` is often useful with `match` statements](match.md#special-casing-for-enums).
 
 
 ## `return`
