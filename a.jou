@@ -3,41 +3,13 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/time.jou"
-
-typedef pthread_t = int64  # assumes 64-bit platform
-
-declare pthread_create(
-    thread: pthread_t*,
-    attr: void*,  # TODO: figure out the size of this thing?
-    start_routine: funcptr(void*) -> void*,
-    arg: void*,
-) -> int
-
-declare pthread_join(
-    thread: pthread_t,
-    pointer_to_retval: void*  # Either NULL or &retval. If not NULL, value returned by thread function goes there.
-) -> int
-
-# TODO: figure out platform-specific size, e.g. 40 bytes on 64-bit linux.
-# This is 64 bytes so should be enough...
-typedef pthread_mutex_t = int64[10]
-
-declare pthread_mutex_init(
-    mutex: pthread_mutex_t*,
-    attr: void*,  # TODO: figure out the size of this thing?
-) -> int
-
-declare pthread_mutex_destroy(mutex: pthread_mutex_t*) -> int
-
-declare pthread_mutex_lock(mutex: pthread_mutex_t*) -> int
-declare pthread_mutex_unlock(mutex: pthread_mutex_t*) -> int
-
-declare pthread_self() -> pthread_t
+import "./compiler/pthread.jou"
 
 
 class SharedState:
     jobs: List[int]
     mutex: pthread_mutex_t
+
 
 def my_thread(state_ptr: void*) -> void*:
     printf("[thread %llx] Starting...\n", pthread_self())
