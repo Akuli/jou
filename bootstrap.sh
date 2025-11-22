@@ -25,6 +25,7 @@ numbered_commits=(
     021_9339a749315b82f73d19bacdccab5ee327c44822  # accessing fields and methods on pointers with '.' instead of '->'
     022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # <--- bootstrap_transpiler.py starts here!
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
+    024_0d4b4082f6569131903af02ba5508210b8b474d8  # array_count, enum_count, jou_compiled cache bug fix, jou --check
 )
 
 # This should be an item of the above list according to what
