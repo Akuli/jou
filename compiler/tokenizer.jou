@@ -17,9 +17,6 @@ def is_identifier_or_number_byte(b: byte) -> bool:
     # Allows non-ASCII variable names (bytes 128-255)
     return b >= 128 or is_ascii_letter(b) or is_ascii_digit(b) or b == '_'
 
-def is_operator_byte(c: byte) -> bool:
-    return c != '\0' and strchr("=<>!.,()[]{};:+-*/&%|^~", c) != NULL
-
 def is_keyword(word: byte*) -> bool:
     # See also: tests/should_succeed/keywords.jou
     # Let's avoid unnecessary strcmp() calls because they are slow.
@@ -242,163 +239,145 @@ class Tokenizer:
     open_parens: Token[50]
     open_parens_len: int
 
-    # TODO: Get rid of read_byte() / unread_byte()?
-    def read_byte(self) -> byte:
-        match *self.file_content_ptr:
-            case '\0':
-                return '\0'
-            case '\n':
-                self.location.lineno++
-                return *self.file_content_ptr++
-            case _:
-                return *self.file_content_ptr++
+    def read_identifier(self) -> byte[100]:
+        len = 1  # first byte should already be valid when this is called
 
-    def unread_byte(self, b: byte) -> None:
-        if b == '\0':
-            return
+        while is_identifier_or_number_byte(self.file_content_ptr[len]):
+            len++
 
-        assert self.file_content_ptr > self.file_content_start
-        assert self.file_content_ptr[-1] == b
-        self.file_content_ptr--
-        if b == '\n':
-            self.location.lineno--
+        result: byte[100]
+        if len >= sizeof(result):
+            sprintf(result, "name is too long: %.20s...", self.file_content_ptr)
+            fail(self.location, result)
 
-    def read_identifier_or_number(self, first_byte: byte) -> byte[100]:
-        dest: byte[100]
-        memset(&dest, 0, sizeof dest)
-        destlen = 0
+        memcpy(result, self.file_content_ptr, len)
+        result[len] = '\0'
+        self.file_content_ptr = &self.file_content_ptr[len]
+        return result
 
-        assert is_identifier_or_number_byte(first_byte) or first_byte == '@'
-        dest[destlen++] = first_byte
-        is_number = '0' <= first_byte and first_byte <= '9'
+    def read_number(self) -> byte[100]:
+        len = 1  # first byte should already be valid when this is called
 
-        while True:
-            b = self.read_byte()
-            if (
-                is_identifier_or_number_byte(b)
-                or (is_number and (b == '.' or (b == '-' and dest[destlen-1] == 'e')))
-            ):
-                if destlen == sizeof dest - 1:
-                    if is_number:
-                        template = "number is too long: %.20s..."
-                    else:
-                        template = "name is too long: %.20s..."
-                    message: byte[100]
-                    sprintf(message, template, dest)
-                    fail(self.location, message)
-                dest[destlen++] = b
-            else:
-                self.unread_byte(b)
-                return dest
+        while (
+            is_identifier_or_number_byte(self.file_content_ptr[len])
+            or self.file_content_ptr[len] == '.'
+            or (self.file_content_ptr[len] == '-' and self.file_content_ptr[len-1] == 'e')
+        ):
+            len++
 
-    def consume_rest_of_line(self) -> None:
-        while True:
-            c = self.read_byte()
-            if c == '\0' or c == '\n':
-                self.unread_byte(c)
-                break
+        result: byte[100]
+        if len >= sizeof(result):
+            sprintf(result, "number is too long: %.20s...", self.file_content_ptr)
+            fail(self.location, result)
+
+        memcpy(result, self.file_content_ptr, len)
+        result[len] = '\0'
+        self.file_content_ptr = &self.file_content_ptr[len]
+        return result
 
     # Returns the indentation level for the next line
     def read_newline_token(self) -> int:
         level = 0
         while True:
-            c = self.read_byte()
-            match c:
+            match *self.file_content_ptr:
                 case '\0':
                     # End of file. Do not validate that indentation is a
                     # multiple of 4 spaces. Add a trailing newline implicitly
                     # if needed.
                     return 0
                 case '\n':
+                    self.location.lineno++
+                    self.file_content_ptr++
                     level = 0
                 case '#':
-                    self.consume_rest_of_line()
+                    while *self.file_content_ptr != '\0' and *self.file_content_ptr != '\n':
+                        self.file_content_ptr++
                 case ' ':
+                    self.file_content_ptr++
                     level++
                 case _:
-                    self.unread_byte(c)
                     return level
 
     def read_hex_escape_byte(self) -> byte:
-        n1 = hexdigit_value(self.read_byte())
-        n2 = hexdigit_value(self.read_byte())
-        if n1 == -1 or n2 == -1:
-            fail(self.location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte")
-        return (n1*16 + n2) as byte
+        n1 = hexdigit_value(*self.file_content_ptr++)
+        if n1 != -1:
+            n2 = hexdigit_value(*self.file_content_ptr++)
+            if n2 != -1:
+                return (n1*16 + n2) as byte
+        fail(self.location, "\\x must be followed by two hexadecimal digits (0-9, A-F) to specify a byte")
 
-    # Assumes the initial ' has been read.
     def read_byte_literal(self) -> byte:
-        c = self.read_byte()
-        if c == '\'':
-            fail(self.location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
-        if c == '\0' or c == '\n':
-            if c == '\n':
-                self.location.lineno--
-            fail(self.location, "missing ' to end the byte literal")
+        assert *self.file_content_ptr == '\''
+        self.file_content_ptr++
 
-        if c == '\\':
-            after_backslash = self.read_byte()
-            match after_backslash:
-                case '\0':
-                    fail(self.location, "missing ' to end the byte literal")
-                case '\n':
-                    self.location.lineno--
-                    fail(self.location, "missing ' to end the byte literal")
-                case 'n':
-                    c = '\n'
-                case 'r':
-                    c = '\r'
-                case 't':
-                    c = '\t'
-                case '\\':
-                    c = '\\'
-                case '\'':
-                    c = '\''
-                case '"':
-                    fail(self.location, "double quotes shouldn't be escaped in byte literals")
-                case '0':
-                    c = '\0'
-                case 'x':
-                    c = self.read_hex_escape_byte()
-                case _:
-                    if is_ascii_printable(after_backslash):
-                        message: byte* = malloc(100)
-                        sprintf(message, "unknown escape: '\\%c'", after_backslash)
-                        fail(self.location, message)
-                    else:
-                        fail(self.location, "unknown '\\' escape")
+        c = *self.file_content_ptr++
 
-        end = self.read_byte()
-        if end != '\'':
+        match c:
+            case '\'':
+                fail(self.location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
+            case '\0' | '\n':
+                fail(self.location, "missing ' to end the byte literal")
+            case '\\':
+                after_backslash = *self.file_content_ptr++
+                match after_backslash:
+                    case '\0' | '\n':
+                        fail(self.location, "missing ' to end the byte literal")
+                    case 'n':
+                        c = '\n'
+                    case 'r':
+                        c = '\r'
+                    case 't':
+                        c = '\t'
+                    case '\\':
+                        c = '\\'
+                    case '\'':
+                        c = '\''
+                    case '"':
+                        fail(self.location, "double quotes shouldn't be escaped in byte literals")
+                    case '0':
+                        c = '\0'
+                    case 'x':
+                        c = self.read_hex_escape_byte()
+                    case _:
+                        if is_ascii_printable(after_backslash):
+                            message: byte* = malloc(100)
+                            sprintf(message, "unknown escape: '\\%c'", after_backslash)
+                            fail(self.location, message)
+                        else:
+                            fail(self.location, "unknown '\\' escape")
+
+        if *self.file_content_ptr != '\'':
             # If there's another single quote later on the same line, suggest using double quotes.
             location = self.location
             while True:
-                match self.read_byte():
+                match *self.file_content_ptr++:
                     case '\0' | '\n':
                         fail(location, "missing ' to end the byte literal")
                     case '\'':
                         fail(location, "single quotes are for specifying a byte, maybe use double quotes to instead make a string?")
 
+        self.file_content_ptr++
         return c
 
-    # Assumes the initial " has been read.
     def read_string(self) -> byte*:
+        assert *self.file_content_ptr == '"'
+        self.file_content_ptr++
+
         result = List[byte]{}
         msg: byte[100]
 
         while True:
-            c = self.read_byte()
+            c = *self.file_content_ptr++
             match c:
                 case '"':
                     break
                 case '\n':
-                    self.location.lineno--
                     fail(self.location, "missing \" to end the string")
                 case '\0':
                     fail(self.location, "missing \" to end the string")
                 case '\\':
                     # \n means newline, for example
-                    after_backslash = self.read_byte()
+                    after_backslash = *self.file_content_ptr++
                     match after_backslash:
                         case '\0':
                             fail(self.location, "missing \" to end the string")
@@ -423,7 +402,7 @@ class Tokenizer:
                             result.append(b)
                         case '\n':
                             # \ at end of line, string continues on next line
-                            pass
+                            self.location.lineno++
                         case _:
                             if is_ascii_printable(after_backslash):
                                 snprintf(msg, sizeof(msg), "unknown escape: '\\%c'", after_backslash)
@@ -437,8 +416,6 @@ class Tokenizer:
         return result.ptr
 
     def read_operator(self) -> byte[100]:
-        assert is_operator_byte(*self.file_content_ptr)
-
         if starts_with(self.file_content_ptr, "==="):
             fail(self.location, "use '==' instead of '==='")
         if starts_with(self.file_content_ptr, "!=="):
@@ -517,15 +494,18 @@ class Tokenizer:
     def read_token(self) -> Token:
         while True:
             token = Token{location = self.location, file_content_ptr = self.file_content_ptr}
-            b = self.read_byte()
-            match b:
+            match *self.file_content_ptr:
                 case ' ':
+                    self.file_content_ptr++
                     continue
                 case '#':
-                    self.consume_rest_of_line()
+                    while *self.file_content_ptr != '\0' and *self.file_content_ptr != '\n':
+                        self.file_content_ptr++
                     continue
                 case '\n':
                     if self.open_parens_len > 0:
+                        self.file_content_ptr++
+                        self.location.lineno++
                         continue
                     token.kind = TokenKind.Newline
                     token.indentation_level = self.read_newline_token()
@@ -537,37 +517,38 @@ class Tokenizer:
                     token.integer_value = self.read_byte_literal()
                 case '@':
                     token.kind = TokenKind.Decorator
-                    token.short_string = self.read_identifier_or_number(b)
+                    token.short_string = self.read_identifier()
                 case '\t':
+                    self.file_content_ptr++
                     fail(self.location, "Jou files cannot contain tab characters (use 4 spaces for indentation)")
                 case '\0':
                     token.kind = TokenKind.EndOfFile
+                case (
+                    '=' | '<' | '>' | '!' | '.' | ',' | '(' | ')' | '[' | ']' | '{' | '}'
+                    | ';' | ':' | '+' | '-' | '*' | '/' | '&' | '%' | '|' | '^' | '~'
+                ):
+                    token.kind = TokenKind.Operator
+                    token.short_string = self.read_operator()
+                case '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
+                    token.short_string = self.read_number()
+                    if is_valid_double(token.short_string):
+                        token.kind = TokenKind.Double
+                    elif is_valid_float(token.short_string):
+                        token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
+                        token.kind = TokenKind.Float
+                    else:
+                        token.kind = TokenKind.Integer
+                        token.integer_value = parse_integer(token.short_string, token.location)
                 case _:
-                    if is_identifier_or_number_byte(b):
-                        token.short_string = self.read_identifier_or_number(b)
-                        if is_keyword(token.short_string):
-                            token.kind = TokenKind.Keyword
-                        elif '0' <= token.short_string[0] and token.short_string[0] <= '9':
-                            if is_valid_double(token.short_string):
-                                token.kind = TokenKind.Double
-                            elif is_valid_float(token.short_string):
-                                token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
-                                token.kind = TokenKind.Float
-                            else:
-                                token.kind = TokenKind.Integer
-                                token.integer_value = parse_integer(token.short_string, token.location)
-                        else:
-                            token.kind = TokenKind.Name
-                    elif is_operator_byte(b):
-                        self.unread_byte(b)
-                        token.kind = TokenKind.Operator
-                        token.short_string = self.read_operator()
+                    if is_identifier_or_number_byte(*self.file_content_ptr):
+                        token.short_string = self.read_identifier()
+                        token.kind = TokenKind.Keyword if is_keyword(token.short_string) else TokenKind.Name
                     else:
                         message: byte[100]
-                        if is_ascii_printable(b):
-                            sprintf(message, "unexpected byte '%c' (%#02x)", b, b)
+                        if is_ascii_printable(*self.file_content_ptr):
+                            sprintf(message, "unexpected byte '%c' (%#02x)", *self.file_content_ptr, *self.file_content_ptr)
                         else:
-                            sprintf(message, "unexpected byte %#02x", b)
+                            sprintf(message, "unexpected byte %#02x", *self.file_content_ptr)
                         fail(self.location, message)
 
             self.handle_parentheses(&token)
