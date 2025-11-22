@@ -37,6 +37,7 @@ declare rename(oldpath: byte*, newpath: byte*) -> int
 
 def get_number_of_cpus() -> int:
     if not WINDOWS:  # TODO
+        system("(echo '#include <stdio.h>' && echo '#include <unistd.h>' && echo 'int main(){printf(\"%d %d\\\\n\", (int)_SC_NPROCESSORS_ONLN, (int)sysconf(_SC_NPROCESSORS_ONLN)); return 0; }') > a.c; cc a.c; ./a.out")
         # TODO: do this in a nicer way than subpocess
         p = popen("nproc", "r")
         if p != NULL:
