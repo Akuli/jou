@@ -199,8 +199,7 @@ def main() -> int:
     return 0
 ```
 
-To fix the error, you can add a `case Thingy.Baz` with a `pass` statement.
-The `pass` statement does nothing, [just like in Python](https://stackoverflow.com/questions/13886168/how-to-use-pass-statement).
+To fix the error, you can add a `case Thingy.Baz` with [a `pass` statement](keywords.md#pass):
 
 ```python
 import "stdlib/io.jou"

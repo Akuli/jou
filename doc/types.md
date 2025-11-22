@@ -72,16 +72,7 @@ The array length `n` must be known at compile time,
 because in Jou, the compiler knows the sizes of all types.
 Use [lists](lists.md) if you want an array that grows dynamically as items are added to it.
 
-To get the number of elements of an array as `int`, you can use the `array_count` built-in:
-
-```python
-import "stdlib/io.jou"
-
-def main() -> int:
-    array: int[10]
-    printf("%d\n", array_count(array))  # Output: 10
-    return 0
-```
+To get the number of elements of an array as `int`, you can use the [`array_count`](keywords.md#array_count) built-in.
 
 Pointers and arrays can be combined with each other.
 For example, `byte[100]*` means a pointer to an array of 100 bytes,
@@ -121,7 +112,7 @@ Jou has two kinds of casts:
 - **Implicit casts** are done basically whenever a value must be of a specific type.
     For example, you can pass an `int` to a function that expects an `int64` argument,
     because function arguments are cast implicitly.
-- **Explicit casts** are done with the `as` keyword, e.g. `0 as byte`.
+- **Explicit casts** are done with [the `as` keyword](keywords.md#as), e.g. `0 as byte`.
 
 The allowed implicit casts are:
 - Array to pointer: `T[N]` (where `T` is a type and `N` is an integer) casts implicitly to `T*` or `void*`
@@ -186,7 +177,7 @@ def main() -> int:
 ```
 
 
-### Type Inference
+## Type Inference
 
 When the Jou compiler is determining the type of a string or integer in the code,
 it considers how it is going to be used.

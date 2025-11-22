@@ -1,15 +1,14 @@
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
-# When stdout is redirected to same place as stderr, make sure that normal
-# printf()s show up before our assertion error.
-def flush_streams() -> None:
-    fflush(get_stdout())
-    fflush(get_stderr())
 
 # This function is called when `assert False` runs.
 @public
 def _jou_assert_fail(assertion: byte*, path: byte*, lineno: int) -> noreturn:
-    flush_streams()
+    # When stdout is redirected to same place as stderr, make sure that normal
+    # printf()s show up before our assertion error.
+    fflush(get_stdout())
+    fflush(get_stderr())
+
     fprintf(get_stderr(), "Assertion '%s' failed in file \"%s\", line %d.\n", assertion, path, lineno)
     exit(1)
