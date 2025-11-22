@@ -112,7 +112,7 @@ Jou has two kinds of casts:
 - **Implicit casts** are done basically whenever a value must be of a specific type.
     For example, you can pass an `int` to a function that expects an `int64` argument,
     because function arguments are cast implicitly.
-- **Explicit casts** are done with the `as` keyword, e.g. `0 as byte`.
+- **Explicit casts** are done with [the `as` keyword](keywords.md#as), e.g. `0 as byte`.
 
 The allowed implicit casts are:
 - Array to pointer: `T[N]` (where `T` is a type and `N` is an integer) casts implicitly to `T*` or `void*`
