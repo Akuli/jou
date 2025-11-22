@@ -543,7 +543,53 @@ Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo`
 
 ## `pass`
 
-TODO: not documented yet, sorry :(
+The `pass` statement does nothing, just like in Python.
+For example:
+
+```python
+def main() -> int:
+    x = 7
+
+    if x > 10:
+        printf("Way too big\n")
+    elif x < 0:
+        printf("Way too small\n")
+    elif x == 5:
+        pass  # Just right, no need to print error message
+    else:
+        printf("Close, but not quite...\n")  # Output: Close, but not quite...
+
+    return 0
+```
+
+Without the `pass` statement, you would get a compiler error,
+because the next line after `elif whatever:` must be indented, but the `else` line isn't.
+A comments or a blank line is not enough, because the compiler ignores comments and blank lines.
+
+In the above example, you could instead write `elif x != 5`,
+but that's not possible when you want to do nothing in some case
+when using `match` statement with an enum.
+For example:
+
+```python
+enum ThingyKind:
+    File
+    String
+    Number
+
+class Thingy:
+    kind: ThingyKind
+    ...
+
+def free_thingy(thingy: Thingy*) -> None:
+    match thingy.kind:
+        case ThingyKind.File:
+            # ... close the file ...
+        case ThingyKind.String:
+            # ... free memory used by the string
+        case ThingyKind.Number:
+            pass
+```
 
 
 ## `return`
