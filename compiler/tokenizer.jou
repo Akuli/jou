@@ -289,13 +289,6 @@ class Tokenizer:
                 self.unread_byte(b)
                 return dest
 
-    def consume_rest_of_line(self) -> None:
-        while True:
-            c = self.read_byte()
-            if c == '\0' or c == '\n':
-                self.unread_byte(c)
-                break
-
     # Returns the indentation level for the next line
     def read_newline_token(self) -> int:
         level = 0
@@ -311,7 +304,8 @@ class Tokenizer:
                     self.file_content_ptr++
                     level = 0
                 case '#':
-                    self.consume_rest_of_line()
+                    while *self.file_content_ptr != '\0' and *self.file_content_ptr != '\n':
+                        self.file_content_ptr++
                 case ' ':
                     self.file_content_ptr++
                     level++
@@ -523,7 +517,8 @@ class Tokenizer:
                     self.file_content_ptr++
                     continue
                 case '#':
-                    self.consume_rest_of_line()
+                    while *self.file_content_ptr != '\0' and *self.file_content_ptr != '\n':
+                        self.file_content_ptr++
                     continue
                 case '\n':
                     if self.open_parens_len > 0:
