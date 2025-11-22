@@ -196,8 +196,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
 
             nargs = fp.argtypes.len
             assert nargs <= MAX_ARGS
-            assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
-            argtypes: Type*[100]
+            argtypes: Type*[MAX_ARGS]
 
             for i = 0; i < nargs; i++:
                 argtypes[i] = type_from_ast(jou_file, containing_class, &fp.argtypes.ptr[i])

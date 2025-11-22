@@ -174,22 +174,20 @@ class AnyBuilder:
             assert funcptr_type.func_ptr.takes_varargs
 
         assert nargs <= MAX_ARGS
-        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
-
         result = AnyBuilderValue{}
 
         if self.lbuilder != NULL:
-            largs: LBuilderValue[100]
+            largs: LBuilderValue[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 largs[i] = args[i].lvalue
             result.lvalue = self.lbuilder.call_function(funcptr_type, func_ptr.lvalue, largs, nargs)
         if self.ubuilder != NULL:
-            uargs: int[100]
+            uargs: int[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 uargs[i] = args[i].uvalue
             result.uvalue = self.ubuilder.call_function(funcptr_type, func_ptr.uvalue, uargs, nargs)
         if self.hbuilder != NULL:
-            hargs: HBuilderValue[100]
+            hargs: HBuilderValue[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 hargs[i] = args[i].hvalue
             result.hvalue = self.hbuilder.call_function(funcptr_type, func_ptr.hvalue, hargs, nargs)
@@ -201,20 +199,19 @@ class AnyBuilder:
         result = AnyBuilderValue{}
 
         assert nargs <= MAX_ARGS
-        assert MAX_ARGS == 100  # TODO: can't use MAX_ARGS in array size yet
 
         if self.lbuilder != NULL:
-            largs: LBuilderValue[100]
+            largs: LBuilderValue[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 largs[i] = args[i].lvalue
             result.lvalue = self.lbuilder.call_method(sig, largs, nargs)
         if self.ubuilder != NULL:
-            uargs: int[100]
+            uargs: int[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 uargs[i] = args[i].uvalue
             result.uvalue = self.ubuilder.call_method(sig, uargs, nargs)
         if self.hbuilder != NULL:
-            hargs: HBuilderValue[100]
+            hargs: HBuilderValue[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 hargs[i] = args[i].hvalue
             result.hvalue = self.hbuilder.call_method(sig, hargs, nargs)

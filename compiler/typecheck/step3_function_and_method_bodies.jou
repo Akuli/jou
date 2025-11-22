@@ -628,7 +628,7 @@ def nth(n: int) -> byte[100]:
 
     assert n >= 1
     first_few = [NULL, "first", "second", "third", "fourth", "fifth", "sixth"]
-    if n < sizeof(first_few) / sizeof(first_few[0]):
+    if n < array_count(first_few):
         strcpy(result, first_few[n])
     else:
         sprintf(result, "%dth", n)
