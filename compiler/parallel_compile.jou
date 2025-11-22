@@ -159,6 +159,11 @@ def pthreads_callback(state_ptr: void*) -> void*:
     if global_compiler_state.args.verbosity >= 2:
         printf("[thread %llx] Started...\n", pthread_self() as uint64)
 
+    llvm_context = LLVMContextCreate()
+    if llvm_context == NULL:
+        fprintf(get_stderr(), "[thread %llx] LLVMContextCreate failed\n", pthread_self() as uint64)
+        exit(1)
+
     while True:
         ret = pthread_mutex_lock(&state.mutex)
         if ret != 0:
@@ -178,6 +183,7 @@ def pthreads_callback(state_ptr: void*) -> void*:
         if task == NULL:
             if global_compiler_state.args.verbosity >= 2:
                 printf("[thread %llx] Done\n", pthread_self())
+            LLVMContextDispose(llvm_context)
             return NULL
 
         if global_compiler_state.args.verbosity >= 1:

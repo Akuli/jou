@@ -38,6 +38,9 @@ class LLVMBasicBlock:
 class LLVMBuilder:
     pass
 @public
+class LLVMContext:
+    pass
+@public
 class LLVMPassManager:
     pass
 @public
@@ -263,6 +266,10 @@ enum LLVMRealPredicate:
     UNE
     AlwaysTrue
 
+@public
+declare LLVMContextCreate() -> LLVMContext*
+@public
+declare LLVMContextDispose(C: LLVMContext*) -> None
 @public
 declare LLVMVoidType() -> LLVMType*
 @public

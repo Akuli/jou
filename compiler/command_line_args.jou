@@ -201,7 +201,6 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 set_mode(&args, CompilingMode.UvgOnly)
                 i++
             case _:
-                printf("%s %d\n", argv[i], atoi(&argv[i][2]))
                 if starts_with(argv[i], "-j") and is_ascii_digit(argv[i][2]) and 1 <= atoi(&argv[i][2]) and atoi(&argv[i][2]) <= 100:
                     args.parallelism = atoi(&argv[i][2])
                     i++
