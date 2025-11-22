@@ -1,5 +1,6 @@
-import "stdlib/list.jou"
 import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
 
 class Foo:
     x: int
@@ -18,4 +19,5 @@ def main() -> int:
     foos_array[42] = Foo{x=456}
     printf("%d\n", foos_array[42].x)  # Output: 456
 
+    free(foos_list.ptr)
     return 0
