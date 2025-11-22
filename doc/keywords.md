@@ -79,3 +79,8 @@ However, this would mean that you cannot import anything else that imports `stdl
 because then your program would have two functions named `_jou_assert_fail()` and you would get a linker error.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you want to define your own `_jou_assert_fail()` function and you run into this problem.
+
+
+## `bool`
+
+This is [the built-in Boolean type](types.md#other-types).
