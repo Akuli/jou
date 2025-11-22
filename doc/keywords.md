@@ -8,6 +8,8 @@ This file documents what each keyword in the Jou language does.
 `foo and bar` evaluates to `True` if `foo` and `bar` are both True.
 Both `foo` and `bar` must be `bool`s, and `bar` will not be evaluated at all if `foo` is `False`.
 
+**See also:** [or](#or), [not](#not)
+
 
 ## `array_count`
 
@@ -219,6 +221,11 @@ def main() -> int:
     return 0
 ```
 
+The last argument of a function can be literally `...` when declaring.
+This means that the function is **variadic**; that is,
+it accepts zero or more arguments of basically any type where you wrote the `...`.
+This is how `printf()` is declared in [stdlib/io.jou](../stdlib/io.jou).
+
 A `declare` statement can be decorated with `@public` so that it can be [imported](import.md) into other files.
 
 For many more examples of declaring functions, look at [stdlib/io.jou](../stdlib/io.jou) or other stdlib files.
@@ -236,10 +243,34 @@ declare global stderr: FILE*
 
 A `declare global` statement can be decorated with `@public`, but this is rarely needed.
 
+**See also:** [def](#def), [global](#global), [noreturn](#noreturn), [None](#none)
+
 
 ## `def`
 
-TODO: not documented yet, sorry :(
+The `def` keyword defines a function. For example:
+
+```python
+import "stdlib/io.jou"
+
+def print_twice(string: byte*) -> None:
+    puts(string)
+    puts(string)
+
+def main() -> int:
+    # Output: Hello
+    # Output: Hello
+    print_twice("Hello")
+    return 0
+```
+
+Compared to e.g. Python, Jou's function definitions are quite simple:
+there are no keyword arguments or default values, for example.
+
+It is currently it is not possible to define a variadic function like `printf()`,
+but it is possible to [declare](#declare) a variadic function.
+
+**See also:** [declare](#declare), [noreturn](#noreturn), [None](#none)
 
 
 ## `double`
@@ -280,6 +311,8 @@ TODO: not documented yet, sorry :(
 ## `for`
 
 TODO: not documented yet, sorry :(
+
+**See also:** [while](#while), [break](#break), [continue](#continue)
 
 
 ## `funcptr`
@@ -341,25 +374,35 @@ TODO: not documented yet, sorry :(
 
 TODO: not documented yet, sorry :(
 
+**See also:** [declare](#declare), [def](#def), [noreturn](#noreturn), [NULL](null), [void](void)
+
 
 ## `noreturn`
 
 TODO: not documented yet, sorry :(
+
+**See also:** [declare](#declare), [def](#def), [None](#none)
 
 
 ## `not`
 
 TODO: not documented yet, sorry :(
 
+**See also:** [and](#and), [or](#or)
+
 
 ## `NULL`
 
 TODO: not documented yet, sorry :(
 
+**See also:** [None](#none), [void](#void)
+
 
 ## `or`
 
 TODO: not documented yet, sorry :(
+
+**See also:** [and](#and), [not](#not)
 
 
 ## `pass`
@@ -421,10 +464,14 @@ TODO: not documented yet, sorry :(
 
 TODO: not documented yet, sorry :(
 
+**See also:** [None](#none), [NULL](#null)
+
 
 ## `while`
 
 TODO: not documented yet, sorry :(
+
+**See also:** [for](#for), [break](#break), [continue](#continue)
 
 
 ## `with`
