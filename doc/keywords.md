@@ -166,7 +166,7 @@ def main() -> int:
     return 0
 ```
 
-A `const` statement can be decorated with `@public` so that it can be [imported](import.md) into other files:
+A `const` statement can be decorated with `@public` so that it can be [imported](imports.md) into other files:
 
 ```python
 @public
@@ -226,7 +226,7 @@ This means that the function is **variadic**; that is,
 it accepts zero or more arguments of basically any type where you wrote the `...`.
 This is how `printf()` is declared in [stdlib/io.jou](../stdlib/io.jou).
 
-A `declare` statement can be decorated with `@public` so that it can be [imported](import.md) into other files.
+A `declare` statement can be decorated with `@public` so that it can be [imported](imports.md) into other files.
 
 For many more examples of declaring functions, look at [stdlib/io.jou](../stdlib/io.jou) or other stdlib files.
 
@@ -454,7 +454,7 @@ def main() -> int:
 If you want to say that a value may be missing,
 you can use e.g. [NULL](#null) or `-1` depending on the data type.
 
-**See also:** [NULL](null), [void](void), [noreturn](#noreturn), [declare](#declare), [def](#def)
+**See also:** [NULL](#null), [void](#void), [noreturn](#noreturn), [declare](#declare), [def](#def)
 
 
 ## `noreturn`
@@ -630,4 +630,4 @@ TODO: not documented yet, sorry :(
 
 ## `with`
 
-This keyword can only be used to [specify a function in a `match` statement](match.md#using-match-with-strcmp-to-match-strings).
+This keyword can only be used to [specify a function in a `match` statement](match.md#using-match--with-strcmp-to-match-strings).
