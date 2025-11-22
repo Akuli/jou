@@ -174,7 +174,26 @@ const MAX_NUMBER_OF_THINGS: int = 100
 
 ## `continue`
 
-TODO: not documented yet, sorry :(
+The `continue` keyword skips the rest of the body of the innermost [while](#while) or [for](#for) loop it's in.
+Note that the last part of a `for` loop (typically `i++` or similar) is **not** skipped.
+
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    # Output: Hello 0
+    # Output: Hello 1
+    # Output: Hello 3
+    # Output: Hello 4
+    for i = 0; i < 5; i++:
+        if i == 2:
+            continue
+        printf("Hello %d\n", i)
+
+    return 0
+```
 
 
 ## `declare`
