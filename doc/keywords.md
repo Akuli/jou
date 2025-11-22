@@ -627,4 +627,4 @@ TODO: not documented yet, sorry :(
 
 ## `with`
 
-TODO: not documented yet, sorry :(
+This keyword can only be used to [specify a function in a `match` statement](match.md#using-match-with-strcmp-to-match-strings).
