@@ -428,40 +428,29 @@ def check() -> None:
     fail_if_warnings_and_flag()
 
 
-def compile_to_object_files() -> List[byte*]:
+def compile_to_object_files() -> None:
     check()
 
     init_target(&global_compiler_state.target)
-    objpaths = List[byte*]{}
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         o_path = find_existing_object_file_or_compile_to_object_file(jou_file)
-        objpaths.append(o_path)
-
-    return objpaths
+        assert jou_file.object_file_path == NULL
+        object_file_path = o_path
 
 
 def compile_to_jou_compiled_and_run() -> int:
-    objpaths = compile_to_object_files()
+    compile_to_object_files()
     exepath = get_jou_compiled_exe_path()
-    run_linker(objpaths, exepath)
+    run_linker(exepath)
     ret = run_exe(exepath)
-
-    for p = objpaths.ptr; p < objpaths.end(); p++:
-        free(*p)
-    free(objpaths.ptr)
     free(exepath)
     return ret
 
 
 def compile_to_outfile() -> None:
     assert global_compiler_state.args.outfile != NULL
-
-    objpaths = compile_to_object_files()
-    run_linker(objpaths, global_compiler_state.args.outfile)
-
-    for p = objpaths.ptr; p < objpaths.end(); p++:
-        free(*p)
-    free(objpaths.ptr)
+    compile_to_object_files()
+    run_linker(global_compiler_state.args.outfile)
 
 
 def main(argc: int, argv: byte**) -> int:

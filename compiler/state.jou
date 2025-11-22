@@ -38,6 +38,9 @@ class JouFile:
     # For finding imported symbols quickly
     symbol_hash_table: int*
 
+    # Path of .o file in jou_compiled. Includes hashes, see doc/compiler_internals/lazy-recompile.md
+    object_file_path: byte*
+
     def free(self) -> None:
         for p = self.ast.ptr; p < self.ast.end(); p++:
             p.free()
@@ -45,6 +48,7 @@ class JouFile:
         free(self.path)
         free(self.available_symbols.ptr)
         free(self.symbol_hash_table)
+        free(self.object_file_path)
 
 
 @public
