@@ -480,7 +480,7 @@ class Tokenizer:
             fail(open_token.location, msg)
 
         if token.is_open_paren():
-            if self.open_parens_len == sizeof self.open_parens / sizeof self.open_parens[0]:
+            if self.open_parens_len == array_count(self.open_parens):
                 fail(token.location, "too many nested parentheses")
             self.open_parens[self.open_parens_len++] = *token
 
@@ -713,7 +713,7 @@ def detect_bad_chars(path: byte*, file_content: byte*) -> None:
 
     first_bad: BadChar* = NULL
     first_bad_ptr: byte* = NULL
-    for bad = &bad_chars[0]; bad < &bad_chars[sizeof(bad_chars)/sizeof(bad_chars[0])]; bad++:
+    for bad = &bad_chars[0]; bad < &bad_chars[array_count(bad_chars)]; bad++:
         search_string = utf8_encode_char(bad.codepoint)
         bad_ptr = strstr(file_content, search_string)
         if bad_ptr != NULL and (first_bad_ptr == NULL or bad_ptr < first_bad_ptr):
