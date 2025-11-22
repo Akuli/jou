@@ -320,57 +320,53 @@ class Tokenizer:
         assert *self.file_content_ptr == '\''
         self.file_content_ptr++
 
-        c = self.read_byte()
-        if c == '\'':
-            fail(self.location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
-        if c == '\0' or c == '\n':
-            if c == '\n':
-                self.location.lineno--
-            fail(self.location, "missing ' to end the byte literal")
+        c = *self.file_content_ptr++
 
-        if c == '\\':
-            after_backslash = self.read_byte()
-            match after_backslash:
-                case '\0':
-                    fail(self.location, "missing ' to end the byte literal")
-                case '\n':
-                    self.location.lineno--
-                    fail(self.location, "missing ' to end the byte literal")
-                case 'n':
-                    c = '\n'
-                case 'r':
-                    c = '\r'
-                case 't':
-                    c = '\t'
-                case '\\':
-                    c = '\\'
-                case '\'':
-                    c = '\''
-                case '"':
-                    fail(self.location, "double quotes shouldn't be escaped in byte literals")
-                case '0':
-                    c = '\0'
-                case 'x':
-                    c = self.read_hex_escape_byte()
-                case _:
-                    if is_ascii_printable(after_backslash):
-                        message: byte* = malloc(100)
-                        sprintf(message, "unknown escape: '\\%c'", after_backslash)
-                        fail(self.location, message)
-                    else:
-                        fail(self.location, "unknown '\\' escape")
+        match c:
+            case '\'':
+                fail(self.location, "a byte literal cannot be empty, maybe use double quotes to instead make a string?")
+            case '\0' | '\n':
+                fail(self.location, "missing ' to end the byte literal")
+            case '\\':
+                after_backslash = *self.file_content_ptr++
+                match after_backslash:
+                    case '\0' | '\n':
+                        fail(self.location, "missing ' to end the byte literal")
+                    case 'n':
+                        c = '\n'
+                    case 'r':
+                        c = '\r'
+                    case 't':
+                        c = '\t'
+                    case '\\':
+                        c = '\\'
+                    case '\'':
+                        c = '\''
+                    case '"':
+                        fail(self.location, "double quotes shouldn't be escaped in byte literals")
+                    case '0':
+                        c = '\0'
+                    case 'x':
+                        c = self.read_hex_escape_byte()
+                    case _:
+                        if is_ascii_printable(after_backslash):
+                            message: byte* = malloc(100)
+                            sprintf(message, "unknown escape: '\\%c'", after_backslash)
+                            fail(self.location, message)
+                        else:
+                            fail(self.location, "unknown '\\' escape")
 
-        end = self.read_byte()
-        if end != '\'':
+        if *self.file_content_ptr != '\'':
             # If there's another single quote later on the same line, suggest using double quotes.
             location = self.location
             while True:
-                match self.read_byte():
+                match *self.file_content_ptr++:
                     case '\0' | '\n':
                         fail(location, "missing ' to end the byte literal")
                     case '\'':
                         fail(location, "single quotes are for specifying a byte, maybe use double quotes to instead make a string?")
 
+        self.file_content_ptr++
         return c
 
     def read_string(self) -> byte*:
