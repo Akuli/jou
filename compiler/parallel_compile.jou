@@ -168,7 +168,7 @@ def compile_to_object_file(state: ThreadLocalCompilerState*, jou_file: JouFile*)
     if global_compiler_state.args.verbosity >= 1:
         printf("[thread %llx] Compiling %s\n", pthread_self(), jou_file.path)
 
-    mod = build_and_verify_llvm_ir(state, jou_file)
+    #mod = build_and_verify_llvm_ir(state, jou_file)
     #if global_compiler_state.args.optlevel != 0:
     #    optimize(state, mod, global_compiler_state.args.optlevel)
     #write_llvm_ir_to_file(state, mod, jou_file.object_file_path)
