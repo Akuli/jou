@@ -5,6 +5,14 @@
 # useful data structures by modifying only the IR builder, such as UVG. This
 # means we don't walk through the AST in multiple different places that could
 # handle some corner cases differently.
+#
+# !!!!!!!!!!!!!!!!!!!!!!!!!!
+# !! Thread Safety Notice !!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!
+# LLVM IR is built using multiple threads, so be careful when you access global
+# state from here. Any kind of mutation of global state (e.g. getting a type
+# that may or may not exist yet) is almost certainly wrong and will cause bugs
+# that are difficult to reproduce and debug.
 
 import "stdlib/assert.jou"
 import "stdlib/math.jou"
@@ -83,6 +91,11 @@ def class_type_to_llvm(state: ThreadLocalCompilerState*, type: Type*) -> LLVMTyp
 
 
 def type_to_llvm(state: ThreadLocalCompilerState*, type: Type*) -> LLVMType*:
+    if type == NULL:
+        # This is only for noreturn and None return types of functions.
+        # TODO: tell llvm, if we know a function is noreturn ?
+        return LLVMVoidTypeInContext(state.llvm_context)
+
     match type.kind:
         case TypeKind.TypeDef:
             return type_to_llvm(state, type.typedef_actual_type)
@@ -119,17 +132,29 @@ def funcptr_type_to_llvm(state: ThreadLocalCompilerState*, t: Type*) -> LLVMType
     for i = 0; i < t.func_ptr.argtypes.len; i++:
         argtypes[i] = type_to_llvm(state, t.func_ptr.argtypes.ptr[i])
 
-    # TODO: tell llvm, if we know a function is noreturn ?
-    if t.func_ptr.return_type == NULL:  # "-> noreturn" or "-> None"
-        return_type = LLVMVoidTypeInContext(state.llvm_context)
-    else:
-        return_type = type_to_llvm(state, t.func_ptr.return_type)
-
-    return LLVMFunctionType(return_type, argtypes, t.func_ptr.argtypes.len as int, t.func_ptr.takes_varargs as int)
+    return LLVMFunctionType(
+        type_to_llvm(state, t.func_ptr.return_type),
+        argtypes,
+        t.func_ptr.argtypes.len as int,
+        t.func_ptr.takes_varargs as int,
+    )
 
 
 def signature_to_llvm(state: ThreadLocalCompilerState*, sig: Signature*) -> LLVMType*:
-    return funcptr_type_to_llvm(state, sig.to_funcptr_type())
+    # We cannot simply convert the signature into a funcptr type because of
+    # thread safety. The new funcptr type might not exist yet, and creating it
+    # would cause race conditions.
+    assert sig.args.len <= MAX_ARGS
+    argtypes: LLVMType*[MAX_ARGS]
+    for i = 0; i < sig.args.len; i++:
+        argtypes[i] = type_to_llvm(state, sig.args.ptr[i].type)
+
+    return LLVMFunctionType(
+        type_to_llvm(state, sig.return_type),
+        argtypes,
+        sig.args.len as int,
+        sig.takes_varargs as int,
+    )
 
 
 def declare_in_llvm(state: ThreadLocalCompilerState*, sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
