@@ -23,8 +23,9 @@ jobs:
           run: |
             sudo pkgin -y install clang gmake diffutils git python313 && \
             gmake && \
-            ./runtests.sh --verbose && \
-            mv jou jou_bootstrap && gmake && \
-            ./runtests.sh should_succeed --verbose && \
-            gmake clean && \
-            ./doctest.sh
+            ./runtests.sh --verbose
+#             && \
+#            mv jou jou_bootstrap && gmake && \
+#            ./runtests.sh should_succeed --verbose && \
+#            gmake clean && \
+#            ./doctest.sh

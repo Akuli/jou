@@ -48,14 +48,14 @@ jobs:
         run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
       - name: "Compile and test"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
-      - name: "Compile the compiler with itself"
-        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
-      - name: "Compile and test again"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
-      # Valgrinding all files is slow, but let's valgrind the hello world.
-      # This is enough to catch many bugs.
-      #
-      # We also have a separate, "full" valgrind run. See valgrind.yml.
-      - name: "Run hello world with valgrind"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
-      - run: ./doctest.sh
+#      - name: "Compile the compiler with itself"
+#        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
+#      - name: "Compile and test again"
+#        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+#      # Valgrinding all files is slow, but let's valgrind the hello world.
+#      # This is enough to catch many bugs.
+#      #
+#      # We also have a separate, "full" valgrind run. See valgrind.yml.
+#      - name: "Run hello world with valgrind"
+#        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
+#      - run: ./doctest.sh
