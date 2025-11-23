@@ -97,15 +97,16 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
 def build_and_verify_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMModule*:
     if global_compiler_state.args.verbosity >= 2:
         printf("[thread %llx] Building LLVM IR: %s\n", pthread_self() as uint64, jou_file.path)
-    mod = build_llvm_ir(state, jou_file)
-    if global_compiler_state.args.verbosity >= 2:
-        print_llvm_ir(mod, False)
+#    mod = build_llvm_ir(state, jou_file)
+#    if global_compiler_state.args.verbosity >= 2:
+#        print_llvm_ir(mod, False)
+#
+#    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
+#    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
+#    LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
 
-    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
-    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
-    LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
-
-    return mod
+#    return mod
+    return NULL
 
 
 def optimize(state: ThreadLocalCompilerState*, module: LLVMModule*, level: int) -> None:
