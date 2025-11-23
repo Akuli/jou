@@ -9,7 +9,6 @@ on:
 jobs:
   # Please keep in sync with valgrind.yml and linux-aarch64.yml
   check-if-needed:
-    if: false
     timeout-minutes: 1
     runs-on: ubuntu-latest
     outputs:
@@ -45,7 +44,6 @@ jobs:
           fi
 
   test:
-    if: false
     needs: [check-if-needed]
     if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
     runs-on: macos-latest
@@ -87,7 +85,6 @@ jobs:
 
   # Please keep in sync with valgrind.yml and linux-aarch64.yml
   create-issue-on-failure:
-    if: false
     name: Create an issue if failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
