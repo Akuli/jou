@@ -9,6 +9,7 @@ on:
 jobs:
   # Please keep in sync with valgrind.yml and linux-aarch64.yml
   check-if-needed:
+    if: false
     timeout-minutes: 1
     runs-on: ubuntu-latest
     outputs:
@@ -45,7 +46,8 @@ jobs:
 
   test:
     needs: [check-if-needed]
-    if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
+#    if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
+    if: false
     runs-on: macos-latest
     timeout-minutes: 10
     strategy:
@@ -89,7 +91,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [check-if-needed, test]
-    if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
+#    if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
+    if: false
     permissions:
       issues: write
     steps:

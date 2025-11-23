@@ -13,21 +13,21 @@ jobs:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         # Please keep in sync with valgrind.yml and macos.yml
         params:
-          # Oldest version: all opt levels
-          - { llvm-version: 15, opt-level: '-O0' }
-          - { llvm-version: 15, opt-level: '-O1' }
-          - { llvm-version: 15, opt-level: '-O2' }
-          - { llvm-version: 15, opt-level: '-O3' }
-          # Most versions: just one opt level to save time
-          - { llvm-version: 16, opt-level: '-O1' }
-          - { llvm-version: 17, opt-level: '-O1' }
+#          # Oldest version: all opt levels
+#          - { llvm-version: 15, opt-level: '-O0' }
+#          - { llvm-version: 15, opt-level: '-O1' }
+#          - { llvm-version: 15, opt-level: '-O2' }
+#          - { llvm-version: 15, opt-level: '-O3' }
+#          # Most versions: just one opt level to save time
+#          - { llvm-version: 16, opt-level: '-O1' }
+#          - { llvm-version: 17, opt-level: '-O1' }
           - { llvm-version: 18, opt-level: '-O1' }
-          - { llvm-version: 19, opt-level: '-O1' }
-          # Latest version: all opt levels
-          - { llvm-version: 20, opt-level: '-O0' }
-          - { llvm-version: 20, opt-level: '-O1' }
-          - { llvm-version: 20, opt-level: '-O2' }
-          - { llvm-version: 20, opt-level: '-O3' }
+#          - { llvm-version: 19, opt-level: '-O1' }
+#          # Latest version: all opt levels
+#          - { llvm-version: 20, opt-level: '-O0' }
+#          - { llvm-version: 20, opt-level: '-O1' }
+#          - { llvm-version: 20, opt-level: '-O2' }
+#          - { llvm-version: 20, opt-level: '-O3' }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,8 +46,17 @@ jobs:
           sudo apt install -y $PACKAGES || (sudo apt update && sudo apt install -y $PACKAGES)
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
-      - name: "Compile and test"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Compile"
+        run: make
+      - name: "Try trigger bug"
+        run: |
+          cd examples/aoc2023/day25
+          for i in `seq 1 10000`; do
+            rm -rvf jou_compiled
+            jou -o /dev/null part1.jou
+          done
+#      - name: "Compile and test"
+#        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
 #      - name: "Compile the compiler with itself"
 #        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
 #      - name: "Compile and test again"
