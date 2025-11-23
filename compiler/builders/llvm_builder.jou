@@ -783,13 +783,13 @@ def build_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMM
     LLVMSetTarget(module, global_compiler_state.target.triple)
     LLVMSetDataLayout(module, global_compiler_state.target.data_layout)
 
-#    builder = LBuilder{
-#        state = state,
-#        llvm_module = module,
-#        llvm_builder = LLVMCreateBuilderInContext(state.llvm_context),
-#    }
-#    builder_wrapper = AnyBuilder{lbuilder = &builder}
-#
+    builder = LBuilder{
+        state = state,
+        llvm_module = module,
+        llvm_builder = LLVMCreateBuilderInContext(state.llvm_context),
+    }
+    builder_wrapper = AnyBuilder{lbuilder = &builder}
+
 #    for avail = jou_file.available_symbols.ptr; avail < jou_file.available_symbols.end(); avail++:
 #        if avail.the_import != NULL:
 #            symbol = avail.statement.symbol()
@@ -824,6 +824,5 @@ def build_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMM
 #            case _:
 #                pass
 #
-#    LLVMDisposeBuilder(builder.llvm_builder)
-#    return module
-    return NULL
+    LLVMDisposeBuilder(builder.llvm_builder)
+    return module
