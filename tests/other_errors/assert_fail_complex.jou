@@ -1,0 +1,21 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def oops() -> bool:
+    puts("oops")
+    return False
+
+
+def main() -> int:
+    # Output: oops
+    # Output: Assertion '(strlen("#\n") == 2 and "#"[0] == '#' and strlen("#\\\"#") == 4 and oops())' failed in file "tests/other_errors/assert_fail_complex.jou", line 14.
+    assert (
+        strlen("#\n") == 2  # Bla bla
+        and "#"[0] == '#'  # Bla bla bla
+        # Comment between lines! Let's see if this confuses it.
+        and strlen("#\\\"#") == 4
+        and oops()  # Yet another comment
+    )
+    return 0
