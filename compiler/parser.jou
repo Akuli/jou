@@ -665,6 +665,36 @@ class Parser:
 
         return result
 
+    def check_c_casts(self) -> None:
+        # Special-casing for C style casts, e.g. (uint32)x
+        # Only for built-in integer types for now, because that was easier to implement.
+        if (
+            self.tokens[0].is_operator("(")
+            and (
+                self.tokens[1].is_keyword("int")
+                or self.tokens[1].is_keyword("byte")
+                or self.tokens[1].is_keyword("int8")
+                or self.tokens[1].is_keyword("int16")
+                or self.tokens[1].is_keyword("int32")
+                or self.tokens[1].is_keyword("int64")
+                or self.tokens[1].is_keyword("uint8")
+                or self.tokens[1].is_keyword("uint16")
+                or self.tokens[1].is_keyword("uint32")
+                or self.tokens[1].is_keyword("uint64")
+            )
+            and self.tokens[2].is_operator(")")
+        ):
+            type_name = self.tokens[1].short_string
+            msg: byte[200]
+            snprintf(
+                msg,
+                sizeof(msg),
+                "Jou's cast syntax is 'value as %s', not '(%s)value'",
+                type_name,
+                type_name,
+            )
+            fail(self.tokens[0].location, msg)
+
     def parse_elementary_expression(self) -> AstExpression:
         expr = AstExpression{location = self.tokens.location}
 
@@ -712,6 +742,7 @@ class Parser:
                     expr.kind = AstExpressionKind.Self
                     self.tokens++
                 elif self.tokens.is_operator("("):
+                    self.check_c_casts()
                     self.tokens++
                     expr = self.parse_expression()
                     self.eat_operator(")", True, "a ')'")
