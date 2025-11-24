@@ -1092,6 +1092,17 @@ class Parser:
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     result.kind = AstStatementKind.DeclareLocalVar
                     result.local_var_declare = self.parse_name_type_value(NULL)
+        elif (
+            self.tokens.kind == TokenKind.Name
+            and (
+                strcmp(self.tokens.short_string, "let") == 0
+                or strcmp(self.tokens.short_string, "var") == 0
+            )
+            and self.tokens[1].kind == TokenKind.Name
+        ):
+            msg: byte[200]
+            snprintf(msg, sizeof(msg), "there is no '%s' keyword in Jou", self.tokens.short_string)
+            fail(self.tokens.location, msg)
         else:
             expr = self.parse_expression()
             result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(self.tokens)
