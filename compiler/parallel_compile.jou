@@ -30,29 +30,31 @@ import "./pthreads.jou"
 # TODO: stdlib?
 declare rename(oldpath: byte*, newpath: byte*) -> int
 
-if WINDOWS:
-    declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
-    const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
-else:
-    declare sysconf(n: int) -> int64
-    if MACOS:
-        const _SC_NPROCESSORS_ONLN: int = 58
-    elif NETBSD:
-        const _SC_NPROCESSORS_ONLN: int = 1002
-    else:
-        # linux
-        const _SC_NPROCESSORS_ONLN: int = 84
-
-
-def get_number_of_cpus() -> int:
+# Number of CPUs determining stuff. Disabled for now because multithreading is
+# off by default rather than defaulting to number of cores.
+if False:
     if WINDOWS:
-        result = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) as int
+        declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
+        const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
     else:
-        result = sysconf(_SC_NPROCESSORS_ONLN) as int
+        declare sysconf(n: int) -> int64
+        if MACOS:
+            const _SC_NPROCESSORS_ONLN: int = 58
+        elif NETBSD:
+            const _SC_NPROCESSORS_ONLN: int = 1002
+        else:
+            # linux
+            const _SC_NPROCESSORS_ONLN: int = 84
 
-    if global_compiler_state.args.verbosity >= 2:
-        printf("%d CPU cores\n", result)
-    return result
+    def get_number_of_cpus() -> int:
+        if WINDOWS:
+            result = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) as int
+        else:
+            result = sysconf(_SC_NPROCESSORS_ONLN) as int
+
+        if global_compiler_state.args.verbosity >= 2:
+            printf("%d CPU cores\n", result)
+        return result
 
 
 def choose_num_threads(files_to_compile: List[JouFile*]) -> int:
@@ -61,14 +63,11 @@ def choose_num_threads(files_to_compile: List[JouFile*]) -> int:
             printf("LLVMIsMultithreaded() returns 0. Not using threads.\n")
         return 0
 
-    if files_to_compile.len < 2:
-        # Multiple threads wouldn't make this faster :)
-        return 0
-
     num_threads = global_compiler_state.args.parallelism
-    if num_threads == 0:
-        # Argument not given on command line
-        num_threads = get_number_of_cpus()
+    # TODO: enable parallelism by default
+    #if num_threads == 0:
+    #    # Argument not given on command line
+    #    num_threads = get_number_of_cpus()
 
     if num_threads > files_to_compile.len:
         num_threads = files_to_compile.len as int
@@ -168,11 +167,11 @@ def compile_to_object_file(state: ThreadLocalCompilerState*, jou_file: JouFile*)
     if global_compiler_state.args.verbosity >= 1:
         printf("[thread %llx] Compiling %s\n", pthread_self(), jou_file.path)
 
-    #mod = build_and_verify_llvm_ir(state, jou_file)
-    #if global_compiler_state.args.optlevel != 0:
-    #    optimize(state, mod, global_compiler_state.args.optlevel)
-    #write_llvm_ir_to_file(state, mod, jou_file.object_file_path)
-    #LLVMDisposeModule(mod)
+    mod = build_and_verify_llvm_ir(state, jou_file)
+    if global_compiler_state.args.optlevel != 0:
+        optimize(state, mod, global_compiler_state.args.optlevel)
+    write_llvm_ir_to_file(state, mod, jou_file.object_file_path)
+    LLVMDisposeModule(mod)
 
 
 class FileQueue:
