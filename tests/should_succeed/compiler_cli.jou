@@ -61,6 +61,10 @@ def main() -> int:
     run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try "<jouexe> --help")
     run_jou("--check --check")  # Output: <jouexe>: --check cannot be given multiple times (try "<jouexe> --help")
 
+    # Output: <jouexe>: warning: parallel compiling (-j4) is experimental and doesn't always work
+    # Output: Hello World
+    run_jou("-j4 examples/hello.jou")
+
     # Output: <jouexe>: warning: -O1 does nothing when used together with --check (see "<jouexe> --help")
     # Output: Checked 2 files.
     run_jou("--check -O1 examples/hello.jou")
@@ -72,6 +76,10 @@ def main() -> int:
     # Output: <jouexe>: warning: --linker-flags does nothing when used together with --check (see "<jouexe> --help")
     # Output: Checked 2 files.
     run_jou("--check --linker-flags foobar examples/hello.jou")
+
+    # Output: <jouexe>: warning: -j8 does nothing when used together with --check (see "<jouexe> --help")
+    # Output: Checked 2 files.
+    run_jou("--check -j8 examples/hello.jou")
 
     # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
     #
