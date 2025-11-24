@@ -76,19 +76,27 @@ class UBuilder:
             assert not self.uvg.has_local_var(varname)
         return self.uvg.get_local_var_ptr(varname)
 
-    def set_ptr(self, ptr: int, value: int) -> None:
+    def set_ptr(self, ptr: int, type: Type*, value: int) -> None:
         self.dont_analyze(value)
         self.set(ptr)
 
-    def dereference(self, ptr: int) -> int:
+    def dereference(self, ptr: int, ptr_type: Type*) -> int:
         self.use(ptr)
         return ANONYMOUS_VALUE_ID
 
-    def indexed_pointer(self, ptr: int, index: int) -> int:
+    def indexed_pointer(self, ptr: int, ptr_type: Type*, index: int) -> int:
         self.dont_analyze(ptr)
         return ANONYMOUS_VALUE_ID
 
-    def class_field_pointer(self, ptr: int, field_name: byte*) -> int:
+    # Returns &ptr.field
+    def class_field_pointer(
+        self,
+        ptr: int,
+        ptr_type: Type*,
+        field_name: byte*,
+        field_type: Type*,
+        field_union_id: int,
+    ) -> int:
         self.dont_analyze(ptr)
         return ANONYMOUS_VALUE_ID
 
@@ -101,7 +109,7 @@ class UBuilder:
     def get_argument(self, i: int, argtype: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
-    def call_function(self, funcptr_type: Type*, func: int, args: int*, nargs: int) -> int:
+    def call_function(self, func: int, funcptr_type: Type*, args: int*, nargs: int) -> int:
         self.use(func)
         for i = 0; i < nargs; i++:
             self.dont_analyze(args[i])
@@ -112,7 +120,7 @@ class UBuilder:
             self.dont_analyze(args[i])
         return ANONYMOUS_VALUE_ID
 
-    def array_string(self, s: byte*, array_size: int) -> int:
+    def array_string(self, s: byte*, array_size: int, array_type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     def pointer_string(self, s: byte*) -> int:
@@ -133,55 +141,52 @@ class UBuilder:
     def zero_of_type(self, t: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
-    def enum_member(self, t: Type*, name: byte*) -> int:
-        return ANONYMOUS_VALUE_ID
-
     # a + b
-    def add(self, a: int, b: int) -> int:
+    def add(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a - b
-    def sub(self, a: int, b: int) -> int:
+    def sub(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a * b
-    def mul(self, a: int, b: int) -> int:
+    def mul(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a / b
-    def div(self, a: int, b: int) -> int:
+    def div(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a % b
-    def mod(self, a: int, b: int) -> int:
+    def mod(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a & b
-    def bit_and(self, a: int, b: int) -> int:
+    def bit_and(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a | b
-    def bit_or(self, a: int, b: int) -> int:
+    def bit_or(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a ^ b
-    def bit_xor(self, a: int, b: int) -> int:
+    def bit_xor(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a << b
-    def bit_shift_left(self, a: int, b: int) -> int:
+    def bit_shift_left(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a >> b
-    def bit_shift_right(self, a: int, b: int) -> int:
+    def bit_shift_right(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a == b
-    def eq(self, a: int, b: int) -> int:
+    def eq(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a < b
-    def lt(self, a: int, b: int) -> int:
+    def lt(self, a: int, b: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # not value
@@ -195,7 +200,7 @@ class UBuilder:
                 return ANONYMOUS_VALUE_ID
 
     # ~value
-    def bit_not(self, value: int) -> int:
+    def bit_not(self, value: int, type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # sizeof(any value of given type)
@@ -203,11 +208,12 @@ class UBuilder:
         return ANONYMOUS_VALUE_ID
 
     # memset(ptr, 0, sizeof(*ptr))
-    def memset_to_zero(self, ptr: int) -> None:
+    def memset_to_zero(self, ptr: int, ptr_type: Type*) -> None:
         self.set(ptr)
 
     # value as to
-    def cast(self, value: int, to: Type*) -> int:
+    def cast(self, value: int, from: Type*, to: Type*) -> int:
+        # TODO: would it be better to check `from` in some of these?
         if to.is_pointer_type():
             # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
             return value

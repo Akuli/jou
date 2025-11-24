@@ -76,7 +76,7 @@ def hash_signature(hash: Hash*, sig: Signature*) -> None:
 @public
 class HBuilderValue:
     id: int64
-    type: Type*
+    type: Type*  # TODO: need this???
 
 
 @public
@@ -121,28 +121,35 @@ class HBuilder:
         return self.new_value(t.pointer_type())
 
     # *ptr = value
-    def set_ptr(self, ptr: HBuilderValue, value: HBuilderValue) -> None:
+    def set_ptr(self, ptr: HBuilderValue, type: Type*, value: HBuilderValue) -> None:
         self.hash.add_string("set_ptr")
         self.hash.add_int64(ptr.id)
         self.hash.add_int64(value.id)
 
     # *ptr
-    def dereference(self, ptr: HBuilderValue) -> HBuilderValue:
+    def dereference(self, ptr: HBuilderValue, ptr_type: Type*) -> HBuilderValue:
         self.hash.add_string("deref")
         self.hash.add_int64(ptr.id)
         assert ptr.type.kind == TypeKind.Pointer
         return self.new_value(ptr.type.value_type)
 
     # Returns &ptr[index]
-    def indexed_pointer(self, ptr: HBuilderValue, index: HBuilderValue) -> HBuilderValue:
+    def indexed_pointer(self, ptr: HBuilderValue, ptr_type: Type*, index: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("indexed_pointer")
         self.hash.add_int64(ptr.id)
         self.hash.add_int64(index.id)
-        hash_type(&self.hash, ptr.type.value_type)  # result depends on size of pointed type
-        return self.new_value(ptr.type)
+        hash_type(&self.hash, ptr_type.value_type)  # result depends on size of pointed type
+        return self.new_value(ptr_type)
 
     # Returns &ptr.field
-    def class_field_pointer(self, ptr: HBuilderValue, field_name: byte*) -> HBuilderValue:
+    def class_field_pointer(
+        self,
+        ptr: HBuilderValue,
+        ptr_type: Type*,
+        field_name: byte*,
+        field_type: Type*,
+        field_union_id: int,
+    ) -> HBuilderValue:
         # Do not hash field name, renaming fields should not cause recompiling
         assert ptr.type.kind == TypeKind.Pointer
         classtype = ptr.type.value_type
@@ -173,7 +180,7 @@ class HBuilder:
         self.hash.add_int(i)
         return self.new_value(argtype)
 
-    def call_function(self, funcptr_type: Type*, func: HBuilderValue, args: HBuilderValue*, nargs: int) -> HBuilderValue:
+    def call_function(self, func: HBuilderValue, funcptr_type: Type*, args: HBuilderValue*, nargs: int) -> HBuilderValue:
         self.hash.add_string("call_func")
         self.hash.add_int64(func.id)
         for p = args; p < &args[nargs]; p++:
@@ -196,11 +203,11 @@ class HBuilder:
             return HBuilderValue{id = -1}
 
     # string as array of bytes
-    def array_string(self, s: byte*, array_size: int) -> HBuilderValue:
+    def array_string(self, s: byte*, array_size: int, array_type: Type*) -> HBuilderValue:
         self.hash.add_string("array_string")
         self.hash.add_int(array_size)
         self.hash.add_string(s)
-        return self.new_value(uint_type(8).array_type(array_size))
+        return self.new_value(array_type)
 
     # string as '\0' terminated pointer
     def pointer_string(self, s: byte*) -> HBuilderValue:
@@ -227,15 +234,8 @@ class HBuilder:
         self.hash.add_string("zero")
         return self.new_value(t)
 
-    def enum_member(self, t: Type*, name: byte*) -> HBuilderValue:
-        self.hash.add_string("enum")
-        int_value = t.find_enum_member(name)
-        assert int_value != -1
-        self.hash.add_int(int_value)
-        return self.new_value(t)
-
     # a + b
-    def add(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def add(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("add")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -243,7 +243,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a - b
-    def sub(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def sub(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("sub")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -251,7 +251,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a * b
-    def mul(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def mul(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("mul")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -259,7 +259,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a / b
-    def div(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def div(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("div")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -267,7 +267,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a % b
-    def mod(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def mod(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("mod")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -275,7 +275,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a & b
-    def bit_and(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_and(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("and")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -283,7 +283,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a | b
-    def bit_or(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_or(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("or")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -291,7 +291,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a ^ b
-    def bit_xor(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_xor(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("xor")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -299,7 +299,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a << b
-    def bit_shift_left(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_shift_left(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("shl")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -307,7 +307,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a >> b
-    def bit_shift_right(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_shift_right(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("shr")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -315,14 +315,14 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a == b
-    def eq(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def eq(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("eq")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
         return self.new_value(bool_type())
 
     # a < b
-    def lt(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def lt(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("lt")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
@@ -335,10 +335,10 @@ class HBuilder:
         return self.new_value(bool_type())
 
     # ~value
-    def bit_not(self, value: HBuilderValue) -> HBuilderValue:
+    def bit_not(self, value: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("bitnot")
         self.hash.add_int64(value.id)
-        return self.new_value(value.type)
+        return self.new_value(type)
 
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> HBuilderValue:
@@ -347,12 +347,12 @@ class HBuilder:
         return self.new_value(int_type(64))
 
     # memset(ptr, 0, sizeof(*ptr))
-    def memset_to_zero(self, ptr: HBuilderValue) -> None:
+    def memset_to_zero(self, ptr: HBuilderValue, ptr_type: Type*) -> None:
         self.hash.add_string("memset0")
         self.hash.add_int64(ptr.id)
 
     # value as to
-    def cast(self, value: HBuilderValue, to: Type*) -> HBuilderValue:
+    def cast(self, value: HBuilderValue, from: Type*, to: Type*) -> HBuilderValue:
         self.hash.add_string("cast")
         self.hash.add_int64(value.id)
         return self.new_value(to)
