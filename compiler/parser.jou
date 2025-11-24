@@ -1141,6 +1141,8 @@ class Parser:
 
         if self.tokens.is_keyword("else"):
             self.tokens++
+            if self.tokens.is_keyword("if"):
+                fail(self.tokens.location, "use 'elif' instead of 'else if'")
             else_body = self.parse_body()
         else:
             else_body = List[AstStatement]{}
