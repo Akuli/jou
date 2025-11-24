@@ -637,8 +637,8 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
                 snprintf(
                     message,
                     sizeof message,
-                    "cannot import from \"%s\" (try \"%s.jou\" instead)",
-                    path,
+                    "use \"%s.jou\" instead of \"%s\"",
+                    import_statement.import_statement.specified_path,
                     import_statement.import_statement.specified_path,
                 )
                 fail(import_statement.location, message)
