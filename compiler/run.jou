@@ -14,20 +14,17 @@ else:
     import "../config.jou"
 
 
-def quote_paths(paths: List[byte*]) -> byte*:
-    size = 10 as int64
-    for p = paths.ptr; p < paths.end(); p++:
-        size += strlen(*p) + 10
-
-    result: byte* = malloc(size)
-    strcpy(result, "")
-    for p = paths.ptr; p < paths.end(); p++:
+def get_quoted_object_file_paths() -> byte*:
+    result = List[byte]{}
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        assert jou_file.object_file_path != NULL
         # TODO: quote better?
-        strcat(result, " \"")
-        strcat(result, *p)
-        strcat(result, "\"")
-
-    return result
+        result.append(' ')
+        result.append('"')
+        result.extend_from_ptr(jou_file.object_file_path, strlen(jou_file.object_file_path))
+        result.append('"')
+    result.append('\0')
+    return result.ptr
 
 
 # Linker flags come from:
@@ -61,9 +58,9 @@ def collect_linker_flags() -> byte*:
 
 
 @public
-def run_linker(objpaths: List[byte*], exepath: byte*) -> None:
+def run_linker(exepath: byte*) -> None:
     linker_flags = collect_linker_flags()
-    quoted_object_files = quote_paths(objpaths)
+    quoted_object_files = get_quoted_object_file_paths()
 
     command: byte*
     if WINDOWS:

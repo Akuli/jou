@@ -61,6 +61,10 @@ def main() -> int:
     run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try "<jouexe> --help")
     run_jou("--check --check")  # Output: <jouexe>: --check cannot be given multiple times (try "<jouexe> --help")
 
+    # Output: <jouexe>: warning: parallel compiling (-j4) is experimental and doesn't always work
+    # Output: Hello World
+    run_jou("-j4 examples/hello.jou")
+
     # Output: <jouexe>: warning: -O1 does nothing when used together with --check (see "<jouexe> --help")
     # Output: Checked 2 files.
     run_jou("--check -O1 examples/hello.jou")
@@ -72,6 +76,10 @@ def main() -> int:
     # Output: <jouexe>: warning: --linker-flags does nothing when used together with --check (see "<jouexe> --help")
     # Output: Checked 2 files.
     run_jou("--check --linker-flags foobar examples/hello.jou")
+
+    # Output: <jouexe>: warning: -j8 does nothing when used together with --check (see "<jouexe> --help")
+    # Output: Checked 2 files.
+    run_jou("--check -j8 examples/hello.jou")
 
     # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
     #
@@ -103,11 +111,16 @@ def main() -> int:
     # Output:
     # Output: Options for compiling:
     # Output:   -o OUTFILE           output an executable file, don't run the code
-    # Output:   -O0/-O1/-O2/-O3      set optimization level (0 = no optimization, 1 = default, 3 = runs fastest)
-    # Output:   --check              do not output or run anything, just check for errors in code
+    # Output:   -O0/-O1/-O2/-O3      set optimization level (0 = no optimization, 1 = default,
+    # Output:                        3 = runs fastest)
+    # Output:   --check              do not output or run anything, just check for errors in
+    # Output:                        Jou code
     # Output:   --valgrind           use valgrind when running the code
     # Output:   --fail-on-warnings   fail compiling if there were any compiler warnings
-    # Output:   --linker-flags "..." appended to the linker command, just like 'link' statements in code
+    # Output:   --linker-flags "..." appended to the linker command, just like 'link'
+    # Output:                        statements in code
+    # Output:   -j1/-j2/-j3/...      experimental, does not always work!!! number of threads
+    # Output:                        for compiling object files (default = 1)
     # Output:
     # Output: Options for debugging the compiler:
     # Output:   -v / --verbose    show briefly what the compiler is doing
