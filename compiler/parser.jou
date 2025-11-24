@@ -1313,6 +1313,21 @@ class Parser:
                 }
             self.eat_newline()
         elif self.tokens.is_keyword("global"):
+            # Special case for placing "global foo" inside a function or method,
+            # like you would need to do in Python
+            if (
+                (
+                    self.what_are_we_parsing == WhatAreWeParsing.FunctionBody
+                    or self.what_are_we_parsing == WhatAreWeParsing.MethodBody
+                )
+                and self.tokens[1].kind == TokenKind.Name
+                and self.tokens[2].kind == TokenKind.Newline
+            ):
+                fail(
+                    self.tokens.location,
+                    "you don't need to use 'global' inside a function or method to use a global variable",
+                )
+
             self.check_top_level("global variables")
             location = (self.tokens++).location
             ntv = self.parse_name_type_value("a variable name")
