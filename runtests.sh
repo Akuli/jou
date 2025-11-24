@@ -125,7 +125,7 @@ function generate_expected_output()
         (
             (grep --binary-files=text -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
             (grep --binary-files=text -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
-            #(grep --binary-files=text -oE '# Output:.*' $joufile || true) | sed -E s/'^# Output: ?'//
+            (grep --binary-files=text -oE '# Output:.*' $joufile || true) | sed -E s/'^# Output: ?'//
         ) | sed "s,<joudir>,$joudir,g" | sed "s,<jouexe>,$jouexe,g"
     fi
     echo "Exit code: $correct_exit_code"
@@ -234,7 +234,7 @@ function run_test()
     local correct_exit_code="$2"
     local counter="$3"
 
-    local command="${jouexe#./} -o /dev/null"
+    local command="${jouexe#./}"
 
     if [ $valgrind = yes ] && [ $correct_exit_code == 0 ]; then
         # Valgrind the compiler process and the compiled executable
@@ -276,7 +276,7 @@ function run_test()
         if [ $valgrind = no ]; then
             ulimit -v 1000000 2>/dev/null
         fi
-        bash -c "$command; echo Exit code: \$?" 2>&1 | grep -v ^Checked | post_process_output $joufile | tr -d '\r'
+        bash -c "$command; echo Exit code: \$?" 2>&1 | post_process_output $joufile | tr -d '\r'
     ) &>> $diffpath; then
         show_ok "$command"
         rm -f $diffpath
