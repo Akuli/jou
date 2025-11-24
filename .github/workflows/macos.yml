@@ -77,11 +77,11 @@ jobs:
         run: echo "LLVM_CONFIG=/opt/homebrew/opt/llvm@${{ matrix.params.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
       - name: "Compile and test"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
-#      - name: "Compile the compiler with itself"
-#        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
-#      - name: "Compile and test again"
-#        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
-#      - run: ./doctest.sh
+      - name: "Compile the compiler with itself"
+        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
+      - name: "Compile and test again"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+      - run: ./doctest.sh
 
   # Please keep in sync with valgrind.yml and linux-aarch64.yml
   create-issue-on-failure:
