@@ -123,7 +123,7 @@ def find_file(path: byte*) -> JouFile*:
     return NULL
 
 
-def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
+def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
     if find_file(path) != NULL:
         # already parsed
         return
@@ -136,7 +136,7 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Tokenizing %s\n", path)
-    tokenize_result = tokenize(jou_file.path, import_location)
+    tokenize_result = tokenize(jou_file.path, import_statement)
 
     if global_compiler_state.args.verbosity >= 2:
         print_tokens(tokenize_result.tokens)
@@ -163,7 +163,7 @@ def tokenize_and_parse(path: byte*, import_location: Location*) -> None:
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         if stmt.kind == AstStatementKind.Import:
-            tokenize_and_parse(stmt.import_statement.resolved_path, &stmt.location)  # recursive call
+            tokenize_and_parse(stmt.import_statement.resolved_path, stmt)  # recursive call
 
 
 def tokenize_and_parse_all_files() -> None:
