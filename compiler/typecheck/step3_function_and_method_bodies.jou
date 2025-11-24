@@ -725,6 +725,8 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
             and state.find_any_var(call.function.varname) == NULL
         ):
             snprintf(msg, sizeof(msg), "function '%s' not found", call.function.varname)
+            if strcmp(call.function.varname, "print") == 0:
+                strcat(msg, ", try 'printf' from \"stdlib/io.jou\"")
             fail(call.function.location, msg)
 
         funcptr_type = typecheck_expression_not_void(state, call.function, NULL)
