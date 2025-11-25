@@ -1061,6 +1061,17 @@ class Parser:
                 case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                     result.kind = AstStatementKind.DeclareLocalVar
                     result.local_var_declare = self.parse_name_type_value(NULL)
+        elif (
+            self.tokens.kind == TokenKind.Name
+            and (
+                strcmp(self.tokens.short_string, "let") == 0
+                or strcmp(self.tokens.short_string, "var") == 0
+            )
+            and self.tokens[1].kind == TokenKind.Name
+        ):
+            msg: byte[200]
+            snprintf(msg, sizeof(msg), "there is no '%s' keyword in Jou", self.tokens.short_string)
+            fail(self.tokens.location, msg)
         else:
             expr = self.parse_expression()
             result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(self.tokens)
@@ -1099,6 +1110,8 @@ class Parser:
 
         if self.tokens.is_keyword("else"):
             self.tokens++
+            if self.tokens.is_keyword("if"):
+                fail(self.tokens.location, "use 'elif' instead of 'else if'")
             else_body = self.parse_body()
         else:
             else_body = List[AstStatement]{}
@@ -1313,6 +1326,21 @@ class Parser:
                 }
             self.eat_newline()
         elif self.tokens.is_keyword("global"):
+            # Special case for placing "global foo" inside a function or method,
+            # like you would need to do in Python
+            if (
+                (
+                    self.what_are_we_parsing == WhatAreWeParsing.FunctionBody
+                    or self.what_are_we_parsing == WhatAreWeParsing.MethodBody
+                )
+                and self.tokens[1].kind == TokenKind.Name
+                and self.tokens[2].kind == TokenKind.Newline
+            ):
+                fail(
+                    self.tokens.location,
+                    "you don't need 'global' inside a function or method to use a global variable",
+                )
+
             self.check_top_level("global variables")
             location = (self.tokens++).location
             ntv = self.parse_name_type_value("a variable name")

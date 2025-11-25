@@ -10,6 +10,7 @@ import "stdlib/utf8.jou"
 import "stdlib/mem.jou"
 import "stdlib/errno.jou"
 import "stdlib/ascii.jou"
+import "./ast.jou"
 import "./errors_and_warnings.jou"
 import "./token.jou"
 
@@ -615,17 +616,34 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     return tokens.ptr
 
 
-def read_file_to_string(path: byte*, import_location: Location*) -> byte*:
+def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
+    if import_statement != NULL:
+        assert import_statement.kind == AstStatementKind.Import
+
     file = fopen(path, "rb")
     if file == NULL:
         message: byte[200]
-        if import_location == NULL:
+        if import_statement == NULL:
             # File is not imported
             snprintf(message, sizeof message, "cannot open file: %s", strerror(get_errno()))
             fail(Location{path=path}, message)
-        else:
-            snprintf(message, sizeof message, "cannot import from \"%s\": %s", path, strerror(get_errno()))
-            fail(*import_location, message)
+        if not ends_with(path, ".jou"):
+            # e.g. import "stdlib/io"
+            fixed_path: byte* = NULL
+            asprintf(&fixed_path, "%s.jou", path)
+            assert fixed_path != NULL
+            file = fopen(fixed_path, "rb")
+            if file != NULL:
+                snprintf(
+                    message,
+                    sizeof message,
+                    "use \"%s.jou\" instead of \"%s\"",
+                    import_statement.import_statement.specified_path,
+                    import_statement.import_statement.specified_path,
+                )
+                fail(import_statement.location, message)
+        snprintf(message, sizeof message, "cannot import from \"%s\": %s", path, strerror(get_errno()))
+        fail(import_statement.location, message)
 
     bytes_list = List[byte]{}
 
@@ -751,8 +769,8 @@ class TokenizeResult:
 
 
 @public
-def tokenize(path: byte*, import_location: Location*) -> TokenizeResult:
-    file_content = read_file_to_string(path, import_location)
+def tokenize(path: byte*, import_statement: AstStatement*) -> TokenizeResult:
+    file_content = read_file_to_string(path, import_statement)
     detect_bad_chars(path, file_content)
     raw_tokens = tokenize_without_indent_dedent_tokens(path, file_content)
 
