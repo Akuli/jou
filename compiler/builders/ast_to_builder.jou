@@ -141,7 +141,7 @@ class AstToBuilder:
         if sig.return_type == NULL:
             return AnyBuilderValue{}
         else:
-            return self.builder.dereference(info.return_value_ptr, sig.return_type.pointer_type())
+            return self.builder.dereference(info.return_value_ptr)
 
     def local_var_exists(self, name: byte*) -> bool:
         for local = self.locals.ptr; local < self.locals.end(); local++:
@@ -199,7 +199,7 @@ class AstToBuilder:
             if want_pointer and not got_pointer:
                 arg = self.build_address_of_expression(call.method_call_self)
             elif got_pointer and not want_pointer:
-                arg = self.builder.dereference(self.build_expression(call.method_call_self), call.method_call_self.types.implicit_cast_type)
+                arg = self.builder.dereference(self.build_expression(call.method_call_self))
             else:
                 arg = self.build_expression(call.method_call_self)
 
@@ -267,7 +267,7 @@ class AstToBuilder:
         type = lhs.types.implicit_cast_type
         lhs_ptr = self.build_address_of_expression(lhs)
         rhs_value = self.build_expression(rhs)
-        old_value = self.builder.dereference(lhs_ptr, type.pointer_type())
+        old_value = self.builder.dereference(lhs_ptr)
         new_value = self.build_binop(op, old_value, rhs_value, type)
         self.builder.set_ptr(lhs_ptr, type.pointer_type(), new_value)
 
@@ -286,7 +286,7 @@ class AstToBuilder:
             #       same with dereference()
             self.builder.set_ptr(field_ptr, found.type.pointer_type(), field_value)
 
-        return self.builder.dereference(inst_ptr, class_type.pointer_type())
+        return self.builder.dereference(inst_ptr)
 
     def build_and(self, lhsexpr: AstExpression*, rhsexpr: AstExpression*) -> AnyBuilderValue:
         # Must be careful with side effects.
@@ -305,13 +305,13 @@ class AstToBuilder:
         self.builder.branch(self.build_expression(lhsexpr), lhstrue, lhsfalse)
         self.builder.set_current_block(lhstrue)
         # result = rhs
-        self.builder.set_ptr(resultptr, bool_type.pointer_type(), self.build_expression(rhsexpr))
+        self.builder.set_ptr(resultptr, bool_type().pointer_type(), self.build_expression(rhsexpr))
         # end if
         self.builder.jump(done)
         # else:
         self.builder.set_current_block(lhsfalse)
         # result = False
-        self.builder.set_ptr(resultptr, bool_type.pointer_type(), self.builder.boolean(False))
+        self.builder.set_ptr(resultptr, bool_type().pointer_type(), self.builder.boolean(False))
         # end else
         self.builder.jump(done)
         self.builder.set_current_block(done)
@@ -335,13 +335,13 @@ class AstToBuilder:
         self.builder.branch(self.build_expression(lhsexpr), lhstrue, lhsfalse)
         self.builder.set_current_block(lhstrue)
         # result = True
-        self.builder.set_ptr(resultptr, self.builder.boolean(True))
+        self.builder.set_ptr(resultptr, bool_type().pointer_type(), self.builder.boolean(True))
         # end if
         self.builder.jump(done)
         # else:
         self.builder.set_current_block(lhsfalse)
         # result = rhs
-        self.builder.set_ptr(resultptr, self.build_expression(rhsexpr))
+        self.builder.set_ptr(resultptr, bool_type().pointer_type(), self.build_expression(rhsexpr))
         # end else
         self.builder.jump(done)
         self.builder.set_current_block(done)
@@ -356,29 +356,30 @@ class AstToBuilder:
 
         t = inner.types.implicit_cast_type
         if t.is_number_type():
-            new_value = self.builder.add(old_value, self.builder.cast(self.builder.integer(int_type(32), diff), t))
+            new_value = self.builder.add(old_value, self.builder.cast(self.builder.integer(int_type(32), diff), int_type(32), t), t)
         else:
-            new_value = self.builder.indexed_pointer(old_value, self.builder.integer(int_type(64), diff))
+            new_value = self.builder.indexed_pointer(old_value, t.pointer_type(), self.builder.integer(int_type(64), diff))
 
-        self.builder.set_ptr(ptr, new_value)
+        self.builder.set_ptr(ptr, t.pointer_type(), new_value)
 
         if pre:
             return new_value
         else:
             return old_value
 
-    def build_array(self, t: Type*, items: List[AstExpression]) -> AnyBuilderValue:
-        assert t.kind == TypeKind.Array
-        assert t.array.count == items.len
+    def build_array(self, array_type: Type*, items: List[AstExpression]) -> AnyBuilderValue:
+        assert array_type.kind == TypeKind.Array
+        assert array_type.array.count == items.len
+        item_type = array_type.array.item_type
 
-        arr_ptr = self.builder.stack_alloc(t, NULL)
-        first_item_ptr = self.builder.cast(arr_ptr, t.array.item_type.pointer_type())
+        arr_ptr = self.builder.stack_alloc(array_type, NULL)
+        first_item_ptr = self.builder.cast(arr_ptr, array_type.pointer_type(), item_type.pointer_type())
 
         for i = 0; i < items.len; i++:
             i_built = self.builder.integer(int_type(64), i)
-            item_ptr = self.builder.indexed_pointer(first_item_ptr, i_built)
+            item_ptr = self.builder.indexed_pointer(first_item_ptr, item_type.pointer_type(), i_built)
             item_value = self.build_expression(&items.ptr[i])
-            self.builder.set_ptr(item_ptr, item_value)
+            self.builder.set_ptr(item_ptr, item_type.pointer_type(), item_value)
 
         return self.builder.dereference(arr_ptr)
 
@@ -397,10 +398,7 @@ class AstToBuilder:
             case ConstantKind.Null:
                 return self.builder.zero_of_type(void_ptr_type())
             case ConstantKind.EnumMember:
-                return self.builder.enum_member(
-                    constant.enum_member.enumtype,
-                    constant.enum_member.enumtype.enum_members.ptr[constant.enum_member.memberidx]
-                )
+                return self.builder.integer(int_type(32), constant.enum_member.memberidx)
 
     # then if cond else otherwise
     def build_ternary(
@@ -421,11 +419,11 @@ class AstToBuilder:
         self.builder.branch(self.build_expression(cond_expr), cond_true, cond_false)
 
         self.builder.set_current_block(cond_true)
-        self.builder.set_ptr(resultptr, self.build_expression(then_expr))
+        self.builder.set_ptr(resultptr, t1.pointer_type(), self.build_expression(then_expr))
         self.builder.jump(done)
 
         self.builder.set_current_block(cond_false)
-        self.builder.set_ptr(resultptr, self.build_expression(otherwise_expr))
+        self.builder.set_ptr(resultptr, t1.pointer_type(), self.build_expression(otherwise_expr))
         self.builder.jump(done)
 
         self.builder.set_current_block(done)
@@ -462,15 +460,18 @@ class AstToBuilder:
                 # Should become other expression kind before we get here
                 assert False
             case AstExpressionKind.GetEnumMember:
-                return self.builder.enum_member(expr.types.orig_type, expr.enum_member.member_name)
+                assert expr.types.orig_type.kind == TypeKind.Enum
+                i = expr.types.orig_type.find_enum_member(expr.enum_member.member_name)
+                assert i != -1
+                return self.builder.integer(int_type(32), i)
             case AstExpressionKind.GetClassField:
                 # Evaluate foo.bar as (&temp).bar, where temp is a temporary copy of foo.
                 # We need to copy, because it's not always possible to evaluate &foo.
                 # For example, consider evaluating some_function().some_field.
                 instance = self.build_expression(expr.class_field.instance)
                 ptr = self.builder.stack_alloc(self.map_type(expr.class_field.instance.types.implicit_cast_type), NULL)
-                self.builder.set_ptr(ptr, instance)
-                fieldptr = self.builder.class_field_pointer(ptr, expr.class_field.field_name)
+                self.builder.set_ptr(ptr, ptr.type, instance)
+                fieldptr = self.builder.class_field_pointer(ptr, ptr.type, expr.class_field.field_name)
                 return self.builder.dereference(fieldptr)
             case AstExpressionKind.GetClassFieldPtr:
                 ptr = self.build_expression(expr.class_field.instance)
