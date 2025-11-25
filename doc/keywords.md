@@ -325,6 +325,10 @@ else:
 ## `else`
 
 This keyword is used with [if](#if) statements and it does what any programmer would expect.
+It is also used in the ternary expression:
+`foo if condition else bar` evaluates to `foo` or `bar` depending on the `condition`.
+
+**See also:** [if](#if), [elif](#elif)
 
 
 ## `enum`
@@ -419,12 +423,64 @@ TODO: not documented yet, sorry :(
 
 ## `global`
 
-TODO: not documented yet, sorry :(
+The `global` keyword is used to create a global variable. For example:
+
+```python
+import "stdlib/io.jou"
+
+global x: int
+
+def print_x() -> None:
+    printf("%d\n", x)
+
+def main() -> int:
+    print_x()  # Output: 0
+    x++
+    print_x()  # Output: 1
+    return 0
+```
+
+Note that unlike in Python,
+you don't need to use `global` inside a function to modify the global variable.
+
+Currently global variables are always initialized to zero memory,
+and it is not possible to specify any other initializing.
+For example, numbers are initialized to zero, booleans are initialized to `False` and pointers are initialized to `NULL`.
+
+By default, global variables are private to a file, just like functions.
+You can use `@public` if you really want to create a public global variable:
+
+```python
+@public
+global my_thingy: int
+```
 
 
 ## `if`
 
-TODO: not documented yet, sorry :(
+The `if` keyword has two uses: it can be used in if statements and ternary expressions.
+
+An if statement looks like `if some_condition:` followed by indented code.
+The condition must be a `bool`.
+After the `if` statement, there may be zero or more [elif](#elif) parts
+and then an optional [else](#else) part.
+These work in the obvious way.
+
+A ternary expression looks like `foo if condition else bar`.
+The `condition` must be a `bool`.
+If the `condition` is `True`, then `foo` is evaluated and that is the result of the ternary expression.
+If the `condition` is `False`, then `bar` is evaluated and that is the result of the ternary expression.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    # Output: 7 is odd
+    n = 7
+    printf("%d is %s\n", n, "even" if n % 2 == 0 else "odd")
+    return 0
+```
 
 
 ## `import`
@@ -591,7 +647,26 @@ For example, [`pass` is often useful with `match` statements](match.md#special-c
 
 ## `return`
 
-TODO: not documented yet, sorry :(
+The `return` keyword works just like you would expect:
+it stops the execution of the function it's in,
+and in functions that are not defined with `-> None`, it must be followed by a return value.
+
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def do_thing_maybe(thing: byte*) -> None:
+    if thing[0] == 'f':
+        return   # Do nothing if it starts with 'f'
+    printf("Hello! %s\n", thing)
+
+def main() -> int:
+    do_thing_maybe("foo")  # no output from here
+    do_thing_maybe("bar")  # Output: Hello! bar
+    do_thing_maybe("baz")  # Output: Hello! baz
+    return 0
+```
 
 
 ## `self`
