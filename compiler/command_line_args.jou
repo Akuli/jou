@@ -128,7 +128,7 @@ def check_args(args: CommandLineArgs*, optlevel_set: bool) -> None:
     if args.parallelism != 0 and args.mode != CompilingMode.Run and args.mode != CompilingMode.CompileToFile:
         sprintf(flag, "-j%d", args.parallelism)
         warn_about_meaningless_arg(args, flag)
-    elif args.parallelism > 2:
+    elif args.parallelism >= 2:
         sprintf(flag, "-j%d", args.parallelism)
         fprintf(get_stderr(), "%s: warning: parallel compiling (%s) is experimental and doesn't always work\n", args.argv0, flag)
 
