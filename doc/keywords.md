@@ -567,7 +567,7 @@ If you change the return type of `fail()` from `-> None` to `-> noreturn`,
 the warning goes away,
 because then the compiler knows that it doesn't need to worry about what happens after calling `fail()`.
 
-**See also:** [None](#none), [declare](#declare), [def](#def)
+**See also:** [None](#none), [return](#return), [declare](#declare), [def](#def)
 
 
 ## `not`
