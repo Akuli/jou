@@ -482,6 +482,10 @@ def main() -> int:
     return 0
 ```
 
+Note that `condition` is evaluated first even though it appears in the middle.
+
+**See also:** [elif](#elif), [else](#else), [match](#match)
+
 
 ## `import`
 
@@ -648,7 +652,7 @@ For example, [`pass` is often useful with `match` statements](match.md#special-c
 ## `return`
 
 The `return` keyword works just like you would expect:
-it stops the execution of the function it's in,
+it stops the function it's in,
 and in functions that are not defined with `-> None`, it must be followed by a return value.
 
 For example:
@@ -667,6 +671,8 @@ def main() -> int:
     do_thing_maybe("baz")  # Output: Hello! baz
     return 0
 ```
+
+**See also:** [None](#none), [noreturn](#noreturn)
 
 
 ## `self`
