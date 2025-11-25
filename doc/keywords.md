@@ -182,6 +182,8 @@ A `const` statement can be decorated with `@public` so that it can be [imported]
 const MAX_NUMBER_OF_THINGS: int = 100
 ```
 
+**See also:** [global](#global)
+
 
 ## `continue`
 
@@ -454,6 +456,8 @@ You can use `@public` if you really want to create a public global variable:
 @public
 global my_thingy: int
 ```
+
+**See also:** [const](#const)
 
 
 ## `if`
