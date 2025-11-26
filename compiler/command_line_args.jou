@@ -204,7 +204,6 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 i++
             case _:
                 if starts_with(argv[i], "-j") and is_ascii_digit(argv[i][2]) and 1 <= atoi(&argv[i][2]) and atoi(&argv[i][2]) <= 100:
-                    # TODO: warning if LLVMIsMultithreaded() == 0
                     args.parallelism = atoi(&argv[i][2])
                     i++
                 elif argv[i][0] == '-':
