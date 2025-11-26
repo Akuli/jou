@@ -286,6 +286,9 @@ function run_test()
     fi
 }
 
+# How many tests to run in parallel? Fall back to 2 if nproc fails or doesn't exist.
+num_tests_in_parallel=$(nproc 2>/dev/null || echo 2)
+
 counter=0
 skipped=0
 
@@ -308,8 +311,7 @@ for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/s
         continue
     fi
 
-    # Run 2 tests in parallel.
-    while [ $(jobs -p | wc -l) -ge 2 ]; do wait -n; done
+    while [ $(jobs -p | wc -l) -ge $num_tests_in_parallel ]; do wait -n; done
     run_test $joufile $correct_exit_code $counter &
 done
 wait
