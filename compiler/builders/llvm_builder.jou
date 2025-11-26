@@ -12,7 +12,9 @@
 # LLVM IR is built using multiple threads, so be careful when you access global
 # state from here. Any kind of mutation of global state (e.g. getting a type
 # that may or may not exist yet) is almost certainly wrong and will cause bugs
-# that are difficult to reproduce and debug.
+# that are difficult to reproduce and debug. Note that if the hash builder gets
+# a type, then that type will surely exist when we build LLVM IR, because we
+# need hashes to check whether the object file needs to be rebuilt.
 
 import "stdlib/assert.jou"
 import "stdlib/math.jou"
@@ -560,7 +562,7 @@ class LBuilder:
 
     # string as '\0' terminated pointer
     def pointer_string(self, s: byte*) -> LBuilderValue:
-        llvm_array = self.array_string(s, (strlen(s) + 1) as int).llvm_value
+        llvm_array = LLVMConstStringInContext(self.state.llvm_context, s, strlen(s) as uint32, False as int)
         llvm_string = LLVMAddGlobal(self.llvm_module, LLVMTypeOf(llvm_array), "string_literal")
         LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)

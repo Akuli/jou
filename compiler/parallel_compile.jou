@@ -30,31 +30,29 @@ import "./pthreads.jou"
 # TODO: stdlib?
 declare rename(oldpath: byte*, newpath: byte*) -> int
 
-# Number of CPUs determining stuff. Disabled for now because multithreading is
-# off by default rather than defaulting to number of cores.
-if False:
-    if WINDOWS:
-        declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
-        const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
+# Number of CPUs determining stuff
+if WINDOWS:
+    declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
+    const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
+else:
+    declare sysconf(n: int) -> int64
+    if MACOS:
+        const _SC_NPROCESSORS_ONLN: int = 58
+    elif NETBSD:
+        const _SC_NPROCESSORS_ONLN: int = 1002
     else:
-        declare sysconf(n: int) -> int64
-        if MACOS:
-            const _SC_NPROCESSORS_ONLN: int = 58
-        elif NETBSD:
-            const _SC_NPROCESSORS_ONLN: int = 1002
-        else:
-            # linux
-            const _SC_NPROCESSORS_ONLN: int = 84
+        # linux
+        const _SC_NPROCESSORS_ONLN: int = 84
 
-    def get_number_of_cpus() -> int:
-        if WINDOWS:
-            result = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) as int
-        else:
-            result = sysconf(_SC_NPROCESSORS_ONLN) as int
+def get_number_of_cpus() -> int:
+    if WINDOWS:
+        result = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) as int
+    else:
+        result = sysconf(_SC_NPROCESSORS_ONLN) as int
 
-        if global_compiler_state.args.verbosity >= 2:
-            printf("%d CPU cores\n", result)
-        return result
+    if global_compiler_state.args.verbosity >= 2:
+        printf("%d CPU cores\n", result)
+    return result
 
 
 def choose_num_threads(files_to_compile: List[JouFile*]) -> int:
@@ -64,10 +62,9 @@ def choose_num_threads(files_to_compile: List[JouFile*]) -> int:
         return 0
 
     num_threads = global_compiler_state.args.parallelism
-    # TODO: enable parallelism by default
-    #if num_threads == 0:
-    #    # Argument not given on command line
-    #    num_threads = get_number_of_cpus()
+    if num_threads == 0:
+        # Argument not given on command line
+        num_threads = get_number_of_cpus()
 
     if num_threads > files_to_compile.len:
         num_threads = files_to_compile.len as int
