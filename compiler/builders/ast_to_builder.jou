@@ -437,7 +437,7 @@ class AstToBuilder:
             case AstExpressionKind.Call:
                 return self.build_call(&expr.call)
             case AstExpressionKind.Instantiate:
-                return self.build_instantiation(expr.types.orig_type, &expr.instantiation)
+                return self.build_instantiation(expr.types.orig_type.unwrap_typedef(), &expr.instantiation)
             case AstExpressionKind.Self:
                 return self.builder.dereference(self.local_var_ptr("self"))
             case AstExpressionKind.GetVariable:
