@@ -196,7 +196,7 @@ See these pull requests:
 - [#1092 Rename stdlib/rand.jou to stdlib/random.jou](https://github.com/Akuli/jou/pull/1092)
 - [#1093 Improve compiler error for trying to use char as a type](https://github.com/Akuli/jou/pull/1093)
 
-For example, here's a working number guessing game that the AI ended up with:
+<details><summary>A working number guessing game written by AI</summary>
 
 ```python
 import "stdlib/io.jou"
@@ -231,6 +231,8 @@ def main() -> int:
 
     return 0
 ```
+
+</details>
 
 After writing the above program, I asked the AI:
 
