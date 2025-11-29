@@ -298,20 +298,20 @@ Of course, I asked the AI to compare Jou to Rust when it suggested that:
 >
 > ### 🔎 Advantages of Rust
 >
-> **Memory safety:** Ownership/borrowing prevents common bugs like dangling pointers or data races.
-> **Concurrency:** Built‑in support for safe multithreading.
-> **Ecosystem:** Thousands of crates, strong tooling, and wide adoption.
-> **Performance:** Comparable to C/C++ but safer.
+> - **Memory safety:** Ownership/borrowing prevents common bugs like dangling pointers or data races.
+> - **Concurrency:** Built‑in support for safe multithreading.
+> - **Ecosystem:** Thousands of crates, strong tooling, and wide adoption.
+> - **Performance:** Comparable to C/C++ but safer.
 >
 > ### ⚠️ Disadvantages
 >
-> **Jou:** Small ecosystem, verbose for simple tasks, limited tooling.
-> **Rust:** Steep learning curve, sometimes complex syntax, slower compile times.
+> - **Jou:** Small ecosystem, verbose for simple tasks, limited tooling.
+> - **Rust:** Steep learning curve, sometimes complex syntax, slower compile times.
 >
 > ### 🧩 Where they fit
 >
-> **Jou:** Best for learning low‑level programming concepts, experimenting with strict typing, or writing small demos like your guess‑the‑number game.
-> **Rust:** Best for production systems programming where safety and performance matter — operating systems, embedded devices, or high‑performance servers.
+> - **Jou:** Best for learning low‑level programming concepts, experimenting with strict typing, or writing small demos like your guess‑the‑number game.
+> - **Rust:** Best for production systems programming where safety and performance matter — operating systems, embedded devices, or high‑performance servers.
 >
 > ------------
 >
