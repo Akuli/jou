@@ -183,7 +183,7 @@ and I think this response is a good summary of the advantages and disadvantages 
 ## 2025 Update
 
 About a year later, I did more similar experiments by making an LLM write Jou code.
-This time I copy/pasted compiler error messages to AI as is, as if I was new to Jou myself.
+This time I copy/pasted compiler error messages to AI directly, as if I was new to Jou myself.
 This turned out to be a great way to find bad compiler error messages.
 See these pull requests:
 - [#1081 Improve various error messages](https://github.com/Akuli/jou/pull/1081) (6 improved compiler errors)
@@ -236,7 +236,7 @@ After writing the above program, I asked the AI:
 
 Here's what it said:
 
-> Quick take: Jou is a fascinating language — it blends C‑like low‑level control with a modern, strict type system and a small but clear standard library. Its advantages are simplicity, explicitness, and closeness to C, while its disadvantages are a still‑limited ecosystem and the need to write more boilerplate compared to higher‑level languages.
+> **Quick take:** Jou is a fascinating language — it blends C‑like low‑level control with a modern, strict type system and a small but clear standard library. Its **advantages** are simplicity, explicitness, and closeness to C, while its **disadvantages** are a still‑limited ecosystem and the need to write more boilerplate compared to higher‑level languages.
 >
 > ### ⚡ Advantages of Jou
 >
