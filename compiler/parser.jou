@@ -465,6 +465,10 @@ class Parser:
         else:
             if could_be_an_expression:
                 return False
+            elif self.tokens.is_operator("*"):
+                fail(self.tokens.location, "a type cannot start with '*', use e.g. int* instead of *int for pointers")
+            elif self.tokens.is_operator("["):
+                fail(self.tokens.location, "a type cannot start with '[', use e.g. int[10] instead of [10]int for arrays")
             else:
                 self.tokens.fail_expected_got("a type")
 
