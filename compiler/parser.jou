@@ -723,6 +723,30 @@ class Parser:
                     self.tokens++
                     expr.enumcount.enum_type_ast = self.parse_type()
                 else:
+                    # Special error message for e.g. int(x)
+                    msg: byte[300]
+                    if self.tokens.kind == TokenKind.Keyword and self.tokens[1].is_operator("("):
+                        keyword = self.tokens.short_string
+                        match keyword with strcmp:
+                            case "byte" | "int" | "int8" | "uint8" | "int16" | "uint16" | "int32" | "uint32":
+                                snprintf(
+                                    msg,
+                                    sizeof(msg),
+                                    "%s is not a function, use 'as %s' to convert between numbers or e.g. atoi() from \"stdlib/str.jou\" to convert a string to int",
+                                    keyword,
+                                    keyword,
+                                )
+                                fail(self.tokens.location, msg)
+                            case "int64" | "uint64":
+                                snprintf(
+                                    msg,
+                                    sizeof(msg),
+                                    "%s is not a function, use 'as %s' to convert between numbers or e.g. atoll() from \"stdlib/str.jou\" to convert a string to int64",
+                                    keyword,
+                                    keyword,
+                                )
+                                fail(self.tokens.location, msg)
+
                     self.tokens.fail_expected_got("an expression")
 
         return expr
