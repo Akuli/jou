@@ -183,6 +183,9 @@ and I think this response is a good summary of the advantages and disadvantages 
 ## 2025 Update
 
 About a year later, I did more similar experiments by making an LLM write Jou code.
+I used Microsoft's copilot set to "Smart (GPT-5)" (the default).
+(I don't like other things that Microsoft also calls "copilot", but the AI tool named copilot is free to use and requires no account.)
+
 This time I copy/pasted compiler error messages to AI directly, as if I was new to Jou myself.
 This turned out to be a great way to find bad compiler error messages.
 See these pull requests:
