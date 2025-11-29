@@ -290,6 +290,8 @@ Of course, I asked the AI to compare Jou to Rust when it suggested that:
 > | **Community & adoption** | Niche, experimental | Large, thriving, “most loved” language in surveys |
 > | **Best use cases** | Education, small demos, learning pointers/types | Systems programming, web backends, embedded, performance‑critical apps |
 >
+> ------------
+>
 > ### 🔎 Advantages of Jou
 >
 > - **Minimalism:** Forces you to understand pointers, buffers, and explicit type conversions.
@@ -303,10 +305,14 @@ Of course, I asked the AI to compare Jou to Rust when it suggested that:
 > - **Ecosystem:** Thousands of crates, strong tooling, and wide adoption.
 > - **Performance:** Comparable to C/C++ but safer.
 >
+> ------------
+>
 > ### ⚠️ Disadvantages
 >
 > - **Jou:** Small ecosystem, verbose for simple tasks, limited tooling.
 > - **Rust:** Steep learning curve, sometimes complex syntax, slower compile times.
+>
+> ------------
 >
 > ### 🧩 Where they fit
 >
