@@ -70,7 +70,10 @@ def handle_bad_generic(jou_file: JouFile*, generic: AstGenericType*, location: L
             # User could be attempting generic or array, we don't know. Let's
             # make an error message that is perfectly correct for both arrays
             # and generics.
-            snprintf(msg, sizeof(msg), "there is no type named '%s'", name)
+            if strcmp(name, "char") == 0:
+                msg = "there is no type named 'char', use 'byte' instead"
+            else:
+                snprintf(msg, sizeof(msg), "there is no type named '%s'", name)
         else:
             snprintf(msg, sizeof(msg), "there is no generic class named '%s'", name)
         fail(location, msg)
@@ -134,7 +137,10 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             # At this point we will show an error for sure.
             generic = find_and_typecheck_generic_class(jou_file, asttype.name)
             if generic == NULL:
-                snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype.name)
+                if strcmp(asttype.name, "char") == 0:
+                    msg = "there is no type named 'char', use 'byte' instead"
+                else:
+                    snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype.name)
             else:
                 # Suggest int for all params of the generic class, e.g. List[int]
                 assert generic.classdata.is_generic()
