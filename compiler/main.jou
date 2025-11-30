@@ -23,6 +23,7 @@ import "./typecheck/step2_class_members.jou"
 import "./typecheck/step3_function_and_method_bodies.jou"
 import "./types.jou"
 
+link "-pthread"
 
 def defines_main(jou_file: JouFile*) -> bool:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
