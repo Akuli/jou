@@ -1,0 +1,57 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+import "../../aoc2023/grid.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    result = 0
+
+    for x = 0; x < grid.width; x++:
+        for y = 0; y < grid.height; y++:
+            visible = True
+            for v = 0; v < x; v++:
+                if grid.get([v, y]) >= grid.get([x, y]):
+                    visible = False
+                    break
+            if visible:
+                result++
+                continue
+
+            visible = True
+            for v = x + 1; v < grid.width; v++:
+                if grid.get([v, y]) >= grid.get([x, y]):
+                    visible = False
+                    break
+            if visible:
+                result++
+                continue
+
+            visible = True
+            for v = 0; v < y; v++:
+                if grid.get([x, v]) >= grid.get([x, y]):
+                    visible = False
+                    break
+            if visible:
+                result++
+                continue
+
+            visible = True
+            for v = y + 1; v < grid.height; v++:
+                if grid.get([x, v]) >= grid.get([x, y]):
+                    visible = False
+                    break
+            if visible:
+                result++
+                continue
+
+    free(grid.data)
+
+    printf("%d\n", result)  # Output: 21
+    return 0

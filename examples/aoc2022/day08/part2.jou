@@ -1,0 +1,55 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+import "../../aoc2023/grid.jou"
+
+
+def visible_trees_left(grid: Grid, x: int, y: int) -> int:
+    n = 0
+    # Check all trees on the left
+    for check_x = x - 1; check_x >= 0; check_x--:
+        # We see this tree
+        n++
+        if grid.get([check_x, y]) >= grid.get([x, y]):
+            # We don't see other trees beyond it
+            break
+    return n
+
+
+def visible_trees_right(grid: Grid, x: int, y: int) -> int:
+    n = 0
+    for check_x = x + 1; check_x < grid.width; check_x++:
+        n++
+        if grid.get([check_x, y]) >= grid.get([x, y]):
+            break
+    return n
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    grid_transpose = grid.copy()
+    grid_transpose.transpose()
+
+    best_score = 0
+
+    for y = 0; y < grid.height; y++:
+        for x = 0; x < grid.width; x++:
+            score = (
+                visible_trees_left(grid_transpose, y, x)
+                * visible_trees_left(grid, x, y)
+                * visible_trees_right(grid_transpose, y, x)
+                * visible_trees_right(grid, x, y)
+            )
+            if score > best_score:
+                best_score = score
+
+    printf("%d\n", best_score)  # Output: 8
+
+    free(grid.data)
+    free(grid_transpose.data)
+    return 0
