@@ -1,0 +1,26 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    dial_pos = 50
+    counter = 0
+
+    c: byte
+    n: int
+    while fscanf(f, "%c%d\n", &c, &n) == 2:
+        if c == 'L':
+            while n --> 0:
+                if --dial_pos % 100 == 0:
+                    counter++
+        else:
+            while n --> 0:
+                if ++dial_pos % 100 == 0:
+                    counter++
+
+    printf("%d\n", counter)  # Output: 6
+
+    fclose(f)
+    return 0
