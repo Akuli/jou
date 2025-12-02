@@ -8,6 +8,7 @@
 # systems. If you need to know, please create an issue on GitHub.
 if NETBSD:
     declare __time50(result_ptr: int64*) -> int64
+    @inline
     @public
     def time(result_ptr: int64*) -> int64:
         return __time50(result_ptr)
