@@ -1,0 +1,43 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+
+def count_digits(n: int64) -> int:
+    result = 0
+    while n != 0:
+        n /= 10
+        result++
+    return result
+
+
+def my_pow(base: int64, power: int) -> int64:
+    result: int64 = 1
+    while power --> 0:
+        result *= base
+    return result
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result: int64 = 0
+    while True:
+        start, end: int64
+        ret = fscanf(f, "%lld-%lld", &start, &end)
+        assert ret == 2
+
+        for n = start; n <= end; n++:
+            ndigits = count_digits(n)
+            if ndigits % 2 == 0:
+                power_of_10 = my_pow(10, ndigits / 2)
+                if n / power_of_10 == n % power_of_10:
+                    result += n
+
+        if fgetc(f) != ',':
+            break
+
+    printf("%lld\n", result)  # Output: 1227775554
+
+    fclose(f)
+    return 0
