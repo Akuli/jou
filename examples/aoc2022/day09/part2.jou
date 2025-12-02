@@ -1,0 +1,63 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "stdlib/sort.jou"
+import "stdlib/list.jou"
+
+
+def update_tail(head: int[2], tail: int[2]*) -> None:
+    dx = (*tail)[0] - head[0]
+    dy = (*tail)[1] - head[1]
+    assert abs(dx) <= 2 and abs(dy) <= 2
+
+    if abs(dx) == 2 and abs(dy) == 2:
+        # Diagonal step
+        *tail = [head[0] + dx/2, head[1] + dy/2]
+    elif abs(dx) == 2:
+        # It is close to being on the left or right side. According to
+        # examples, it becomes perfectly aligned in this case.
+        *tail = [head[0] + dx/2, head[1]]
+    elif abs(dy) == 2:
+        *tail = [head[0], head[1] + dy/2]
+
+
+def main() -> int:
+    f = fopen("sampleinput2.txt", "r")
+    assert f != NULL
+
+    head_and_tails: int[2][10]
+    memset(head_and_tails, 0, sizeof(head_and_tails))
+
+    last_tail_places = List[int[2]]{}
+    last_tail_places.append([0, 0])
+
+    direction: byte
+    n: int
+    while fscanf(f, "%c %d\n", &direction, &n) == 2:
+        while n --> 0:
+            match direction:
+                case 'L':
+                    head_and_tails[0][0]--
+                case 'R':
+                    head_and_tails[0][0]++
+                case 'U':
+                    head_and_tails[0][1]--
+                case 'D':
+                    head_and_tails[0][1]++
+            for i = 1; i < array_count(head_and_tails); i++:
+                update_tail(head_and_tails[i-1], &head_and_tails[i])
+            last_tail_places.append(head_and_tails[array_count(head_and_tails) - 1])
+
+    fclose(f)
+
+    # Count distinct points
+    sort_uint64(last_tail_places.ptr as uint64*, last_tail_places.len)
+    n = 0
+    for p = last_tail_places.ptr; p < last_tail_places.end(); p++:
+        if p == last_tail_places.ptr or p[-1][0] != (*p)[0] or p[-1][1] != (*p)[1]:
+            n++
+    free(last_tail_places.ptr)
+
+    printf("%d\n", n)  # Output: 36
+    return 0

@@ -1,0 +1,53 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/sort.jou"
+import "stdlib/list.jou"
+
+
+def main() -> int:
+    head = [0, 0]
+    tail = [0, 0]
+
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    tail_places = List[int[2]]{}
+    tail_places.append(tail)
+
+    direction: byte
+    n: int
+    while fscanf(f, "%c %d\n", &direction, &n) == 2:
+        while n --> 0:
+            old_head = head
+            match direction:
+                case 'L':
+                    head[0]--
+                    if tail[0] == head[0] + 2:
+                        tail = old_head
+                case 'R':
+                    head[0]++
+                    if tail[0] == head[0] - 2:
+                        tail = old_head
+                case 'U':
+                    head[1]--
+                    if tail[1] == head[1] + 2:
+                        tail = old_head
+                case 'D':
+                    head[1]++
+                    if tail[1] == head[1] - 2:
+                        tail = old_head
+            tail_places.append(tail)
+
+    fclose(f)
+
+    # Count distinct points
+    sort_uint64(tail_places.ptr as uint64*, tail_places.len)
+    n = 0
+    for p = tail_places.ptr; p < tail_places.end(); p++:
+        if p == tail_places.ptr or p[-1][0] != (*p)[0] or p[-1][1] != (*p)[1]:
+            n++
+    free(tail_places.ptr)
+
+    printf("%d\n", n)  # Output: 13
+    return 0
