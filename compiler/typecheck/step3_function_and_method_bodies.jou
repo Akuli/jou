@@ -725,8 +725,11 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
             and state.find_any_var(call.function.varname) == NULL
         ):
             snprintf(msg, sizeof(msg), "function '%s' not found", call.function.varname)
-            if strcmp(call.function.varname, "print") == 0:
-                strcat(msg, ", try 'printf' from \"stdlib/io.jou\"")
+            match call.function.varname with strcmp:
+                case "print":
+                    strcat(msg, ", try 'printf' from \"stdlib/io.jou\"")
+                case "input":
+                    strcat(msg, ", try 'fgets' from \"stdlib/io.jou\"")
             fail(call.function.location, msg)
 
         funcptr_type = typecheck_expression_not_void(state, call.function, NULL)
@@ -1185,6 +1188,13 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                     sig = find_and_typecheck_function(state.jou_file, expr.varname)
                     if sig == NULL:
                         snprintf(msg, sizeof(msg), "no variable named '%s'", expr.varname)
+                        match expr.varname with strcmp:
+                            case "stdin":
+                                strcat(msg, ", try 'get_stdin()' from \"stdlib/io.jou\"")
+                            case "stdout":
+                                strcat(msg, ", try 'get_stdout()' from \"stdlib/io.jou\"")
+                            case "stderr":
+                                strcat(msg, ", try 'get_stderr()' from \"stdlib/io.jou\"")
                         fail(expr.location, msg)
                     name = expr.varname
                     expr.kind = AstExpressionKind.GetFuncPtr

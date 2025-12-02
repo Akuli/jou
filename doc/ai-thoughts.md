@@ -195,6 +195,7 @@ See these pull requests:
 - [#1091 Improve compiler error message for types like `[10]int` or `*int`](https://github.com/Akuli/jou/pull/1091)
 - [#1092 Rename stdlib/rand.jou to stdlib/random.jou](https://github.com/Akuli/jou/pull/1092)
 - [#1093 Improve compiler error for trying to use char as a type](https://github.com/Akuli/jou/pull/1093)
+- [#1099 Improve compiler error messages for input(), stdin, stdout, stderr](https://github.com/Akuli/jou/pull/1099)
 
 <details><summary>A working number guessing game written by AI</summary>
 
