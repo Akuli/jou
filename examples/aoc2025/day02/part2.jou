@@ -1,0 +1,55 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+
+def count_digits(n: int64) -> int:
+    result = 0
+    while n != 0:
+        n /= 10
+        result++
+    return result
+
+
+def dividing_produces_constant_sequence_until_zero(n: int64, pow10: int64) -> bool:
+    value = n % pow10
+    while n != 0:
+        if n % pow10 != value:
+            return False
+        n /= pow10
+    return True
+
+
+def is_invalid(id: int64) -> bool:
+    ndigits = count_digits(id)
+    pow10: int64 = 1
+    for repeated_len = 1; repeated_len < ndigits; repeated_len++:
+        pow10 *= 10
+        if (
+            ndigits % repeated_len == 0
+            and dividing_produces_constant_sequence_until_zero(id, pow10)
+        ):
+            return True
+    return False
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result: int64 = 0
+    while True:
+        start, end: int64
+        ret = fscanf(f, "%lld-%lld", &start, &end)
+        assert ret == 2
+
+        for n = start; n <= end; n++:
+            if is_invalid(n):
+                result += n
+
+        if fgetc(f) != ',':
+            break
+
+    printf("%lld\n", result)  # Output: 4174379265
+
+    fclose(f)
+    return 0
