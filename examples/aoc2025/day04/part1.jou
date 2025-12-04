@@ -1,0 +1,33 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+import "../../aoc2023/grid.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+    grid = read_grid_from_file(f)
+    fclose(f)
+
+    result = 0
+    for center_x = 0; center_x < grid.width; center_x++:
+        for center_y = 0; center_y < grid.height; center_y++:
+            if grid.get([center_x, center_y]) != '@':
+                continue
+
+            n = 0
+            for x = center_x - 1; x <= center_x + 1; x++:
+                for y = center_y - 1; y <= center_y + 1; y++:
+                    if x == center_x and y == center_y:
+                        continue
+                    if grid.is_in_bounds([x, y]) and grid.get([x, y]) == '@':
+                        n++
+            if n < 4:
+                result++
+
+    printf("%d\n", result)  # Output: 13
+
+    free(grid.data)
+    return 0
