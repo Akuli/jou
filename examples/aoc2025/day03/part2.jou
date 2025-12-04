@@ -1,0 +1,45 @@
+import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def find_max_in_string(string: byte*, length_limit: int64) -> byte*:
+    best_ptr = string
+    for i = 0; i < length_limit; i++:
+        assert string[i] != '\0'
+        if string[i] > *best_ptr:
+            best_ptr = &string[i]
+    return best_ptr
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    result: int64 = 0
+
+    buf: byte[512]
+    while fgets(buf, sizeof(buf) as int, f) != NULL:
+        trim_ascii_whitespace(buf)
+
+        joultage: int64 = 0
+        ptr: byte* = &buf[0]
+
+        # Find digits of result one by one, starting from left
+        for num_digits_after_this = 11; num_digits_after_this >= 0; num_digits_after_this--:
+            # Choose the biggest digit we can while leaving room for others.
+            ptr = find_max_in_string(ptr, strlen(ptr) - num_digits_after_this)
+
+            # Append digit to joultage
+            joultage = 10*joultage + (*ptr - '0')
+
+            # In the future, search after the digit we just consumed
+            ptr++
+
+        result += joultage
+
+    printf("%lld\n", result)  # Output: 3121910778619
+
+    fclose(f)
+    return 0
