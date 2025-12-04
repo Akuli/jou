@@ -32,9 +32,8 @@ config.jou: Makefile.posix
 	echo '@public' >> config.jou
 	echo 'const JOU_CLANG_PATH: byte* = "$(shell which `$(LLVM_CONFIG) --bindir`/clang || which clang)"' >> config.jou
 	echo '' >> config.jou
-	echo '# Change this to False if you get linker errors about aarch64:' >> config.jou
 	echo '@public' >> config.jou
-	echo 'const LLVM_HAS_AARCH64: bool = True' >> config.jou
+	echo 'const LLVM_HAS_AARCH64: bool = $(shell $(LLVM_CONFIG) --components | grep -q aarch64 && echo True || echo False)' >> config.jou
 
 jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou
 	env LLVM_CONFIG=$(LLVM_CONFIG) ./bootstrap.sh
