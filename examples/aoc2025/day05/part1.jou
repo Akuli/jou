@@ -1,0 +1,37 @@
+import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    ranges: int64[2][300]
+    nranges = 0
+
+    line: byte[100]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '\0':
+            break
+        start, end: int64
+        ret = sscanf(line, "%lld-%lld", &start, &end)
+        assert ret == 2
+        assert nranges < array_count(ranges)
+        ranges[nranges++] = [start, end]
+
+    result = 0
+    n: int64
+    while fscanf(f, "%lld\n", &n) == 1:
+        good = False
+        for i = 0; i < nranges; i++:
+            if ranges[i][0] <= n and n <= ranges[i][1]:
+                good = True
+        if good:
+            result++
+    printf("%d\n", result)  # Output: 3
+
+    fclose(f)
+    return 0
