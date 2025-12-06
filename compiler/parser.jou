@@ -1372,17 +1372,13 @@ class Parser:
             self.check_top_level("global variables")
             location = (self.tokens++).location
             ntv = self.parse_name_type_value("a variable name")
-            if ntv.value != NULL:
-                fail(
-                    ntv.value.location,
-                    "specifying a value for a global variable is not supported yet",
-                )
             result = AstStatement{
                 location = location,
                 kind = AstStatementKind.GlobalVariableDef,
                 global_var_def = AstGlobalVarDef{
                     symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
                     type = ntv.type,
+                    initial_value = ntv.value,
                 },
             }
             self.eat_newline()

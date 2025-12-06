@@ -428,12 +428,13 @@ def build_content_hash(jou_file: JouFile*) -> Hash:
                 assert stmt.symbol().type != NULL
                 hash_type(&builder.hash, stmt.symbol().type)
             case AstStatementKind.GlobalVariableDef:
-                # Note: Currently all global variables are zero-initialized, that may change in the future.
                 builder.hash.add_string("global")
                 builder.hash.add_string(stmt.symbol().name)
                 builder.hash.add_bool(stmt.symbol().public)
                 assert stmt.symbol().type != NULL
                 hash_type(&builder.hash, stmt.symbol().type)
+                if stmt.global_var_def.initial_value != NULL:
+                    feed_constant_to_builder(&stmt.global_var_def.initial_value_constant, &builder_wrapper)
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
             case AstStatementKind.Class:

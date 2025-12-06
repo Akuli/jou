@@ -20,6 +20,50 @@ import "../evaluate.jou"
 import "./common.jou"
 
 
+def check_const(jou_file: JouFile*, const_stmt: AstConstStatement*, location: Location) -> None:
+    expected_type = type_from_ast(jou_file, NULL, &const_stmt.type)
+
+    value: Constant
+    if not evaluate_constant_expression(jou_file, &const_stmt.value, &value, expected_type):
+        fail(location, "cannot evaluate value of constant at compile time")
+
+    # TODO: allow implicit casts?
+    if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
+        msg: byte[500]
+        snprintf(
+            msg, sizeof(msg),
+            "constant of type %s cannot have a value of type %s",
+            expected_type.name,
+            value.get_type().name
+        )
+        fail(location, msg)
+
+    const_stmt.symbol.constant = value
+
+
+def check_global_var_def(jou_file: JouFile*, global_stmt: AstGlobalVarDef*, location: Location) -> None:
+    expected_type = type_from_ast(jou_file, NULL, &global_stmt.type)
+    global_stmt.symbol.type = expected_type
+
+    if global_stmt.initial_value != NULL:
+        value: Constant
+        if not evaluate_constant_expression(jou_file, global_stmt.initial_value, &value, expected_type):
+            fail(location, "cannot evaluate initial value of global variable at compile time")
+
+        # TODO: allow implicit casts?
+        if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
+            msg: byte[500]
+            snprintf(
+                msg, sizeof(msg),
+                "global variable of type %s cannot have an initial value of type %s",
+                expected_type.name,
+                value.get_type().name
+            )
+            fail(location, msg)
+
+        global_stmt.initial_value_constant = value
+
+
 def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
     msg: byte[500]
 
@@ -47,39 +91,18 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
 
     match stmt.kind:
         case AstStatementKind.Const:
-            expected_type = type_from_ast(jou_file, NULL, &stmt.const_statement.type)
-
-            value: Constant
-            if not evaluate_constant_expression(jou_file, &stmt.const_statement.value, &value, expected_type):
-                fail(stmt.location, "cannot evaluate value of constant at compile time")
-
-            # TODO: allow implicit casts?
-            if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
-                snprintf(
-                    msg, sizeof(msg),
-                    "constant of type %s cannot have a value of type %s",
-                    expected_type.name,
-                    value.get_type().name
-                )
-                fail(stmt.location, msg)
-
-            stmt.symbol().constant = value
-
+            check_const(jou_file, &stmt.const_statement, stmt.location)
         case AstStatementKind.GlobalVariableDeclare:
             stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_declare.type)
         case AstStatementKind.GlobalVariableDef:
-            stmt.symbol().type = type_from_ast(jou_file, NULL, &stmt.global_var_def.type)
-
+            check_global_var_def(jou_file, &stmt.global_var_def, stmt.location)
         case AstStatementKind.Enum:
             stmt.symbol().type = create_enum(stmt.symbol().name, stmt.enumdef.members)
-
         case AstStatementKind.TypeDef:
             actual_type = type_from_ast(jou_file, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef()
             stmt.symbol().type = create_typedef_type(stmt.symbol().name, actual_type)
-
         case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
             stmt.symbol().signature = typecheck_signature(jou_file, &stmt.function, NULL)
-
         case AstStatementKind.Class:
             t = create_empty_class(stmt.symbol().name)
             if stmt.classdef.is_generic():
@@ -88,7 +111,6 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
                 old_name: byte[500] = t.name
                 t.name = create_type_name_with_params(old_name, t.classdata.generic_params)
             stmt.symbol().type = t
-
         case _:
             assert False
 

@@ -9,7 +9,10 @@ import "stdlib/mem.jou"
 import "../../aoc2023/grid.jou"
 
 
-global visual_mode: bool
+# This file is how I finally learned Dijkstra's algorithm :)
+# Set to true to see what I saw. (Something else than windows required.)
+# TODO: can this be a const?
+global visual_mode: bool = False
 
 
 class State:
@@ -96,10 +99,6 @@ else:
 
 
 def main() -> int:
-    # This file is how I finally learned Dijkstra's algorithm :)
-    # Set to true to see what I saw. (Something else than windows required.)
-    visual_mode = False
-
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
     grid = read_grid_from_file(f)

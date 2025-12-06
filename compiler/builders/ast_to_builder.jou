@@ -820,3 +820,12 @@ def feed_ast_to_builder(fom: AstFunctionOrMethod*, func_location: Location, is_m
     ast2ir.build_body(fom.body)
     ast2ir.free()
     builder.end_function()
+
+
+# TODO: not the nicest design, needs some cleanup
+@public
+def feed_constant_to_builder(c: Constant*, builder: AnyBuilder*) -> AnyBuilderValue:
+    ast2ir = AstToBuilder{builder = builder}
+    result = ast2ir.build_constant(c)
+    ast2ir.free()
+    return result

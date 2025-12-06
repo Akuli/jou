@@ -804,9 +804,14 @@ def build_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMM
         match stmt.kind:
             case AstStatementKind.GlobalVariableDef:
                 assert stmt.symbol().type != NULL
-                globalptr = LLVMAddGlobal(module, type_to_llvm(state, stmt.symbol().type), stmt.symbol().name)
+                gtype = type_to_llvm(state, stmt.symbol().type)
+                globalptr = LLVMAddGlobal(module, gtype, stmt.symbol().name)
                 assert globalptr != NULL
-                LLVMSetInitializer(globalptr, LLVMConstNull(type_to_llvm(state, stmt.symbol().type)))
+                if stmt.global_var_def.initial_value == NULL:
+                    LLVMSetInitializer(globalptr, LLVMConstNull(gtype))
+                else:
+                    value = feed_constant_to_builder(&stmt.global_var_def.initial_value_constant, &builder_wrapper)
+                    LLVMSetInitializer(globalptr, value.lvalue.llvm_value)
                 if not stmt.symbol().public:
                     LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
             case AstStatementKind.GlobalVariableDeclare:

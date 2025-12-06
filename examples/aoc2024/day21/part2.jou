@@ -27,10 +27,6 @@ global cost_cache: int64[128][128][26]
 
 
 def init_tables() -> None:
-    memset(arrow_keypad_table, 0, sizeof(arrow_keypad_table))
-    memset(numpad_table, 0, sizeof(numpad_table))
-    memset(cost_cache, 0, sizeof(cost_cache))
-
     #   ^ A
     # < v >
     arrow_keypad_table['^']['^'] = ["A", NULL]
