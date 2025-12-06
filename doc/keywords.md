@@ -445,9 +445,32 @@ def main() -> int:
 Note that unlike in Python,
 you don't need to use `global` inside a function to modify the global variable.
 
-Currently global variables are always initialized to zero memory,
+By default, global variables are always initialized to zero memory,
 and it is not possible to specify any other initializing.
 For example, numbers are initialized to zero, booleans are initialized to `False` and pointers are initialized to `NULL`.
+It is possible to specify a different initial value:
+
+```python
+import "stdlib/io.jou"
+
+global x: int = 1234
+
+def main() -> int:
+    printf("%d\n", x)  # Output: 1234
+    return 0
+```
+
+If you specify a value, specifying a type is not required:
+
+```python
+import "stdlib/io.jou"
+
+global x = 1234
+
+def main() -> int:
+    printf("%d\n", x)  # Output: 1234
+    return 0
+```
 
 By default, global variables are private to a file, just like functions.
 You can use `@public` if you really want to create a public global variable:
