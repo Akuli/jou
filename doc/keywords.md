@@ -354,7 +354,7 @@ def main() -> int:
     return 0
 ```
 
-You can use `sizeof()` or `array_count()` to get the file size:
+You can use [`sizeof`](#sizeof) or [`array_count`](#array_count) to get the file size:
 
 ```python
 import "stdlib/io.jou"
@@ -373,6 +373,8 @@ Files larger than 2147483647 bytes (about 2 gigabytes) are currently not support
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you want to embed a larger file.
 Also, empty files are not supported, because arrays cannot be empty in Jou.
+
+**See also:** [sizeof](#sizeof), [array_count](#array_count)
 
 
 ## `enum`
