@@ -378,8 +378,8 @@ class AstToBuilder:
 
     def build_constant(self, constant: Constant*) -> AnyBuilderValue:
         match constant.kind:
-            case ConstantKind.ArrayString:
-                return self.builder.array_string(constant.array_string.ptr, constant.array_string.len as int)
+            case ConstantKind.ArrayOfBytes:
+                return self.builder.array_of_bytes(constant.array_of_bytes)
             case ConstantKind.PointerString:
                 return self.builder.pointer_string(constant.pointer_string)
             case ConstantKind.Integer:
@@ -427,7 +427,7 @@ class AstToBuilder:
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> AnyBuilderValue:
         match expr.kind:
-            case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount:
+            case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount | AstExpressionKind.EmbedFile:
                 # should be turned into Constant during type checking
                 assert False
             case AstExpressionKind.Constant:

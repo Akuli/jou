@@ -333,6 +333,35 @@ It is also used in the ternary expression:
 **See also:** [if](#if), [elif](#elif)
 
 
+## `embed_file`
+
+Use `embed_file("filename")` to include the contents a file into the executable.
+This evaluates to an array of `byte` that is the file's content.
+The file name is relative to the location of the Jou file, but you can use `..`,
+just like with [`import` statements that start with a dot](import.md).
+
+For example:
+
+```python
+import "stdlib/io.jou"
+
+global readme = embed_file("../../README.md")
+
+def main() -> int:
+    # Output: Jou programming language
+    for i = 2; i < 27; i++:
+        putchar(readme[i])
+    return 0
+```
+
+You should probably make a global variable for files larger than a few kilobytes,
+because otherwise the file content will consume stack space and you may get a stack overflow.
+
+Files larger than 2147483647 bytes (about 2 gigabytes) are currently not supported.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if you want to embed a larger file.
+
+
 ## `enum`
 
 Used to define an enum. See [enums.md](enums.md).

@@ -1,0 +1,30 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+global hello3 = embed_file("../data/hellohellohello.txt")
+global zeros = embed_file("../data/zeros.bin")
+
+def main() -> int:
+    # Type of hello3 should be byte[15]
+    assert array_count(hello3) == 15
+    assert sizeof(hello3) == 15
+    assert sizeof(hello3[0]) == 1
+
+    # print it carefully... :D
+    printf("%.15s\n", hello3)  # Output: hellohellohello
+
+    # Also possible to read it like this (not recommended for large files)
+    hello3_on_stack = embed_file("../data/hellohellohello.txt")
+    printf("%.15s\n", hello3_on_stack)  # Output: hellohellohello
+
+    # This file should contain 100 zero bytes
+    assert array_count(zeros) == 100
+    assert sizeof(zeros) == 100
+    assert sizeof(zeros[0]) == 1
+    # Verify they all zero
+    sum = 0
+    for i = 0; i < sizeof(zeros); i++:
+        sum += zeros[i]
+    printf("%d\n", sum)  # Output: 0
+
+    return 0

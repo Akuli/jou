@@ -1,5 +1,6 @@
 import "stdlib/assert.jou"
 import "stdlib/mem.jou"
+import "stdlib/list.jou"
 
 import "../uvg_analyze.jou"
 import "../state.jou"
@@ -112,7 +113,7 @@ class UBuilder:
             self.dont_analyze(args[i])
         return ANONYMOUS_VALUE_ID
 
-    def array_string(self, s: byte*, array_size: int) -> int:
+    def array_of_bytes(self, bytes: List[byte]) -> int:
         return ANONYMOUS_VALUE_ID
 
     def pointer_string(self, s: byte*) -> int:

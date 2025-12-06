@@ -6,6 +6,7 @@
 # the builder, but Jou has no way to do inheritance yet.
 
 import "stdlib/assert.jou"
+import "stdlib/list.jou"
 
 import "../errors_and_warnings.jou"
 import "../llvm.jou"
@@ -218,15 +219,14 @@ class AnyBuilder:
 
         return result
 
-    # string as array of bytes
-    def array_string(self, s: byte*, array_size: int) -> AnyBuilderValue:
+    def array_of_bytes(self, bytes: List[byte]) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.array_string(s, array_size)
+            result.lvalue = self.lbuilder.array_of_bytes(bytes)
         if self.ubuilder != NULL:
-            result.uvalue = self.ubuilder.array_string(s, array_size)
+            result.uvalue = self.ubuilder.array_of_bytes(bytes)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.array_string(s, array_size)
+            result.hvalue = self.hbuilder.array_of_bytes(bytes)
         return result
 
     # string as '\0' terminated pointer
