@@ -8,9 +8,9 @@ import "stdlib/mem.jou"
 import "./types.jou"
 
 
-def print_string(s: byte*, len: int64) -> None:
+def print_string(s: byte*) -> None:
     putchar('"')
-    for i = 0; i < len; i++:
+    for i = 0; s[i] != '\0'; i++:
         if 32 <= s[i] and s[i] <= 126:
             # printable ascii character
             putchar(s[i])
@@ -88,7 +88,7 @@ class Constant:
                 printf("] (%lld bytes)\n", self.array_of_bytes.len)
             case ConstantKind.PointerString:
                 printf("pointer string ")
-                print_string(self.pointer_string, strlen(self.pointer_string))
+                print_string(self.pointer_string)
                 printf("\n")
 
     def free(self) -> None:

@@ -127,6 +127,8 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                 fail(expr.location, msg)
 
             file_content = read_embedded_file(jou_file, filename_constant.pointer_string, expr.location)
+            filename_constant.free()
+
             assert file_content.len <= INT32_MAX  # TODO
             if file_content.len == 0:
                 # In Jou, empty array like byte[0] is not a valid type

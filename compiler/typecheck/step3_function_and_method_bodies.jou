@@ -1071,6 +1071,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             ok = evaluate_constant_expression(state.jou_file, expr, &c, type_hint)
             assert ok  # Should fail with a compiler error if there is a problem
             result = c.get_type()
+            expr.free()
             expr.kind = AstExpressionKind.Constant
             expr.constant = c
 
