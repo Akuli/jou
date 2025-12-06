@@ -250,6 +250,7 @@ enum AstExpressionKind:
     # unary operators
     SizeOf          # sizeof x
     ArrayCount      # array_count x
+    EmbedFile       # embed_file("./foo.bar")
     AddressOf       # &x
     Dereference     # *x
     Negate          # -x
@@ -356,6 +357,8 @@ class AstExpression:
                 self.enumcount.print()
             case AstExpressionKind.SizeOf:
                 printf("sizeof\n")
+            case AstExpressionKind.EmbedFile:
+                printf("embed_file\n")
             case AstExpressionKind.ArrayCount:
                 printf("array_count\n")
             case AstExpressionKind.AddressOf:
@@ -450,6 +453,7 @@ class AstExpression:
         match self.kind:
             case (
                 AstExpressionKind.SizeOf
+                | AstExpressionKind.EmbedFile
                 | AstExpressionKind.ArrayCount
                 | AstExpressionKind.AddressOf
                 | AstExpressionKind.Dereference
