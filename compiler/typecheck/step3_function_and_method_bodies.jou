@@ -1086,11 +1086,11 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 if strlen(s) >= type_hint.array.count:
                     snprintf(msg, sizeof(msg), "a string of %lld bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint.name)
                     fail(expr.location, msg)
-                expr.constant.kind = ConstantKind.ArrayString
-                expr.constant.array_string = List[byte]{}
-                while expr.constant.array_string.len < type_hint.array.count:
-                    expr.constant.array_string.append('\0')
-                strcpy(expr.constant.array_string.ptr, s)
+                expr.constant.kind = ConstantKind.ArrayOfBytes
+                expr.constant.array_of_bytes = List[byte]{}
+                while expr.constant.array_of_bytes.len < type_hint.array.count:
+                    expr.constant.array_of_bytes.append('\0')
+                strcpy(expr.constant.array_of_bytes.ptr, s)
                 free(s)
                 assert expr.constant.get_type() == type_hint
                 result = type_hint

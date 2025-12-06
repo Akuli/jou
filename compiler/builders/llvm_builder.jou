@@ -17,10 +17,12 @@
 # need hashes to check whether the object file needs to be rebuilt.
 
 import "stdlib/assert.jou"
+import "stdlib/limits.jou"
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 
 import "../ast.jou"
 import "../global_symbols.jou"
@@ -550,15 +552,11 @@ class LBuilder:
             assert llvm_return_value != NULL
             return LBuilderValue{type = sig.return_type, llvm_value = llvm_return_value}
 
-    # string as array of bytes
-    def array_string(self, s: byte*, array_size: int) -> LBuilderValue:
-        assert strlen(s) < array_size
-        padded: byte* = malloc(array_size)
-        memset(padded, 0, array_size)
-        strcpy(padded, s)
-        llvm_array = LLVMConstStringInContext(self.state.llvm_context, padded, array_size as uint32, True as int)
-        free(padded)
-        return LBuilderValue{type = uint_type(8).array_type(array_size), llvm_value = llvm_array}
+    def array_of_bytes(self, bytes: List[byte]) -> LBuilderValue:
+        assert bytes.len <= UINT32_MAX
+        llvm_array = LLVMConstStringInContext(self.state.llvm_context, bytes.ptr, bytes.len as uint32, True as int)
+        assert bytes.len <= INT32_MAX
+        return LBuilderValue{type = uint_type(8).array_type(bytes.len as int), llvm_value = llvm_array}
 
     # string as '\0' terminated pointer
     def pointer_string(self, s: byte*) -> LBuilderValue:

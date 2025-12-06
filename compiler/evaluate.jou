@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/limits.jou"
 import "stdlib/io.jou"
 import "stdlib/errno.jou"
 import "stdlib/str.jou"
@@ -58,6 +59,7 @@ def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Loca
     full_path: byte* = NULL
     asprintf(&full_path, "%s/%s", dirname(joufile_path), specified_path)
     assert full_path != NULL
+    free(joufile_path)
 
     file = fopen(full_path, "rb")
     if file == NULL:
@@ -65,7 +67,7 @@ def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Loca
         snprintf(msg, sizeof(msg), "cannot open file \"%s\": %s", full_path, strerror(get_errno()))
         fail(location, msg)
 
-    bytes_list = List[byte]{}
+    file_content = List[byte]{}
     buf: byte[4096]
     while True:
         num_read = fread(buf, 1, sizeof buf, file)
@@ -76,10 +78,15 @@ def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Loca
                 # If you change this, you might also want to change the tokenizer.
                 fail(location, "cannot read file")
             break
-        bytes_list.extend_from_ptr(buf, num_read)
+        file_content.extend_from_ptr(buf, num_read)
     fclose(file)
 
-    return bytes_list
+    if file_content.len == 0:
+        simplify_path(full_path)
+        snprintf(msg, sizeof(msg), "file \"%s\" is empty", full_path)
+        fail(location, msg)
+
+    return file_content
 
 
 # Returns False if the expression is not a simple compile-time constant.
@@ -113,13 +120,18 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
         case AstExpressionKind.EmbedFile:
             filename_constant: Constant
             if not evaluate_constant_expression(jou_file, expr.operands, &filename_constant, uint_type(8).pointer_type()):
-                fail(expr.location, "failed to evaluate name of file to embed")
+                fail(expr.location, "failed to evaluate file name at compile time")
             if filename_constant.kind != ConstantKind.PointerString:
-                snprintf(msg, sizeof(msg), "name of file to embed must be a string, not %s", filename_constant.get_type().name)
+                snprintf(msg, sizeof(msg), "file name must be a string, not %s", filename_constant.get_type().name)
                 fail(expr.location, msg)
+
             file_content = read_embedded_file(jou_file, filename_constant.pointer_string, expr.location)
-            printf("File Size = %lld\n", file_content.len)
-            assert False
+            assert file_content.len <= INT32_MAX  # TODO
+            if file_content.len == 0:
+                # In Jou, empty array like byte[0] is not a valid type
+                fail(expr.location, "file is empty")
+
+            *result = Constant{kind = ConstantKind.ArrayOfBytes, array_of_bytes = file_content}
             return True
 
         case AstExpressionKind.EnumCount:
