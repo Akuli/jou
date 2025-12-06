@@ -1188,7 +1188,9 @@ class AstGlobalVarDef:
 
     def free(self) -> None:
         self.symbol.free()
-        self.type.free()
+        if self.type != NULL:
+            self.type.free()
+            free(self.type)
         if self.initial_value != NULL:
             self.initial_value.free()
             self.initial_value_constant.free()
