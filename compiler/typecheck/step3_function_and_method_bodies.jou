@@ -59,6 +59,8 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "a sizeof expression"
         case AstExpressionKind.ArrayCount:
             return "an array_count expression"
+        case AstExpressionKind.EmbedFile:
+            return "an embed_file expression"
         case AstExpressionKind.EnumCount:
             return "an enum_count expression"
         case AstExpressionKind.Instantiate:
@@ -1063,7 +1065,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     detect_enum_member_syntax(state, expr)
 
     match expr.kind:
-        case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount:
+        case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount | AstExpressionKind.EmbedFile:
             # The expression can be evaluated as a constant
             c: Constant
             ok = evaluate_constant_expression(state.jou_file, expr, &c, type_hint)
@@ -1113,6 +1115,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 and expr.operands[0].constant.kind == ConstantKind.PointerString
             ):
                 # sizeof("foo") should be 4
+                # TODO: this probably won't work with const
                 obj_type_hint = uint_type(8).array_type((strlen(expr.operands[0].constant.pointer_string) as int) + 1)
             else:
                 obj_type_hint = NULL

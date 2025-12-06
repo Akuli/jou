@@ -1,0 +1,15 @@
+global hello3 = embed_file("../data/hellohellohello.txt")
+
+def main() -> int:
+    # Type of hello3 should be byte[15]
+    assert sizeof(hello3) == 15
+    assert sizeof(hello3[0]) == 1
+
+    # print it carefully... :D
+    printf("%.15s\n", hello3)  # Output: hellohellohello
+
+    # Also possible to read it like this (not recommended for large files)
+    hello3_on_stack = embed_file("../data/hellohellohello.txt")
+    printf("%.15s\n", hello3_on_stack)  # Output: hellohellohello
+
+    return 0

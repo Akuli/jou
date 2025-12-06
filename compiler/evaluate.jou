@@ -1,9 +1,12 @@
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/errno.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "./ast.jou"
+import "./paths.jou"
 import "./typecheck/common.jou"
 import "./typecheck/step1_global_symbols.jou"
 import "./state.jou"
@@ -45,6 +48,40 @@ def evaluate_boolean_and_or(jou_file: JouFile*, expr: AstExpression*, and_or: by
     return value.boolean as int
 
 
+def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Location) -> List[byte]:
+    msg: byte[500]
+
+    # If I remember correctly, dirname() may modify the given path
+    joufile_path = strdup(jou_file.path)
+    assert joufile_path != NULL
+
+    full_path: byte* = NULL
+    asprintf(&full_path, "%s/%s", dirname(joufile_path), specified_path)
+    assert full_path != NULL
+
+    file = fopen(full_path, "rb")
+    if file == NULL:
+        simplify_path(full_path)
+        snprintf(msg, sizeof(msg), "cannot open file \"%s\": %s", full_path, strerror(get_errno()))
+        fail(location, msg)
+
+    bytes_list = List[byte]{}
+    buf: byte[4096]
+    while True:
+        num_read = fread(buf, 1, sizeof buf, file)
+        if num_read == 0:
+            if ferror(file) != 0:
+                # TODO: include errno in the error message?
+                # TODO: test this?
+                # If you change this, you might also want to change the tokenizer.
+                fail(location, "cannot read file")
+            break
+        bytes_list.extend_from_ptr(buf, num_read)
+    fclose(file)
+
+    return bytes_list
+
+
 # Returns False if the expression is not a simple compile-time constant.
 #
 # As the naming suggests, the type hint is only a hint and result type may differ.
@@ -71,6 +108,18 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
 
         case AstExpressionKind.Constant:
             *result = expr.constant.copy()
+            return True
+
+        case AstExpressionKind.EmbedFile:
+            filename_constant: Constant
+            if not evaluate_constant_expression(jou_file, expr.operands, &filename_constant, uint_type(8).pointer_type()):
+                fail(expr.location, "failed to evaluate name of file to embed")
+            if filename_constant.kind != ConstantKind.PointerString:
+                snprintf(msg, sizeof(msg), "name of file to embed must be a string, not %s", filename_constant.get_type().name)
+                fail(expr.location, msg)
+            file_content = read_embedded_file(jou_file, filename_constant.pointer_string, expr.location)
+            printf("File Size = %lld\n", file_content.len)
+            assert False
             return True
 
         case AstExpressionKind.EnumCount:
