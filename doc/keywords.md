@@ -361,10 +361,10 @@ You can use [`sizeof`](#sizeof) or [`array_count`](#array_count) to get the file
 ```python
 import "stdlib/io.jou"
 
-global license = embed_file("../../tests/data/hellohellohello.txt")
+global license = embed_file("../../README.md")
 
 def main() -> int:
-    printf("%d bytes\n", sizeof(license) as int)  # Output: 15 bytes
+    printf("%d bytes\n", sizeof(license) as int)
     return 0
 ```
 
