@@ -86,6 +86,7 @@ def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Loca
         snprintf(msg, sizeof(msg), "file \"%s\" is empty", full_path)
         fail(location, msg)
 
+    free(full_path)
     return file_content
 
 
