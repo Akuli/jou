@@ -1374,7 +1374,7 @@ class Parser:
 
             if not self.tokens.is_operator(":") and not self.tokens.is_operator("="):
                 msg: byte[500]
-                snprintf(msg, sizeof(msg), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 1)", varname, varname)
+                snprintf(msg, sizeof(msg), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 123)", varname, varname)
                 self.tokens.fail_expected_got(msg)
 
             type: AstType* = NULL
