@@ -1116,7 +1116,6 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 and expr.operands[0].constant.kind == ConstantKind.PointerString
             ):
                 # sizeof("foo") should be 4
-                # TODO: this probably won't work with const
                 obj_type_hint = uint_type(8).array_type((strlen(expr.operands[0].constant.pointer_string) as int) + 1)
             else:
                 obj_type_hint = NULL
