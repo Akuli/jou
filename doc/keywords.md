@@ -338,7 +338,7 @@ It is also used in the ternary expression:
 Use `embed_file("filename")` to include the contents a file into the executable.
 This evaluates to an array of `byte` that is the file's content.
 The file name is relative to the location of the Jou file, but you can use `..`,
-just like with [`import` statements that start with a dot](import.md).
+just like with [`import` statements that start with a dot](imports.md).
 
 For example:
 
@@ -349,8 +349,10 @@ global readme = embed_file("../../README.md")
 
 def main() -> int:
     # Output: Jou programming language
-    for i = 2; i < 27; i++:
+    for i = 2; i < 26; i++:
         putchar(readme[i])
+    putchar('\n')
+
     return 0
 ```
 
@@ -359,10 +361,10 @@ You can use [`sizeof`](#sizeof) or [`array_count`](#array_count) to get the file
 ```python
 import "stdlib/io.jou"
 
-global license = embed_file("../../LICENSE")
+global license = embed_file("../../tests/data/hellohellohello.txt")
 
 def main() -> int:
-    printf("%d bytes\n", sizeof(license) as int)  # Output: 1067 bytes
+    printf("%d bytes\n", sizeof(license) as int)  # Output: 15 bytes
     return 0
 ```
 
