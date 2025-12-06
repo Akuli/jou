@@ -2,16 +2,18 @@ import "stdlib/io.jou"
 
 global x: int
 global y: int = 100
+global z = 200
 
-def increment_both() -> None:
+def increment_all() -> None:
     x++
     y++
+    z++
 
 def main() -> int:
-    printf("%d %d\n", x, y)  # Output: 0 100
-    increment_both()
-    printf("%d %d\n", x, y)  # Output: 1 101
-    increment_both()
-    printf("%d %d\n", x, y)  # Output: 2 102
+    printf("%d %d %d\n", x, y, z)  # Output: 0 100 200
+    increment_all()
+    printf("%d %d %d\n", x, y, z)  # Output: 1 101 201
+    increment_all()
+    printf("%d %d %d\n", x, y, z)  # Output: 2 102 202
 
     return 0

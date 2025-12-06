@@ -1107,7 +1107,6 @@ class Parser:
                 result.kind == AstStatementKind.Assign
                 and self.what_are_we_parsing == WhatAreWeParsing.TopLevel
             ):
-                # Would fail anyway, but let's produce a better error message
                 fail(expr.location, "missing 'global' or 'const' keyword when defining global variable")
             if result.kind == AstStatementKind.ExpressionStatement:
                 if not expr.is_valid_as_a_statement():
@@ -1371,14 +1370,34 @@ class Parser:
 
             self.check_top_level("global variables")
             location = (self.tokens++).location
-            ntv = self.parse_name_type_value("a variable name")
+            varname = self.eat_by_kind(TokenKind.Name, True, "a variable name").short_string
+
+            if not self.tokens.is_operator(":") and not self.tokens.is_operator("="):
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 1)", varname, varname)
+                self.tokens.fail_expected_got(msg)
+
+            type: AstType* = NULL
+            if self.tokens.is_operator(":"):
+                self.eat_operator(":", False, NULL)
+                type = malloc(sizeof(*type))
+                assert type != NULL
+                *type = self.parse_type()
+
+            value: AstExpression* = NULL
+            if self.tokens.is_operator("="):
+                self.eat_operator("=", False, NULL)
+                value = malloc(sizeof(*value))
+                assert value != NULL
+                *value = self.parse_expression()
+
             result = AstStatement{
                 location = location,
                 kind = AstStatementKind.GlobalVariableDef,
                 global_var_def = AstGlobalVarDef{
-                    symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
-                    type = ntv.type,
-                    initial_value = ntv.value,
+                    symbol = GlobalSymbol{name = varname, kind = GlobalSymbolKind.GlobalVar},
+                    type = type,
+                    initial_value = value,
                 },
             }
             self.eat_newline()

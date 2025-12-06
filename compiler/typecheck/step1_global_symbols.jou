@@ -42,26 +42,34 @@ def check_const(jou_file: JouFile*, const_stmt: AstConstStatement*, location: Lo
 
 
 def check_global_var_def(jou_file: JouFile*, global_stmt: AstGlobalVarDef*, location: Location) -> None:
-    expected_type = type_from_ast(jou_file, NULL, &global_stmt.type)
-    global_stmt.symbol.type = expected_type
+    if global_stmt.type != NULL:
+        expected_type = type_from_ast(jou_file, NULL, global_stmt.type)
+        assert expected_type != NULL
+        global_stmt.symbol.type = expected_type
+    else:
+        expected_type = NULL
 
     if global_stmt.initial_value != NULL:
         value: Constant
         if not evaluate_constant_expression(jou_file, global_stmt.initial_value, &value, expected_type):
             fail(location, "cannot evaluate initial value of global variable at compile time")
-
-        # TODO: allow implicit casts?
-        if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
-            msg: byte[500]
-            snprintf(
-                msg, sizeof(msg),
-                "global variable of type %s cannot have an initial value of type %s",
-                expected_type.name,
-                value.get_type().name
-            )
-            fail(location, msg)
-
         global_stmt.initial_value_constant = value
+
+        if expected_type == NULL:
+            global_stmt.symbol.type = value.get_type()
+        else:
+            # TODO: allow implicit casts?
+            if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
+                msg: byte[500]
+                snprintf(
+                    msg, sizeof(msg),
+                    "global variable of type %s cannot have an initial value of type %s",
+                    expected_type.name,
+                    value.get_type().name
+                )
+                fail(location, msg)
+
+    assert global_stmt.symbol.type != NULL
 
 
 def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:

@@ -1166,13 +1166,17 @@ class AstGlobalVarDeclare:
 @public
 class AstGlobalVarDef:
     symbol: GlobalSymbol
-    type: AstType
+    type: AstType*
     initial_value: AstExpression*  # may be NULL
     initial_value_constant: Constant  # used only when initial_value != NULL
 
     def print(self) -> None:
-        printf("%s: ", self.symbol.name)
-        self.type.print(True)
+        printf("%s", self.symbol.name)
+        if self.type == NULL:
+            printf(" (no type given)")
+        else:
+            printf(": ")
+            self.type.print(True)
         if self.initial_value == NULL:
             printf(" (no initial value)\n")
         else:
