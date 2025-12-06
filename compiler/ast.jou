@@ -1171,7 +1171,7 @@ class AstGlobalVarDef:
     initial_value_constant: Constant  # used only when initial_value != NULL
 
     def print(self) -> None:
-        printf("%s (%p): ", self.symbol.name, self.symbol.type)
+        printf("%s: ", self.symbol.name)
         self.type.print(True)
         if self.initial_value == NULL:
             printf(" (no initial value)\n")
