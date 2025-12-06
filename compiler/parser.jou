@@ -1,5 +1,4 @@
 import "stdlib/assert.jou"
-import "stdlib/io.jou"
 import "stdlib/ascii.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
@@ -1576,13 +1575,6 @@ def parse(tokens: Token*) -> List[AstStatement]:
 
     while parser.tokens.kind != TokenKind.EndOfFile:
         result.append(parser.parse_statement())
-
-    if result.len > 0 and strstr(result.ptr[0].location.path, "global") != NULL:
-        for p = result.ptr; p < result.end(); p++:
-            if p.kind == AstStatementKind.GlobalVariableDef and strcmp(p.symbol().name, "y") == 0:
-                my_debug = &p.symbol().type
-                debug("parse")
-        fflush(get_stdout())
 
     assert parser.loop_vars.len == 0
     free(parser.loop_vars.ptr)

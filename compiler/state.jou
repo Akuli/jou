@@ -116,14 +116,3 @@ def create_thread_local_compiler_state() -> ThreadLocalCompilerState:
         fprintf(get_stderr(), "LLVMContextCreate() failed\n")
         exit(1)
     return ThreadLocalCompilerState{target = target, llvm_context = ctx}
-
-
-@public
-global my_debug: Type**
-@public
-def debug(tag: byte*) -> None:
-    if my_debug == NULL:
-        printf("%s: not set yet\n", tag)
-    else:
-        printf("%s: %p\n", tag, *my_debug)
-    fflush(get_stdout())

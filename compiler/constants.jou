@@ -23,13 +23,13 @@ def print_string(s: byte*) -> None:
 # Constants can appear in AST and also compilation steps after AST.
 @public
 enum ConstantKind:
+    Null    # First, so that zero-initializing a constant produces this
     EnumMember
     Integer
     Float
     Double
     PointerString
     ArrayString
-    Null
     Bool
 
 class IntegerConstant:
