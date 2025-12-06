@@ -23,7 +23,7 @@ def print_string(s: byte*) -> None:
 # Constants can appear in AST and also compilation steps after AST.
 @public
 enum ConstantKind:
-    Null    # First, so that zero-initializing a constant produces this
+    Null    # First, so that zero-initializing a constant produces this, not something that requires cleanup
     EnumMember
     Integer
     Float
