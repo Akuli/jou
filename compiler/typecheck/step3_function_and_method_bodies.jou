@@ -1183,6 +1183,8 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             else:
                 # Not a constant, proceed with normal variable lookup
                 result = state.find_any_var(expr.varname)
+                debug("step3 AstExpressionKind.GetVariable")
+                printf("!!! %p\n", result)
                 if result == NULL:
                     # Is it a function?
                     sig = find_and_typecheck_function(state.jou_file, expr.varname)
@@ -1681,6 +1683,7 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
 
 @public
 def typecheck_step3_function_and_method_bodies() -> None:
+    debug("step3 begin")
     if global_compiler_state.args.verbosity >= 1:
         printf("Typecheck: function and method bodies (step 3/3)\n")
 

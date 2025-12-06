@@ -260,10 +260,15 @@ def make_imported_statements_available() -> None:
 
 
 def typecheck_everything() -> None:
+    debug("typecheck_everything start")
     make_imported_statements_available()
+    debug("typecheck_everything A")
     typecheck_step1_global_symbols()
+    debug("typecheck_everything B")
     typecheck_step2_class_members()
+    debug("typecheck_everything C")
     typecheck_step3_function_and_method_bodies()
+    debug("typecheck_everything D")
 
 
 def build_and_analyze_all_uvgs() -> None:

@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
 import "stdlib/ascii.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
@@ -1372,17 +1373,13 @@ class Parser:
             self.check_top_level("global variables")
             location = (self.tokens++).location
             ntv = self.parse_name_type_value("a variable name")
-            if ntv.value != NULL:
-                fail(
-                    ntv.value.location,
-                    "specifying a value for a global variable is not supported yet",
-                )
             result = AstStatement{
                 location = location,
                 kind = AstStatementKind.GlobalVariableDef,
                 global_var_def = AstGlobalVarDef{
                     symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
                     type = ntv.type,
+                    initial_value = ntv.value,
                 },
             }
             self.eat_newline()
@@ -1579,6 +1576,13 @@ def parse(tokens: Token*) -> List[AstStatement]:
 
     while parser.tokens.kind != TokenKind.EndOfFile:
         result.append(parser.parse_statement())
+
+    if result.len > 0 and strstr(result.ptr[0].location.path, "global") != NULL:
+        for p = result.ptr; p < result.end(); p++:
+            if p.kind == AstStatementKind.GlobalVariableDef and strcmp(p.symbol().name, "y") == 0:
+                my_debug = &p.symbol().type
+                debug("parse")
+        fflush(get_stdout())
 
     assert parser.loop_vars.len == 0
     free(parser.loop_vars.ptr)

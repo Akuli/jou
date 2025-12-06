@@ -1,15 +1,16 @@
 import "stdlib/io.jou"
 
 global x: int
+global y: int = 100
 
-def increment_x() -> None:
+def increment_both() -> None:
     x++
 
 def main() -> int:
-    printf("%d\n", x)  # Output: 0
-    increment_x()
-    printf("%d\n", x)  # Output: 1
-    increment_x()
-    printf("%d\n", x)  # Output: 2
+    printf("%d %d\n", x, y)  # Output: 0 100
+    increment_both()
+    printf("%d %d\n", x, y)  # Output: 1 101
+    increment_both()
+    printf("%d %d\n", x, y)  # Output: 2 102
 
     return 0
