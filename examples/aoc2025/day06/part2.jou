@@ -13,6 +13,7 @@ enum Operator:
 
 
 const MAX_ROWS: int = 10
+const LINE_SIZE: int = 4096
 
 def main() -> int:
     f = fopen("sampleinput.txt", "r")
@@ -21,8 +22,11 @@ def main() -> int:
     columns = List[byte[MAX_ROWS]]{}
     row_count = 0
 
-    line: byte[4096] = ""
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    #line: byte[4096] = ""  # For some reason this causes really slow compile time. Thanks LLVM...
+    line: byte* = malloc(LINE_SIZE)
+    assert line != NULL
+
+    while fgets(line, LINE_SIZE, f) != NULL:
         for i = 0; line[i] != '\0'; i++:
             if columns.len == i:
                 new_column: byte[MAX_ROWS]
@@ -31,6 +35,8 @@ def main() -> int:
             assert row_count < MAX_ROWS
             columns.ptr[i][row_count] = line[i]
         row_count++
+
+    free(line)
 
     # Add '\0' terminator to each column
     assert row_count < MAX_ROWS
