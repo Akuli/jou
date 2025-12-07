@@ -1,0 +1,93 @@
+import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def sum(numbers: int*, count: int) -> int64:
+    result: int64 = 0
+    for i = 0; i < count; i++:
+        result += numbers[i]
+    return result
+
+def product(numbers: int*, count: int) -> int64:
+    result: int64 = 1
+    for i = 0; i < count; i++:
+        result *= numbers[i]
+    return result
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[4096] = ""
+    is_blank: bool[4096]
+
+    # set all columns to blank
+    assert sizeof(is_blank[0]) == 1
+    memset(is_blank, True as int, sizeof(is_blank))
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        for i = 0; line[i] != '\0'; i++:
+            assert i < array_count(is_blank)
+            if not is_ascii_whitespace(line[i]):
+                is_blank[i] = False
+
+    result: int64 = 0
+    col_values: int[10]
+    num_col_values = 0
+    op = '?'
+
+    for col = 0; col < array_count(is_blank); col++:
+        if col > 0 and is_blank[col] and not is_blank[col-1]:
+            # End of a problem
+            # Output: [1,24,356] *
+            # Output: [369,248,8] +
+            # Output: [32,581,175] *
+            # Output: [623,431,4] +
+            printf("[")
+            for i = 0; i < num_col_values; i++:
+                if i > 0:
+                    putchar(',')
+                printf("%d", col_values[i])
+            printf("] %c\n", op)
+
+            match op:
+                case '+':
+                    result += sum(col_values, num_col_values)
+                case '*':
+                    result += product(col_values, num_col_values)
+                case _:
+                    assert False
+            num_col_values = 0
+            op = '?'
+            continue
+
+        if is_blank[col]:
+            continue
+
+        col_value = 0
+        f_col = 0
+        rewind(f)
+        while True:
+            c = fgetc(f)
+            if c == EOF:
+                break
+            elif c == '\n':
+                f_col = 0
+            elif f_col++ == col:
+                if is_ascii_digit(c as byte):
+                    col_value *= 10
+                    col_value += c - '0'
+                if c == '+' or c == '*':
+                    op = c as byte
+
+        assert col_value != 0
+        assert num_col_values < array_count(col_values)
+        col_values[num_col_values++] = col_value
+
+    printf("%lld\n", result)  # Output: 3263827
+
+    fclose(f)
+    return 0
