@@ -12,7 +12,6 @@ def main() -> int:
     memset(ray_counts, 0, sizeof(ray_counts))
 
     while fgets(line, sizeof(line) as int, f) != NULL:
-        old_ray_counts = ray_counts
         for i = 0; line[i] != '\0'; i++:
             if line[i] == 'S':
                 ray_counts[i] = 1
@@ -20,9 +19,9 @@ def main() -> int:
                 # Ray hits splitter
                 assert i >= 1
                 assert i + 1 < array_count(ray_counts)
+                ray_counts[i-1] += ray_counts[i]
+                ray_counts[i+1] += ray_counts[i]
                 ray_counts[i] = 0
-                ray_counts[i-1] += old_ray_counts[i]
-                ray_counts[i+1] += old_ray_counts[i]
 
     result: int64 = 0
     for i = 0; i < array_count(ray_counts); i++:
