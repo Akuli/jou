@@ -1,7 +1,6 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
-import "stdlib/str.jou"
 
 
 def main() -> int:
@@ -10,25 +9,20 @@ def main() -> int:
 
     line: byte[256]
     ray_counts: int64[256]
-    new_ray_counts: int64[256]
-
     memset(ray_counts, 0, sizeof(ray_counts))
 
     while fgets(line, sizeof(line) as int, f) != NULL:
-        memset(new_ray_counts, 0, sizeof(new_ray_counts))
-        if strstr(line, "S") != NULL:
-            new_ray_counts[(strstr(line, "S") as int64) - (&line[0] as int64)] = 1
-        else:
-            for i = 0; line[i] != '\0'; i++:
-                if line[i] == '^':
-                    assert i >= 1
-                    assert i + 1 < array_count(ray_counts)
-                    new_ray_counts[i-1] += ray_counts[i]
-                    new_ray_counts[i+1] += ray_counts[i]
-                else:
-                    new_ray_counts[i] += ray_counts[i]
-
-        ray_counts = new_ray_counts
+        old_ray_counts = ray_counts
+        for i = 0; line[i] != '\0'; i++:
+            if line[i] == 'S':
+                ray_counts[i] = 1
+            if line[i] == '^':
+                # Ray hits splitter
+                assert i >= 1
+                assert i + 1 < array_count(ray_counts)
+                ray_counts[i] = 0
+                ray_counts[i-1] += old_ray_counts[i]
+                ray_counts[i+1] += old_ray_counts[i]
 
     result: int64 = 0
     for i = 0; i < array_count(ray_counts); i++:
