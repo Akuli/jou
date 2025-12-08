@@ -1,0 +1,87 @@
+import "stdlib/assert.jou"
+import "stdlib/sort.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+
+# This needs to be global to sort so we get indexes of top N pairs of closest points
+global points: List[int[3]]
+
+
+def distance_squared(p1: int[3], p2: int[3]) -> int64:
+    dx: int64 = p2[0] - p1[0]
+    dy: int64 = p2[1] - p1[1]
+    dz: int64 = p2[2] - p1[2]
+    return dx*dx + dy*dy + dz*dz
+
+
+def comparator_func(pair1: int[2]*, pair2: int[2]*) -> int:
+    dist1_squared = distance_squared(points.ptr[(*pair1)[0]], points.ptr[(*pair1)[1]])
+    dist2_squared = distance_squared(points.ptr[(*pair2)[0]], points.ptr[(*pair2)[1]])
+    if dist1_squared > dist2_squared:
+        return 1
+    if dist1_squared < dist2_squared:
+        return -1
+    return 0
+
+
+def main() -> int:
+    # sample input parameters
+    #f = fopen("sampleinput.txt", "r")
+    #connect_count = 10
+
+    # actual input parameters
+    f = fopen("input.txt", "r")
+    connect_count = 1000
+
+    assert f != NULL
+
+    x, y, z: int
+    while fscanf(f, "%d,%d,%d\n", &x, &y, &z) == 3:
+        points.append([x, y, z])
+    fclose(f)
+
+    index_pairs = List[int[2]]{}
+    for i1 = 0; i1 < points.len; i1++:
+        for i2 = i1 + 1; i2 < points.len; i2++:
+            index_pairs.append([i1, i2])
+
+    Sorter[int[2]]{}.sort(index_pairs.ptr, index_pairs.len, comparator_func)
+
+    group_ids: int* = malloc(sizeof(group_ids[0]) * points.len)
+    assert group_ids != NULL
+    for i = 0; i < points.len; i++:
+        group_ids[i] = i
+
+    # Connect the closest N pairs of points
+    assert index_pairs.len >= connect_count
+    for p = index_pairs.ptr; p < &index_pairs.ptr[connect_count]; p++:
+        i1 = (*p)[0]
+        i2 = (*p)[1]
+        # Bring the points to the same circuit by replacing one ID with another
+        #printf(
+        #    "Connect (%d,%d,%d) and (%d,%d,%d)\n",
+        #    points.ptr[i1][0], points.ptr[i1][1], points.ptr[i1][2],
+        #    points.ptr[i2][0], points.ptr[i2][1], points.ptr[i2][2],
+        #)
+        old_id = group_ids[i1]
+        new_id = group_ids[i2]
+        for k = 0; k < points.len; k++:
+            if group_ids[k] == old_id:
+                group_ids[k] = new_id
+    free(index_pairs.ptr)
+
+    # Find group sizes
+    counts: int* = calloc(sizeof(counts[0]), points.len)
+    for i = 0; i < points.len; i++:
+        counts[group_ids[i]]++
+    free(group_ids)
+
+    # Find and multiply top 3 counts
+    assert points.len >= 3
+    sort_int32(counts, points.len)
+    printf("%d\n", counts[points.len-1] * counts[points.len-2] * counts[points.len-3])  # Output: 40
+
+    free(points.ptr)
+    free(counts)
+    return 0
