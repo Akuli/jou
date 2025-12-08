@@ -356,15 +356,19 @@ def main() -> int:
     return 0
 ```
 
-You can use [`sizeof`](#sizeof) or [`array_count`](#array_count) to get the file size:
+The resulting array is usually not a valid string,
+because it does not have a zero byte (`\0`) at the end.
+For example, don't do `puts(readme)` or `printf("%s", readme)` in the above example,
+because that may print extra junk after the file content.
+Instead, use [`sizeof`](#sizeof) or [`array_count`](#array_count) to get the file size:
 
 ```python
 import "stdlib/io.jou"
 
-global license = embed_file("../../README.md")
+global readme = embed_file("../../README.md")
 
 def main() -> int:
-    printf("%d bytes\n", sizeof(license) as int)
+    printf("%d bytes\n", sizeof(readme) as int)
     return 0
 ```
 
