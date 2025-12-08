@@ -356,23 +356,24 @@ def main() -> int:
     return 0
 ```
 
-You can use [`sizeof`](#sizeof) or [`array_count`](#array_count) to get the file size:
+The resulting array is usually not a valid string,
+because it does not have a zero byte (`\0`) at the end.
+For example, don't do `puts(readme)` or `printf("%s", readme)` in the above example,
+because that may print extra junk after the file content.
+Instead, use [`sizeof`](#sizeof) or [`array_count`](#array_count) to get the file size:
 
 ```python
 import "stdlib/io.jou"
 
-global license = embed_file("../../README.md")
+global readme = embed_file("../../README.md")
 
 def main() -> int:
-    printf("%d bytes\n", sizeof(license) as int)
+    printf("%d bytes\n", sizeof(readme) as int)
     return 0
 ```
 
 You should probably make a global variable for files larger than a few kilobytes,
 because otherwise the file content will consume stack space and you may get a stack overflow.
-
-The resulting array is usually not a valid string,
-because it does not have a zero byte (`\0`) at the end.
 
 Files larger than 2147483647 bytes (about 2 gigabytes) are currently not supported.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
