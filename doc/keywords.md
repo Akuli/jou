@@ -371,6 +371,9 @@ def main() -> int:
 You should probably make a global variable for files larger than a few kilobytes,
 because otherwise the file content will consume stack space and you may get a stack overflow.
 
+The resulting array is usually not a valid string,
+because it does not have a zero byte (`\0`) at the end.
+
 Files larger than 2147483647 bytes (about 2 gigabytes) are currently not supported.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you want to embed a larger file.
