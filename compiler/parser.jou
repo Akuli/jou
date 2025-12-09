@@ -828,6 +828,7 @@ class Parser:
             or self.tokens.is_operator("*")
             or self.tokens.is_operator("~")
             or self.tokens.is_keyword("sizeof")
+            or self.tokens.is_keyword("embed_file")
             or self.tokens.is_keyword("array_count")
         ):
             self.tokens++
@@ -867,6 +868,8 @@ class Parser:
                     kind = AstExpressionKind.BitNot
                 elif token.is_keyword("sizeof"):
                     kind = AstExpressionKind.SizeOf
+                elif token.is_keyword("embed_file"):
+                    kind = AstExpressionKind.EmbedFile
                 elif token.is_keyword("array_count"):
                     kind = AstExpressionKind.ArrayCount
                 else:
@@ -1107,7 +1110,6 @@ class Parser:
                 result.kind == AstStatementKind.Assign
                 and self.what_are_we_parsing == WhatAreWeParsing.TopLevel
             ):
-                # Would fail anyway, but let's produce a better error message
                 fail(expr.location, "missing 'global' or 'const' keyword when defining global variable")
             if result.kind == AstStatementKind.ExpressionStatement:
                 if not expr.is_valid_as_a_statement():
@@ -1371,18 +1373,34 @@ class Parser:
 
             self.check_top_level("global variables")
             location = (self.tokens++).location
-            ntv = self.parse_name_type_value("a variable name")
-            if ntv.value != NULL:
-                fail(
-                    ntv.value.location,
-                    "specifying a value for a global variable is not supported yet",
-                )
+            varname = self.eat_by_kind(TokenKind.Name, True, "a variable name").short_string
+
+            if not self.tokens.is_operator(":") and not self.tokens.is_operator("="):
+                msg: byte[500]
+                snprintf(msg, sizeof(msg), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 123)", varname, varname)
+                self.tokens.fail_expected_got(msg)
+
+            type: AstType* = NULL
+            if self.tokens.is_operator(":"):
+                self.eat_operator(":", False, NULL)
+                type = malloc(sizeof(*type))
+                assert type != NULL
+                *type = self.parse_type()
+
+            value: AstExpression* = NULL
+            if self.tokens.is_operator("="):
+                self.eat_operator("=", False, NULL)
+                value = malloc(sizeof(*value))
+                assert value != NULL
+                *value = self.parse_expression()
+
             result = AstStatement{
                 location = location,
                 kind = AstStatementKind.GlobalVariableDef,
                 global_var_def = AstGlobalVarDef{
-                    symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
-                    type = ntv.type,
+                    symbol = GlobalSymbol{name = varname, kind = GlobalSymbolKind.GlobalVar},
+                    type = type,
+                    initial_value = value,
                 },
             }
             self.eat_newline()

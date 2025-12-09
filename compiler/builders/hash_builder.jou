@@ -6,6 +6,8 @@
 # files with LLVM is really slow.
 
 import "stdlib/assert.jou"
+import "stdlib/list.jou"
+import "stdlib/limits.jou"
 
 import "../ast.jou"
 import "../global_symbols.jou"
@@ -196,11 +198,12 @@ class HBuilder:
             return HBuilderValue{id = -1}
 
     # string as array of bytes
-    def array_string(self, s: byte*, array_size: int) -> HBuilderValue:
-        self.hash.add_string("array_string")
-        self.hash.add_int(array_size)
-        self.hash.add_string(s)
-        return self.new_value(uint_type(8).array_type(array_size))
+    def array_of_bytes(self, bytes: List[byte]) -> HBuilderValue:
+        self.hash.add_string("array_of_bytes")
+        assert bytes.len <= INT32_MAX
+        self.hash.add_int(bytes.len as int)
+        self.hash.add_bytes(bytes.ptr, bytes.len)
+        return self.new_value(uint_type(8).array_type(bytes.len as int))
 
     # string as '\0' terminated pointer
     def pointer_string(self, s: byte*) -> HBuilderValue:
@@ -428,12 +431,13 @@ def build_content_hash(jou_file: JouFile*) -> Hash:
                 assert stmt.symbol().type != NULL
                 hash_type(&builder.hash, stmt.symbol().type)
             case AstStatementKind.GlobalVariableDef:
-                # Note: Currently all global variables are zero-initialized, that may change in the future.
                 builder.hash.add_string("global")
                 builder.hash.add_string(stmt.symbol().name)
                 builder.hash.add_bool(stmt.symbol().public)
                 assert stmt.symbol().type != NULL
                 hash_type(&builder.hash, stmt.symbol().type)
+                if stmt.global_var_def.initial_value != NULL:
+                    feed_constant_to_builder(&stmt.global_var_def.initial_value_constant, &builder_wrapper)
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
             case AstStatementKind.Class:

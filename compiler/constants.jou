@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/limits.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/io.jou"
@@ -23,13 +24,13 @@ def print_string(s: byte*) -> None:
 # Constants can appear in AST and also compilation steps after AST.
 @public
 enum ConstantKind:
+    Null    # First, so that zero-initializing a constant produces this, not something that requires cleanup
     EnumMember
     Integer
     Float
     Double
     PointerString
-    ArrayString
-    Null
+    ArrayOfBytes
     Bool
 
 class IntegerConstant:
@@ -47,7 +48,7 @@ class Constant:
     union:
         integer: IntegerConstant
         pointer_string: byte*
-        array_string: List[byte]
+        array_of_bytes: List[byte]  # may contain zero bytes
         float_or_double_text: byte[100]  # convenient because LLVM wants a string anyway
         boolean: bool
         enum_member: EnumMemberConstant
@@ -78,10 +79,13 @@ class Constant:
                 )
             case ConstantKind.Null:
                 printf("NULL\n")
-            case ConstantKind.ArrayString:
-                printf("array string ")
-                print_string(self.array_string.ptr)
-                printf(" (padded to %lld bytes)\n", self.array_string.len)
+            case ConstantKind.ArrayOfBytes:
+                printf("array of bytes: [")
+                for i = 0; i < self.array_of_bytes.len; i++:
+                    if i > 0:
+                        printf(",")
+                    printf("%d", self.array_of_bytes.ptr[i])
+                printf("] (%lld bytes)\n", self.array_of_bytes.len)
             case ConstantKind.PointerString:
                 printf("pointer string ")
                 print_string(self.pointer_string)
@@ -89,8 +93,8 @@ class Constant:
 
     def free(self) -> None:
         match self.kind:
-            case ConstantKind.ArrayString:
-                free(self.array_string.ptr)
+            case ConstantKind.ArrayOfBytes:
+                free(self.array_of_bytes.ptr)
             case ConstantKind.PointerString:
                 free(self.pointer_string)
             case _:
@@ -98,10 +102,10 @@ class Constant:
 
     def copy(self: Constant) -> Constant:
         match self.kind:
-            case ConstantKind.ArrayString:
-                old = self.array_string
-                self.array_string = List[byte]{}
-                self.array_string.extend(old)
+            case ConstantKind.ArrayOfBytes:
+                old = self.array_of_bytes
+                self.array_of_bytes = List[byte]{}
+                self.array_of_bytes.extend(old)
             case ConstantKind.PointerString:
                 self.pointer_string = strdup(self.pointer_string)
             case _:
@@ -120,8 +124,9 @@ class Constant:
                 return float_type()
             case ConstantKind.Bool:
                 return bool_type()
-            case ConstantKind.ArrayString:
-                return uint_type(8).array_type(self.array_string.len as int)
+            case ConstantKind.ArrayOfBytes:
+                assert self.array_of_bytes.len <= INT32_MAX
+                return uint_type(8).array_type(self.array_of_bytes.len as int)
             case ConstantKind.PointerString:
                 return uint_type(8).pointer_type()
             case ConstantKind.Integer:

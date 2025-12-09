@@ -59,6 +59,8 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "a sizeof expression"
         case AstExpressionKind.ArrayCount:
             return "an array_count expression"
+        case AstExpressionKind.EmbedFile:
+            return "an embed_file expression"
         case AstExpressionKind.EnumCount:
             return "an enum_count expression"
         case AstExpressionKind.Instantiate:
@@ -1063,12 +1065,13 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     detect_enum_member_syntax(state, expr)
 
     match expr.kind:
-        case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount:
+        case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount | AstExpressionKind.EmbedFile:
             # The expression can be evaluated as a constant
             c: Constant
             ok = evaluate_constant_expression(state.jou_file, expr, &c, type_hint)
             assert ok  # Should fail with a compiler error if there is a problem
             result = c.get_type()
+            expr.free()
             expr.kind = AstExpressionKind.Constant
             expr.constant = c
 
@@ -1084,11 +1087,11 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 if strlen(s) >= type_hint.array.count:
                     snprintf(msg, sizeof(msg), "a string of %lld bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint.name)
                     fail(expr.location, msg)
-                expr.constant.kind = ConstantKind.ArrayString
-                expr.constant.array_string = List[byte]{}
-                while expr.constant.array_string.len < type_hint.array.count:
-                    expr.constant.array_string.append('\0')
-                strcpy(expr.constant.array_string.ptr, s)
+                expr.constant.kind = ConstantKind.ArrayOfBytes
+                expr.constant.array_of_bytes = List[byte]{}
+                while expr.constant.array_of_bytes.len < type_hint.array.count:
+                    expr.constant.array_of_bytes.append('\0')
+                strcpy(expr.constant.array_of_bytes.ptr, s)
                 free(s)
                 assert expr.constant.get_type() == type_hint
                 result = type_hint

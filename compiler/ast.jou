@@ -250,6 +250,7 @@ enum AstExpressionKind:
     # unary operators
     SizeOf          # sizeof x
     ArrayCount      # array_count x
+    EmbedFile       # embed_file("./foo.bar")
     AddressOf       # &x
     Dereference     # *x
     Negate          # -x
@@ -356,6 +357,8 @@ class AstExpression:
                 self.enumcount.print()
             case AstExpressionKind.SizeOf:
                 printf("sizeof\n")
+            case AstExpressionKind.EmbedFile:
+                printf("embed_file\n")
             case AstExpressionKind.ArrayCount:
                 printf("array_count\n")
             case AstExpressionKind.AddressOf:
@@ -450,6 +453,7 @@ class AstExpression:
         match self.kind:
             case (
                 AstExpressionKind.SizeOf
+                | AstExpressionKind.EmbedFile
                 | AstExpressionKind.ArrayCount
                 | AstExpressionKind.AddressOf
                 | AstExpressionKind.Dereference
@@ -1163,20 +1167,38 @@ class AstGlobalVarDeclare:
 
 
 # global foo: int
-# TODO: support specifying an initial value
 @public
 class AstGlobalVarDef:
     symbol: GlobalSymbol
-    type: AstType
+    type: AstType*
+    initial_value: AstExpression*  # may be NULL
+    initial_value_constant: Constant  # used only when initial_value != NULL
 
     def print(self) -> None:
-        printf("%s: ", self.symbol.name)
-        self.type.print(True)
-        printf("\n")
+        printf("%s", self.symbol.name)
+        if self.type == NULL:
+            printf(" (no type given)")
+        else:
+            printf(": ")
+            self.type.print(True)
+        if self.initial_value == NULL:
+            printf(" (no initial value)\n")
+        else:
+            printf("\n")
+            tp = TreePrinter{}
+            sub = tp.print_prefix(True)
+            printf("initial value: ")
+            self.initial_value.print_with_tree_printer(sub)
 
     def free(self) -> None:
         self.symbol.free()
-        self.type.free()
+        if self.type != NULL:
+            self.type.free()
+            free(self.type)
+        if self.initial_value != NULL:
+            self.initial_value.free()
+            self.initial_value_constant.free()
+            free(self.initial_value)
 
 
 # Body is ":" followed by statements, represented with simply List[AstStatement].

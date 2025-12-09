@@ -333,6 +333,56 @@ It is also used in the ternary expression:
 **See also:** [if](#if), [elif](#elif)
 
 
+## `embed_file`
+
+Use `embed_file("filename")` to include the contents a file into the executable.
+This evaluates to an array of `byte` that is the file's content.
+The file name is relative to the location of the Jou file, but you can use `..`,
+just like with [`import` statements that start with a dot](imports.md).
+
+For example:
+
+```python
+import "stdlib/io.jou"
+
+global readme = embed_file("../../README.md")
+
+def main() -> int:
+    # Output: Jou programming language
+    for i = 2; i < 26; i++:
+        putchar(readme[i])
+    putchar('\n')
+
+    return 0
+```
+
+The resulting array is usually not a valid string,
+because it does not have a zero byte (`\0`) at the end.
+For example, don't do `puts(readme)` or `printf("%s", readme)` in the above example,
+because that may print extra junk after the file content.
+Instead, use [`sizeof`](#sizeof) or [`array_count`](#array_count) to get the file size:
+
+```python
+import "stdlib/io.jou"
+
+global readme = embed_file("../../README.md")
+
+def main() -> int:
+    printf("%d bytes\n", sizeof(readme) as int)
+    return 0
+```
+
+You should probably make a global variable for files larger than a few kilobytes,
+because otherwise the file content will consume stack space and you may get a stack overflow.
+
+Files larger than 2147483647 bytes (about 2 gigabytes) are currently not supported.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if you want to embed a larger file.
+Also, empty files are not supported, because arrays cannot be empty in Jou.
+
+**See also:** [sizeof](#sizeof), [array_count](#array_count)
+
+
 ## `enum`
 
 Used to define an enum. See [enums.md](enums.md).
@@ -445,9 +495,32 @@ def main() -> int:
 Note that unlike in Python,
 you don't need to use `global` inside a function to modify the global variable.
 
-Currently global variables are always initialized to zero memory,
+By default, global variables are always initialized to zero memory,
 and it is not possible to specify any other initializing.
 For example, numbers are initialized to zero, booleans are initialized to `False` and pointers are initialized to `NULL`.
+It is possible to specify a different initial value:
+
+```python
+import "stdlib/io.jou"
+
+global x: int = 1234
+
+def main() -> int:
+    printf("%d\n", x)  # Output: 1234
+    return 0
+```
+
+If you specify a value, specifying a type is not required:
+
+```python
+import "stdlib/io.jou"
+
+global x = 1234
+
+def main() -> int:
+    printf("%d\n", x)  # Output: 1234
+    return 0
+```
 
 By default, global variables are private to a file, just like functions.
 You can use `@public` if you really want to create a public global variable:

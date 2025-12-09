@@ -244,7 +244,7 @@ def compile_to_object_files_in_parallel(files_to_compile: List[JouFile*]) -> Non
     threads: pthread_t* = malloc(sizeof(threads[0]) * num_threads)
     assert threads != NULL
     inputs: ThreadInputs* = malloc(sizeof(inputs[0]) * num_threads)
-    assert threads != NULL
+    assert inputs != NULL
 
     for i = 0; i < num_threads; i++:
         inputs[i] = ThreadInputs{queue = &queue, state = create_thread_local_compiler_state()}
