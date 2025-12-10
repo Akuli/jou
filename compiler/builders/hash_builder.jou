@@ -193,7 +193,7 @@ class HBuilder:
         for p = args; p < &args[nargs]; p++:
             self.hash.add_int64(p.id)
 
-        if sig.return_type == NULL:
+        if sig.return_type != NULL:
             return self.new_value(sig.return_type)
         else:
             return HBuilderValue{id = -1}
