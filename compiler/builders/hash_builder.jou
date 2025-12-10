@@ -107,6 +107,7 @@ class HBuilder:
     # Hashes and returns a unique ID number that represents a value in code.
     # Also hashes the type, because a changed type may be enough to need a recompile.
     def new_value(self, t: Type*) -> HBuilderValue:
+        t = t.unwrap_typedef()
         id = self.id_counter++
         self.hash.add_int64(id)
         if t == NULL:
@@ -182,7 +183,7 @@ class HBuilder:
             self.hash.add_int64(p.id)
 
         assert funcptr_type.kind == TypeKind.FuncPtr
-        if funcptr_type.func_ptr.return_type == NULL:
+        if funcptr_type.func_ptr.return_type != NULL:
             return self.new_value(funcptr_type.func_ptr.return_type)
         else:
             return HBuilderValue{id = -1}
