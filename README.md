@@ -127,6 +127,9 @@ These LLVM/clang versions are supported:
 - LLVM 19 with clang 19
 - LLVM 20 with clang 20
 
+These versions are not covered by automated tests but seem to work anyway:
+- LLVM 21 with clang 21
+
 By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
 

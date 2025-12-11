@@ -30,7 +30,7 @@ else
 fi
 
 
-if [[ "${OS:=$(uname)}" =~ NetBSD ]] && which gdiff >/dev/null; then
+if [[ "${OS:=$(uname)}" =~ NetBSD ]] && command -v gdiff >/dev/null; then
     diff="gdiff"
 else
     diff="diff"
