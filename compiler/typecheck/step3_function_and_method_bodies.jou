@@ -579,7 +579,7 @@ def typecheck_indexing(
 
     indextype = typecheck_expression_not_void(state, indexexpr, NULL)
     assert indextype != NULL
-    if not indextype.is_integer_type():
+    if not indextype.unwrap_typedef().is_integer_type():
         snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextype.name)
         fail(indexexpr.location, msg)
 
