@@ -538,7 +538,7 @@ def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
             assert False
 
     t = typecheck_expression_not_void(state, &expr.operands[0], NULL)
-    if not t.is_number_type() and t.kind != TypeKind.Pointer:
+    if not t.unwrap_typedef().is_number_type() and t.unwrap_typedef().kind != TypeKind.Pointer:
         msg: byte[500]
         snprintf(msg, sizeof(msg), bad_type_fmt, t.name)
         fail(expr.location, msg)
@@ -579,7 +579,7 @@ def typecheck_indexing(
 
     indextype = typecheck_expression_not_void(state, indexexpr, NULL)
     assert indextype != NULL
-    if not indextype.is_integer_type():
+    if not indextype.unwrap_typedef().is_integer_type():
         snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextype.name)
         fail(indexexpr.location, msg)
 
