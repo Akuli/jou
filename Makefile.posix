@@ -2,10 +2,7 @@
 # On macos, brew installs LLVM to a weird place in /usr/local/
 # On NetBSD, llvm-config is unversioned.
 LLVM_CONFIG ?= $(shell \
-	command -v llvm-config-21 \
-	|| command -v /usr/local/opt/llvm@21/bin/llvm-config \
-	|| command -v /opt/homebrew/opt/llvm@21/bin/llvm-config \
-	|| command -v llvm-config-20 \
+	command -v llvm-config-20 \
 	|| command -v /usr/local/opt/llvm@20/bin/llvm-config \
 	|| command -v /opt/homebrew/opt/llvm@20/bin/llvm-config \
 	|| command -v llvm-config-19 \
@@ -24,6 +21,9 @@ LLVM_CONFIG ?= $(shell \
 	|| command -v /usr/local/opt/llvm@15/bin/llvm-config \
 	|| command -v /opt/homebrew/opt/llvm@15/bin/llvm-config \
 	|| command -v llvm-config \
+	|| command -v llvm-config-21 \
+	|| command -v /usr/local/opt/llvm@21/bin/llvm-config \
+	|| command -v /opt/homebrew/opt/llvm@21/bin/llvm-config \
 	)
 
 all: jou
