@@ -1579,7 +1579,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     assert False
 
             t = check_binop(state.fom, op, stmt.location, targetexpr, valueexpr)
-            if t != targetexpr.types.orig_type:
+            if t.unwrap_typedef() != targetexpr.types.orig_type.unwrap_typedef():
                 snprintf(
                     msg, sizeof msg,
                     "%s produced a value of type %s which cannot be assigned back to %s",
