@@ -189,10 +189,10 @@ $ LLVM_CONFIG=llvm-config-15 make
 
 1. Install the dependencies:
     ```
-    # pkgin install bash clang git gmake python313
+    # pkgin install bash clang git gmake
     ```
-    You don't need to install Python 3.13 specifically.
-    Any reasonably new version of Python will work.
+    This should get you also a Python package as a dependency.
+    Any reasonably new version of Python will work with Jou.
     You may also want to install `diffutils` for coloured diff outputs.
 2. Download and compile Jou.
     ```
