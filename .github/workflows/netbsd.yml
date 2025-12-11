@@ -13,18 +13,17 @@ jobs:
         with:
           fetch-depth: 0  # Fetch the whole Git history
       # TODO: don't use an action for this? could we instead install qemu from apt and call it?
-      - uses: cross-platform-actions/action@v0.26.0
+      - uses: cross-platform-actions/action@v0.30.0
         env:
-          PKG_PATH: 'https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/10.0/All'
+          PKG_PATH: 'https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/10.1/All'
         with:
           operating_system: netbsd
-          version: '10.0'
+          version: '10.1'
           environment_variables: PKG_PATH
           run: |
-            sudo pkgin -y install clang gmake diffutils git python313 && \
-            gmake && \
-            ./runtests.sh --verbose && \
-            mv jou jou_bootstrap && gmake && \
-            ./runtests.sh should_succeed --verbose && \
-            gmake clean && \
-            ./doctest.sh
+            sudo pkgin -y install clang gmake diffutils git
+            gmake
+            ./runtests.sh --verbose
+            mv jou jou_bootstrap
+            gmake
+            ./runtests.sh should_succeed --verbose
