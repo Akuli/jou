@@ -36,10 +36,14 @@ declare asprintf(dest: byte**, pattern: byte*, ...) -> int
 declare strstr(haystack: byte*, needle: byte*) -> byte*
 
 # Find a byte from a string. Return a pointer to the occurrence, or NULL if not found.
+# The `needle` parameter is declared as `int` to match the C declarations
+# (`int` is used so callers can pass EOF-like sentinel values); in
+# practice only the low 8 bits are significant and it should be
+# considered a byte for all practical purposes.
 @public
-declare strchr(haystack: byte*, needle: byte) -> byte*  # finds first occurrence
+declare strchr(haystack: byte*, needle: int) -> byte*  # finds first occurrence
 @public
-declare strrchr(haystack: byte*, needle: byte) -> byte*  # finds last occurrence
+declare strrchr(haystack: byte*, needle: int) -> byte*  # finds last occurrence
 
 # Calculate the length of a string in bytes. Note that strlen("ö") == 2, for example.
 @public
