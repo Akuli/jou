@@ -128,7 +128,7 @@ def find_smallest_count_to_get_sum(vectors: int[BITS]*, nvectors: int, goal: int
         assert coeff_max != -1
 
         # Optimization: Loop backwards to consume as much as possible early.
-        for coeff = 0; coeff < coeff_max; coeff++:
+        for coeff = 0; coeff <= coeff_max; coeff++:
             new_goal: int[BITS] = goal
             for i = 0; i < array_count(new_goal); i++:
                 new_goal[i] -= coeff*vectors[0][i]
