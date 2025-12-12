@@ -1,3 +1,5 @@
+# Not an ideal algorithm! Runtime on my actual input was about 15 minutes.
+
 import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
 import "stdlib/limits.jou"
@@ -7,7 +9,7 @@ import "stdlib/str.jou"
 import "stdlib/sort.jou"
 
 const BITS: int = 16
-global DEBUG_PRINTS = True
+global DEBUG_PRINTS = False
 
 
 def parse_vector(p: byte*) -> int[BITS]:
@@ -136,7 +138,7 @@ def find_smallest_count_to_get_sum(vectors: int[BITS]*, nvectors: int, goal: int
 
 
 def main() -> int:
-    f = fopen("input.txt", "r")
+    f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
     line: byte[1024]
@@ -169,6 +171,10 @@ def main() -> int:
         r = INT32_MAX
         find_smallest_count_to_get_sum(vectors, nvectors, goal, 0, 0, &r)
         result += r
+
+        # Output: Result so far: 10
+        # Output: Result so far: 22
+        # Output: Result so far: 33
         printf("Result so far: %lld\n", result)
         fflush(get_stdout())
 
