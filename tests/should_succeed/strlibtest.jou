@@ -34,14 +34,9 @@ def main() -> int:
     puts(full_text)
     free(full_text)
 
-    # strchr and strrchr basic checks
-    s = "abacada"
-    printf("%d\n", strchr(s, 'a') != NULL)  # Output: 1
-    printf("%c\n", *strchr(s, 'a'))  # Output: a
-    printf("%c\n", *strchr(s, 'b'))  # Output: b
-    printf("%d\n", strchr(s, 'x') != NULL)  # Output: 0
-    printf("%d\n", strrchr(s, 'a') != NULL)  # Output: 1
-    printf("%c\n", *strrchr(s, 'a'))  # Output: a
-    printf("%d\n", strrchr(s, 'a') > strchr(s, 'a'))  # Output: 1
+    printf("%s\n", strchr("hello world", 'o'))  # Output: o world
+    printf("%s\n", strrchr("hello world", 'o'))  # Output: orld
+    printf("%d\n", strchr("hello world", 'x') == NULL)  # Output: 1
+    printf("%d\n", strrchr("hello world", 'x') == NULL)  # Output: 1
 
     return 0
