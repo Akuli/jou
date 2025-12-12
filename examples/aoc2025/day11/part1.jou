@@ -55,6 +55,7 @@ def main() -> int:
             assert source.num_nexts < array_count(source.nexts)
             source.nexts[source.num_nexts++] = dest_index
         free(parts.ptr)
+    fclose(f)
 
     counters: int* = calloc(sizeof(counters[0]), nodes.len)
     counters2: int* = calloc(sizeof(counters[0]), nodes.len)
