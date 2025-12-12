@@ -1,0 +1,74 @@
+import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+enum Operator:
+    Replace
+    Add
+    Multiply
+
+
+const MAX_ROWS: int = 10
+const LINE_SIZE: int = 4096
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    columns = List[byte[MAX_ROWS]]{}
+    row_count = 0
+
+    #line: byte[4096] = ""  # For some reason this causes really slow compile time. Thanks LLVM...
+    line: byte* = malloc(LINE_SIZE)
+    assert line != NULL
+
+    while fgets(line, LINE_SIZE, f) != NULL:
+        for i = 0; line[i] != '\0'; i++:
+            if columns.len == i:
+                new_column: byte[MAX_ROWS]
+                memset(new_column, ' ', sizeof(new_column))
+                columns.append(new_column)
+            assert row_count < MAX_ROWS
+            columns.ptr[i][row_count] = line[i]
+        row_count++
+
+    free(line)
+
+    # Add '\0' terminator to each column
+    assert row_count < MAX_ROWS
+    for p = columns.ptr; p < columns.end(); p++:
+        (*p)[array_count(*p) - 1] = '\0'
+
+    op = Operator.Replace
+    result: int64 = 0
+    temp_result: int64 = 0
+    for p = columns.ptr; p < columns.end(); p++:
+        column: byte[MAX_ROWS] = *p
+        trim_ascii_whitespace(column)
+        if column[0] == '\0':
+            result += temp_result
+            temp_result = 0
+            op = Operator.Replace
+
+        match op:
+            case Operator.Replace:
+                temp_result = atoi(column)
+            case Operator.Add:
+                temp_result += atoi(column)
+            case Operator.Multiply:
+                temp_result *= atoi(column)
+
+        if strstr(column, "*") != NULL:
+            op = Operator.Multiply
+        if strstr(column, "+") != NULL:
+            op = Operator.Add
+
+    printf("%lld\n", result)  # Output: 3263827
+
+    free(columns.ptr)
+    fclose(f)
+    return 0

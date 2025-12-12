@@ -1,0 +1,183 @@
+# Not an ideal algorithm! Runtime on my actual input was about 15 minutes with -O3.
+
+import "stdlib/ascii.jou"
+import "stdlib/assert.jou"
+import "stdlib/limits.jou"
+import "stdlib/mem.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/sort.jou"
+
+const BITS: int = 16
+global DEBUG_PRINTS = False
+
+
+def parse_vector(p: byte*) -> int[BITS]:
+    assert *p == '('
+    p++
+
+    result: int[BITS]
+    memset(result, 0, sizeof(result))
+    while True:
+        i = atoi(p)
+        assert 0 <= i and i < array_count(result)
+        result[i] = 1
+        while is_ascii_digit(*p):
+            p++
+        if *p++ != ',':
+            return result
+
+
+def parse_goal(line: byte*) -> int[BITS]:
+    p = strstr(line, "{")
+    assert p != NULL
+    p++
+
+    result: int[BITS]
+    memset(result, 0, sizeof(result))
+    i = 0
+    while True:
+        assert i < BITS
+        result[i++] = atoi(p)
+        while is_ascii_digit(*p):
+            p++
+        if *p++ != ',':
+            return result
+
+
+def compare_vectors(v1: int[BITS]*, v2: int[BITS]*) -> int:
+    sum1 = 0
+    for i = 0; i < BITS; i++:
+        sum1 += (*v1)[i]
+
+    sum2 = 0
+    for i = 0; i < BITS; i++:
+        sum2 += (*v2)[i]
+
+    return -(sum1 - sum2)  # backwards sort, biggest sum first
+
+
+# Finds smallest n so that a sum of n vectors (with repetitions) is the goal.
+# The same vector may be used multiple times in the sum.
+# Return value -1 means that no such sum exists.
+#
+# Assumes that all vectors only contain 0 or 1, and there's at least one 1
+# somewhere in every vector.
+def find_smallest_count_to_get_sum(vectors: int[BITS]*, nvectors: int, goal: int[BITS], depth: int, result_so_far: int, best_result: int*) -> None:
+    if result_so_far >= *best_result:
+        # Not worth exploring
+        return
+
+    if depth < 2 and DEBUG_PRINTS:
+        for i = 0; i < depth; i++:
+            printf("  ")
+        printf("%d so far (%d best), %d vectors, goal:", result_so_far, *best_result, nvectors)
+        for i = 0; i < BITS; i++:
+            printf(" %d", goal[i])
+        printf("\n")
+        fflush(get_stdout())
+
+    if result_so_far >= *best_result:
+        # Not worth exploring
+        return
+
+    for i = 0; i < BITS; i++:
+        if goal[i] < 0:
+            # not gonna work, let's not even try
+            return
+
+    for pos = 0; pos < BITS; pos++:
+        # How many vectors have 1 in each position?
+        count = 0
+        last_i = -1
+        for i = 0; i < nvectors; i++:
+            count += vectors[i][pos]
+            if vectors[i][pos] != 0:
+                last_i = i
+        if count == 0 and goal[pos] != 0:
+            # No way to satisfy goal
+            return
+        if count == 1:
+            # We know how many copies of some vector to use
+            n = goal[pos]
+            assert last_i != -1
+            for i = 0; i < BITS; i++:
+                # Use n copies of it
+                goal[i] -= n*vectors[last_i][i]
+            memswap(&vectors[0], &vectors[last_i], sizeof(vectors[0]))
+            find_smallest_count_to_get_sum(&vectors[1], nvectors - 1, goal, depth+1, result_so_far + n, best_result)
+            memswap(&vectors[0], &vectors[last_i], sizeof(vectors[0]))
+            return
+
+    assert nvectors >= 0
+    if nvectors == 0:
+        # Base case: Only all zeros is reachable
+        for i = 0; i < BITS; i++:
+            if goal[i] != 0:
+                return
+        *best_result = result_so_far
+        if DEBUG_PRINTS:
+            printf(" === NEW BEST === %d\n", result_so_far)
+            fflush(get_stdout())
+    else:
+        # Recursive case: Go through all possible coefficients for the first vector.
+        coeff_max = -1
+        for i = 0; i < BITS; i++:
+            if vectors[0][i] != 0:
+                assert vectors[0][i] == 1
+                if coeff_max == -1 or goal[i] < coeff_max:
+                    coeff_max = goal[i]
+        assert coeff_max != -1
+
+        for coeff = 0; coeff <= coeff_max; coeff++:
+            new_goal: int[BITS] = goal
+            for i = 0; i < array_count(new_goal); i++:
+                new_goal[i] -= coeff*vectors[0][i]
+            find_smallest_count_to_get_sum(&vectors[1], nvectors - 1, new_goal, depth + 1, result_so_far + coeff, best_result)
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[1024]
+    result: int64 = 0
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        if DEBUG_PRINTS:
+            printf("\n\n")
+            puts(line)
+            fflush(get_stdout())
+
+        vectors: int[BITS][20]
+        nvectors = 0
+        for p = strstr(line, "("); p != NULL; p = strstr(&p[1], "("):
+            assert nvectors < array_count(vectors)
+            vectors[nvectors++] = parse_vector(p)
+
+        # Optimization: first try big vectors (as in, containing much 1 and not much 0)
+        Sorter[int[BITS]]{}.sort(vectors, nvectors, compare_vectors)
+        if DEBUG_PRINTS:
+            for i = 0; i < nvectors; i++:
+                printf("vectors[%d] = ", i)
+                for k = 0; k < BITS; k++:
+                    printf("%d", vectors[i][k])
+                printf("\n")
+            fflush(get_stdout())
+
+        goal = parse_goal(line)
+
+        r = INT32_MAX
+        find_smallest_count_to_get_sum(vectors, nvectors, goal, 0, 0, &r)
+        result += r
+
+        # Output: Result so far: 10
+        # Output: Result so far: 22
+        # Output: Result so far: 33
+        printf("Result so far: %lld\n", result)
+        fflush(get_stdout())
+
+    printf("%lld\n", result)  # Output: 33
+
+    fclose(f)
+    return 0

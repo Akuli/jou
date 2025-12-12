@@ -1,0 +1,32 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[256]
+    ray_counts: int64[256]
+    memset(ray_counts, 0, sizeof(ray_counts))
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        for i = 0; line[i] != '\0'; i++:
+            if line[i] == 'S':
+                ray_counts[i] = 1
+            if line[i] == '^':
+                # Ray hits splitter
+                assert i >= 1
+                assert i + 1 < array_count(ray_counts)
+                ray_counts[i-1] += ray_counts[i]
+                ray_counts[i+1] += ray_counts[i]
+                ray_counts[i] = 0
+
+    result: int64 = 0
+    for i = 0; i < array_count(ray_counts); i++:
+        result += ray_counts[i]
+    printf("%lld\n", result)  # Output: 40
+
+    fclose(f)
+    return 0

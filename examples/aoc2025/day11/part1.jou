@@ -1,0 +1,86 @@
+import "stdlib/ascii.jou"
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+
+
+class Node:
+    name: byte[4]
+    nexts: int[32]  # node indexes
+    num_nexts: int
+
+
+def find_node(nodes: List[Node], name: byte*) -> int:
+    for i = 0; i < nodes.len; i++:
+        if strcmp(nodes.ptr[i].name, name) == 0:
+            return i
+    return -1
+
+
+def find_or_add_node(nodes: List[Node]*, name: byte*) -> int:
+    if find_node(*nodes, name) == -1:
+        new_node = Node{}
+        assert strlen(name) < sizeof(new_node.name)
+        strcpy(new_node.name, name)
+        nodes.append(new_node)
+
+    assert find_node(*nodes, name) != -1
+    return find_node(*nodes, name)
+
+
+def all_zero(ints: int*, n: int64) -> bool:
+    for i = 0; i < n; i++:
+        if ints[i] != 0:
+            return False
+    return True
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    nodes = List[Node]{}
+
+    line: byte[256]
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        assert line[3] == ':'
+        line[3] = '\0'
+        source_index = find_or_add_node(&nodes, line)
+        parts = split_by_ascii_whitespace(&line[4])
+        for i = 0; i < parts.len; i++:
+            dest_index = find_or_add_node(&nodes, parts.ptr[i])
+            source = &nodes.ptr[source_index]  # must be looked up again, may move as list grows
+            assert source.num_nexts < array_count(source.nexts)
+            source.nexts[source.num_nexts++] = dest_index
+        free(parts.ptr)
+    fclose(f)
+
+    counters: int* = calloc(sizeof(counters[0]), nodes.len)
+    counters2: int* = calloc(sizeof(counters[0]), nodes.len)
+    assert counters != NULL
+    assert counters2 != NULL
+
+    assert find_node(nodes, "you") != -1
+
+    assert find_node(nodes, "out") != -1
+    counters[find_node(nodes, "you")] = 1
+
+    result = 0
+    while not all_zero(counters, nodes.len):
+        memset(counters2, 0, sizeof(counters2[0]) * nodes.len)
+        for source_index = 0; source_index < nodes.len; source_index++:
+            source = &nodes.ptr[source_index]
+            for i = 0; i < source.num_nexts; i++:
+                dest_index = source.nexts[i]
+                counters2[dest_index] += counters[source_index]
+        memcpy(counters, counters2, sizeof(counters[0]) * nodes.len)
+        result += counters[find_node(nodes, "out")]
+
+    printf("%d\n", result)  # Output: 5
+
+    free(counters)
+    free(counters2)
+    free(nodes.ptr)
+    return 0

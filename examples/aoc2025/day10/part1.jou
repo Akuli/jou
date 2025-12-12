@@ -1,0 +1,61 @@
+import "stdlib/assert.jou"
+import "stdlib/limits.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def parse_button(p: byte*) -> uint32:
+    assert *p == '('
+    p++
+
+    button: uint32 = 0
+    while True:
+        button |= 1 << atoi(p)
+        while is_ascii_digit(*p):
+            p++
+        if *p++ != ',':
+            return button
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    line: byte[1024]
+    result = 0
+
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        # Read desired state of lights into a bitmask. The order is somewhat
+        # weirdly backwards, because sequences of bits grow right to left but
+        # indexing in the input data is left to right.
+        goal: uint32 = 0
+        assert line[0] == '['
+        assert strstr(line, "]") != NULL
+        for i = 1; line[i] != ']'; i++:
+            if line[i] == '#':
+                goal |= 1 << (i - 1)
+
+        buttons: uint32[20]
+        nbuttons = 0
+        for p = strstr(line, "("); p != NULL; p = strstr(&p[1], "("):
+            assert nbuttons < array_count(buttons)
+            buttons[nbuttons++] = parse_button(p)
+
+        # Try all 2^nbuttons choices
+        best = INT32_MAX
+        for choice_bits = 0; choice_bits < (1 << nbuttons); choice_bits++:
+            xor: uint32 = 0
+            counter = 0
+            for i = 0; i < nbuttons; i++:
+                if choice_bits & (1 << i) != 0:
+                    xor ^= buttons[i]
+                    counter++
+            if xor == goal and counter < best:
+                best = counter
+        result += best
+
+    printf("%d\n", result)  # Output: 7
+
+    fclose(f)
+    return 0

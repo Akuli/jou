@@ -1,0 +1,30 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+
+# See sampleinput1.txt for an explanation of this.
+def main() -> int:
+    file = fopen("sampleinput.txt", "r")
+    assert file != NULL
+
+    # Skip first 30 lines
+    line: byte[100]
+    for i = 0; i < 30; i++:
+        fgets(line, sizeof(line) as int, file)
+
+    w, h, a, b, c, d, e, f: int
+    counter = 0
+    while fscanf(file, "%dx%d: %d %d %d %d %d %d\n", &w, &h, &a, &b, &c, &d, &e, &f) == 8:
+        ratio = (7*a + 7*b + 5*c + 7*d + 6*e + 7*f) / ((w*h) as double)
+        # Output: 0.700000
+        # Output: 0.720000
+        # Output: 0.750000
+        # Output: 1.010000
+        # Output: 1.050000
+        printf("%f\n", ratio)
+        if ratio < 1.0:
+            counter++
+    printf("%d\n", counter)  # Output: 3
+
+    fclose(file)
+    return 0

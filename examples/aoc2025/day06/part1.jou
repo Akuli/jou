@@ -1,0 +1,55 @@
+import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+const MAX_ROWS: int = 10
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    columns = List[int[MAX_ROWS]]{}
+    row_count = 0
+
+    line: byte[4096] = ""
+    while fgets(line, sizeof(line) as int, f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '*' or line[0] == '+':
+            break
+
+        parts = split_by_ascii_whitespace(line)
+        for i = 0; i < parts.len; i++:
+            if columns.len == i:
+                new_column: int[MAX_ROWS]
+                memset(new_column, 0, sizeof(new_column))
+                columns.append(new_column)
+            assert row_count < MAX_ROWS
+            columns.ptr[i][row_count] = atoi(parts.ptr[i])
+        free(parts.ptr)
+        row_count++
+
+    op = &line[0]
+    total: int64 = 0
+
+    for col = columns.ptr; col < columns.end(); col++:
+        result: int64 = (*col)[0]
+        while *op != '*' and *op != '+':
+            assert *op != '\0'
+            op++
+        for i = 1; i < row_count; i++:
+            if *op == '*':
+                result *= (*col)[i]
+            else:
+                result += (*col)[i]
+        total += result
+        op++
+
+    printf("%lld\n", total)  # Output: 4277556
+
+    free(columns.ptr)
+    fclose(f)
+    return 0

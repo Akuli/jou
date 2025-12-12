@@ -1,0 +1,48 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/sort.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    # Imagine we split the number line into several pieces
+    split_places: int64[500]
+    n_split_places = 0
+
+    # Each piece can be "enabled" or "disabled", the two infinitely long
+    # pieces at the ends are always disabled
+    enabled: bool[499]
+    memset(enabled, 0, sizeof(enabled))
+
+    start: int64
+    end: int64
+    while fscanf(f, "%lld-%lld\n", &start, &end) == 2:
+        assert n_split_places + 2 <= array_count(split_places)
+        split_places[n_split_places++] = start
+        split_places[n_split_places++] = end + 1
+
+    # Sort and remove duplicates (dumb way)
+    sort_int64(split_places, n_split_places)
+    for i = 0; i < n_split_places; i++:
+        while i+1 < n_split_places and split_places[i] == split_places[i+1]:
+            split_places[i] = split_places[--n_split_places]
+            sort_int64(split_places, n_split_places)
+
+    # Enable pieces that belong to some range in file
+    rewind(f)
+    while fscanf(f, "%lld-%lld\n", &start, &end) == 2:
+        for i = 0; i < n_split_places - 1; i++:
+            if start <= split_places[i] and split_places[i] <= end:
+                enabled[i] = True
+
+    result: int64 = 0
+    for i = 0; i < n_split_places - 1; i++:
+        if enabled[i]:
+            result += split_places[i+1] - split_places[i]
+    printf("%lld\n", result)  # Output: 14
+
+    fclose(f)
+    return 0

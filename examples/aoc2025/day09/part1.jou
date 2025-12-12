@@ -1,0 +1,30 @@
+import "stdlib/assert.jou"
+import "stdlib/math.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    points = List[int[2]]{}
+    x, y: int
+    while fscanf(f, "%d,%d\n", &x, &y) == 2:
+        points.append([x, y])
+    fclose(f)
+
+    biggest_area: int64 = -1
+    for i1 = 0; i1 < points.len; i1++:
+        for i2 = i1 + 1; i2 < points.len; i2++:
+            dx = points.ptr[i2][0] - points.ptr[i1][0]
+            dy = points.ptr[i2][1] - points.ptr[i1][1]
+            area = ((abs(dx) + 1) as int64) * ((abs(dy) + 1) as int64)
+            if area > biggest_area:
+                biggest_area = area
+
+    printf("%lld\n", biggest_area)  # Output: 50
+
+    free(points.ptr)
+    return 0

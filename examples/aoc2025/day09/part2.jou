@@ -1,0 +1,52 @@
+import "stdlib/assert.jou"
+import "stdlib/math.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+
+
+def midpoint(a: int[2], b: int[2]) -> int[2]:
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+
+
+def main() -> int:
+    f = fopen("sampleinput.txt", "r")
+    assert f != NULL
+
+    points = List[int[2]]{}
+    x, y: int
+    while fscanf(f, "%d,%d\n", &x, &y) == 2:
+        if points.len != 0:
+            # Add midpoint of current point and previous point.
+            # Helps with handling a corner case where the code below is broken.
+            points.append(midpoint([x, y], points.end()[-1]))
+        points.append([x, y])
+    points.append(midpoint(points.ptr[0], points.end()[-1]))
+    fclose(f)
+
+    biggest_area: int64 = -1
+    for i1 = 0; i1 < points.len; i1++:
+        for i2 = i1 + 1; i2 < points.len; i2++:
+            dx = points.ptr[i2][0] - points.ptr[i1][0]
+            dy = points.ptr[i2][1] - points.ptr[i1][1]
+            area = ((abs(dx) + 1) as int64) * ((abs(dy) + 1) as int64)
+            if area > biggest_area:
+                # Check if any point is strictly inside the area. Maybe not
+                # always correct but happens to work in the example and actual
+                # input. (The actual input is shaped like a big circle.)
+                left = min(points.ptr[i1][0], points.ptr[i2][0])
+                right = max(points.ptr[i1][0], points.ptr[i2][0])
+                top = min(points.ptr[i1][1], points.ptr[i2][1])
+                bottom = max(points.ptr[i1][1], points.ptr[i2][1])
+                problem_found = False
+                for p = points.ptr; p < points.end(); p++:
+                    if left < (*p)[0] and (*p)[0] < right and top < (*p)[1] and (*p)[1] < bottom:
+                        problem_found = True
+                        break
+                if not problem_found:
+                    biggest_area = area
+
+    printf("%lld\n", biggest_area)  # Output: 24
+
+    free(points.ptr)
+    return 0
