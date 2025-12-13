@@ -11,7 +11,7 @@ def main() -> int:
     ray_counts: int64[256]
     memset(ray_counts, 0, sizeof(ray_counts))
 
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         for i = 0; line[i] != '\0'; i++:
             if line[i] == 'S':
                 ray_counts[i] = 1

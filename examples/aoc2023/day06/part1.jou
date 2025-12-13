@@ -37,7 +37,7 @@ def main() -> int:
     assert f != NULL
 
     line: byte[100]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         words = split_by_ascii_whitespace(line)
 
         assert words.len != 0

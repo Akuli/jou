@@ -162,7 +162,7 @@ def parse_input() -> Input*:
     f = fopen("sampleinput3.txt", "r")
     assert f != NULL
 
-    assert fgets(input.left_right_string, sizeof(input.left_right_string) as int, f) != NULL
+    assert fgets(input.left_right_string, sizeof(input.left_right_string), f) != NULL
     trim_ascii_whitespace(input.left_right_string)
 
     assert fgetc(f) == '\n'

@@ -22,7 +22,7 @@ def main() -> int:
 
     result = 0
     line: byte[1000]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         first: byte* = line
         while *first != '\0' and parse_prefix_digit(first) == -1:
             first++

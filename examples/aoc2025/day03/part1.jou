@@ -10,7 +10,7 @@ def main() -> int:
     result = 0
 
     buf: byte[512]
-    while fgets(buf, sizeof(buf) as int, f) != NULL:
+    while fgets(buf, sizeof(buf), f) != NULL:
         trim_ascii_whitespace(buf)
         best = 0
         for p1 = &buf[0]; *p1 != '\0'; p1++:

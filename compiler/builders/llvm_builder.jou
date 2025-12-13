@@ -738,7 +738,10 @@ class LBuilder:
 
     # sizeof(any value of given type)
     def size_of(self, t: Type*) -> LBuilderValue:
-        return LBuilderValue{type = int_type(64), llvm_value = LLVMSizeOf(type_to_llvm(self.state, t))}
+        # LLVMSizeOf() returns a 64-bit value. Jou's sizeof(x) is 32-bit.
+        size64 = LLVMSizeOf(type_to_llvm(self.state, t))
+        size32 = LLVMBuildTrunc(self.llvm_builder, size64, LLVMInt32TypeInContext(self.state.llvm_context), "sizeof")
+        return LBuilderValue{type = int_type(32), llvm_value = size32}
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: LBuilderValue) -> None:

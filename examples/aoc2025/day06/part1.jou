@@ -16,7 +16,7 @@ def main() -> int:
     row_count = 0
 
     line: byte[4096] = ""
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         trim_ascii_whitespace(line)
         if line[0] == '*' or line[0] == '+':
             break

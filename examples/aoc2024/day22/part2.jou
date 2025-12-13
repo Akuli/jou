@@ -56,7 +56,7 @@ def main() -> int:
     assert f != NULL
 
     line: byte[100]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         assert nbuyers < max_buyers
         buyers[nbuyers++] = Buyer{seed = atoll(line)}
 

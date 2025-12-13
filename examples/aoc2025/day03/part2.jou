@@ -20,7 +20,7 @@ def main() -> int:
     result: int64 = 0
 
     buf: byte[512]
-    while fgets(buf, sizeof(buf) as int, f) != NULL:
+    while fgets(buf, sizeof(buf), f) != NULL:
         trim_ascii_whitespace(buf)
 
         joultage: int64 = 0

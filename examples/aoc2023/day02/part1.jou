@@ -38,7 +38,7 @@ def main() -> int:
 
     result = 0
     line: byte[1000]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         assert starts_with(line, "Game ")
         game_id = atoi(&line[5])
 

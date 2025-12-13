@@ -1120,7 +1120,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             else:
                 obj_type_hint = NULL
             typecheck_expression_not_void(state, &expr.operands[0], obj_type_hint)
-            result = int_type(64)
+            result = int_type(32)
 
         case AstExpressionKind.ArrayCount:
             array_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)

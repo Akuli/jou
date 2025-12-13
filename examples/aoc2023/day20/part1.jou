@@ -120,7 +120,7 @@ def main() -> int:
     memset(modules, 0, sizeof(*modules))
 
     line: byte[200]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         for i = 0; line[i] != '\0'; i++:
             if line[i] == ',':
                 line[i] = ' '

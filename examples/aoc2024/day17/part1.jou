@@ -88,7 +88,7 @@ def main() -> int:
     reg_b = 0 as int64
     reg_c = 0 as int64
 
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         if starts_with(line, "Register A: "):
             reg_a = atoll(&line[12])
         elif starts_with(line, "Register B: "):

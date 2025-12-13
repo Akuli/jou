@@ -19,7 +19,7 @@ def main() -> int:
     result = 0
 
     line: byte[200]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         trim_ascii_whitespace(line)
         right = &line[strlen(line) / 2]
 

@@ -44,7 +44,7 @@ def main() -> int:
     nodes = List[Node]{}
 
     line: byte[256]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         assert line[3] == ':'
         line[3] = '\0'
         source_index = find_or_add_node(&nodes, line)

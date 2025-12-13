@@ -22,7 +22,7 @@ def main() -> int:
     assert f != NULL
 
     line: byte[100]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         remove_all_whitespace(line)
         if starts_with(line, "Time:"):
             T = atoll(&line[5])

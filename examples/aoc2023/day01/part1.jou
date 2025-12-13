@@ -10,7 +10,7 @@ def main() -> int:
 
     result = 0
     line: byte[1000]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         first: byte* = line
         while *first != '\0' and not is_ascii_digit(*first):
             first++

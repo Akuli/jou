@@ -8,11 +8,11 @@ def print_byte(b: byte) -> None:
 def main() -> int:
     # Type of 100 is inferred to be byte. It never becomes int, then assigning to byte variable would fail.
     b: byte = 100
-    printf("size %lld\n", sizeof(b))  # Output: size 1
+    printf("size %d\n", sizeof(b))  # Output: size 1
 
     # If type inference is not available, defaults to int (32-bit signed)
     n = 100
-    printf("%lld bytes\n", sizeof(n))  # Output: 4 bytes
+    printf("%d bytes\n", sizeof(n))  # Output: 4 bytes
 
     # Types of the numbers here are inferred as byte
     print_byte(74)   # Output: J
@@ -30,6 +30,6 @@ def main() -> int:
     # Type inference inside an array
     # Output: 6 bytes 123
     arr: int16[3] = [1, 2, 3]
-    printf("%lld bytes %d%d%d\n", sizeof(arr), arr[0], arr[1], arr[2])
+    printf("%d bytes %d%d%d\n", sizeof(arr), arr[0], arr[1], arr[2])
 
     return 0

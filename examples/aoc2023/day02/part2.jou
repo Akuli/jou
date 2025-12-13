@@ -53,7 +53,7 @@ def main() -> int:
 
     result = 0
     line: byte[1000]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         id_end = strchr(line, ':')
         assert id_end != NULL
         game = parse_game(&id_end[1])

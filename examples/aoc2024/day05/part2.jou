@@ -13,7 +13,7 @@ def read_rules(file: FILE*, nrules: int*) -> int[2]*:
     assert rules != NULL
 
     line: byte[100]
-    while fgets(line, sizeof(line) as int, file) != NULL:
+    while fgets(line, sizeof(line), file) != NULL:
         trim_ascii_whitespace(line)
         if line[0] == '\0':
             # This is the blank line that separates rules and jobs
@@ -39,7 +39,7 @@ def read_print_jobs(file: FILE*, njobs: int*) -> int[100]*:
     assert jobs != NULL
 
     line: byte[100]
-    while fgets(line, sizeof(line) as int, file) != NULL:
+    while fgets(line, sizeof(line), file) != NULL:
         job: int[100]
         num_pages = 0
 

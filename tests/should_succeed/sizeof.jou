@@ -27,25 +27,25 @@ def main() -> int:
     by: byte
     n: int
     m: int64
-    printf("%lld %lld %lld %lld\n", sizeof bo, sizeof by, sizeof n, sizeof m)  # Output: 1 1 4 8
+    printf("%d %d %d %d\n", sizeof bo, sizeof by, sizeof n, sizeof m)  # Output: 1 1 4 8
 
     # test that operator precedence works
-    printf("%lld\n", sizeof by + sizeof n + sizeof m)  # Output: 13
+    printf("%d\n", sizeof by + sizeof n + sizeof m)  # Output: 13
 
     arr: int64[100]
-    printf("%lld\n", sizeof arr)  # Output: 800
+    printf("%d\n", sizeof arr)  # Output: 800
 
     # The "array length trick"
-    printf("%lld\n", sizeof arr / sizeof arr[0])  # Output: 100
-    printf("%lld\n", array_count arr)  # Output: 100
+    printf("%d\n", sizeof arr / sizeof arr[0])  # Output: 100
+    printf("%d\n", array_count arr)  # Output: 100
 
     # Evaluating a sizeof has no side effects.
-    printf("%lld\n", sizeof side_effect())  # Output: 4
+    printf("%d\n", sizeof side_effect())  # Output: 4
 
     # Size of strings. Size of byte* is 8 on 64-bit system.
     # Output: 6 100 8
     printf(
-        "%lld %lld %lld\n",
+        "%d %d %d\n",
         sizeof("hello"),
         sizeof("hello" as byte[100]),
         sizeof("hello" as byte*),  # Warning: unnecessary cast from byte* to byte*

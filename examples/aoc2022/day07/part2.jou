@@ -52,7 +52,7 @@ def main() -> int:
     dirs = List[Directory*]{}  # topmost is current working directory
 
     line: byte[100]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         trim_ascii_whitespace(line)
 
         if strcmp(line, "$ cd /") == 0:

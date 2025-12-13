@@ -51,7 +51,7 @@ def main() -> int:
     num_safe = 0
 
     line: byte[1024]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         report = parse_report(line)
         if report.is_safe():
             num_safe++

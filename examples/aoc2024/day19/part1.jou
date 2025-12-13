@@ -21,7 +21,7 @@ def main() -> int:
     assert f != NULL
 
     patterns_buf: byte[4096]
-    ret = fgets(patterns_buf, sizeof(patterns_buf) as int, f)
+    ret = fgets(patterns_buf, sizeof(patterns_buf), f)
     assert ret != NULL
     patterns = split_by_ascii_whitespace(patterns_buf)
 
@@ -32,7 +32,7 @@ def main() -> int:
     line: byte[1000]
     counter = 0
 
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         trim_ascii_whitespace(line)
         if line[0] == '\0':
             # skip blank line
