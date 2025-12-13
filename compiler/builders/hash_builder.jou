@@ -348,7 +348,7 @@ class HBuilder:
     def size_of(self, t: Type*) -> HBuilderValue:
         self.hash.add_string("sizeof")
         hash_type(&self.hash, t)
-        return self.new_value(int_type(64))
+        return self.new_value(int_type(32))
 
     # memset(ptr, 0, sizeof(*ptr))
     def memset_to_zero(self, ptr: HBuilderValue) -> None:
