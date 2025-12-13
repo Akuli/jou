@@ -74,7 +74,7 @@ def main() -> int:
 ```
 
 See [the documentation on the `for` keyword](keywords.md#for)
-for more detais about how exactly `for` loops work.
+for more details about how exactly `for` loops work.
 
 
 ## Looping through a range of integers
@@ -131,7 +131,7 @@ def main() -> int:
 ```
 
 Alternatively, if you don't want to create an index variable `i`,
-you can use a `while` loop with [the funny `-->` "operator" that is actually `--` followed by `>`](https://stackoverflow.com/q/1642028):
+you can use a `while` loop with [the funny `-->` "operator" that is actually `--` followed by `>`](https://stackoverflow.com/questions/1642028/what-is-the-operator-in-c-c):
 
 ```python
 import "stdlib/io.jou"
