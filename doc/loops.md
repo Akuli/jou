@@ -47,12 +47,11 @@ def main() -> int:
 ## For Loop
 
 A for loop looks like `for init; cond; incr:` followed by a body, where:
-- `init` is a statement that runs before the loop starts (typically `i = 0`)
-- `cond` is an expression that must evaluate to a `bool`, checked when each iteration begins so that `False` stops the loop
-- `incr` is a statement that runs at the end of each iteration, even if [continue](#continue) was used.
+- `init` is runs before the loop starts
+- `cond` is just like the condition of a `while` loop
+- `incr` is runs at the end of each iteration.
 
 Note that there must be semicolons between the three things.
-
 For example:
 
 ```python
@@ -73,6 +72,9 @@ def main() -> int:
 
     return 0
 ```
+
+See [the documentation on the `for` keyword](keywords.md#for)
+for more detais about how exactly `for` loops work.
 
 
 ## Looping through a range of integers
