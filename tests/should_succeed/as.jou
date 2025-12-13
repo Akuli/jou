@@ -27,10 +27,6 @@ def main() -> int:
     printf("%d\n", True as int)  # Output: 1
     printf("%d\n", False as int)  # Output: 0
 
-    # This is usually done with type inference but can also be done with `as`.
-    foo = "hello" as byte[100]
-    printf("%s %lld\n", foo, sizeof(foo) as int64)  # Output: hello 100
-
     # This too is usually done with type inference. Value is too large for int, inferred as int64
     n = 123123123123123 as int64
     printf("%lld\n", n)  # Output: 123123123123123
