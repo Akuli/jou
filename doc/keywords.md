@@ -798,7 +798,8 @@ Use [None](#none) when a function does not return a value.
 
 ## `while`
 
-TODO: not documented yet, sorry :(
+This works just like in other programming languages.
+See [the documentation on loops](loops.md#while-loop).
 
 **See also:** [for](#for), [break](#break), [continue](#continue)
 

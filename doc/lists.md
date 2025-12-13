@@ -264,6 +264,9 @@ When that happens, the `ptr` of the list changes,
 and any pointer that was computed from the old `ptr`
 will point inside the old memory location instead of the new one.
 
+See [the documentation on loops](loops.md#looping-through-a-list-backwards)
+for more tricks, such as looping through a list backwards.
+
 
 ## Passing lists around
 
@@ -325,7 +328,7 @@ In other words, it is a pointer just beyond the end of the list.
 Use `list.end()[-1]` to get the last list item, `list.end()[-2]` to get the item just before the last, and so on.
 
 
-## Deleting a specific list element
+## Deleting the last list element
 
 Use `.pop()` to delete the last element of a list:
 
@@ -350,6 +353,9 @@ def main() -> int:
 
 The `.pop()` method never frees allocated memory,
 it only gets the last item and decrements the `len`.
+
+
+## Deleting a specific list element
 
 Use `list.ptr[i] = list.pop()` to delete an item in the middle of the list:
 
