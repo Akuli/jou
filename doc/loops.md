@@ -47,9 +47,9 @@ def main() -> int:
 ## For Loop
 
 A for loop looks like `for init; cond; incr:` followed by a body, where:
-- `init` is runs before the loop starts
+- `init` runs before the loop starts
 - `cond` is just like the condition of a `while` loop
-- `incr` is runs at the end of each iteration.
+- `incr` runs at the end of each iteration.
 
 Note that there must be semicolons between the three things.
 For example:
@@ -79,7 +79,7 @@ for more detais about how exactly `for` loops work.
 
 ## Looping through a range of integers
 
-Jou does not have a `range(a, b)` like Python.
+Jou doesn't have a thing like Python's `range(a, b)` or Rust's `a..b`.
 If you want to loop from `a` to `b`, either including or excluding `b`,
 a `for` loop is usually the best way to do it.
 As you can see in the examples above, it is very clear where the loop starts (`i = 0`, `i = 1` or similar)
@@ -100,13 +100,11 @@ def main() -> int:
     for i = 0; i < 10; i += 2:
         printf("%d\n", i)
 
-    # Output: 5
-    # Output: 4
     # Output: 3
     # Output: 2
     # Output: 1
     # Output: 0
-    for i = 5; i >= 0; i--:
+    for i = 3; i >= 0; i--:
         printf("%d\n", i)
 
     return 0
@@ -156,8 +154,7 @@ def main() -> int:
 ## Looping through a list
 
 There are two ways to loop through a list: with indexes, and with pointers.
-do not append more items while looping like this, [that doesn't work](lists.md#looping-through-a-list))
-For a better explanation of how these loops work,
+For a better explanation of how these loops work and some caveats,
 see [the looping documentation of lists.md](lists.md#looping-through-a-list).
 
 ```python
