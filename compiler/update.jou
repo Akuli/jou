@@ -37,7 +37,7 @@ def confirm(prompt: byte*) -> None:
     #       can't rely on it here yet because the bootstrap compiler does not
     #       contain that change. This means that currently you get the warning
     #       only when compiling the compiler with itself.
-    fgets(line, sizeof(line) as int, get_stdin())  
+    fgets(line, sizeof(line) as int, get_stdin())
     trim_ascii_whitespace(line)
 
     if strcmp(line, "Y") != 0 and strcmp(line, "y") != 0:
