@@ -124,8 +124,8 @@ def main() -> int:
     # Output: Hello
     # Output: Hello
     # Output: Hello
-    for i = 0; i < 3; i++:
-        printf("Hello\n", i)
+    for i = 0; i < 5; i++:
+        printf("Hello\n")
 
     return 0
 ```
@@ -145,7 +145,7 @@ def main() -> int:
     # Output: Hello
     # Output: Hello
     while n --> 0:
-        printf("Hello\n", i)
+        printf("Hello\n")
 
     return 0
 ```
@@ -305,5 +305,61 @@ def main() -> int:
     return 0
 ```
 
-If you don't always use all elements of the array, and you store the number of used elements in an integer,
+If you don't use all elements of the array, and you instead store the number of used elements in a variable,
 you can use that instead of `array_count(array)` above.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    array: int[10]
+    array[0] = 123
+    array[1] = 456
+    array[2] = 789
+    array_len = 3
+
+    # Output: 123
+    # Output: 456
+    # Output: 789
+    for p = &array[0]; p < &array[array_len]; p++:
+        printf("%d\n", *p)
+
+    return 0
+```
+
+
+## Looping through a string
+
+Looping through the bytes of a string is similar to looping through an array,
+except that instead of `i < array_count(array)` or `i < array_len`,
+you check for [the zero byte that ends a string](tutorial.md#more-about-strings):
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    string = "Hello"
+
+    # Output: H
+    # Output: e
+    # Output: l
+    # Output: l
+    # Output: o
+    for i = 0; string[i] != '\0'; i++:
+        printf("%c\n", string[i])
+
+    # Output: H
+    # Output: e
+    # Output: l
+    # Output: l
+    # Output: o
+    for p = &string[0]; *p != '\0'; p++:
+        printf("%c\n", *p)
+
+    return 0
+```
+
+This loops through the string [one byte at a time, which is not necessarily one character at a time](tutorial.md#characters).
+That is good enough for most use cases.
+Use [stdlib/utf8.jou](../stdlib/utf8.jou) if you really need to work with Unicode characters instead of bytes.
