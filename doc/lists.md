@@ -265,7 +265,7 @@ and any pointer that was computed from the old `ptr`
 will point inside the old memory location instead of the new one.
 
 See [the documentation on loops](loops.md#looping-through-a-list-backwards)
-if you want to loop through a list backwards.
+for more tricks, such as looping through a list backwards.
 
 
 ## Passing lists around
