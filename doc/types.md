@@ -222,7 +222,7 @@ def main() -> int:
     n = sizeof("foo")           # Type of "foo" is byte[4] (smallest possible)
 
     # Output: 4 bytes are needed for "foo".
-    printf("%lld bytes are needed for \"%s\".\n", n, string1)
+    printf("%d bytes are needed for \"%s\".\n", n, string1)
 
     return 0
 ```

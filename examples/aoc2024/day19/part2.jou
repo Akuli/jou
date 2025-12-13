@@ -58,7 +58,7 @@ def main() -> int:
     line: byte[1000]
     result = 0 as int64
 
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         trim_ascii_whitespace(line)
         if line[0] == '\0':
             # skip blank line

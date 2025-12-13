@@ -87,7 +87,7 @@ def main() -> int:
     result = 0 as int64
 
     line: byte[100]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         eq = Equation{expected_result = atoll(line)}
 
         # Remaining numbers are always after a space

@@ -232,7 +232,7 @@ def main() -> int:
 
     result = 0 as int64
     line: byte[20]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         trim_ascii_whitespace(line)
         result += numpad_cost(line, initial_level) * atoi(line)
 

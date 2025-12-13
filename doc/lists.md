@@ -49,14 +49,14 @@ def main() -> int:
     arr = [12, 34, 56]
 
     # Output: Array uses 12 bytes of memory
-    printf("Array uses %lld bytes of memory\n", sizeof(arr))
+    printf("Array uses %d bytes of memory\n", sizeof(arr))
 
     # Output: First item uses 4 bytes of memory
     # Output: Second item uses 4 bytes of memory
     # Output: Third item uses 4 bytes of memory
-    printf("First item uses %lld bytes of memory\n", sizeof(arr[0]))
-    printf("Second item uses %lld bytes of memory\n", sizeof(arr[1]))
-    printf("Third item uses %lld bytes of memory\n", sizeof(arr[2]))
+    printf("First item uses %d bytes of memory\n", sizeof(arr[0]))
+    printf("Second item uses %d bytes of memory\n", sizeof(arr[1]))
+    printf("Third item uses %d bytes of memory\n", sizeof(arr[2]))
 
     return 0
 ```

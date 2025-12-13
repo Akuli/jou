@@ -213,7 +213,7 @@ def read_gates(filename: byte*, ngates: int*) -> Gate[250]:
     assert f != NULL
 
     line: byte[100]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         # Remove comments, if any. I wrote test file by hand.
         if strstr(line, "#") != NULL:
             *strstr(line, "#") = '\0'

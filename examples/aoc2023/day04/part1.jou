@@ -12,7 +12,7 @@ def main() -> int:
     total_score = 0
 
     line: byte[1000]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         words = split_by_ascii_whitespace(line)
         assert words.len >= 2
         assert strcmp(words.ptr[0], "Card") == 0

@@ -54,10 +54,10 @@ def main() -> int:
     line: byte[1000]
 
     # Special-case first line
-    assert fgets(line, sizeof(line) as int, f) != NULL
+    assert fgets(line, sizeof(line), f) != NULL
     input.add_seeds(line)
 
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         if strstr(line, "map") != NULL:
             # start of new map
             assert input.nmaps < array_count(input.maps)

@@ -101,7 +101,7 @@ def main() -> int:
     code: int[100]
     code_len = 0
 
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         if starts_with(line, "Program: "):
             p = &line[9]
             while True:

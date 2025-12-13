@@ -368,7 +368,7 @@ import "stdlib/io.jou"
 global readme = embed_file("../../README.md")
 
 def main() -> int:
-    printf("%d bytes\n", sizeof(readme) as int)
+    printf("%d bytes\n", sizeof(readme))
     return 0
 ```
 
@@ -761,7 +761,9 @@ See [the documentation about methods](classes.md#methods) for details.
 
 ## `sizeof`
 
-TODO: not documented yet, sorry :(
+Computes size of object as `int`
+
+TODO: not documented properly yet, sorry :(
 
 
 ## `True`

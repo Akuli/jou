@@ -60,12 +60,12 @@ def get_keywords_from_compiler_source() -> List[byte*]:
 
     # Find the place in compiler source code where the keywords are defined
     while not starts_with(line, "def is_keyword"):
-        assert fgets(line, sizeof(line) as int, f) != NULL
+        assert fgets(line, sizeof(line), f) != NULL
 
     # Extract the list of keywords in a dumb way
     result = List[byte*]{}
     while True:
-        assert fgets(line, sizeof(line) as int, f) != NULL
+        assert fgets(line, sizeof(line), f) != NULL
 
         comment = strstr(line, "#")
         if comment != NULL:
@@ -107,7 +107,7 @@ def get_keywords_from_documentation() -> List[byte*]:
     line: byte[1024] = ""
 
     result = List[byte*]{}
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         if not starts_with(line, "## `"):
             continue
 

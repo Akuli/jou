@@ -19,9 +19,9 @@ def main() -> int:
 
     line1, line2, line3: byte[200]
     while (
-        fgets(line1, sizeof(line1) as int, f) != NULL
-        and fgets(line2, sizeof(line2) as int, f) != NULL
-        and fgets(line3, sizeof(line3) as int, f) != NULL
+        fgets(line1, sizeof(line1), f) != NULL
+        and fgets(line2, sizeof(line2), f) != NULL
+        and fgets(line3, sizeof(line3), f) != NULL
     ):
         for p = &line1[0]; *p != '\0' and *p != '\n'; p++:
             if strchr(line2, *p) != NULL and strchr(line3, *p) != NULL:

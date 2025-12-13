@@ -25,7 +25,7 @@ def main() -> int:
     line: byte[1024]
     result = 0
 
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         # Read desired state of lights into a bitmask. The order is somewhat
         # weirdly backwards, because sequences of bits grow right to left but
         # indexing in the input data is left to right.

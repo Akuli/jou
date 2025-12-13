@@ -176,7 +176,7 @@ def main() -> int:
     memset(modules, 0, sizeof(*modules))
 
     line: byte[200]
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         # ignore comments and blank lines, my hand-written test input is somewhat human-readable
         if strchr(line, '#') != NULL:
             *strchr(line, '#') = '\0'

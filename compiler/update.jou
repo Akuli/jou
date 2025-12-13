@@ -30,7 +30,14 @@ def confirm(prompt: byte*) -> None:
     fflush(get_stdout())
 
     line: byte[50] = ""
-    fgets(line, sizeof(line) as int, get_stdin())
+    # TODO: Remove "as int" to avoid a compiler warning when bootstrap compiler
+    #       is new enough to accept that.
+    #
+    #       The type of sizeof(line) was changed from int64 to int, but we
+    #       can't rely on it here yet because the bootstrap compiler does not
+    #       contain that change. This means that currently you get the warning
+    #       only when compiling the compiler with itself.
+    fgets(line, sizeof(line) as int, get_stdin())  
     trim_ascii_whitespace(line)
 
     if strcmp(line, "Y") != 0 and strcmp(line, "y") != 0:

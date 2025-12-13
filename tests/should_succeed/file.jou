@@ -31,7 +31,7 @@ def read_hello_123() -> None:
 
     rewind(f)
     text: byte[100]
-    fgets(&text[0], sizeof text as int, f)
+    fgets(&text[0], sizeof text, f)
     printf("got %s", &text[0])  # Output: got hello 123
 
     fclose(f)

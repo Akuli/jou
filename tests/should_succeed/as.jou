@@ -29,12 +29,12 @@ def main() -> int:
 
     # This is usually done with type inference but can also be done with `as`.
     foo = "hello" as byte[100]
-    printf("%s %d\n", foo, sizeof(foo) as int)  # Output: hello 100
+    printf("%s %lld\n", foo, sizeof(foo) as int64)  # Output: hello 100
 
     # This too is usually done with type inference. Value is too large for int, inferred as int64
     n = 123123123123123 as int64
     printf("%lld\n", n)  # Output: 123123123123123
-    printf("%lld bytes (%lld bits)\n", sizeof(n), sizeof(n)*8)  # Output: 8 bytes (64 bits)
+    printf("%d bytes (%d bits)\n", sizeof(n), sizeof(n)*8)  # Output: 8 bytes (64 bits)
 
     one = 1 as int  # Warning: unnecessary cast from int to int
     printf("%d\n", one)  # Output: 1

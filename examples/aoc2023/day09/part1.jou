@@ -32,7 +32,7 @@ def main() -> int:
     line: byte[1000]
     result: int64 = 0
 
-    while fgets(line, sizeof(line) as int, f) != NULL:
+    while fgets(line, sizeof(line), f) != NULL:
         nums: int64[100]
         nnums = 0
         parts = split_by_ascii_whitespace(line)
