@@ -16,7 +16,7 @@ class List[T]:
     # Ensure that the list has room for at least the given number of elements.
     # Newly allocated space at the end of list will contain uninitialized/garbage values.
     @inline
-    def grow(self, n: int64) -> None:
+    def grow(self, n: intnative) -> None:
         if self.alloc >= n:
             # Already big enough
             return
@@ -40,10 +40,10 @@ class List[T]:
     # Append n items to the list, starting at the given pointer.
     # For example, with n=3, this appends ptr[0], ptr[1] and ptr[2].
     @inline
-    def extend_from_ptr(self, ptr: T*, n: int64) -> None:
+    def extend_from_ptr(self, ptr: T*, n: intnative) -> None:
         self.grow(self.len + n)
-        memcpy(self.end(), ptr, (n as intnative) * sizeof(ptr[0]))
-        self.len += n as intnative
+        memcpy(self.end(), ptr, n * sizeof(ptr[0]))
+        self.len += n
 
     # Append all items in the given list.
     @inline

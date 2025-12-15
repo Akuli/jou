@@ -3,6 +3,7 @@ import "stdlib/mem.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/limits.jou"
+import "stdlib/intnative.jou"
 
 import "./ast.jou"
 import "./state.jou"
@@ -57,10 +58,10 @@ class FuncPtrType:
 
     # Return a string that is e.g. "byte*, byte*" for strcmp() or "byte*, ..." for printf().
     def arguments_string(self) -> byte*:
-        alloc_size = 10  # plenty for '\0' and the possible "..." at the end
+        alloc_size: intnative = 10  # plenty for '\0' and the possible "..." at the end
         for i = 0; i < self.argtypes.len; i++:
-            alloc_size += strlen(self.argtypes.ptr[i].name) as int
-            alloc_size += strlen(", ") as int
+            alloc_size += strlen(self.argtypes.ptr[i].name)
+            alloc_size += strlen(", ")
 
         result: byte* = malloc(alloc_size)
         assert result != NULL
@@ -292,7 +293,7 @@ class Type:
                 else:
                     new_return_type = self.func_ptr.return_type.substitute_generic_params(from, to, n)
 
-                return funcptr_type(new_argtypes, nargs as int, self.func_ptr.takes_varargs, new_return_type, self.func_ptr.is_noreturn)
+                return funcptr_type(new_argtypes, nargs, self.func_ptr.takes_varargs, new_return_type, self.func_ptr.is_noreturn)
 
             case (
                 TypeKind.SignedInteger
@@ -498,7 +499,7 @@ def uint_type(bits: int) -> Type*:
 
 # Return a function pointer type like "funcptr(int, int) -> int"
 @public
-def funcptr_type(argtypes: Type**, nargs: int, takes_varargs: bool, return_type: Type*, is_noreturn: bool) -> Type*:
+def funcptr_type(argtypes: Type**, nargs: intnative, takes_varargs: bool, return_type: Type*, is_noreturn: bool) -> Type*:
     if is_noreturn:
         assert return_type == NULL
 
@@ -759,7 +760,7 @@ class Signature:
         argtypes: Type*[MAX_ARGS]
         for i = 0; i < self.args.len; i++:
             argtypes[i] = self.args.ptr[i].type
-        return funcptr_type(argtypes, self.args.len as int, self.takes_varargs, self.return_type, self.is_noreturn)
+        return funcptr_type(argtypes, self.args.len, self.takes_varargs, self.return_type, self.is_noreturn)
 
     def copy(self) -> Signature:
         result = *self
