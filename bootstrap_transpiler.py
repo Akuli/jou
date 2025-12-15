@@ -1337,6 +1337,32 @@ def parse_an_imported_file() -> bool:
     return False
 
 
+def evaluate_compile_time_condition(path, ast) -> bool:
+    if ast[0] == "get_variable":
+        _, cond_varname = ast
+        cond_value = find_constant(path, cond_varname)
+        assert cond_value is not None
+        if cond_value.c_code == "true":
+            return True
+        if cond_value.c_code == "false":
+            return False
+
+    if ast[0] == "constant":
+        _, cond_value = ast
+        if cond_value.c_code == "true":
+            return True
+        if cond_value.c_code == "false":
+            return False
+
+    if ast[0] == "not":
+        _, inner = ast
+        return not evaluate_compile_time_condition(path, inner)
+
+    raise RuntimeError(
+        f"cannot evaluate compile-time condition in {path}: {ast}"
+    )
+
+
 def evaluate_a_compile_time_if_statement() -> bool:
     for path, ast in ASTS.items():
         for i, stmt in enumerate(ast):
@@ -1345,25 +1371,7 @@ def evaluate_a_compile_time_if_statement() -> bool:
 
             _, if_and_elifs, else_body, location = stmt
             cond_ast, then = if_and_elifs.pop(0)
-
-            if cond_ast[0] == "get_variable":
-                _, cond_varname = cond_ast
-                cond_value = find_constant(path, cond_varname)
-                assert cond_value is not None
-            elif cond_ast[0] == "constant":
-                _, cond_value = cond_ast
-            else:
-                raise RuntimeError(
-                    f"cannot evaluate compile-time if statement in {path}: {cond_ast}"
-                )
-
-            if cond_value.c_code == "true":
-                cond = True
-            elif cond_value.c_code == "false":
-                cond = False
-            else:
-                raise NotImplementedError(cond_value)
-
+            cond = evaluate_compile_time_condition(path, cond_ast)
             if cond:
                 ast[i : i + 1] = then
             elif not if_and_elifs:
