@@ -2061,8 +2061,14 @@ class CFuncMaker:
         elif stmt[0] == "declare_local_var":
             _, varname, type_ast, value_ast, location = stmt
             vartype = type_from_ast(self.path, type_ast)
-            self.output.insert(0, f"{vartype.to_c()} var_{varname};")
-            self.locals[varname] = vartype
+            if varname in self.locals:
+                # This happens when we do "case X | Y:" and the case body is
+                # transpiled twice. If it contains a "foo: int" or similar, we
+                # attempt to create two variables named foo. Let's not do that.
+                assert self.locals[varname] == vartype
+            else:
+                self.output.insert(0, f"{vartype.to_c()} var_{varname};")
+                self.locals[varname] = vartype
             if value_ast is not None:
                 value = self.cast(self.do_expression(value_ast, vartype), vartype)
                 self.output.append(f"var_{varname} = {value.c_code};")
@@ -2153,21 +2159,23 @@ class CFuncMaker:
                 assert lhs_signed or lhs_unsigned
                 assert rhs_signed or rhs_unsigned
 
-                lhs_bits = int(lhs_type.name.removeprefix("u")[3:])
-                rhs_bits = int(rhs_type.name.removeprefix("u")[3:])
+                # "uint32" --> 32
+                # "int32" --> 32
+                lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
+                rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
 
+                # For same signed-ness, pick bigger type.
                 # Given int32 and int64, pick int64.
                 # Given uint32 and uint64, pick uint64.
                 if (lhs_signed and rhs_signed) or (lhs_unsigned and rhs_unsigned):
                     return lhs_type if lhs_bits > rhs_bits else rhs_type
 
+                # For signed and unsigned, pick bigger size and signed.
                 # Given int32 and uint8, pick int32.
-                if lhs_signed and rhs_unsigned and lhs_bits > rhs_bits:
-                    return lhs_type
-                if lhs_unsigned and rhs_signed and lhs_bits < rhs_bits:
-                    return rhs_type
+                # Given uint32 and int8, pick int32.
+                return BASIC_TYPES["int" + str(max(lhs_bits, lhs_bits))]
 
-            raise NotImplementedError(lhs_type, rhs_type)
+            raise NotImplementedError(expr[0], lhs_type, rhs_type)
 
         if expr[0] == "call":
             _, func_ast, arg_asts = expr
@@ -2679,7 +2687,7 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
 def main() -> None:
     [main_file] = sys.argv[1:]
     parse_file(main_file)
-    while evaluate_a_compile_time_if_statement() or parse_an_imported_file():
+    while parse_an_imported_file() or evaluate_a_compile_time_if_statement():
         pass
 
     print()

@@ -26,11 +26,12 @@ numbered_commits=(
     022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # <--- bootstrap_transpiler.py starts here!
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
     024_0d4b4082f6569131903af02ba5508210b8b474d8  # array_count, enum_count, jou --check, jou_compiled cache bug fix, more fixes
+    025_0d4b4082f6569131903af02ba5508210b8b474d8  # This needs to be repeated, because the transpiled compiler is buggy, but good enough to correctly compile itself
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=023_525d0c746286bc9004c90173503e47e34010cc6a
+bootstrap_transpiler_numbered_commit=024_0d4b4082f6569131903af02ba5508210b8b474d8
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
@@ -133,6 +134,15 @@ function transpile_with_python_and_compile() {
             sed -i -e '1i\
 import "../config.jou"'$'\n' compiler/target.jou
         fi
+
+        # Complier uses utf8_encode_char() to detect bad characters in Jou code.
+        # Let's make it return something that is not in the code so it finds no bad characters.
+        rm stdlib/utf8.jou
+        echo '
+@public
+def utf8_encode_char(u: uint32) -> byte*:
+    return "jgdspoisajdgpoiasjdgoiasjdpoigdsa"
+' > stdlib/utf8.jou
 
         echo "Converting Jou code to C..."
         "$python" ../../../bootstrap_transpiler.py compiler/main.jou > compiler.c
