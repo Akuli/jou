@@ -1,3 +1,6 @@
-# TODO: Change this when we need to support some 32-bit platform
-@public
-typedef intnative = int64
+if IS_32BIT:
+    @public
+    typedef intnative = int
+else:
+    @public
+    typedef intnative = int64
