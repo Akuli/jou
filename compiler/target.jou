@@ -63,6 +63,13 @@ def init_global_target() -> None:
             LLVMInitializeAArch64TargetMC()
             LLVMInitializeAArch64AsmParser()
             LLVMInitializeAArch64AsmPrinter()
+        dummy = IS32BIT
+        if dummy:
+            LLVMInitializeARMTargetInfo()
+            LLVMInitializeARMTarget()
+            LLVMInitializeARMTargetMC()
+            LLVMInitializeARMAsmParser()
+            LLVMInitializeARMAsmPrinter()
 
     if WINDOWS:
         # LLVM's default is x86_64-pc-windows-msvc
