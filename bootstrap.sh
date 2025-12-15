@@ -131,7 +131,7 @@ function transpile_with_python_and_compile() {
         if [[ "$OS" =~ Windows ]]; then
             # An if statement inside a function should get evaluated at compile time, but it doesn't
             echo "Patching Jou code to assume aarch64 support exists..."
-            grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if there's nothing to replace
+            grep -q LLVM_HAS_AARCH64 compiler/target.jou  # fail if there's nothing to replace
             sed -i s/LLVM_HAS_AARCH64/True/g compiler/target.jou
         fi
 
@@ -146,6 +146,12 @@ function transpile_with_python_and_compile() {
 def utf8_encode_char(u: uint32) -> byte*:
     return "jgdspoisajdgpoiasjdgoiasjdpoigdsa"
 ' > stdlib/utf8.jou
+
+        echo "Patching support for IS_32BIT special constant..."
+        sed -i -e 's/SpecialConstant\[3\]/SpecialConstant[4]/' compiler/state.jou
+        sed -i -e '/SpecialConstant.*NETBSD/a\
+        SpecialConstant{name = "IS_32BIT", constant = Constant{kind = ConstantKind.Bool, boolean = IS_32BIT}},'$'\n' compiler/evaluate.jou
+        grep -q IS_32BIT compiler/evaluate.jou
 
         echo "Converting Jou code to C..."
         "$python" ../../../bootstrap_transpiler.py compiler/main.jou > compiler.c
@@ -242,10 +248,26 @@ function compile_next_jou_compiler() {
             echo "Patching Jou code to use or not use aarch64 depending on config..."
             sed -i -e s/'if MACOS:'/'if LLVM_HAS_AARCH64:'/g compiler/target.jou
             sed -i -e s/'if not WINDOWS:'/'if LLVM_HAS_AARCH64:'/g compiler/target.jou
-            grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if it replaced nothing
+            grep -q LLVM_HAS_AARCH64 compiler/target.jou  # fail if it replaced nothing
             sed -i -e '1i\
 import "../config.jou"'$'\n' compiler/target.jou
         fi
+
+        if [ $number -le 23 ]; then
+            echo "Patching support for IS_32BIT special constant..."
+            sed -i -e '/NETBSD.as.int/a\
+        case "IS_32BIT":\
+            return IS_32BIT as int'$'\n' compiler/evaluate.jou
+            if [ $number -eq 17 ]; then
+                sed -i -e s/IS_32BIT.as.int/0/ compiler/evaluate.jou
+            fi
+        elif [ $number -le 26 ]; then
+            echo "Patching support for IS_32BIT special constant..."
+            sed -i -e 's/SpecialConstant\[3\]/SpecialConstant[4]/' compiler/state.jou
+            sed -i -e '/SpecialConstant.*NETBSD/a\
+            SpecialConstant{name = "IS_32BIT", constant = Constant{kind = ConstantKind.Bool, boolean = IS_32BIT}},'$'\n' compiler/evaluate.jou
+        fi
+        grep -q IS_32BIT compiler/evaluate.jou
 
         echo "Running make..."
 
