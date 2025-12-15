@@ -310,10 +310,6 @@ def do_explicit_cast(fom: AstFunctionOrMethod*, expr: AstExpression*, to: Type*,
 
     msg: byte[500]
 
-    if from == to:
-        snprintf(msg, sizeof(msg), "unnecessary cast from %s to %s", from.name, to.name)
-        show_warning(location, msg)
-
     if not can_cast_explicitly(from, to):
         snprintf(msg, sizeof(msg), "cannot cast from type %s to %s", from.name, to.name)
         fail(location, msg)
