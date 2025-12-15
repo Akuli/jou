@@ -63,26 +63,25 @@ def main() -> int:
     run_jou("--check --check")  # Output: <jouexe>: --check cannot be given multiple times (try "<jouexe> --help")
 
     # Output: <jouexe>: warning: -O1 does nothing when used together with --check (see "<jouexe> --help")
-    # Output: Checked 3 files.
+    # Output: Checked 2 files.
     run_jou("--check -O1 examples/hello.jou")
 
     # Output: <jouexe>: warning: --valgrind does nothing when used together with --check (see "<jouexe> --help")
-    # Output: Checked 3 files.
+    # Output: Checked 2 files.
     run_jou("--check --valgrind examples/hello.jou")
 
     # Output: <jouexe>: warning: --linker-flags does nothing when used together with --check (see "<jouexe> --help")
-    # Output: Checked 3 files.
+    # Output: Checked 2 files.
     run_jou("--check --linker-flags foobar examples/hello.jou")
 
     # Output: <jouexe>: warning: -j8 does nothing when used together with --check (see "<jouexe> --help")
-    # Output: Checked 3 files.
+    # Output: Checked 2 files.
     run_jou("--check -j8 examples/hello.jou")
 
     # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
     #
     # Output: Reusing previously compiled file: examples/jou_compiled/hello/hello_<hash>_<hash>.o
     # Output: Reusing previously compiled file: examples/jou_compiled/hello/io_<hash>_<hash>.o
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/intnative_<hash>_<hash>.o
     run_jou("-v examples/hello.jou > tmp/hello_out_v.txt")
     print_reusing_compiled_file_lines("tmp/hello_out_v.txt")
 
@@ -131,7 +130,7 @@ def main() -> int:
     # Test that double-verbose kinda works, without asserting the output in too much detail.
     # Usually stdlib/_... files are compiled, but not necessarily, so hide them.
     # Showing LLVM IR is not consistent because of caching compiled files.
-    run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/.*\\.jou | grep -v \"LLVM IR\"")
+    run_jou("-vv examples/hello.jou | grep === | grep -v stdlib/io.jou | grep -v \"LLVM IR\"")
     # Output: ===== Tokens for file "examples/hello.jou" =====
     # Output: ===== AST for file "examples/hello.jou" =====
     # Output: ===== UVG for main() -> int =====
