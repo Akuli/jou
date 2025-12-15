@@ -1,5 +1,7 @@
 # Functions for working with strings (byte* pointers).
 
+import "stdlib/intnative.jou"
+
 # Parsing. See also scanf() in io.jou.
 @public
 declare sscanf(s: byte*, pattern: byte*, ...) -> int  # Parse a string. See sscanf() in io.jou.
@@ -27,7 +29,7 @@ declare sscanf(s: byte*, pattern: byte*, ...) -> int  # Parse a string. See ssca
 @public
 declare sprintf(dest: byte*, pattern: byte*, ...) -> int
 @public
-declare snprintf(dest: byte*, n: int64, pattern: byte*, ...) -> int
+declare snprintf(dest: byte*, n: intnative, pattern: byte*, ...) -> int
 @public
 declare asprintf(dest: byte**, pattern: byte*, ...) -> int
 
@@ -46,7 +48,7 @@ declare strrchr(haystack: byte*, needle: int) -> byte*  # finds last occurrence
 
 # Calculate the length of a string in bytes. Note that strlen("ö") == 2, for example.
 @public
-declare strlen(s: byte*) -> int64
+declare strlen(s: byte*) -> intnative
 
 # Compare the strings. Return 0 for equal, or nonzero for not equal.
 #
@@ -76,12 +78,12 @@ def ends_with(s: byte*, suffix: byte*) -> bool:
 # Return how many bytes at start of s appear in the accept string.
 # For example, you can use strspn(s, " \t") to get the amount of indentation.
 @public
-declare strspn(s: byte*, accept: byte*) -> int64
+declare strspn(s: byte*, accept: byte*) -> intnative
 
 # Return how many bytes at start of s do not appear in the reject string.
 # For example, you can use strcspn(s, "\n") to get the length of the first line.
 @public
-declare strcspn(s: byte*, reject: byte*) -> int64
+declare strcspn(s: byte*, reject: byte*) -> intnative
 
 # Copy a string. Assumes it fits. Returned value is dest.
 @public

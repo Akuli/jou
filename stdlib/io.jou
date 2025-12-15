@@ -8,6 +8,9 @@
 # check whether printing failed.
 #
 # See also printf() manual page: https://linux.die.net/man/3/printf
+
+import "stdlib/intnative.jou"
+
 @public
 declare putchar(a_byte: int) -> int  # Print a byte (parameter type is "int" for historical reasons)
 @public
@@ -145,12 +148,12 @@ declare fscanf(file: FILE*, pattern: byte*, ...) -> int
 # Reads at most n items of data, each of size "itemsize". Returns number of items read.
 # Usually this is used with itemsize 1, so return value is number of bytes.
 @public
-declare fread(destination: byte*, itemsize: int64, n: int64, file: FILE*) -> int64
+declare fread(destination: byte*, itemsize: intnative, n: intnative, file: FILE*) -> intnative
 
 # Writes n items of data, each of size "itemsize". Returns number of items successfully written.
 # Usually this is used with itemsize 1, so return value is number of bytes.
 @public
-declare fwrite(data: byte*, itemsize: int64, n: int64, file: FILE*) -> int64
+declare fwrite(data: byte*, itemsize: intnative, n: intnative, file: FILE*) -> intnative
 
 # Ensure that output is actually written. It may remain buffered
 # if this function isn't called.
