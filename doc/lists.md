@@ -130,7 +130,7 @@ Instead of `int`, you can use any other type.
 For example, `List[byte*]{}` is an empty list of strings.
 
 
-## Priting the Length
+## Printing the Length
 
 Above we used `printf("it has %d items\n", numbers.len as int)`.
 Because `numbers.len` is of type [`intnative`, which is either `int` or `int64`](../stdlib/intnative.jou),
