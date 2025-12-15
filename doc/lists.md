@@ -110,7 +110,7 @@ def main() -> int:
     numbers.append(56)
 
     # Output: it has 3 items
-    printf("it has %lld items\n", numbers.len)
+    printf("it has %d items\n", numbers.len as int)
 
     # Output: 12
     # Output: 34
@@ -124,12 +124,39 @@ def main() -> int:
     return 0
 ```
 
-(Because `numbers.len` is an `int64`, it [should be printed with `%lld`](types.md#integers).)
-
 Here `List[int]{}` is [the syntax for creating a new instance of a class](classes.md#instantiating-syntax).
 In this case, the class is `List[int]`, which means a list of `int`s.
 Instead of `int`, you can use any other type.
 For example, `List[byte*]{}` is an empty list of strings.
+
+
+## Priting the Length
+
+Above we used `printf("it has %d items\n", numbers.len as int)`.
+Because `numbers.len` is of type [`intnative`, which is either `int` or `int64`](../stdlib/intnative.jou),
+converting to `int` is an easy and cross-platform way to print it.
+
+If you want your printing to work even if the list contains
+[more than 2147483647 items](tutorial.md#byte-int-int64),
+you can instead convert to `int64` and [use `%lld` to print it](types.md#integers):
+
+```python
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+
+def main() -> int:
+    numbers = List[int]{}
+    numbers.append(12)
+    numbers.append(34)
+    numbers.append(56)
+
+    printf("%d\n", numbers.len as int)      # Output: 3
+    printf("%lld\n", numbers.len as int64)  # Output: 3
+
+    free(numbers.ptr)
+    return 0
+```
 
 
 ## What does `free(list.ptr)` do?
@@ -200,7 +227,18 @@ class SimpleList:
 
 The list also needs to know how many items it contains.
 To do that, let's add another member called `len`.
-Let's use `int64` so that [lists can contain more than 2147483647 items](tutorial.md#byte-int-int64).
+It's tempting to use `int` for this:
+
+```python
+class SimpleList:
+    ptr: int*
+    len: int
+```
+
+This would limit lists to [at most 2147483647 items](tutorial.md#byte-int-int64).
+That would be fine for most use cases, but we can do better,
+and because this is library code that will be used for many different things, we *should* do better.
+We could use `int64`:
 
 ```python
 class SimpleList:
@@ -208,7 +246,19 @@ class SimpleList:
     len: int64
 ```
 
-Let's say we append an item to a list whose `len` is `4`.
+An even better choice is the `intnative` type from [stdlib/intnative.jou](../stdlib/intnative.jou).
+It is `int` on 32-bit systems and `int64` on 64-bit systems.
+Many functions in [stdlib/mem.jou](../stdlib/mem.jou) expect sizes to be specified with `intnative`,
+so with `len: int64`, cross-platform code would need to use a lot of `list.len as intnative`
+when combining lists with other memory management things.
+
+```python
+class SimpleList:
+    ptr: int*
+    len: intnative
+```
+
+Now, let's say we append an item to a list whose `len` is `4`.
 We could allocate enough memory to hold 5 items.
 But because allocating heap memory is slow,
 it's better to allocate more than enough, e.g. enough for 8 items.
@@ -218,8 +268,8 @@ To do this, we need to keep track of how much memory we have already allocated:
 ```python
 class SimpleList:
     ptr: int*
-    len: int64
-    alloc: int64
+    len: intnative
+    alloc: intnative
 ```
 
 That's basically all there is to it. The rest is quite straight-forward.
@@ -344,8 +394,8 @@ def main() -> int:
     names.append("Moosems")
 
     popped = names.pop()
-    printf("Popped %s\n", popped)               # Output: Popped Moosems
-    printf("%lld people remain.\n", names.len)  # Output: 2 people remain.
+    printf("Popped %s\n", popped)                    # Output: Popped Moosems
+    printf("%d people remain.\n", names.len as int)  # Output: 2 people remain.
 
     free(names.ptr)
     return 0
