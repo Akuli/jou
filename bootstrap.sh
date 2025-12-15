@@ -23,9 +23,9 @@ numbered_commits=(
     019_99de2976a7f3b34ec6b2b07725c5ad1400313dc1  # bitwise xor operator `^`
     020_944c0f34e941d340af1749cdceea4621860ec69f  # bitwise '&' and '|', "const" supports integers other than int
     021_9339a749315b82f73d19bacdccab5ee327c44822  # accessing fields and methods on pointers with '.' instead of '->'
-    022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # <--- bootstrap_transpiler.py starts here!
+    022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # bootstrap_transpiler.py used to start here, maybe not needed now...
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
-    024_0d4b4082f6569131903af02ba5508210b8b474d8  # array_count, enum_count, jou --check, jou_compiled cache bug fix, more fixes
+    024_0d4b4082f6569131903af02ba5508210b8b474d8  # <--- bootstrap_transpiler.py starts here!
     025_0d4b4082f6569131903af02ba5508210b8b474d8  # This needs to be repeated, because the transpiled compiler is buggy, but good enough to correctly compile itself
 )
 
