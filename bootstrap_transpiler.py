@@ -990,8 +990,20 @@ class Parser:
             else:
                 return result
 
+    def parse_expression_with_ternary(self):
+        result = self.parse_expression_with_and_or()
+        if self.tokens[0].code != "if":
+            return result
+
+        then = result
+        self.eat("if")
+        condition = self.parse_expression_with_and_or()
+        self.eat("else")
+        otherwise = self.parse_expression_with_and_or()
+        return ("ternary_if", then, condition, otherwise)
+
     def parse_expression(self):
-        return self.parse_expression_with_and_or()
+        return self.parse_expression_with_ternary()
 
     def parse_oneline_statement(self, decors=()) -> AST:
         location = self.tokens[0].location
@@ -2244,6 +2256,10 @@ class CFuncMaker:
             itype = decide_array_item_type([self.guess_type(item) for item in items])
             return itype.array_type(len(items))
 
+        if expr[0] == "ternary_if":
+            _, then, condition, otherwise = expr
+            return self.guess_type(then)  # good enough??
+
         raise NotImplementedError(expr)
 
     # Evaluates &expr
@@ -2570,6 +2586,20 @@ class CFuncMaker:
             assert value.type.inner_type is not None
             result = self.add_variable(value.type.inner_type)
             self.output.append(f"{result.c_code} = *{value.c_code};")
+            return result
+
+        elif expr[0] == "ternary_if":
+            _, then, condition, otherwise = expr
+            result = self.add_variable(self.guess_type(expr))
+
+            condition_value = self.do_expression(condition, BASIC_TYPES["bool"])
+            self.output.append(f"if ({condition_value.c_code}) {{")
+            then_value = self.do_expression(then, result.type)
+            self.output.append(f"{result.c_code} = {then_value.c_code};")
+            self.output.append("} else {")
+            otherwise_value = self.do_expression(otherwise, result.type)
+            self.output.append(f"{result.c_code} = {otherwise_value.c_code};")
+            self.output.append("}")
             return result
 
         else:

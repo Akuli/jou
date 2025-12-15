@@ -30,7 +30,7 @@ numbered_commits=(
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=022_e35573c899699e2d717421f3bcd29e16a5a35cc1
+bootstrap_transpiler_numbered_commit=023_525d0c746286bc9004c90173503e47e34010cc6a
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
