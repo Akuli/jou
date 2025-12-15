@@ -85,7 +85,7 @@ class Constant:
                     if i > 0:
                         printf(",")
                     printf("%d", self.array_of_bytes.ptr[i])
-                printf("] (%d bytes)\n", self.array_of_bytes.len as int)
+                printf("] (%lld bytes)\n", self.array_of_bytes.len as int64)
             case ConstantKind.PointerString:
                 printf("pointer string ")
                 print_string(self.pointer_string)
