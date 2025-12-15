@@ -1354,7 +1354,7 @@ def evaluate_a_compile_time_if_statement() -> bool:
                 _, cond_value = cond_ast
             else:
                 raise RuntimeError(
-                    f"cannot evaluate compile-time if statement in {path}"
+                    f"cannot evaluate compile-time if statement in {path}: {cond_ast}"
                 )
 
             if cond_value.c_code == "true":
