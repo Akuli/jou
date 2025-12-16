@@ -990,8 +990,20 @@ class Parser:
             else:
                 return result
 
+    def parse_expression_with_ternary(self):
+        result = self.parse_expression_with_and_or()
+        if self.tokens[0].code != "if":
+            return result
+
+        then = result
+        self.eat("if")
+        condition = self.parse_expression_with_and_or()
+        self.eat("else")
+        otherwise = self.parse_expression_with_and_or()
+        return ("ternary_if", then, condition, otherwise)
+
     def parse_expression(self):
-        return self.parse_expression_with_and_or()
+        return self.parse_expression_with_ternary()
 
     def parse_oneline_statement(self, decors=()) -> AST:
         location = self.tokens[0].location
@@ -1325,6 +1337,32 @@ def parse_an_imported_file() -> bool:
     return False
 
 
+def evaluate_compile_time_condition(path, ast) -> bool:
+    if ast[0] == "get_variable":
+        _, cond_varname = ast
+        cond_value = find_constant(path, cond_varname)
+        assert cond_value is not None
+        if cond_value.c_code == "true":
+            return True
+        if cond_value.c_code == "false":
+            return False
+
+    if ast[0] == "constant":
+        _, cond_value = ast
+        if cond_value.c_code == "true":
+            return True
+        if cond_value.c_code == "false":
+            return False
+
+    if ast[0] == "not":
+        _, inner = ast
+        return not evaluate_compile_time_condition(path, inner)
+
+    raise RuntimeError(
+        f"cannot evaluate compile-time condition in {path}: {ast}"
+    )
+
+
 def evaluate_a_compile_time_if_statement() -> bool:
     for path, ast in ASTS.items():
         for i, stmt in enumerate(ast):
@@ -1333,25 +1371,7 @@ def evaluate_a_compile_time_if_statement() -> bool:
 
             _, if_and_elifs, else_body, location = stmt
             cond_ast, then = if_and_elifs.pop(0)
-
-            if cond_ast[0] == "get_variable":
-                _, cond_varname = cond_ast
-                cond_value = find_constant(path, cond_varname)
-                assert cond_value is not None
-            elif cond_ast[0] == "constant":
-                _, cond_value = cond_ast
-            else:
-                raise RuntimeError(
-                    f"cannot evaluate compile-time if statement in {path}"
-                )
-
-            if cond_value.c_code == "true":
-                cond = True
-            elif cond_value.c_code == "false":
-                cond = False
-            else:
-                raise NotImplementedError(cond_value)
-
+            cond = evaluate_compile_time_condition(path, cond_ast)
             if cond:
                 ast[i : i + 1] = then
             elif not if_and_elifs:
@@ -2049,8 +2069,14 @@ class CFuncMaker:
         elif stmt[0] == "declare_local_var":
             _, varname, type_ast, value_ast, location = stmt
             vartype = type_from_ast(self.path, type_ast)
-            self.output.insert(0, f"{vartype.to_c()} var_{varname};")
-            self.locals[varname] = vartype
+            if varname in self.locals:
+                # This happens when we do "case X | Y:" and the case body is
+                # transpiled twice. If it contains a "foo: int" or similar, we
+                # attempt to create two variables named foo. Let's not do that.
+                assert self.locals[varname] == vartype
+            else:
+                self.output.insert(0, f"{vartype.to_c()} var_{varname};")
+                self.locals[varname] = vartype
             if value_ast is not None:
                 value = self.cast(self.do_expression(value_ast, vartype), vartype)
                 self.output.append(f"var_{varname} = {value.c_code};")
@@ -2141,21 +2167,23 @@ class CFuncMaker:
                 assert lhs_signed or lhs_unsigned
                 assert rhs_signed or rhs_unsigned
 
-                lhs_bits = int(lhs_type.name.removeprefix("u")[3:])
-                rhs_bits = int(rhs_type.name.removeprefix("u")[3:])
+                # "uint32" --> 32
+                # "int32" --> 32
+                lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
+                rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
 
+                # For same signed-ness, pick bigger type.
                 # Given int32 and int64, pick int64.
                 # Given uint32 and uint64, pick uint64.
                 if (lhs_signed and rhs_signed) or (lhs_unsigned and rhs_unsigned):
                     return lhs_type if lhs_bits > rhs_bits else rhs_type
 
+                # For signed and unsigned, pick bigger size and signed.
                 # Given int32 and uint8, pick int32.
-                if lhs_signed and rhs_unsigned and lhs_bits > rhs_bits:
-                    return lhs_type
-                if lhs_unsigned and rhs_signed and lhs_bits < rhs_bits:
-                    return rhs_type
+                # Given uint32 and int8, pick int32.
+                return BASIC_TYPES["int" + str(max(lhs_bits, lhs_bits))]
 
-            raise NotImplementedError(lhs_type, rhs_type)
+            raise NotImplementedError(expr[0], lhs_type, rhs_type)
 
         if expr[0] == "call":
             _, func_ast, arg_asts = expr
@@ -2243,6 +2271,10 @@ class CFuncMaker:
             _, items = expr
             itype = decide_array_item_type([self.guess_type(item) for item in items])
             return itype.array_type(len(items))
+
+        if expr[0] == "ternary_if":
+            _, then, condition, otherwise = expr
+            return self.guess_type(then)  # good enough??
 
         raise NotImplementedError(expr)
 
@@ -2572,6 +2604,20 @@ class CFuncMaker:
             self.output.append(f"{result.c_code} = *{value.c_code};")
             return result
 
+        elif expr[0] == "ternary_if":
+            _, then, condition, otherwise = expr
+            result = self.add_variable(self.guess_type(expr))
+
+            condition_value = self.do_expression(condition, BASIC_TYPES["bool"])
+            self.output.append(f"if ({condition_value.c_code}) {{")
+            then_value = self.do_expression(then, result.type)
+            self.output.append(f"{result.c_code} = {then_value.c_code};")
+            self.output.append("} else {")
+            otherwise_value = self.do_expression(otherwise, result.type)
+            self.output.append(f"{result.c_code} = {otherwise_value.c_code};")
+            self.output.append("}")
+            return result
+
         else:
             raise NotImplementedError(expr)
 
@@ -2649,7 +2695,7 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
 def main() -> None:
     [main_file] = sys.argv[1:]
     parse_file(main_file)
-    while evaluate_a_compile_time_if_statement() or parse_an_imported_file():
+    while parse_an_imported_file() or evaluate_a_compile_time_if_statement():
         pass
 
     print()
