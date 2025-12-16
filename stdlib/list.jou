@@ -42,8 +42,8 @@ class List[T]:
     @inline
     def extend_from_ptr(self, ptr: T*, n: int64) -> None:
         self.grow(self.len + n)
-        memcpy(self.end(), ptr, n * sizeof(ptr[0]))
-        self.len += n
+        memcpy(self.end(), ptr, (n as intnative) * sizeof(ptr[0]))
+        self.len += n as intnative
 
     # Append all items in the given list.
     @inline

@@ -155,12 +155,12 @@ def find_current_executable() -> byte*:
 
     else:
         buf = NULL
-        for size = 2 as int64; True; size *= 2:
+        for size = 2; True; size *= 2:
             buf = realloc(buf, size)
             memset(buf, 0, size)
 
             if WINDOWS:
-                ret = GetModuleFileNameA(NULL, buf, size as int)
+                ret = GetModuleFileNameA(NULL, buf, size)
             else:
                 ret = readlink("/proc/self/exe", buf, size)
 

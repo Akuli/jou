@@ -1,5 +1,6 @@
 import "stdlib/assert.jou"
 import "stdlib/ascii.jou"
+import "stdlib/intnative.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
@@ -151,7 +152,8 @@ def skip_string_or_byte(s: byte*) -> byte*:
 
 
 def get_assertion_code_as_string(start: Token*, end: Token*) -> byte*:
-    len = (end.file_content_ptr as int64) - (start.file_content_ptr as int64)
+    # TODO: "pointer as intnative" cast should be allowed
+    len = ((end.file_content_ptr as int64) - (start.file_content_ptr as int64)) as intnative
     assert len > 0
 
     s: byte* = malloc(len + 1)
