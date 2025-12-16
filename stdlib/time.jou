@@ -12,5 +12,6 @@ if NETBSD:
     def time(result_ptr: int64*) -> int64:
         return __time50(result_ptr)
 else:
+    # TODO: When to use intnative? Which platforms use 32-bit time_t?
     @public
     declare time(result_ptr: int64*) -> int64

@@ -15,7 +15,8 @@ if WINDOWS:
 elif MACOS:
     declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
 else:
-    declare readlink(linkpath: byte*, result: byte*, result_size: int64) -> int64
+    import "stdlib/intnative.jou"
+    declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
 
 if WINDOWS:
     declare _mkdir(path: byte*) -> int
@@ -154,12 +155,12 @@ def find_current_executable() -> byte*:
 
     else:
         buf = NULL
-        for size = 2 as int64; True; size *= 2:
+        for size = 2; True; size *= 2:
             buf = realloc(buf, size)
             memset(buf, 0, size)
 
             if WINDOWS:
-                ret = GetModuleFileNameA(NULL, buf, size as int)
+                ret = GetModuleFileNameA(NULL, buf, size)
             else:
                 ret = readlink("/proc/self/exe", buf, size)
 

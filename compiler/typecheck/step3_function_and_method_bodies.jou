@@ -9,6 +9,7 @@
 # has and what parameter types they take.
 
 import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
@@ -926,9 +927,10 @@ def cast_array_members_to_a_common_type(
                 break
 
     if compatible_with_all.len != 1:
-        size = 500 as int64
+        size = 500
         for t = distinct.ptr; t < distinct.end(); t++:
-            size += strlen((*t).name) + 3  # 1 for comma, 1 for space, 1 because why not lol
+            size += 3  # 1 for comma, 1 for space, 1 because why not lol
+            size += strlen((*t).name) as int
 
         msg: byte* = malloc(size)
         assert msg != NULL
@@ -1352,7 +1354,7 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
     msg: byte[500]
     sig_string: byte* = NULL
     remaining: byte** = NULL
-    nremaining = -1 as int64
+    nremaining: intnative = -1
 
     if match_stmt.func_name[0] == '\0':
         case_type = typecheck_expression_not_void(state, &match_stmt.match_obj, NULL)

@@ -3,14 +3,15 @@
 # See doc/lists.md for documentation.
 
 import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
 import "stdlib/mem.jou"
 
 
 @public
 class List[T]:
-    ptr: T*         # Pointer to first item of the list (may change when list grows)
-    len: int64      # How many items are in the list
-    alloc: int64    # How many items would fit into the allocated memory
+    ptr: T*           # Pointer to first item of the list (may change when list grows)
+    len: intnative    # How many items are in the list
+    alloc: intnative  # How many items would fit into the allocated memory
 
     # Ensure that the list has room for at least the given number of elements.
     # Newly allocated space at the end of list will contain uninitialized/garbage values.
@@ -41,8 +42,8 @@ class List[T]:
     @inline
     def extend_from_ptr(self, ptr: T*, n: int64) -> None:
         self.grow(self.len + n)
-        memcpy(self.end(), ptr, n * sizeof(ptr[0]))
-        self.len += n
+        memcpy(self.end(), ptr, (n as intnative) * sizeof(ptr[0]))
+        self.len += n as intnative
 
     # Append all items in the given list.
     @inline
