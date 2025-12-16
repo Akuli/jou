@@ -159,7 +159,7 @@ class Uvg:
 
         actual_varname: byte[100]
         if varname == NULL:
-            sprintf(actual_varname, "$%lld", self.varnames.len as int64)
+            sprintf(actual_varname, "$%zd", self.varnames.len as int64)
         else:
             assert strlen(varname) < sizeof(actual_varname)
             strcpy(actual_varname, varname)
