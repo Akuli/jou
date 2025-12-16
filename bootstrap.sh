@@ -23,15 +23,15 @@ numbered_commits=(
     019_99de2976a7f3b34ec6b2b07725c5ad1400313dc1  # bitwise xor operator `^`
     020_944c0f34e941d340af1749cdceea4621860ec69f  # bitwise '&' and '|', "const" supports integers other than int
     021_9339a749315b82f73d19bacdccab5ee327c44822  # accessing fields and methods on pointers with '.' instead of '->'
-    022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # <--- bootstrap_transpiler.py starts here!
+    022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # bootstrap_transpiler.py used to start here, maybe not needed now...
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
-    024_0d4b4082f6569131903af02ba5508210b8b474d8  # array_count, enum_count, jou --check, jou_compiled cache bug fix, more fixes
+    024_0d4b4082f6569131903af02ba5508210b8b474d8  # <--- bootstrap_transpiler.py starts here!
     025_5c60bc1f68efb3f957730bd97eb4607415368dd4  # parallel compiling, typedef fixes, initial values of globals, embed_file()
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=022_e35573c899699e2d717421f3bcd29e16a5a35cc1
+bootstrap_transpiler_numbered_commit=024_0d4b4082f6569131903af02ba5508210b8b474d8
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
@@ -127,13 +127,24 @@ function transpile_with_python_and_compile() {
     (
         cd $folder
 
-        if ! [[ "$OS" =~ Windows ]]; then
-            echo "Patching Jou code to use or not use aarch64 depending on config..."
-            sed -i -e s/'if not WINDOWS:'/'if LLVM_HAS_AARCH64:'/g compiler/target.jou
-            grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if it replaced nothing
-            sed -i -e '1i\
-import "../config.jou"'$'\n' compiler/target.jou
+        if [[ "$OS" =~ Windows ]]; then
+            # An if statement inside a function should get evaluated at compile time, but it doesn't
+            echo "Patching Jou code to assume aarch64 support exists..."
+            grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if there's nothing to replace
+            sed -i s/LLVM_HAS_AARCH64/True/g compiler/target.jou
         fi
+
+        # Compiler uses utf8_encode_char() to detect bad characters in Jou code.
+        # Let's make it return something that is not in the code so it finds no bad characters.
+        #
+        # We can't just compile with the original stdlib/utf8.jou, because it
+        # uses a bitwise shift (<<=) that the bootstrap transpiler doesn't know.
+        mv -v stdlib/utf8.jou stdlib/utf8_old.jou
+        echo '
+@public
+def utf8_encode_char(u: uint32) -> byte*:
+    return "jgdspoisajdgpoiasjdgoiasjdpoigdsa"
+' > stdlib/utf8.jou
 
         echo "Converting Jou code to C..."
         "$python" ../../../bootstrap_transpiler.py compiler/main.jou > compiler.c
@@ -148,10 +159,27 @@ import "../config.jou"'$'\n' compiler/target.jou
         #       failed on creating an AstExpression on stack with all the
         #       different kinds of expressions as struct members instead of
         #       union members...
+        #
+        #       UPDATE: We hit the Windows stack limit again... and I just
+        #       bumped it to 16M instead of the default 1M. Maybe some day I
+        #       will clean this up :)
         if [[ "$OS" =~ Windows ]]; then
-            $clang -w -O2 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
+            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -Wl,--stack,16777216 ${windows_llvm_files[@]}
         else
-            $clang -w -O2 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+        fi
+
+        # Transpiling produces a broken Jou compiler for some reason. I don't
+        # know why. But if I recompile once more, it fixes itself.
+        mv -v stdlib/utf8_old.jou stdlib/utf8.jou
+        echo "Compiling the same Jou code again with the compiler we just made..."
+        if [[ "$OS" =~ Windows ]]; then
+            # Use correct path to mingw64. This used to copy the mingw64 folder,
+            # but it was slow and wasted disk space. Afaik symlinks aren't really a
+            # thing on windows.
+            JOU_MINGW_DIR=../../../mingw64 ./jou_from_c.exe -o jou.exe compiler/main.jou
+        else
+            ./jou_from_c -o jou compiler/main.jou
         fi
     )
 }
