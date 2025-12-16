@@ -228,9 +228,6 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
 
 
 def can_cast_implicitly(from: Type*, to: Type*) -> bool:
-    from = from.unwrap_typedef()
-    to = to.unwrap_typedef()
-
     # Please keep doc/types.md up to date if you modify this
     return (
         from == to
@@ -249,9 +246,6 @@ def can_cast_implicitly(from: Type*, to: Type*) -> bool:
 
 
 def can_cast_explicitly(from: Type*, to: Type*) -> bool:
-    from = from.unwrap_typedef()
-    to = to.unwrap_typedef()
-
     # Please keep doc/types.md up to date if you modify this.
     #
     # This does not take into account things that type inference does, see docs.
@@ -467,8 +461,8 @@ def check_binop(
         case _:
             assert False
 
-    ltype = lhs.types.orig_type.unwrap_typedef()
-    rtype = rhs.types.orig_type.unwrap_typedef()
+    ltype = lhs.types.orig_type
+    rtype = rhs.types.orig_type
 
     got_bools = ltype == bool_type() and rtype == bool_type()
     got_integers = ltype.is_integer_type() and rtype.is_integer_type()
@@ -535,7 +529,7 @@ def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
             assert False
 
     t = typecheck_expression_not_void(state, &expr.operands[0], NULL)
-    if not t.unwrap_typedef().is_number_type() and t.unwrap_typedef().kind != TypeKind.Pointer:
+    if not t.is_number_type() and t.kind != TypeKind.Pointer:
         msg: byte[500]
         snprintf(msg, sizeof(msg), bad_type_fmt, t.name)
         fail(expr.location, msg)
@@ -576,7 +570,7 @@ def typecheck_indexing(
 
     indextype = typecheck_expression_not_void(state, indexexpr, NULL)
     assert indextype != NULL
-    if not indextype.unwrap_typedef().is_integer_type():
+    if not indextype.is_integer_type():
         snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextype.name)
         fail(indexexpr.location, msg)
 
@@ -1577,7 +1571,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     assert False
 
             t = check_binop(state.fom, op, stmt.location, targetexpr, valueexpr)
-            if t.unwrap_typedef() != targetexpr.types.orig_type.unwrap_typedef():
+            if t != targetexpr.types.orig_type:
                 snprintf(
                     msg, sizeof msg,
                     "%s produced a value of type %s which cannot be assigned back to %s",

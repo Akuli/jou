@@ -28,7 +28,7 @@ def check_const(jou_file: JouFile*, const_stmt: AstConstStatement*, location: Lo
         fail(location, "cannot evaluate value of constant at compile time")
 
     # TODO: allow implicit casts?
-    if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
+    if value.get_type() != expected_type:
         msg: byte[500]
         snprintf(
             msg, sizeof(msg),
@@ -59,7 +59,7 @@ def check_global_var_def(jou_file: JouFile*, global_stmt: AstGlobalVarDef*, loca
             global_stmt.symbol.type = value.get_type()
         else:
             # TODO: allow implicit casts?
-            if value.get_type().unwrap_typedef() != expected_type.unwrap_typedef():
+            if value.get_type() != expected_type:
                 msg: byte[500]
                 snprintf(
                     msg, sizeof(msg),
@@ -107,8 +107,8 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
         case AstStatementKind.Enum:
             stmt.symbol().type = create_enum(stmt.symbol().name, stmt.enumdef.members)
         case AstStatementKind.TypeDef:
-            actual_type = type_from_ast(jou_file, NULL, &stmt.typedef_statement.ast_type).unwrap_typedef()
-            stmt.symbol().type = create_typedef_type(stmt.symbol().name, actual_type)
+            actual_type = type_from_ast(jou_file, NULL, &stmt.typedef_statement.ast_type)
+            stmt.symbol().type = actual_type
         case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
             stmt.symbol().signature = typecheck_signature(jou_file, &stmt.function, NULL)
         case AstStatementKind.Class:

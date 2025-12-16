@@ -257,7 +257,7 @@ def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_clas
         sig.return_type = type_from_ast(jou_file, self_class, &astsig.return_type)
 
     if sig.is_main_function():
-        if sig.return_type == NULL or sig.return_type.unwrap_typedef() != int_type(32):
+        if sig.return_type == NULL or sig.return_type != int_type(32):
             fail(astsig.return_type.location, "the main() function must return int")
         if (
             sig.args.len != 0
