@@ -135,6 +135,9 @@ function transpile_with_python_and_compile() {
 
         # Compiler uses utf8_encode_char() to detect bad characters in Jou code.
         # Let's make it return something that is not in the code so it finds no bad characters.
+        #
+        # We can't just compile with the original stdlib/utf8.jou, because it
+        # uses a bitwise shift (<<=) that the bootstrap transpiler doesn't know.
         mv -v stdlib/utf8.jou stdlib/utf8_old.jou
         echo '
 @public
