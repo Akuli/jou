@@ -1,5 +1,7 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
 import "./imported/typedef.jou"
 
 if WINDOWS:
@@ -11,6 +13,7 @@ else:
 
 typedef Thingy2 = Thingy1
 typedef Thingy = Thingy2
+typedef L = List[int]
 
 
 def get_the_zero(t: Thingy) -> Thingy:
@@ -28,6 +31,12 @@ def main() -> int:
 
     # No unnecessary cast warning on any platform even if it is the same type.
     printf(fmt, 12 as Thingy)  # Output: 12
+
+    # https://github.com/Akuli/jou/issues/1057
+    x = L{}
+    x.append(123)
+    printf("%d\n", x.ptr[0])  # Output: 123
+    free(x.ptr)
 
     zero: Thingy = 0
     assert get_the_zero(1234) == zero
