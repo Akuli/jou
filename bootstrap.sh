@@ -162,8 +162,12 @@ def utf8_encode_char(u: uint32) -> byte*:
         #       failed on creating an AstExpression on stack with all the
         #       different kinds of expressions as struct members instead of
         #       union members...
+        #
+        #       UPDATE: We hit the Windows stack limit again... and I just
+        #       bumped it to 16M instead of the default 1M. Maybe some day I
+        #       will clean this up :)
         if [[ "$OS" =~ Windows ]]; then
-            $clang -w -O2 compiler.c -o jou$exe_suffix ${windows_llvm_files[@]}
+            $clang -w -O2 compiler.c -o jou$exe_suffix -Wl,--stack,16777216 ${windows_llvm_files[@]}
         else
             $clang -w -O2 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
         fi
