@@ -13,6 +13,7 @@ Jou has the following signed integer types:
 | `int16`           | 2 bytes (16 bits) | `%d`          | `-32_768`                     | `32_767`                      |
 | `int32` or `int`  | 4 bytes (32 bits) | `%d`          | `-2_147_483_648`              | `2_147_483_647`               |
 | `int64`           | 8 bytes (64 bits) | `%lld`        | `-9_223_372_036_854_775_808`  | `9_223_372_036_854_775_807`   |
+| `intnative`       | 4 or 8 bytes      | `%zd`         | one of the above two values   | one of the above two values   |
 
 And the following unsigned integer types:
 
@@ -23,32 +24,39 @@ And the following unsigned integer types:
 | `uint32`          | 4 bytes (32 bits) | `%u`          | `0`       | `4_294_967_295`               |
 | `uint64`          | 8 bytes (64 bits) | `%llu`        | `0`       | `18_446_744_073_709_551_615`  |
 
+Values of integers in Jou code may contain underscores.
+They are ignored, but they often make large numbers much more readable.
+The minimum and maximum values shown above are also in [stdlib/limits.jou](../stdlib/limits.jou).
+
 For convenience, the most commonly used types have simpler names:
 `byte` always means same as `uint8` and `int` always means same as `int32`.
 
-Values of integers in Jou code may contain underscores.
-They are ignored, but they often make large numbers much more readable.
+The `intnative` type is defined in [stdlib/intnative.jou](../stdlib/intnative.jou),
+not built-in like other integer types shown here.
+It is `int` on 32-bit platforms and `int64` on 64-bit platforms.
+This is useful, for example, when you want an integer type that is
+always the same size as C's `size_t` data type.
+So, if you don't care about supporting 32-bit systems,
+just think of `intnative` as another name for `int64`.
+Similarly, if your code only needs to run on 32-bit systems,
+you can think of `intnative` as another name for `int`.
 
-The minimum and maximum values shown above are also in [stdlib/limits.jou](../stdlib/limits.jou).
-
-Integers wrap around if you exceed their minimum/maximum values.
-For example, `(0 as byte) - (1 as byte)` produces `255 as byte`.
-It is not possible to invoke [UB](ub.md) by overflowing integers.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if you need a corresponding `uintnative` type.
 
 When printing, `%d` can be used for anything smaller than 32 bits,
 because values smaller than `int` are automatically converted to `int`.
 With 32-bit and 64-bit values, you need to be more careful:
-use `u` for unsigned and add `ll` for 64-bit values.
+use `u` for unsigned, and add `ll` for 64-bit values or `z` for native-size values.
 
 The `ll` in `%lld` and `%llu` is short for "long long",
 which is basically C's way to say "64-bit number".
-Do not use `%ld` or `%lu`, because
-it prints a 32-bit value on Windows and a 64-bit value on most other systems.
+Do not use `%ld` or `%lu`, because they are like `%lld` and `%llu`,
+except that on 64-bit Windows they print 32-bit values.
 
-There's also the `intnative` type, defined in [stdlib/intnative.jou](../stdlib/intnative.jou).
-It is `int` on 32-bit platforms and `int64` on 64-bit platforms.
-This is useful, for example, when you want an integer type that is
-always the same size as C's `size_t` data type.
+Integers wrap around if you exceed their minimum/maximum values.
+For example, `(0 as byte) - (1 as byte)` produces `255 as byte`.
+It is not possible to invoke [UB](ub.md) by overflowing integers.
 
 
 ## Floating-point numbers
