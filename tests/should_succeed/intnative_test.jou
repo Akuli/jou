@@ -1,0 +1,12 @@
+import "stdlib/intnative.jou"
+import "stdlib/io.jou"
+
+def main() -> int:
+    # This test should work on 32-bit and 64-bit even though the data types
+    # are different.
+    a: intnative = 2000000000
+    b: intnative = -2000000000
+    printf("%zd\n", a)  # Output: 2000000000
+    printf("%zd\n", b)  # Output: -2000000000
+
+    return 0

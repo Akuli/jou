@@ -74,7 +74,7 @@ def test_pop() -> None:
     # Output: pop() -> 11
     # Output: 0 items
     while True:
-        printf("%d items\n", list.len as int)
+        printf("%zd items\n", list.len)
         if list.len == 0:
             break
         printf("pop() -> %d\n", list.pop())
@@ -90,7 +90,7 @@ def test_pop() -> None:
     list.append(2)
     list.append(3)
     # Output: len=3 [1,2,3]
-    printf("len=%d [%d,%d,%d]\n", list.len as int, list.ptr[0], list.ptr[1], list.ptr[2])
+    printf("len=%zd [%d,%d,%d]\n", list.len, list.ptr[0], list.ptr[1], list.ptr[2])
 
     free(list.ptr)
 

@@ -110,7 +110,7 @@ def main() -> int:
     numbers.append(56)
 
     # Output: it has 3 items
-    printf("it has %d items\n", numbers.len as int)
+    printf("it has %zd items\n", numbers.len)
 
     # Output: 12
     # Output: 34
@@ -124,39 +124,13 @@ def main() -> int:
     return 0
 ```
 
+Because the type of `numbers.len` is `intnative` [as explained below](#how-lists-are-implemented),
+it [should be printed with `%zd`](types.md#integers).
+
 Here `List[int]{}` is [the syntax for creating a new instance of a class](classes.md#instantiating-syntax).
 In this case, the class is `List[int]`, which means a list of `int`s.
 Instead of `int`, you can use any other type.
 For example, `List[byte*]{}` is an empty list of strings.
-
-
-## Printing the Length
-
-Above we used `printf("it has %d items\n", numbers.len as int)`.
-Because `numbers.len` is of type [`intnative`, which is either `int` or `int64`](../stdlib/intnative.jou),
-converting to `int` is an easy and cross-platform way to print it.
-
-If you want your printing to work even if the list contains
-[more than 2147483647 items](tutorial.md#byte-int-int64),
-you can instead convert to `int64` and [use `%lld` to print it](types.md#integers):
-
-```python
-import "stdlib/io.jou"
-import "stdlib/list.jou"
-import "stdlib/mem.jou"
-
-def main() -> int:
-    numbers = List[int]{}
-    numbers.append(12)
-    numbers.append(34)
-    numbers.append(56)
-
-    printf("%d\n", numbers.len as int)      # Output: 3
-    printf("%lld\n", numbers.len as int64)  # Output: 3
-
-    free(numbers.ptr)
-    return 0
-```
 
 
 ## What does `free(list.ptr)` do?
@@ -246,7 +220,7 @@ class SimpleList:
     len: int64
 ```
 
-An even better choice is the `intnative` type from [stdlib/intnative.jou](../stdlib/intnative.jou).
+An even better choice is [the `intnative` type](types.md#integers) from [stdlib/intnative.jou](../stdlib/intnative.jou).
 It is `int` on 32-bit systems and `int64` on 64-bit systems.
 Many functions in [stdlib/mem.jou](../stdlib/mem.jou) expect sizes to be specified with `intnative`,
 so with `len: int64`, cross-platform code would need to use a lot of `list.len as intnative`
