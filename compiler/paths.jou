@@ -1,6 +1,5 @@
 import "stdlib/assert.jou"
 import "stdlib/ascii.jou"
-import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
@@ -16,6 +15,7 @@ if WINDOWS:
 elif MACOS:
     declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
 else:
+    import "stdlib/intnative.jou"
     declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
 
 if WINDOWS:
