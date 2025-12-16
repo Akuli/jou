@@ -22,13 +22,10 @@ import "./ast_to_builder.jou"
 
 def hash_type(hash: Hash*, type: Type*) -> None:
     assert type != NULL
-    type = type.unwrap_typedef()
 
     hash.add_string("type")
     hash.add_int(type.kind as int)
     match type.kind:
-        case TypeKind.TypeDef:
-            assert False  # already handled
         case TypeKind.Array:
             hash.add_int64(type.array.count)
             hash_type(hash, type.array.item_type)
@@ -107,7 +104,6 @@ class HBuilder:
     # Hashes and returns a unique ID number that represents a value in code.
     # Also hashes the type, because a changed type may be enough to need a recompile.
     def new_value(self, t: Type*) -> HBuilderValue:
-        t = t.unwrap_typedef()
         id = self.id_counter++
         self.hash.add_int64(id)
         if t == NULL:

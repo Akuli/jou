@@ -88,9 +88,15 @@ if [[ "$OS" =~ Windows ]]; then
 else
     jouexe="./jou"
 fi
+if [ $(getconf LONG_BIT) = 32 ]; then
+    intnative=int
+else
+    intnative=int64
+fi
 
 echo "<joudir> in expected output will be replaced with $joudir."
 echo "<jouexe> in expected output will be replaced with $jouexe."
+echo "<intnative> in expected output will be replaced with $intnative."
 
 if [ $run_make = yes ]; then
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
@@ -126,7 +132,7 @@ function generate_expected_output()
             (grep --binary-files=text -onH '# Warning: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
             (grep --binary-files=text -onH '# Error: .*' $joufile || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
             (grep --binary-files=text -oE '# Output:.*' $joufile || true) | sed -E s/'^# Output: ?'//
-        ) | sed "s,<joudir>,$joudir,g" | sed "s,<jouexe>,$jouexe,g"
+        ) | sed "s,<intnative>,$intnative,g" | sed "s,<joudir>,$joudir,g" | sed "s,<jouexe>,$jouexe,g"
     fi
     echo "Exit code: $correct_exit_code"
 }

@@ -348,7 +348,7 @@ class AstToBuilder:
         ptr = self.build_address_of_expression(inner)
         old_value = self.builder.dereference(ptr)
 
-        t = inner.types.implicit_cast_type.unwrap_typedef()
+        t = inner.types.implicit_cast_type
         if t.is_number_type():
             new_value = self.builder.add(old_value, self.builder.cast(self.builder.integer(int_type(32), diff), t))
         else:

@@ -101,8 +101,6 @@ def type_to_llvm(state: ThreadLocalCompilerState*, type: Type*) -> LLVMType*:
         return LLVMVoidTypeInContext(state.llvm_context)
 
     match type.kind:
-        case TypeKind.TypeDef:
-            return type_to_llvm(state, type.typedef_actual_type)
         case TypeKind.Array:
             return LLVMArrayType(type_to_llvm(state, type.array.item_type), type.array.count)
         case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
@@ -325,9 +323,6 @@ def build_llvm_cast(
     assert from != NULL
     assert to != NULL
 
-    from = from.unwrap_typedef()
-    to = to.unwrap_typedef()
-
     # Always treat enums as ints
     if from.kind == TypeKind.Enum:
         from = int_type(32)
@@ -450,7 +445,7 @@ class LBuilder:
     def dereference(self, ptr: LBuilderValue) -> LBuilderValue:
         assert ptr.type.kind == TypeKind.Pointer
         llvm_result = LLVMBuildLoad2(self.llvm_builder, type_to_llvm(self.state, ptr.type.value_type), ptr.llvm_value, "dereference")
-        return LBuilderValue{type = ptr.type.value_type.unwrap_typedef(), llvm_value = llvm_result}
+        return LBuilderValue{type = ptr.type.value_type, llvm_value = llvm_result}
 
     # Returns &ptr[index]
     def indexed_pointer(self, ptr: LBuilderValue, index: LBuilderValue) -> LBuilderValue:
@@ -494,7 +489,7 @@ class LBuilder:
     # i'th argument given to this function
     def get_argument(self, i: int, argtype: Type*) -> LBuilderValue:
         llvm_result = LLVMGetParam(self.llvm_func, i)
-        return LBuilderValue{type = argtype.unwrap_typedef(), llvm_value = llvm_result}
+        return LBuilderValue{type = argtype, llvm_value = llvm_result}
 
     def call_function(self, funcptr_type: Type*, func: LBuilderValue, args: LBuilderValue*, nargs: int) -> LBuilderValue:
         assert nargs <= MAX_ARGS
@@ -520,7 +515,7 @@ class LBuilder:
             return LBuilderValue{}
         else:
             assert llvm_return_value != NULL
-            return LBuilderValue{type = funcptr_type.func_ptr.return_type.unwrap_typedef(), llvm_value = llvm_return_value}
+            return LBuilderValue{type = funcptr_type.func_ptr.return_type, llvm_value = llvm_return_value}
 
     # self must be included in args
     def call_method(self, sig: Signature*, args: LBuilderValue*, nargs: int) -> LBuilderValue:
@@ -551,7 +546,7 @@ class LBuilder:
             return LBuilderValue{}
         else:
             assert llvm_return_value != NULL
-            return LBuilderValue{type = sig.return_type.unwrap_typedef(), llvm_value = llvm_return_value}
+            return LBuilderValue{type = sig.return_type, llvm_value = llvm_return_value}
 
     def array_of_bytes(self, bytes: List[byte]) -> LBuilderValue:
         assert bytes.len <= UINT32_MAX
@@ -588,7 +583,6 @@ class LBuilder:
         }
 
     def zero_of_type(self, t: Type*) -> LBuilderValue:
-        assert t.kind != TypeKind.TypeDef
         return LBuilderValue{
             type = t,
             llvm_value = LLVMConstNull(type_to_llvm(self.state, t)),
@@ -752,7 +746,6 @@ class LBuilder:
 
     # value as to
     def cast(self, value: LBuilderValue, to: Type*) -> LBuilderValue:
-        to = to.unwrap_typedef()
         llvm_result = build_llvm_cast(self.state, self.llvm_builder, value.llvm_value, value.type, to)
         return LBuilderValue{type = to, llvm_value = llvm_result}
 
