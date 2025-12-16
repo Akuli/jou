@@ -26,7 +26,6 @@ numbered_commits=(
     022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # bootstrap_transpiler.py used to start here, maybe not needed now...
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
     024_0d4b4082f6569131903af02ba5508210b8b474d8  # <--- bootstrap_transpiler.py starts here!
-    025_0d4b4082f6569131903af02ba5508210b8b474d8  # This needs to be repeated, because the transpiled compiler is buggy, but good enough to correctly compile itself
 )
 
 # This should be an item of the above list according to what
@@ -136,7 +135,7 @@ function transpile_with_python_and_compile() {
 
         # Complier uses utf8_encode_char() to detect bad characters in Jou code.
         # Let's make it return something that is not in the code so it finds no bad characters.
-        rm stdlib/utf8.jou
+        mv -v stdlib/utf8.jou stdlib/utf8_old.jou
         echo '
 @public
 def utf8_encode_char(u: uint32) -> byte*:
@@ -161,9 +160,22 @@ def utf8_encode_char(u: uint32) -> byte*:
         #       bumped it to 16M instead of the default 1M. Maybe some day I
         #       will clean this up :)
         if [[ "$OS" =~ Windows ]]; then
-            $clang -w -O2 compiler.c -o jou$exe_suffix -Wl,--stack,16777216 ${windows_llvm_files[@]}
+            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -Wl,--stack,16777216 ${windows_llvm_files[@]}
         else
-            $clang -w -O2 compiler.c -o jou$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+        fi
+
+        # Transpiling produces a broken Jou compiler for some reason. I don't
+        # know why. But if I recompile once more, it fixes itself.
+        mv -v stdlib/utf8_old.jou stdlib/utf8.jou
+        echo "Compiling the same Jou code again with the compiler we just made..."
+        if [[ "$OS" =~ Windows ]]; then
+            # Use correct path to mingw64. This used to copy the mingw64 folder,
+            # but it was slow and wasted disk space. Afaik symlinks aren't really a
+            # thing on windows.
+            JOU_MINGW_DIR=../../../mingw64 ./jou_from_c.exe -o jou.exe compiler/main.jou
+        else
+            ./jou_from_c -o jou compiler/main.jou
         fi
     )
 }
