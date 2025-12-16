@@ -133,7 +133,7 @@ function transpile_with_python_and_compile() {
             sed -i s/LLVM_HAS_AARCH64/True/g compiler/target.jou
         fi
 
-        # Complier uses utf8_encode_char() to detect bad characters in Jou code.
+        # Compiler uses utf8_encode_char() to detect bad characters in Jou code.
         # Let's make it return something that is not in the code so it finds no bad characters.
         mv -v stdlib/utf8.jou stdlib/utf8_old.jou
         echo '
