@@ -127,6 +127,13 @@ function transpile_with_python_and_compile() {
     (
         cd $folder
 
+        if [[ "$OS" =~ Windows ]]; then
+            # An if statement inside a function should get evaluated at compile time, but it doesn't
+            echo "Patching Jou code to assume aarch64 support exists..."
+            grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if there's nothing to replace
+            sed -i s/LLVM_HAS_AARCH64/True/g compiler/target.jou
+        fi
+
         # Complier uses utf8_encode_char() to detect bad characters in Jou code.
         # Let's make it return something that is not in the code so it finds no bad characters.
         rm stdlib/utf8.jou
