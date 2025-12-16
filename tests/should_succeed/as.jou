@@ -34,9 +34,10 @@ def main() -> int:
 
     # If it's already the right type, the cast does nothing.
     #
-    # We don't show a warning for these casts, because these are useful when the
-    # type is somehow platform-dependent, e.g. `x as int64` where `x` is an
-    # `intnative` on a 64-bit system.
+    # We don't show a warning for these casts, because these are useful when
+    # the type is somehow platform-dependent. For example, if the type of `x`
+    # is `intnative`, then `x as int` and `x as int64` should succeed without
+    # warnings on 32-bit and 64-bit systems.
     one = 1 as int  
     printf("%d\n", one)  # Output: 1
 
