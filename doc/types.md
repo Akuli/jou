@@ -51,8 +51,11 @@ use `u` for unsigned, and add `ll` for 64-bit values or `z` for native-size valu
 
 The `ll` in `%lld` and `%llu` is short for "long long",
 which is basically C's way to say "64-bit number".
-Do not use `%ld` or `%lu`, because they are like `%lld` and `%llu`,
-except that on 64-bit Windows they print 32-bit values.
+
+There is also `%ld` and `%lu`,
+but I don't recommend using them in Jou code because their behavior on different platforms is surprising:
+they print a native-size value on all platforms except that on 64-bit Windows,
+they print a 32-bit value.
 
 Integers wrap around if you exceed their minimum/maximum values.
 For example, `(0 as byte) - (1 as byte)` produces `255 as byte`.
