@@ -32,11 +32,12 @@ def main() -> int:
     printf("%lld\n", n)  # Output: 123123123123123
     printf("%d bytes (%d bits)\n", sizeof(n), sizeof(n)*8)  # Output: 8 bytes (64 bits)
 
-    one = 1 as int  # Warning: unnecessary cast from int to int
-    printf("%d\n", one)  # Output: 1
-
-    # Not unnecessary cast, otherwise y would become int
-    y = 123 as int64
-    printf("%lld\n", y)  # Output: 123
+    # If it's already the right type, the cast does nothing.
+    #
+    # We don't show a warning for these casts, because these are useful when
+    # the type is somehow platform-dependent. For example, if the type of `x`
+    # is `intnative`, then `x as int` and `x as int64` should succeed without
+    # warnings on 32-bit and 64-bit systems.
+    printf("%d\n", 1 as int)  # Output: 1
 
     return 0
