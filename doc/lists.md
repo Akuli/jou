@@ -220,7 +220,7 @@ class SimpleList:
     len: int64
 ```
 
-An even better choice is [the `intnative` type](../types.md#integers) from [stdlib/intnative.jou](../stdlib/intnative.jou).
+An even better choice is [the `intnative` type](types.md#integers) from [stdlib/intnative.jou](../stdlib/intnative.jou).
 It is `int` on 32-bit systems and `int64` on 64-bit systems.
 Many functions in [stdlib/mem.jou](../stdlib/mem.jou) expect sizes to be specified with `intnative`,
 so with `len: int64`, cross-platform code would need to use a lot of `list.len as intnative`
