@@ -45,6 +45,11 @@ which is basically C's way to say "64-bit number".
 Do not use `%ld` or `%lu`, because
 it prints a 32-bit value on Windows and a 64-bit value on most other systems.
 
+There's also the `intnative` type, defined in [stdlib/intnative.jou](../stdlib/intnative.jou).
+It is `int` on 32-bit platforms and `int64` on 64-bit platforms.
+This is useful, for example, when you want an integer type that is
+always the same size as C's `size_t` data type.
+
 
 ## Floating-point numbers
 

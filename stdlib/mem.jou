@@ -1,13 +1,15 @@
 # Memory management
 
+import "stdlib/intnative.jou"
+
 # Heap allocations
 # TODO: write a tutorial about using these and add a link
 @public
-declare malloc(size: int64) -> void*  # allocate memory
+declare malloc(size: intnative) -> void*  # allocate memory
 @public
-declare calloc(a: int64, b: int64) -> void*  # allocate a*b bytes of memory and zero it
+declare calloc(a: intnative, b: intnative) -> void*  # allocate a*b bytes of memory and zero it
 @public
-declare realloc(ptr: void*, new_size: int64) -> void*  # grow/shrink allocated memory
+declare realloc(ptr: void*, new_size: intnative) -> void*  # grow/shrink allocated memory
 @public
 declare free(ptr: void*) -> None  # release allocated memory so it can be reused
 
@@ -17,7 +19,7 @@ declare free(ptr: void*) -> None  # release allocated memory so it can be reused
 #   memset(&foo, 0, sizeof(foo))
 #
 @public
-declare memset(dest: void*, fill_byte: int, size: int64) -> void*
+declare memset(dest: void*, fill_byte: int, size: intnative) -> void*
 
 # These functions copy memory from one place to another. Source and destination
 # are of the same size, and pointers to their start are given.
@@ -28,9 +30,9 @@ declare memset(dest: void*, fill_byte: int, size: int64) -> void*
 #   - it is a hint to people reading the code that there will be no overlap
 #   - it may be slightly faster.
 @public
-declare memcpy(dest: void*, source: void*, size: int64) -> void*  # copy memory, overlaps are UB
+declare memcpy(dest: void*, source: void*, size: intnative) -> void*  # copy memory, overlaps are UB
 @public
-declare memmove(dest: void*, source: void*, size: int64) -> void*  # copy memory, overlaps are ok
+declare memmove(dest: void*, source: void*, size: intnative) -> void*  # copy memory, overlaps are ok
 
 # Compare two memory regions of the same size. Return 0 if they contain the
 # same bytes, nonzero if different bytes.
@@ -44,7 +46,7 @@ declare memmove(dest: void*, source: void*, size: int64) -> void*  # copy memory
 #
 # This is somewhat similar to strcmp() in stdlib/str.jou.
 @public
-declare memcmp(a: void*, b: void*, size: int64) -> int
+declare memcmp(a: void*, b: void*, size: intnative) -> int
 
 # Swaps the contents of two memory regions of the same size.
 # This does nothing if the same memory region is passed twice.
