@@ -26,6 +26,7 @@ numbered_commits=(
     022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # <--- bootstrap_transpiler.py starts here!
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
     024_0d4b4082f6569131903af02ba5508210b8b474d8  # array_count, enum_count, jou --check, jou_compiled cache bug fix, more fixes
+    025_5c60bc1f68efb3f957730bd97eb4607415368dd4  # parallel compiling, typedef fixes, initial values of globals, embed_file()
 )
 
 # This should be an item of the above list according to what
