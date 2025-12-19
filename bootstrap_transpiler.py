@@ -95,6 +95,7 @@ def tokenize(jou_code, path):
         | \b match \b
         | \b with \b
         | \b case \b
+        | \b array_count \b
     )
     | (?P<name> [^\W\d] \w* )                   # "foo"
     | (?P<decorator> @public | @inline )
@@ -645,7 +646,7 @@ class Parser:
                 self.eat("*")
             else:
                 self.eat("[")
-                if self.tokens[0].kind.startswith("int") or result[0] != "named_type":
+                if self.tokens[0].kind.startswith("int") or result[0] != "named_type" or self.tokens[0].code == "MAX_ARGS":
                     # Array, e.g. int[10]
                     #
                     # TODO: This way to distinguish arrays and generics prevents using
@@ -853,7 +854,7 @@ class Parser:
 
     def parse_expression_with_unary_operators(self):
         prefix = []
-        while self.tokens[0].code in {"++", "--", "&", "*", "sizeof"}:
+        while self.tokens[0].code in {"++", "--", "&", "*", "sizeof", "array_count"}:
             prefix.append(self.tokens.pop(0))
 
         result = self.parse_expression_with_members_and_indexing_and_calls()
@@ -887,9 +888,15 @@ class Parser:
                     kind = "address_of"
                 elif token.code == "sizeof":
                     kind = "sizeof"
+                elif token.code == "array_count":
+                    kind = "array_count"
                 else:
                     assert False
-            result = (kind, result)
+            if kind == "array_count":
+                # array_count(x) == sizeof(x)/sizeof(x[0])
+                result = ("div", ("sizeof", result), ("sizeof", ("[", result, ("integer_constant", 0))))
+            else:
+                result = (kind, result)
 
         return result
 
@@ -1826,8 +1833,15 @@ def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouTy
         return find_named_type(path, name)
     if ast[0] == "array":
         _, item_type_ast, length_ast = ast
-        assert length_ast[0] == "integer_constant"
-        _, length = length_ast
+        if length_ast[0] == "integer_constant":
+            _, length = length_ast
+        else:
+            assert length_ast[0] == "get_variable", length_ast
+            _, length_varname = length_ast
+            length_value = find_constant(path, length_varname)
+            assert length_value.c_code.startswith('((int32_t)(')
+            assert length_value.c_code.endswith('ULL))')
+            length = int(length_value.c_code[11:-5])
         return type_from_ast(path, item_type_ast, typesub=typesub).array_type(length)
     if ast[0] == "generic":
         _, class_name, [param_type_ast] = ast
