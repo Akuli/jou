@@ -16,6 +16,7 @@ set -e -o pipefail
 #
 # The numbering does not start from 0 for historical reasons. Commit 001 was
 # just before the original compiler written in C was deleted.
+x=$(git rev-parse origin/main^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^)
 numbered_commits=(
     016_98c5fb2792eaac8bbe7496a176808d684f631d82  # <--- "./windows_setup.sh --small" starts from here! (release 2025-04-08-2200)
     017_eed3b974ccb42a01339ead7f6dcaa0913ca2cd64  # fixed-size integer types, e.g. uint64
@@ -25,13 +26,14 @@ numbered_commits=(
     021_9339a749315b82f73d19bacdccab5ee327c44822  # accessing fields and methods on pointers with '.' instead of '->'
     022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # bootstrap_transpiler.py used to start here, maybe not needed now...
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
-    024_0d4b4082f6569131903af02ba5508210b8b474d8  # <--- bootstrap_transpiler.py starts here!
-    025_5c60bc1f68efb3f957730bd97eb4607415368dd4  # parallel compiling, typedef fixes, initial values of globals, embed_file()
+    024_0d4b4082f6569131903af02ba5508210b8b474d8  # TODO: write something here
+    025_$x
+    026_5c60bc1f68efb3f957730bd97eb4607415368dd4  # Ideally bootstrap_transpiler.py would start here...
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=024_0d4b4082f6569131903af02ba5508210b8b474d8
+bootstrap_transpiler_numbered_commit=025_$x
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
