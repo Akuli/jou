@@ -96,6 +96,7 @@ def tokenize(jou_code, path):
         | \b with \b
         | \b case \b
         | \b array_count \b
+        | \b typedef \b
     )
     | (?P<name> [^\W\d] \w* )                   # "foo"
     | (?P<decorator> @public | @inline )
@@ -1036,6 +1037,12 @@ class Parser:
             name, type, value = self.parse_name_type_value()
             assert value is not None
             result = ("const", name, type, value, decors)
+        elif self.tokens[0].code == "typedef":
+            self.eat("typedef")
+            name = self.eat("name").code
+            self.eat("=")
+            actual_type = self.parse_type()
+            result = ("typedef", name, actual_type, decors)
         elif self.tokens[0].kind == "name" and self.tokens[1].code == ":":
             name, type, value = self.parse_name_type_value()
             # e.g. "foo: int"
@@ -1310,6 +1317,9 @@ def parse_file(path):
     with open(path, encoding="utf-8") as f:
         content = f.read()
 
+    # TODO: hacks to work around lack of function pointers support
+    content = content.replace("funcptr(void*) -> void*", "void*")  # declare pthread_create(...)
+
     tokens = tokenize(content, path)
 
     parser = Parser(path, tokens)
@@ -1519,6 +1529,9 @@ def find_named_type(path: str, type_name: str, *, fwd_decl_is_enough: bool = Fal
         if item[:2] == ("enum", type_name):
             result = BASIC_TYPES["int"]
             break
+        if item[:2] == ("typedef", type_name):
+            result = type_from_ast(path, item[2])
+            break
 
     if result is None:
         # Is there a class or enum definition in some imported file?
@@ -1527,7 +1540,7 @@ def find_named_type(path: str, type_name: str, *, fwd_decl_is_enough: bool = Fal
                 _, path2, location = item
                 for item2 in ASTS[path2]:
                     if (
-                        item2[0] in ("class", "enum")
+                        item2[0] in ("class", "enum", "typedef")
                         and item2[1] == type_name
                         and "@public" in item2[-2]
                     ):
