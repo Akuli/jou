@@ -16,7 +16,7 @@ set -e -o pipefail
 #
 # The numbering does not start from 0 for historical reasons. Commit 001 was
 # just before the original compiler written in C was deleted.
-x=$(git rev-parse origin/main^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^)
+x=$(git rev-parse origin/main^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^)
 numbered_commits=(
     016_98c5fb2792eaac8bbe7496a176808d684f631d82  # <--- "./windows_setup.sh --small" starts from here! (release 2025-04-08-2200)
     017_eed3b974ccb42a01339ead7f6dcaa0913ca2cd64  # fixed-size integer types, e.g. uint64
