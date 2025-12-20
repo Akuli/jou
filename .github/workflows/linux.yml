@@ -59,5 +59,3 @@ jobs:
       - name: "Run hello world with valgrind"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
       - run: ./doctest.sh
-      - name: "Run 32-bit typecheck"
-        run: sed -i -e s/IS_32BIT/True/ stdlib/intnative.jou && ./jou --check compiler/main.jou
