@@ -35,7 +35,7 @@ if WINDOWS:
     declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
     const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
 else:
-    declare sysconf(n: int) -> int64
+    declare sysconf(n: int) -> intnative
     if MACOS:
         const _SC_NPROCESSORS_ONLN: int = 58
     elif NETBSD:
