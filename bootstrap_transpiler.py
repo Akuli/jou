@@ -1340,6 +1340,7 @@ def parse_file(path):
         "WINDOWS": jou_bool(sys.platform == "win32"),
         "MACOS": jou_bool(sys.platform == "darwin"),
         "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
+        "IS_32BIT": jou_bool(sys.maxsize < 2**32),
     }
     ENUMS[path] = {}
 
