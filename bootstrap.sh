@@ -165,9 +165,9 @@ def utf8_encode_char(u: uint32) -> byte*:
         #       bumped it to 16M instead of the default 1M. Maybe some day I
         #       will clean this up :)
         if [[ "$OS" =~ Windows ]]; then
-            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -Wl,--stack,16777216 ${windows_llvm_files[@]}
+            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread -Wl,--stack,16777216 ${windows_llvm_files[@]}
         else
-            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread $(grep ^link config.jou | cut -d'"' -f2)
         fi
 
         # Transpiling produces a broken Jou compiler for some reason. I don't
