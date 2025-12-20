@@ -1,6 +1,9 @@
 import "stdlib/io.jou"
 import "stdlib/time.jou"
 
+if not NETBSD:
+    import "stdlib/intnative.jou"
+
 def main() -> int:
     # Check that `time()` function returns seconds since 1970 by calculating
     # the current year. This test will break after a few years, but I want to
@@ -17,9 +20,12 @@ def main() -> int:
         printf("year ok\n")
 
     # Ensure that `time()` return value matches what it places in the pointer
-    t1: int64 = 0x1234_5678_abcd_cafe
+    if NETBSD:
+        t1: int64 = 0x1234_5678_abcd_cafe
+    else:
+        t1: intnative = 0xffff
     t2 = time(&t1)
     if t1 != t2:
-        printf("wat %lld %lld\n", t1, t2)
+        printf("wat %lld %lld\n", t1 as int64, t2 as int64)
 
     return 0
