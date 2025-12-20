@@ -85,7 +85,7 @@ def run_linker(exepath: byte*) -> None:
         asprintf(&command, "\"\"%s\\bin\\gcc.exe\" %s -o \"%s\" %s\"", mingw_dir, quoted_object_files, exepath, linker_flags)
         free(mingw_dir)
     else:
-        # Assume clang is installed and use it to link. Could use lld, but clang is needed anyway.
+        # Assume clang is installed and use it to link. Could use ld, but clang is needed anyway.
         asprintf(&command, "'%s' %s -o '%s' %s", JOU_CLANG_PATH, quoted_object_files, exepath, linker_flags)
 
     free(linker_flags)

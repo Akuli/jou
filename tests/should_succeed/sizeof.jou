@@ -42,8 +42,8 @@ def main() -> int:
     # Evaluating a sizeof has no side effects.
     printf("%d\n", sizeof side_effect())  # Output: 4
 
-    # Size of strings. Size of byte* is 8 on 64-bit system.
-    # Output: 6 100 8
+    # Size of strings. Size of byte* is expected to be 4 or 8.
+    # Output: 6 100 <pointersize>
     printf(
         "%d %d %d\n",
         sizeof("hello"),

@@ -785,7 +785,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
     if call.args.len < nparams or (call.args.len > nparams and not takes_varargs):
         snprintf(
             msg, sizeof(msg),
-            "%s takes %d argument%s, but it was called with %lld argument%s",
+            "%s takes %zd argument%s, but it was called with %zd argument%s",
             what_we_calling,
             nparams,
             plural_s(nparams),
@@ -1077,7 +1077,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             ):
                 s = expr.constant.pointer_string
                 if strlen(s) >= type_hint.array.count:
-                    snprintf(msg, sizeof(msg), "a string of %lld bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint.name)
+                    snprintf(msg, sizeof(msg), "a string of %zd bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint.name)
                     fail(expr.location, msg)
                 expr.constant.kind = ConstantKind.ArrayOfBytes
                 expr.constant.array_of_bytes = List[byte]{}

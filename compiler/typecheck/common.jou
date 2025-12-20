@@ -179,7 +179,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             got = asttype.generic.param_types.len
             if expected != got:
                 snprintf(
-                    msg, sizeof(msg), "generic class %s takes %lld type parameter%s, but it is used with %lld type parameter%s",
+                    msg, sizeof(msg), "generic class %s takes %zd type parameter%s, but it is used with %zd type parameter%s",
                     gclass.name, expected, plural_s(expected), got, plural_s(got),
                 )
                 fail(asttype.location, msg)
