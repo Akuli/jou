@@ -88,10 +88,15 @@ if [[ "$OS" =~ Windows ]]; then
 else
     jouexe="./jou"
 fi
-if [ $(getconf LONG_BIT) = 32 ]; then
+
+if [ "$(getconf LONG_BIT 2>/dev/null)" = 32 ]; then
     intnative=int
 else
     intnative=int64
+fi
+
+if [ "$(uname)" = NetBSD ]; then
+    intnative=$(./jou tests/should_succeed/intnative_size.jou)
 fi
 
 echo "<joudir> in expected output will be replaced with $joudir."
