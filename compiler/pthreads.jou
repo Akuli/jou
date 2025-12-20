@@ -1,9 +1,10 @@
-link "-pthread"
-
 # TODO: move this to stdlib?
 
+import "stdlib/intnative.jou"
+link "-pthread"
+
 @public
-typedef pthread_t = int64  # usually size of pointer, so this assumes 64-bit platform
+typedef pthread_t = intnative  # size of pointer
 
 # Returns an ID describing the current thread. Useful for debug printing.
 @public

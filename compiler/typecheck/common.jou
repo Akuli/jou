@@ -212,7 +212,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             else:
                 return_type = type_from_ast(jou_file, containing_class, fp.return_type)
 
-            return funcptr_type(argtypes, nargs as int, fp.takes_varargs, return_type, fp.return_type.is_noreturn())
+            return funcptr_type(argtypes, nargs, fp.takes_varargs, return_type, fp.return_type.is_noreturn())
 
 
 @public

@@ -921,10 +921,10 @@ def cast_array_members_to_a_common_type(
                 break
 
     if compatible_with_all.len != 1:
-        size = 500
+        size: intnative = 500
         for t = distinct.ptr; t < distinct.end(); t++:
             size += 3  # 1 for comma, 1 for space, 1 because why not lol
-            size += strlen((*t).name) as int
+            size += strlen((*t).name)
 
         msg: byte* = malloc(size)
         assert msg != NULL
