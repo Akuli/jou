@@ -2271,7 +2271,7 @@ class CFuncMaker:
             return ptr_or_array_type.inner_type
 
         if expr[0] == "sizeof":
-            return BASIC_TYPES["int64"]
+            return BASIC_TYPES["int"]
 
         if expr[0] == "address_of":
             _, value = expr
@@ -2452,7 +2452,7 @@ class CFuncMaker:
         elif expr[0] == "sizeof":
             _, obj = expr
             type_c = self.guess_type(obj).to_c(fwd_decl_is_enough=False)
-            return JouValue(BASIC_TYPES["int64"], f"((int64_t) sizeof({type_c}))")
+            return JouValue(BASIC_TYPES["int"], f"((int32_t) sizeof({type_c}))")
 
         elif expr[0] == ".":
             _, obj_ast, field_name = expr
