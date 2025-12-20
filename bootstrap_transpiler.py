@@ -95,6 +95,8 @@ def tokenize(jou_code, path):
         | \b match \b
         | \b with \b
         | \b case \b
+        | \b array_count \b
+        | \b typedef \b
     )
     | (?P<name> [^\W\d] \w* )                   # "foo"
     | (?P<decorator> @public | @inline )
@@ -645,7 +647,7 @@ class Parser:
                 self.eat("*")
             else:
                 self.eat("[")
-                if self.tokens[0].kind.startswith("int") or result[0] != "named_type":
+                if self.tokens[0].kind.startswith("int") or result[0] != "named_type" or self.tokens[0].code == "MAX_ARGS":
                     # Array, e.g. int[10]
                     #
                     # TODO: This way to distinguish arrays and generics prevents using
@@ -853,7 +855,7 @@ class Parser:
 
     def parse_expression_with_unary_operators(self):
         prefix = []
-        while self.tokens[0].code in {"++", "--", "&", "*", "sizeof"}:
+        while self.tokens[0].code in {"++", "--", "&", "*", "sizeof", "array_count"}:
             prefix.append(self.tokens.pop(0))
 
         result = self.parse_expression_with_members_and_indexing_and_calls()
@@ -887,9 +889,15 @@ class Parser:
                     kind = "address_of"
                 elif token.code == "sizeof":
                     kind = "sizeof"
+                elif token.code == "array_count":
+                    kind = "array_count"
                 else:
                     assert False
-            result = (kind, result)
+            if kind == "array_count":
+                # array_count(x) == sizeof(x)/sizeof(x[0])
+                result = ("div", ("sizeof", result), ("sizeof", ("[", result, ("integer_constant", 0))))
+            else:
+                result = (kind, result)
 
         return result
 
@@ -1029,6 +1037,12 @@ class Parser:
             name, type, value = self.parse_name_type_value()
             assert value is not None
             result = ("const", name, type, value, decors)
+        elif self.tokens[0].code == "typedef":
+            self.eat("typedef")
+            name = self.eat("name").code
+            self.eat("=")
+            actual_type = self.parse_type()
+            result = ("typedef", name, actual_type, decors)
         elif self.tokens[0].kind == "name" and self.tokens[1].code == ":":
             name, type, value = self.parse_name_type_value()
             # e.g. "foo: int"
@@ -1303,6 +1317,9 @@ def parse_file(path):
     with open(path, encoding="utf-8") as f:
         content = f.read()
 
+    # TODO: hacks to work around lack of function pointers support
+    content = content.replace("funcptr(void*) -> void*", "void*")  # declare pthread_create(...)
+
     tokens = tokenize(content, path)
 
     parser = Parser(path, tokens)
@@ -1512,6 +1529,9 @@ def find_named_type(path: str, type_name: str, *, fwd_decl_is_enough: bool = Fal
         if item[:2] == ("enum", type_name):
             result = BASIC_TYPES["int"]
             break
+        if item[:2] == ("typedef", type_name):
+            result = type_from_ast(path, item[2])
+            break
 
     if result is None:
         # Is there a class or enum definition in some imported file?
@@ -1520,7 +1540,7 @@ def find_named_type(path: str, type_name: str, *, fwd_decl_is_enough: bool = Fal
                 _, path2, location = item
                 for item2 in ASTS[path2]:
                     if (
-                        item2[0] in ("class", "enum")
+                        item2[0] in ("class", "enum", "typedef")
                         and item2[1] == type_name
                         and "@public" in item2[-2]
                     ):
@@ -1826,8 +1846,15 @@ def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouTy
         return find_named_type(path, name)
     if ast[0] == "array":
         _, item_type_ast, length_ast = ast
-        assert length_ast[0] == "integer_constant"
-        _, length = length_ast
+        if length_ast[0] == "integer_constant":
+            _, length = length_ast
+        else:
+            assert length_ast[0] == "get_variable", length_ast
+            _, length_varname = length_ast
+            length_value = find_constant(path, length_varname)
+            assert length_value.c_code.startswith('((int32_t)(')
+            assert length_value.c_code.endswith('ULL))')
+            length = int(length_value.c_code[11:-5])
         return type_from_ast(path, item_type_ast, typesub=typesub).array_type(length)
     if ast[0] == "generic":
         _, class_name, [param_type_ast] = ast
@@ -2244,7 +2271,7 @@ class CFuncMaker:
             return ptr_or_array_type.inner_type
 
         if expr[0] == "sizeof":
-            return BASIC_TYPES["int64"]
+            return BASIC_TYPES["int"]
 
         if expr[0] == "address_of":
             _, value = expr
@@ -2425,7 +2452,7 @@ class CFuncMaker:
         elif expr[0] == "sizeof":
             _, obj = expr
             type_c = self.guess_type(obj).to_c(fwd_decl_is_enough=False)
-            return JouValue(BASIC_TYPES["int64"], f"((int64_t) sizeof({type_c}))")
+            return JouValue(BASIC_TYPES["int"], f"((int32_t) sizeof({type_c}))")
 
         elif expr[0] == ".":
             _, obj_ast, field_name = expr

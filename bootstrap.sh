@@ -25,13 +25,14 @@ numbered_commits=(
     021_9339a749315b82f73d19bacdccab5ee327c44822  # accessing fields and methods on pointers with '.' instead of '->'
     022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # bootstrap_transpiler.py used to start here, maybe not needed now...
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
-    024_0d4b4082f6569131903af02ba5508210b8b474d8  # <--- bootstrap_transpiler.py starts here!
+    024_0d4b4082f6569131903af02ba5508210b8b474d8  # const fixes, typedef fixes, array_count, enum_count, const in array sizes
     025_5c60bc1f68efb3f957730bd97eb4607415368dd4  # parallel compiling, typedef fixes, initial values of globals, embed_file()
+    026_5ed92be4ee8ae7deaa6a9e58a1a07ccd02e597e5  # <--- bootstrap_transpiler.py starts here!
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=024_0d4b4082f6569131903af02ba5508210b8b474d8
+bootstrap_transpiler_numbered_commit=026_5ed92be4ee8ae7deaa6a9e58a1a07ccd02e597e5
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
@@ -164,9 +165,9 @@ def utf8_encode_char(u: uint32) -> byte*:
         #       bumped it to 16M instead of the default 1M. Maybe some day I
         #       will clean this up :)
         if [[ "$OS" =~ Windows ]]; then
-            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -Wl,--stack,16777216 ${windows_llvm_files[@]}
+            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread -Wl,--stack,16777216 ${windows_llvm_files[@]}
         else
-            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix $(grep ^link config.jou | cut -d'"' -f2)
+            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread $(grep ^link config.jou | cut -d'"' -f2)
         fi
 
         # Transpiling produces a broken Jou compiler for some reason. I don't
