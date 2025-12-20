@@ -238,15 +238,6 @@ function compile_next_jou_compiler() {
         echo "Deleting version check..."
         sed -i -e "/Found unsupported LLVM version/d" Makefile.*
 
-        if [ $number -le 23 ] && ! [[ "$OS" =~ Windows ]]; then
-            echo "Patching Jou code to use or not use aarch64 depending on config..."
-            sed -i -e s/'if MACOS:'/'if LLVM_HAS_AARCH64:'/g compiler/target.jou
-            sed -i -e s/'if not WINDOWS:'/'if LLVM_HAS_AARCH64:'/g compiler/target.jou
-            grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if it replaced nothing
-            sed -i -e '1i\
-import "../config.jou"'$'\n' compiler/target.jou
-        fi
-
         echo "Running make..."
 
         # The jou_bootstrap(.exe) file should never be rebuilt.
