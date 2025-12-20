@@ -148,6 +148,25 @@ def utf8_encode_char(u: uint32) -> byte*:
     return "jgdspoisajdgpoiasjdgoiasjdpoigdsa"
 ' > stdlib/utf8.jou
 
+        if [[ "$(uname -mp)" =~ arm ]]; then
+            echo "Patching support for ARM..."
+            sed -i -e s/X86/ARM/ compiler/target.jou compiler/llvm.jou
+            grep -q ARMTarget compiler/llvm.jou
+        fi
+
+        if [[ "$(uname -mp)" =~ armv6 ]]; then
+            target=$($LLVM_CONFIG --host-target)
+            if [[ $target =~ ^arm- ]]; then
+                echo "Patching the correct target for ARMv6"
+                target=${target/#arm-/armv6-}
+                sed -i -e s/'if WINDOWS'/'if True'/ -e s/'x86_64-pc-windows-gnu'/$target/ compiler/target.jou
+                grep -q "$target" compiler/target.jou
+                sed -i -e /JOU_TARGET/s/'""'/'"'$target'"'/ ../../../config.jou
+                # In theory, config.jou should be editable by the user so let's not check whether it includes $target.
+                : "${CFLAGS:=--target=$target}"
+            fi
+        fi
+
         echo "Converting Jou code to C..."
         "$python" ../../../bootstrap_transpiler.py compiler/main.jou > compiler.c
 
@@ -168,7 +187,7 @@ def utf8_encode_char(u: uint32) -> byte*:
         if [[ "$OS" =~ Windows ]]; then
             $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread -Wl,--stack,16777216 ${windows_llvm_files[@]}
         else
-            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread $(grep ^link config.jou | cut -d'"' -f2)
+            $clang -w -O2 $CFLAGS compiler.c -o jou_from_c$exe_suffix -pthread $(grep ^link config.jou | cut -d'"' -f2)
         fi
 
         # Transpiling produces a broken Jou compiler for some reason. I don't

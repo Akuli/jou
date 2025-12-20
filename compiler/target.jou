@@ -14,7 +14,13 @@ import "stdlib/process.jou"
 import "./llvm.jou"
 import "./state.jou"
 
-if not WINDOWS:
+if WINDOWS:
+    const LLVM_HAS_X86: bool = True
+    const LLVM_HAS_AARCH64: bool = False
+    const LLVM_HAS_ARM: bool = False
+    # LLVM's default is x86_64-pc-windows-msvc
+    const JOU_TARGET: byte* = "x86_64-pc-windows-gnu"
+else:
     import "../config.jou"
 
 
@@ -46,27 +52,40 @@ def init_global_target() -> None:
     assert not global_compiler_state.target.ready
     global_compiler_state.target.ready = True
 
-    LLVMInitializeX86TargetInfo()
-    LLVMInitializeX86Target()
-    LLVMInitializeX86TargetMC()
-    LLVMInitializeX86AsmParser()
-    LLVMInitializeX86AsmPrinter()
+
+    dummy = LLVM_HAS_X86  # Workaround for useless compiler warning
+    if dummy:
+        LLVMInitializeX86TargetInfo()
+        LLVMInitializeX86Target()
+        LLVMInitializeX86TargetMC()
+        LLVMInitializeX86AsmParser()
+        LLVMInitializeX86AsmPrinter()
 
     # Currently aarch64 is needed for:
     #   - new M1 macs
     #   - 64-bit raspberry pi
-    if not WINDOWS:
-        dummy = LLVM_HAS_AARCH64
-        if dummy:
-            LLVMInitializeAArch64TargetInfo()
-            LLVMInitializeAArch64Target()
-            LLVMInitializeAArch64TargetMC()
-            LLVMInitializeAArch64AsmParser()
-            LLVMInitializeAArch64AsmPrinter()
 
-    if WINDOWS:
-        # LLVM's default is x86_64-pc-windows-msvc
-        global_compiler_state.target.triple = "x86_64-pc-windows-gnu"
+    dummy = LLVM_HAS_AARCH64
+    if dummy:
+        LLVMInitializeAArch64TargetInfo()
+        LLVMInitializeAArch64Target()
+        LLVMInitializeAArch64TargetMC()
+        LLVMInitializeAArch64AsmParser()
+        LLVMInitializeAArch64AsmPrinter()
+
+    dummy = LLVM_HAS_ARM
+    if dummy:
+        LLVMInitializeARMTargetInfo()
+        LLVMInitializeARMTarget()
+        LLVMInitializeARMTargetMC()
+        LLVMInitializeARMAsmParser()
+        LLVMInitializeARMAsmPrinter()
+
+
+    if JOU_TARGET[0] != '\0':
+        triple = JOU_TARGET
+        assert strlen(triple) < sizeof global_compiler_state.target.triple
+        strcpy(global_compiler_state.target.triple, triple)
     else:
         triple = LLVMGetDefaultTargetTriple()
         assert strlen(triple) < sizeof global_compiler_state.target.triple

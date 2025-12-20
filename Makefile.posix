@@ -36,10 +36,20 @@ config.jou: Makefile.posix
 	echo 'const JOU_CLANG_PATH: byte* = "$(shell command -v `$(LLVM_CONFIG) --bindir`/clang || command -v clang)"' >> config.jou
 	echo '' >> config.jou
 	echo '@public' >> config.jou
-	echo 'const LLVM_HAS_AARCH64: bool = $(shell $(LLVM_CONFIG) --components | grep -q aarch64 && echo True || echo False)' >> config.jou
+	echo 'const LLVM_HAS_AARCH64: bool = $(shell $(LLVM_CONFIG) --targets-built | grep -q AArch64 && echo True || echo False)' >> config.jou
+	echo '' >> config.jou
+	echo '@public' >> config.jou
+	echo 'const LLVM_HAS_ARM: bool = $(shell $(LLVM_CONFIG) --targets-built | grep -q ARM && echo True || echo False)' >> config.jou
+	echo '' >> config.jou
+	echo '@public' >> config.jou
+	echo 'const LLVM_HAS_X86: bool = $(shell $(LLVM_CONFIG) --targets-built | grep -q X86 && echo True || echo False)' >> config.jou
+	echo '' >> config.jou
+	echo '@public' >> config.jou
+	echo 'const JOU_TARGET: byte* = ""' >> config.jou
+
 
 jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou
-	env LLVM_CONFIG=$(LLVM_CONFIG) ./bootstrap.sh
+	env LLVM_CONFIG=$(LLVM_CONFIG) CFLAGS=$(CFLAGS) ./bootstrap.sh
 
 jou: jou_bootstrap config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
 	./jou_bootstrap -o jou compiler/main.jou
