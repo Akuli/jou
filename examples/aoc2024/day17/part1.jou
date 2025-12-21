@@ -69,7 +69,7 @@ def run_code(code: int*, regs: int64[3]) -> None:
             if output_started:
                 putchar(',')
             output_started = True
-            printf("%d", do_combo_op(operand, regs) % 8)
+            printf("%lld", do_combo_op(operand, regs) % 8)
         elif opcode == 6:  # bdv = B DiVision
             regs[1] = regs[0] >> do_combo_op(operand, regs)
         elif opcode == 7:  # cdv = C DiVision

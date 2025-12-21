@@ -7,6 +7,7 @@
 # tell you that the name of the character is "LATIN SMALL LETTER O WITH DIAERESIS".
 
 import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
 
 
 # Check if b is a continuation byte. A UTF-8 multibyte (that is, non-ASCII)
@@ -25,8 +26,8 @@ def is_utf8_continuation(b: byte) -> bool:
 # This function returns a number between 0 and strlen(s) inclusive even if the
 # string s is not valid UTF-8.
 @public
-def utf8_char_count(s: byte*) -> int64:
-    n: int64 = 0
+def utf8_char_count(s: byte*) -> intnative:
+    n: intnative = 0
     for p = s; *p != '\0'; p++:
         if not is_utf8_continuation(*p):
             n++
