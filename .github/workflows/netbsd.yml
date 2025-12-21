@@ -26,3 +26,4 @@ jobs:
         run: |
           ! vm/netbsd.sh amd64 /sbin/poweroff  # ssh should fail here
           while kill -0 $(cat vm/netbsd-amd64/pid.txt); do sleep 1; done
+          rm vm/netbsd-amd64/pid.txt
