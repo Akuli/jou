@@ -23,6 +23,7 @@ cd "$(dirname "$0")/netbsd-$arch"
 # Download NetBSD
 if ! [ -f NetBSD-10.1-$arch-live.img ]; then
     ../download.sh https://cdn.netbsd.org/pub/NetBSD/images/10.1/NetBSD-10.1-$arch-live.img.gz $sha256
+    echo "Extracting..."
     gunzip NetBSD-10.1-$arch-live.img.gz
 fi
 
@@ -144,7 +145,7 @@ if [ $ssh_works = no ]; then
     type_on_keyboard $'root\n'
     wait_for_text 'netbsd#'
     echo "Configuring ssh..."
-#    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
+    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
     type_on_keyboard $'mkdir .ssh\n'
     type_on_keyboard $'chmod 700 .ssh\n'
     type_on_keyboard "echo $(cat key.pub) > .ssh/authorized_keys"$'\n'

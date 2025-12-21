@@ -32,3 +32,9 @@ Here are some guidelines for working on the scripts:
   expect to get failures.
 - Do not use the `expect` program. It is meant for this kind of thing, but it
   is an unnecessary dependency.
+
+Dependencies (in addition to what you need for Jou anyway):
+
+```
+$ sudo apt install openssh-client tesseract-ocr imagemagick
+```

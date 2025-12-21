@@ -29,11 +29,14 @@ else
     (cd "$cache_dir" && wget "$url")
 fi
 
-echo "$0: verifying..."
-if [ $(sha256sum "$cache_file" | cut -d' ' -f1) != $sha256 ]; then
-    echo "$0: verifying $cache_file failed!!!" >&2
-    ls -lh "$cache_file"
-    exit 1
+# Refactoring note: Please double check that verifying is always done!
+if [ $verified = no ]; then
+    echo "$0: verifying..."
+    if [ $(sha256sum "$cache_file" | cut -d' ' -f1) != $sha256 ]; then
+        echo "$0: verifying $cache_file failed!!!" >&2
+        ls -lh "$cache_file"
+        exit 1
+    fi
 fi
 
 cp -v "$cache_file" .
