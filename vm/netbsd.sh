@@ -19,6 +19,9 @@ case $arch in
 esac
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
+    if [ $qemu = kvm ]; then
+        qemu='sudo kvm'
+    fi
     # In GitHub Actions, don't show any kind of GUI
     qemu="$qemu -nographic -monitor none"
 else
