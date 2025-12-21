@@ -335,7 +335,7 @@ fi
 echo ""
 echo ""
 
-failed=$( (ls -1 tmp/tests/diff*.txt 2>/dev/null || true) | wc -l)
+failed=$( (ls -1 tmp/tests/diff*.txt 2>/dev/null || true) | wc -l | tr -d ' ')
 succeeded=$((counter - failed - skipped))
 
 if [ $failed != 0 ]; then
