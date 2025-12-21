@@ -18,6 +18,14 @@ case $arch in
         exit 2
 esac
 
+if [ "$GITHUB_ACTIONS" = "true" ]; then
+    # In GitHub Actions, don't show any kind of GUI
+    qemu="$qemu -nographic -monitor none"
+else
+    # During local development, let the VM stay alive after this script dies
+    qemu="setsid $qemu"
+fi
+
 mkdir -vp "$(dirname "$0")/netbsd-$arch"
 cd "$(dirname "$0")/netbsd-$arch"
 
@@ -118,7 +126,7 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
             while true; do
                 echo "Waiting for it to reboot..."
                 sleep 5
-                if $ssh echo hello; then
+                if timeout 5 $ssh echo hello; then
                     break
                 fi
             done
@@ -139,12 +147,10 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
     [ -d jou ] || git init jou
     cd jou
     git fetch ../jou.bundle
+    git clean -ffdx -e tmp/bootstrap_cache
     git checkout -f $(git rev-parse HEAD)  # The rev-parse runs on host, not inside VM
     "
 fi
-
-echo "Cleaning..."
-$ssh 'cd jou && git clean -ffdx -e tmp/bootstrap_cache'
 
 echo "Running command in VM's jou folder: $@"
 $ssh cd jou '&&' "$@"
