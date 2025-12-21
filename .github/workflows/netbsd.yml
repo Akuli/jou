@@ -22,3 +22,7 @@ jobs:
       - run: vm/netbsd.sh amd64 ./jou -o jou2 compiler/main.jou
       - run: vm/netbsd.sh amd64 mv jou2 jou
       - run: vm/netbsd.sh amd64 ./runtests.sh --verbose
+      - name: Shut down VM
+        run: |
+          ! vm/netbsd.sh amd64 /sbin/poweroff  # ssh should fail here
+          while kill -0 $(cat vm/netbsd-amd64/pid.txt); do sleep 1; done
