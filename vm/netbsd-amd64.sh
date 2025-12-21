@@ -1,13 +1,30 @@
 #!/bin/bash
 set -e -o pipefail
 
-mkdir -vp "$(dirname "$0")/netbsd-amd64"
-cd "$(dirname "$0")/netbsd-amd64"
+if [ $# != 1 ]; then
+    echo "Usage: $0 <arch>"
+    exit 1
+fi
+
+arch=$1
+case $arch in
+    amd64)
+        qemu=qemu-system-x86_64
+        sha256=92a40431b2488785172bccf589de2005d03c618e7e2618a6a4dd0465af375bfd
+        ;;
+    *)
+        echo "$0: Unsupported architecture '$arch'"
+        exit 2
+    fi
+esac
+
+mkdir -vp "$(dirname "$0")/netbsd-$arch"
+cd "$(dirname "$0")/netbsd-$arch"
 
 # Download NetBSD
-if ! [ -f NetBSD-10.1-amd64-live.img ]; then
-    ../download.sh https://cdn.netbsd.org/pub/NetBSD/images/10.1/NetBSD-10.1-amd64-live.img.gz 92a40431b2488785172bccf589de2005d03c618e7e2618a6a4dd0465af375bfd
-    gunzip NetBSD-10.1-amd64-live.img.gz
+if ! [ -f NetBSD-10.1-$arch-live.img ]; then
+    ../download.sh https://cdn.netbsd.org/pub/NetBSD/images/10.1/NetBSD-10.1-$arch-live.img.gz $sha256
+    gunzip NetBSD-10.1-$arch-live.img.gz
 fi
 
 # Make disk image large enough for LLVM and other tools.
@@ -15,7 +32,7 @@ fi
 # When NetBSD boots, it detects that the disk has been resized and adjusts its
 # partitions to use the whole disk.
 echo "Resizing disk..."
-truncate -s 4G NetBSD-10.1-amd64-live.img
+truncate -s 4G NetBSD-10.1-$arch-live.img
 
 if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
     qemu_pid=$(cat pid.txt)
@@ -31,10 +48,10 @@ else
     #
     # setsid is needed so that qemu doesn't die when this shell script is
     # interrupted with Ctrl+C.
-    setsid qemu-system-x86_64 \
+    setsid $qemu \
         -m 1G \
         -smp 2 \
-        -drive file=NetBSD-10.1-amd64-live.img,format=raw \
+        -drive file=NetBSD-10.1-$arch-live.img,format=raw \
         -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
         -monitor tcp:localhost:4444,server,nowait \
         &
