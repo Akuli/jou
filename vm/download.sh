@@ -30,6 +30,7 @@ cache_file="$cache_dir/$(basename "$url")"
 mkdir -vp "$cache_dir"
 
 verified=no
+wget_flags=""
 if [ -f "$cache_file" ]; then
     echo "$0: verifying..."
     if [ $(sha256sum "$cache_file" | cut -d' ' -f1) = $sha256 ]; then
@@ -37,15 +38,18 @@ if [ -f "$cache_file" ]; then
         verified=yes
     else
         echo "$0: verifying failed, assuming file is partially downloaded and downloading the rest of it..."
-        (cd "$cache_dir" && wget --continue "$url")
+        wget_flags='--continue'
     fi
 else
     echo "$0: downloading $url"
-    (cd "$cache_dir" && wget "$url")
+    if [ "$GITHUB_ACTIONS" = "true" ]; then
+        wget_flags='-q'
+    fi
 fi
 
 # Refactoring note: Please double check that verifying is always done!
 if [ $verified = no ]; then
+    (cd "$cache_dir" && wget $wget_flags "$url")
     echo "$0: verifying..."
     if [ $(sha256sum "$cache_file" | cut -d' ' -f1) != $sha256 ]; then
         echo "$0: verifying $cache_file failed!!!" >&2

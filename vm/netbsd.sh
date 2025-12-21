@@ -20,6 +20,10 @@ esac
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
     if [ $qemu = kvm ]; then
+        # I think sudo shouldn't be needed when developing locally, because you
+        # can add yourself to the kvm group.
+        #
+        # Please make a GitHub issue if I am wrong.
         qemu='sudo kvm'
     fi
     # In GitHub Actions, don't show any kind of GUI
@@ -52,8 +56,8 @@ fi
 
 # Make disk image large enough for LLVM and other tools.
 #
-# When NetBSD boots, it detects that the disk has been resized and adjusts its
-# partitions to use the whole disk.
+# When NetBSD boots, it detects that the disk has been resized, adjusts its
+# partitions to use the whole disk, and automatically reboots.
 echo "Resizing disk..."
 truncate -s 4G NetBSD-10.1-$arch-live.img
 
