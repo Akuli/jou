@@ -12,19 +12,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history
-      # TODO: don't use an action for this? could we instead install qemu from apt and call it?
-      - uses: cross-platform-actions/action@v0.30.0
-        env:
-          PKG_PATH: 'https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/10.1/All'
-        with:
-          operating_system: netbsd
-          version: '10.1'
-          environment_variables: PKG_PATH
-          run: |
-            sudo pkgin -y install clang gmake diffutils git
-            gmake
-            ./runtests.sh --verbose
-            mv jou jou_bootstrap
-            gmake
-            ./runtests.sh should_succeed --verbose
-            ./doctest.sh
+      - run: sudo apt update && sudo apt -y install qemu-system-aarch64
+      - run: vm/netbsd.sh amd64 ./runtests.sh --verbose
+      - run: vm/netbsd.sh amd64 ./jou -o jou2 compiler/main.jou
+      - run: vm/netbsd.sh amd64 mv jou2 jou
+      - run: vm/netbsd.sh amd64 ./runtests.sh --verbose
