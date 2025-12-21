@@ -74,54 +74,72 @@ else
     kill -0 $qemu_pid  # stop if qemu died instantly
 fi
 
-# We consider the VM booted when it shows login prompt on serial port.
-# At that point it has also started ssh.
-while true; do
-    echo "Waiting for VM to boot..."
-    if echo | (timeout 1 nc localhost 4444 || true) | grep 'login:'; then
-        break
-    fi
-    sleep 5
-done
-
-# Note -p vs -P
 ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i key -p 2222"
-scp="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i key -P 2222"
 
 echo "Checking if ssh works..."
 if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
-    echo "ssh doesn't work. Let's set it up using serial port."
-    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
-    # This was a bit tricky to set up. It kills netcat when the serial output
-    # mentions "ALLDONENOW" and also displays all output for debugging.
-    printf 'root\nmkdir .ssh\nchmod 700 .ssh\necho "%s" > .ssh/authorized_keys\necho ALL"DONE"NOW\nexit\n' "$(cat key.pub)" | (nc localhost 4444 || true) | sed '/ALLDONENOW/q'
-    $ssh echo hello  # Check that it works
-fi
-
-if ! $ssh grep ipv4_prefer /etc/rc.conf; then
-    echo "Telling VM to prefer IPv4 because IPv6 doesn't work inside qemu..."
-    $ssh '(echo ip6addrctl=YES && echo ip6addrctl_policy=ipv4_prefer) >> /etc/rc.conf'
-    ! $ssh /sbin/reboot  # couldn't figure out a way to do this without rebooting
+    # ssh doesn't work either because we didn't set it up yet or we need to
+    # wait for the VM to start.
+    #
+    # We consider the VM started when it shows login prompt on serial port.
+    # At that point it has also started ssh.
     while true; do
-        echo "Waiting for it to reboot..."
-        sleep 5
-        if $ssh echo hello; then
+        echo "Waiting for VM to boot..."
+        if echo | (timeout 1 nc localhost 4444 || true) | grep 'login:'; then
             break
         fi
+        sleep 5
     done
+    echo "Checking again if ssh works..."
+    if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
+        echo "ssh doesn't work. Let's set it up using serial port."
+        (yes || true) | ssh-keygen -t ed25519 -f key -N ''
+        # This was a bit tricky to set up. It kills netcat when the serial output
+        # mentions "ALLDONENOW" and also displays all output for debugging.
+        printf 'root\nmkdir .ssh\nchmod 700 .ssh\necho "%s" > .ssh/authorized_keys\necho ALL"DONE"NOW\nexit\n' "$(cat key.pub)" | (nc localhost 4444 || true) | sed '/ALLDONENOW/q'
+        echo "Now ssh setup is done, let's check one last time..."
+        $ssh echo hello  # Check that it works
+    fi
 fi
 
+echo "Checking if packages are already installed..."
 if ! $ssh which git; then
+    # Set up networking. NetBSD uses IPv6 by default, but qemu doesn't support
+    # IPv6 at all (at least not in the configuration we use) so everything that
+    # connects to internet hangs forever if we don't do this.
+    echo "Checking if IPv4 setup has been done..."
+    if ! $ssh grep ipv4_prefer /etc/rc.conf; then
+        echo "Telling VM to prefer IPv4..."
+        $ssh '(echo ip6addrctl=YES && echo ip6addrctl_policy=ipv4_prefer) >> /etc/rc.conf'
+        $ssh /sbin/reboot || true  # couldn't figure out a way to do this without rebooting
+        while true; do
+            echo "Waiting for it to reboot..."
+            sleep 5
+            if $ssh echo hello; then
+                break
+            fi
+        done
+    fi
+
     echo "Installing packages..."
-    $ssh "PATH=\"/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:\$PATH\" && PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/$arch/10.1/All && export PATH PKG_PATH && pkg_add pkgin && pkgin -y install clang gmake diffutils git"
+    $ssh "PATH=\"/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:\$PATH\" && PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/$arch/10.1/All && export PATH PKG_PATH && pkg_add pkgin && pkgin -y install clang gmake diffutils git bash"
 fi
 
-exit
-
+# This runs every time. It's pretty fast, so it's fine.
 echo "Copying repository to VM..."
+# This turned out to be faster than scp
 git bundle create jou.bundle --all
-$scp jou.bundle root@localhost:~/
-if ! $ssh [ -d jou ]; then
-    $ssh 'git clone jou.bundle jou'
+cat jou.bundle | $ssh "
+set -e
+cat > jou.bundle
+if [ -d jou ]; then
+    cd jou
+    git fetch
+else
+    git clone jou.bundle jou
 fi
-$ssh "cd jou && git fetch && git checkout -f $(git rev-parse HEAD)"
+git checkout -f $(git rev-parse HEAD)
+"
+
+echo "Running tests..."
+$ssh 'cd jou && ./runtests.sh'
