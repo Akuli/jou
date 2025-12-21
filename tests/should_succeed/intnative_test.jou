@@ -9,4 +9,13 @@ def main() -> int:
     printf("%zd\n", a)  # Output: 2000000000
     printf("%zd\n", b)  # Output: -2000000000
 
+    # Output: <intnative>
+    match sizeof(1 as intnative):
+        case sizeof(1 as int):
+            puts("int")
+        case sizeof(1 as int64):
+            puts("int64")
+        case _:
+            puts("wat")
+
     return 0
