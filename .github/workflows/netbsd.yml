@@ -12,19 +12,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history
-      # TODO: don't use an action for this? could we instead install qemu from apt and call it?
-      - uses: cross-platform-actions/action@v0.30.0
-        env:
-          PKG_PATH: 'https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/10.1/All'
+      - run: sudo apt update && sudo apt -y install qemu-system-x86
+      - uses: actions/cache@v5
         with:
-          operating_system: netbsd
-          version: '10.1'
-          environment_variables: PKG_PATH
-          run: |
-            sudo pkgin -y install clang gmake diffutils git
-            gmake
-            ./runtests.sh --verbose
-            mv jou jou_bootstrap
-            gmake
-            ./runtests.sh should_succeed --verbose
-            ./doctest.sh
+          path: vm/netbsd-amd64
+          key: netbsd-${{ hashFiles('.github/workflows/netbsd.yml', 'vm/netbsd.sh', 'vm/download.sh') }}
+      - run: vm/netbsd.sh amd64 echo hello
+      - run: vm/netbsd.sh amd64 git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/netbsd.sh amd64 ./runtests.sh --verbose
+      - run: vm/netbsd.sh amd64 ./jou -o jou2 compiler/main.jou
+      - run: vm/netbsd.sh amd64 mv jou2 jou
+      - run: vm/netbsd.sh amd64 ./runtests.sh --verbose
+      - name: Shut down VM
+        run: |
+          ! vm/netbsd.sh amd64 /sbin/poweroff  # ssh should fail here
+          while kill -0 $(cat vm/netbsd-amd64/pid.txt); do sleep 1; done
+          rm vm/netbsd-amd64/pid.txt
