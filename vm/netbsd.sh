@@ -66,10 +66,7 @@ else
     #   -drive: where to boot from
     #   -nic: enable networking so that port 2222 on host is port 22 (ssh) in VM
     #   -serial: make serial console available on host's port 4444, used to configure ssh
-    #
-    # setsid is needed so that qemu doesn't die when this shell script is
-    # interrupted with Ctrl+C.
-    setsid $qemu \
+    $qemu \
         -m 1G \
         -smp $(nproc) \
         -drive file=NetBSD-10.1-$arch-live.img,format=raw \
