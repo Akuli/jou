@@ -90,11 +90,15 @@ else
 fi
 
 case "$(uname -m)" in
-    *64*)  # amd64, aarch64, ...
+    x86_64 | amd64 | aarch64)  # linux uses x86_64, NetBSD uses amd64
         intnative=int64
         ;;
-    *)
+    i?86)
         intnative=int
+        ;;
+    *)
+        echo "Error: unsupported platform: $(uname -m)" >&2
+        exit 1
         ;;
 esac
 
