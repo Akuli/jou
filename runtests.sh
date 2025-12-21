@@ -89,18 +89,11 @@ else
     jouexe="./jou"
 fi
 
-case "$(uname -m)" in
-    x86_64 | amd64 | aarch64)  # linux uses x86_64, NetBSD uses amd64
-        intnative=int64
-        ;;
-    i?86)
-        intnative=int
-        ;;
-    *)
-        echo "Error: unsupported platform: $(uname -m)" >&2
-        exit 1
-        ;;
-esac
+if [[ "$(uname -mp)" =~ 64 ]]; then  # 64-bit system, e.g. x86_64 or aarch64
+    intnative=int64
+else
+    intnative=int
+fi
 
 echo "<joudir> in expected output will be replaced with $joudir."
 echo "<jouexe> in expected output will be replaced with $jouexe."
