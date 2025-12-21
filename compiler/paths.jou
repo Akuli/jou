@@ -10,12 +10,29 @@ import "./state.jou"
 import "./hash.jou"
 import "./builders/hash_builder.jou"
 
+if NETBSD:
+    import "stdlib/errno.jou"
+if not WINDOWS and not MACOS:
+    import "stdlib/intnative.jou"
+
 if WINDOWS:
     declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
 elif MACOS:
     declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
+elif NETBSD:
+    declare sysctl(
+        name: int*,
+        namelen: uint32,
+        oldp: void*,
+        oldlenp: intnative*,
+        newp: void*,  # NULL if not setting a new value
+        newlen: intnative,  # 0 if not setting a new value
+    ) -> int
+    const CTL_KERN: int = 1
+    const KERN_PROC_ARGS: int = 48
+    const KERN_PROC_PATHNAME: int = 5
+    const ENOSPC: int = 28  # No space left on this device
 else:
-    import "stdlib/intnative.jou"
     declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
 
 if WINDOWS:
@@ -161,14 +178,25 @@ def find_current_executable() -> byte*:
 
             if WINDOWS:
                 ret = GetModuleFileNameA(NULL, buf, size)
+                if ret == 0:
+                    break  # error
+                if ret < size:
+                    return buf  # success, it fits
+            elif NETBSD:
+                sysctl_name: int[4] = [CTL_KERN, KERN_PROC_ARGS, -1, KERN_PROC_PATHNAME]
+                n: intnative = size
+                ret = sysctl(sysctl_name, array_count(sysctl_name) as uint32, buf, &n, NULL, 0)
+                if ret < 0 and get_errno() != ENOSPC:
+                    break  # error
+                if n < size:
+                    return buf  # success, it fits
             else:
                 ret = readlink("/proc/self/exe", buf, size)
-
-            if ret <= 0:
-                break  # error
-            if ret < size:
-                # buffer is big enough, it fits
-                return buf
+                success = 0 <= ret and ret < size
+                if ret < 0:
+                    break  # error
+                if ret < size:
+                    return buf  # success, it fits
 
     # TODO: show os error message? (GetLastError / errno)
     fprintf(get_stderr(), "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
