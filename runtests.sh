@@ -88,10 +88,11 @@ if [[ "$OS" =~ Windows ]]; then
 else
     jouexe="./jou"
 fi
-if [ $(getconf LONG_BIT) = 32 ]; then
-    intnative=int
-else
+
+if [[ "$(uname -mp)" =~ 64 ]]; then  # 64-bit system, e.g. x86_64 or aarch64
     intnative=int64
+else
+    intnative=int
 fi
 
 echo "<joudir> in expected output will be replaced with $joudir."
