@@ -142,4 +142,4 @@ git checkout -f $(git rev-parse HEAD)
 "
 
 echo "Running tests..."
-$ssh 'cd jou && ./runtests.sh'
+$ssh 'cd jou && ./runtests.sh --verbose'
