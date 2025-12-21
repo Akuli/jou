@@ -1376,6 +1376,14 @@ def evaluate_compile_time_condition(path, ast) -> bool:
         _, inner = ast
         return not evaluate_compile_time_condition(path, inner)
 
+    if ast[0] == "and":
+        _, lhs, rhs = ast
+        return evaluate_compile_time_condition(path, lhs) and evaluate_compile_time_condition(path, rhs)
+
+    if ast[0] == "or":
+        _, lhs, rhs = ast
+        return evaluate_compile_time_condition(path, lhs) or evaluate_compile_time_condition(path, rhs)
+
     raise RuntimeError(
         f"cannot evaluate compile-time condition in {path}: {ast}"
     )
