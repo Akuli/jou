@@ -89,15 +89,14 @@ else
     jouexe="./jou"
 fi
 
-if [ "$(getconf LONG_BIT 2>/dev/null)" = 32 ]; then
-    intnative=int
-else
-    intnative=int64
-fi
-
-if [ "$(uname)" = NetBSD ]; then
-    intnative=$(./jou tests/should_succeed/intnative_size.jou)
-fi
+case "$(uname -m)" in
+    *64*)  # amd64, aarch64, ...
+        intnative=int64
+        ;;
+    *)
+        intnative=int
+        ;;
+esac
 
 echo "<joudir> in expected output will be replaced with $joudir."
 echo "<jouexe> in expected output will be replaced with $jouexe."
