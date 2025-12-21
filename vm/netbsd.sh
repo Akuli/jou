@@ -13,9 +13,8 @@ case $arch in
         sha256=92a40431b2488785172bccf589de2005d03c618e7e2618a6a4dd0465af375bfd
         ;;
     *)
-        echo "$0: Unsupported architecture '$arch'"
+        echo "$0: Unsupported architecture '$arch' (must be amd64)"
         exit 2
-    fi
 esac
 
 mkdir -vp "$(dirname "$0")/netbsd-$arch"
