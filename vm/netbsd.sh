@@ -151,7 +151,6 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
     [ -d jou ] || git init jou
     cd jou
     git fetch ../jou.bundle
-    git clean -ffdx -e tmp/bootstrap_cache
     git checkout -f $(git rev-parse HEAD)  # The rev-parse runs on host, not inside VM
     "
 fi

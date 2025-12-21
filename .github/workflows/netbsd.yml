@@ -18,6 +18,7 @@ jobs:
           path: vm/netbsd-amd64
           key: netbsd-${{ hashFiles('.github/workflows/netbsd.yml', 'vm/netbsd.sh', 'vm/download.sh') }}
       - run: vm/netbsd.sh amd64 echo hello
+      - run: vm/netbsd.sh amd64 git clean -ffdx -e tmp/bootstrap_cache
       - run: vm/netbsd.sh amd64 ./runtests.sh --verbose
       - run: vm/netbsd.sh amd64 ./jou -o jou2 compiler/main.jou
       - run: vm/netbsd.sh amd64 mv jou2 jou
