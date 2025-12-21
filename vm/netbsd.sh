@@ -1,12 +1,13 @@
 #!/bin/bash
 set -e -o pipefail
 
-if [ $# != 1 ]; then
-    echo "Usage: $0 <arch>"
+if [ $# -lt 2 ]; then
+    echo "Usage: $0 <arch> <command inside VM>"
     exit 1
 fi
 
 arch=$1
+shift
 case $arch in
     amd64)
         qemu=kvm
@@ -74,7 +75,7 @@ else
     kill -0 $qemu_pid  # stop if qemu died instantly
 fi
 
-ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i key -p 2222"
+ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
 
 echo "Checking if ssh works..."
 if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
@@ -102,44 +103,48 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
     fi
 fi
 
-echo "Checking if packages are already installed..."
-if ! $ssh which git; then
-    # Set up networking. NetBSD uses IPv6 by default, but qemu doesn't support
-    # IPv6 at all (at least not in the configuration we use) so everything that
-    # connects to internet hangs forever if we don't do this.
-    echo "Checking if IPv4 setup has been done..."
-    if ! $ssh grep ipv4_prefer /etc/rc.conf; then
-        echo "Telling VM to prefer IPv4..."
-        $ssh '(echo ip6addrctl=YES && echo ip6addrctl_policy=ipv4_prefer) >> /etc/rc.conf'
-        $ssh /sbin/reboot || true  # couldn't figure out a way to do this without rebooting
-        while true; do
-            echo "Waiting for it to reboot..."
-            sleep 5
-            if $ssh echo hello; then
-                break
-            fi
-        done
+echo "Checking if repo needs to be copied over..."
+if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
+    echo "Checking if packages are installed..."
+    if ! $ssh which git; then
+        # Set up networking. NetBSD uses IPv6 by default, but qemu doesn't support
+        # IPv6 at all (at least not in the configuration we use) so everything that
+        # connects to internet hangs forever if we don't do this.
+        echo "Checking if IPv4 setup has been done..."
+        if ! $ssh grep ipv4_prefer /etc/rc.conf; then
+            echo "Telling VM to prefer IPv4..."
+            $ssh '(echo ip6addrctl=YES && echo ip6addrctl_policy=ipv4_prefer) >> /etc/rc.conf'
+            $ssh /sbin/reboot || true  # couldn't figure out a way to do this without rebooting
+            while true; do
+                echo "Waiting for it to reboot..."
+                sleep 5
+                if $ssh echo hello; then
+                    break
+                fi
+            done
+        fi
+
+        echo "Installing packages..."
+        $ssh "PATH=\"/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:\$PATH\" && PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/$arch/10.1/All && export PATH PKG_PATH && pkg_add pkgin && pkgin -y install clang gmake diffutils git bash"
     fi
 
-    echo "Installing packages..."
-    $ssh "PATH=\"/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:\$PATH\" && PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/$arch/10.1/All && export PATH PKG_PATH && pkg_add pkgin && pkgin -y install clang gmake diffutils git bash"
-fi
+    echo "Copying repository to VM..."
+    git bundle create jou.bundle --all
+    cat jou.bundle | $ssh 'cat > jou.bundle'  # easier and faster than using scp here
+    rm jou.bundle
 
-# This runs every time. It's pretty fast, so it's fine.
-echo "Copying repository to VM..."
-# This turned out to be faster than scp
-git bundle create jou.bundle --all
-cat jou.bundle | $ssh "
-set -e
-cat > jou.bundle
-if [ -d jou ]; then
+    echo "Checking out repository inside VM..."
+    $ssh "
+    set -e
+    [ -d jou ] || git init jou
     cd jou
-    git fetch
-else
-    git clone jou.bundle jou
+    git fetch ../jou.bundle
+    git checkout -f $(git rev-parse HEAD)  # The rev-parse runs on host, not inside VM
+    "
 fi
-git checkout -f $(git rev-parse HEAD)
-"
 
-echo "Running tests..."
-$ssh 'cd jou && ./runtests.sh --verbose'
+echo "Cleaning..."
+$ssh 'cd jou && git clean -ffdx -e tmp/bootstrap_cache'
+
+echo "Running command in VM's jou folder: $@"
+$ssh cd jou '&&' "$@"
