@@ -98,9 +98,11 @@ function press_key() {
         "_") echo "sendkey shift-minus" ;;
         ".") echo "sendkey dot" ;;
         ">") echo "sendkey shift-dot" ;;
+        "=") echo "sendkey equal" ;;
+        "+") echo "sendkey shift-equal" ;;
         $'\n') echo "sendkey ret" ;;
         *)
-            echo "Unsupported character: $ch" >&2
+            echo "Unsupported character: $1" >&2
             exit 2
             ;;
     esac | nc -q1 localhost 4444
@@ -108,9 +110,10 @@ function press_key() {
     # I had some issues with long strings. If I don't send keystrokes
     # separately, it just doesn't work.
     #
-    # qemu's help says that it holds keys down 100ms, so this sleep should
-    # be enough.
-    sleep 0.15
+    # qemu's help says that it holds keys down 100ms, so you'd expect 0.1 to
+    # be enough, but it wasn't. It sometimes missed a character when typing the
+    # ssh key...
+    sleep 0.2
 }
 
 function type_on_keyboard() {
@@ -120,11 +123,14 @@ function type_on_keyboard() {
     done
 }
 
-ssh_flags="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i key -p 2222"
+# Note -p vs -P
+ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i key -p 2222"
+scp="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i key -P 2222"
+
 ssh_works=no
 if [ -f key ]; then
     echo "Checking if ssh works..."
-    if timeout 5 ssh $ssh_flags root@localhost ls -l; then
+    if timeout 5 $ssh ls -l; then
         ssh_works=yes
     else
         echo "ssh doesn't work. Let's set it up again."
@@ -138,11 +144,23 @@ if [ $ssh_works = no ]; then
     type_on_keyboard $'root\n'
     wait_for_text 'netbsd#'
     echo "Configuring ssh..."
-    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
+#    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
     type_on_keyboard $'mkdir .ssh\n'
     type_on_keyboard $'chmod 700 .ssh\n'
     type_on_keyboard "echo $(cat key.pub) > .ssh/authorized_keys"$'\n'
+    echo "Let's try ssh!"
+    $ssh ls -l
 fi
 
-echo "Let's try ssh!"
-ssh $ssh_flags root@localhost ls -a
+if ! $ssh which git; then
+    echo "Installing packages..."
+    $ssh "PATH=\"/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:\$PATH\"; PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/$arch/10.1/All ; export PATH PKG_PATH; pkg_add pkgin && pkgin update && pkgin -y install clang gmake diffutils git"
+fi
+
+echo "Copying repository to VM..."
+git bundle create jou.bundle --all
+$scp jou.bundle root@localhost:~/
+if ! $ssh [ -d jou ]; then
+    $ssh 'git clone jou.bundle jou'
+fi
+$ssh "cd jou && git fetch && git checkout -f $(git rev-parse HEAD)"

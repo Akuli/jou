@@ -13,9 +13,11 @@ Here are some guidelines for working on the scripts:
 - Make the scripts as self-contained as possible. An easy `./script.sh` should
   download an operating system, set up a VM, copy Jou into the VM and run
   Jou's tests inside the VM.
-- Scripts should be able to continue from an intermediate state. For example,
-  don't download things again if already downloaded, and don't restart the VM
-  if it's already running.
+- Scripts should be able to continue from an intermediate state. For example:
+    - Don't download things again if already downloaded (partially or fully).
+    - Don't restart the VM if it's already running.
+    - Don't kill the VM when your script fails with an error, so that after
+      fixing the error, you don't need to wait for it to start again.
 - Please checksum everything you download with sha256. This minimizes Jou's
   attack surface: compromising just one of the things we download shouldn't be
   enough to get access to a Jou developer's computer. Please don't use sha512,
