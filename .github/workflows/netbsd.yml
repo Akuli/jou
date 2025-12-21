@@ -17,6 +17,7 @@ jobs:
         with:
           path: vm/netbsd-amd64
           key: netbsd-${{ hashFiles('vm/*.sh') }}
+      - run: vm/netbsd.sh amd64 echo hello
       - run: vm/netbsd.sh amd64 ./runtests.sh --verbose
       - run: vm/netbsd.sh amd64 ./jou -o jou2 compiler/main.jou
       - run: vm/netbsd.sh amd64 mv jou2 jou
