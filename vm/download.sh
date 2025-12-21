@@ -1,4 +1,19 @@
 #!/bin/bash
+#
+# This script downloads a file. But unlike plain old wget:
+#
+#   - If the file has been downloaded before (either fully or partially), it
+#     will not be downloaded again.
+#
+#   - If the file has been deleted, it STILL won't be downloaded again, because
+#     it is first placed into a separate "downloads/" folder and then copied to
+#     wherever you need it.
+#
+#   - This file verifies that the downloaded file content matches a given
+#     SHA256 hash.
+#
+# This assumes that you don't download two different files with the same name.
+
 set -e -o pipefail
 
 if [ $# != 2 ]; then
@@ -9,7 +24,7 @@ fi
 url="$1"
 sha256="$2"
 
-cache_dir="$(dirname "$0")/cache"
+cache_dir="$(dirname "$0")/downloads"
 cache_file="$cache_dir/$(basename "$url")"
 
 mkdir -vp "$cache_dir"
