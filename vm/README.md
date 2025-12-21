@@ -36,5 +36,5 @@ Here are some guidelines for working on the scripts:
 Dependencies (in addition to what you need for Jou anyway):
 
 ```
-$ sudo apt install openssh-client tesseract-ocr imagemagick
+$ sudo apt install openssh-client
 ```

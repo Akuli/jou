@@ -9,7 +9,7 @@ fi
 arch=$1
 case $arch in
     amd64)
-        qemu=qemu-system-x86_64
+        qemu=kvm
         sha256=92a40431b2488785172bccf589de2005d03c618e7e2618a6a4dd0465af375bfd
         ;;
     *)
@@ -23,8 +23,19 @@ cd "$(dirname "$0")/netbsd-$arch"
 # Download NetBSD
 if ! [ -f NetBSD-10.1-$arch-live.img ]; then
     ../download.sh https://cdn.netbsd.org/pub/NetBSD/images/10.1/NetBSD-10.1-$arch-live.img.gz $sha256
+
     echo "Extracting..."
     gunzip NetBSD-10.1-$arch-live.img.gz
+
+    echo "Enabling getty on serial port..."
+    # Modify file content of /etc/ttys directly in the image.
+    # This is a bit hacky.
+    # Must not change length of file, otherwise offsets get messed up!
+    offset=$(grep --text --byte-offset 'tty00."/usr/libexec/getty std.9600".unknown off secure' NetBSD-10.1-amd64-live.img | cut -d: -f1)
+    echo "  Start of line in config file is at $offset"
+    (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=38330799 count=1000 status=none || true) | head -1  # show the line of text
+    printf "on " | dd of=NetBSD-10.1-amd64-live.img bs=1 seek=$((offset+44)) conv=notrunc status=none
+    (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=38330799 count=1000 status=none || true) | head -1  # show the line of text
 fi
 
 # Make disk image large enough for LLVM and other tools.
@@ -38,125 +49,74 @@ if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
     qemu_pid=$(cat pid.txt)
     echo "qemu is already running (PID $qemu_pid), not restarting."
 else
+    rm -f pid.txt
     echo "Starting qemu..."
     # Explanations of qemu options:
     #   -m: amount of RAM (linux typically uses all available RAM due to disk caching)
     #   -smp: number of CPUs available inside the VM
     #   -drive: where to boot from
     #   -nic: enable networking so that port 2222 on host is port 22 (ssh) in VM
-    #   -monitor tcp:localhost:4444,server,nowait: allow sending keystrokes from localhost to VM
+    #   -serial: make serial console available on host's port 4444, used to configure ssh
     #
     # setsid is needed so that qemu doesn't die when this shell script is
     # interrupted with Ctrl+C.
     setsid $qemu \
         -m 1G \
-        -smp 2 \
+        -smp $(nproc) \
         -drive file=NetBSD-10.1-$arch-live.img,format=raw \
         -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
-        -monitor tcp:localhost:4444,server,nowait \
+        -serial tcp:localhost:4444,server=on,wait=off \
         &
     qemu_pid=$!
     echo $qemu_pid > pid.txt
     disown
-    echo "qemu is now running with PID $qemu_pid. The PID was saved to $(pwd)/pid.txt in case you want to kill qemu later."
+    sleep 1
+    kill -0 $qemu_pid  # stop if qemu died instantly
 fi
 
-# I can't get netbsd to output to serial console, so here goes some image
-# processing madness.
-function wait_for_text() {
-    while true; do
-        echo "Waiting for '$1' to appear on screen..."
-
-        # Take screenshot
-        if ! (echo screendump screenshot.ppm | nc -q1 localhost 4444) >/dev/null; then
-            echo "  qemu monitor is not yet ready"
-            sleep 1
-            continue
-        fi
-
-        # Grab last line of text into new image. 4% is one row of a 24 row terminal.
-        convert screenshot.ppm -gravity southwest -crop 50%x4%+0+0 screenshot-bottom-left.png
-
-        # Extract text from image and convert it from image to text
-        # "--psm 6" apparently means single line of text and makes detection better
-        tesseract -l eng --psm 6 screenshot-bottom-left.png screenshot-text
-        cat screenshot-text.txt
-        if grep "$1" screenshot-text.txt; then
-            break
-        fi
-        sleep 3
-    done
-}
-
-function press_key() {
-    case "$1" in
-        [a-z0-9]) echo "sendkey $1" ;;
-        [A-Z]) echo "sendkey shift-$(echo $1 | tr A-Z a-z)" ;;
-        "/") echo "sendkey slash" ;;
-        " ") echo "sendkey spc" ;;
-        "@") echo "sendkey shift-2" ;;
-        "-") echo "sendkey minus" ;;
-        "_") echo "sendkey shift-minus" ;;
-        ".") echo "sendkey dot" ;;
-        ">") echo "sendkey shift-dot" ;;
-        "=") echo "sendkey equal" ;;
-        "+") echo "sendkey shift-equal" ;;
-        $'\n') echo "sendkey ret" ;;
-        *)
-            echo "Unsupported character: $1" >&2
-            exit 2
-            ;;
-    esac | nc -q1 localhost 4444
-
-    # I had some issues with long strings. If I don't send keystrokes
-    # separately, it just doesn't work.
-    #
-    # qemu's help says that it holds keys down 100ms, so you'd expect 0.1 to
-    # be enough, but it wasn't. It sometimes missed a character when typing the
-    # ssh key...
-    sleep 0.2
-}
-
-function type_on_keyboard() {
-    local string="$1"
-    for (( i=0; i<${#string}; i++ )); do
-        press_key "${string:$i:1}"
-    done
-}
+# We consider the VM booted when it shows login prompt on serial port.
+# At that point it has also started ssh.
+while true; do
+    echo "Waiting for VM to boot..."
+    if echo | (timeout 1 nc localhost 4444 || true) | grep 'login:'; then
+        break
+    fi
+    sleep 5
+done
 
 # Note -p vs -P
 ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i key -p 2222"
 scp="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i key -P 2222"
 
-ssh_works=no
-if [ -f key ]; then
-    echo "Checking if ssh works..."
-    if timeout 5 $ssh ls -l; then
-        ssh_works=yes
-    else
-        echo "ssh doesn't work. Let's set it up again."
-    fi
+echo "Checking if ssh works..."
+if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
+    echo "ssh doesn't work. Let's set it up using serial port."
+    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
+    # This was a bit tricky to set up. It kills netcat when the serial output
+    # mentions "ALLDONENOW" and also displays all output for debugging.
+    printf 'root\nmkdir .ssh\nchmod 700 .ssh\necho "%s" > .ssh/authorized_keys\necho ALL"DONE"NOW\nexit\n' "$(cat key.pub)" | (nc localhost 4444 || true) | sed '/ALLDONENOW/q'
+    $ssh echo hello  # Check that it works
 fi
 
-if [ $ssh_works = no ]; then
-    # Let's do the ssh setup
-    wait_for_text 'login:'
-    echo "Logging in as root..."
-    type_on_keyboard $'root\n'
-    wait_for_text 'netbsd#'
-    echo "Configuring ssh..."
-    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
-    type_on_keyboard $'mkdir .ssh\n'
-    type_on_keyboard $'chmod 700 .ssh\n'
-    type_on_keyboard "echo $(cat key.pub) > .ssh/authorized_keys"$'\n'
-    echo "Let's try ssh!"
-    $ssh ls -l
+if ! $ssh grep ipv4_prefer /etc/rc.conf; then
+    echo "Telling VM to prefer IPv4 because IPv6 doesn't work inside qemu..."
+    $ssh '(echo ip6addrctl=YES && echo ip6addrctl_policy=ipv4_prefer) >> /etc/rc.conf'
+    ! $ssh /sbin/reboot  # couldn't figure out a way to do this without rebooting
+    while true; do
+        echo "Waiting for it to reboot..."
+        sleep 5
+        if $ssh echo hello; then
+            break
+        fi
+    done
 fi
 
 if ! $ssh which git; then
     echo "Installing packages..."
-    $ssh "PATH=\"/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:\$PATH\"; PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/$arch/10.1/All ; export PATH PKG_PATH; pkg_add pkgin && pkgin update && pkgin -y install clang gmake diffutils git"
+    $ssh "PATH=\"/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:\$PATH\" && PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/$arch/10.1/All && export PATH PKG_PATH && pkg_add pkgin && pkgin -y install clang gmake diffutils git"
 fi
+
+exit
 
 echo "Copying repository to VM..."
 git bundle create jou.bundle --all
