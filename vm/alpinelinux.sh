@@ -31,6 +31,7 @@ if ! [ -f disk.img ] || ! [ -f disk-is-ready.txt ]; then
     truncate -s 4G disk.img
 
     echo "Running alpine linux from CD image to install it..."
+    # TODO: explain what each flag does
     $qemu \
         -m 1G \
         -smp $(nproc) \
@@ -74,8 +75,6 @@ y
     echo yes > disk-is-ready.txt
 fi
 
-exit
-
 if [ "$GITHUB_ACTIONS" = "true" ]; then
     echo "TODO not implemented"
     exit 1
@@ -98,8 +97,7 @@ else
     $qemu \
         -m 1G \
         -smp $(nproc) \
-        -drive file=alpine-virt-3.23.2-$arch.iso,media=cdrom \
-        -drive file=rootfs.img,format=raw \
+        -drive file=disk.img,format=raw \
         -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
         -serial tcp:localhost:4444,server=on,wait=off \
         &
@@ -113,7 +111,8 @@ fi
 ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
 
 echo "Checking if ssh works..."
-if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
+#if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
+if true; then
     # ssh doesn't work either because we didn't set it up yet or we need to
     # wait for the VM to start.
     #
@@ -130,31 +129,8 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
     if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
         echo "ssh doesn't work. Let's set it up using serial port."
         (yes || true) | ssh-keygen -t ed25519 -f key -N ''
-        # This was a bit tricky to set up. See netbsd.sh for a simpler thing.
-        #
-        # This uses awk to map '#' into a newline so that we don't get line
-        # buffering. The last line with "localhost:~#" on it doesn't end with a
-        # newline, so most (line-oriented) tools can't detect when it appears.
-        # But awk can.
-        printf '\nroot\n' | (nc localhost 4444 || true) | awk -v RS='#' '{ print; fflush(); if ($0 ~ /localhost:~$/) exit }'
+        printf '\nroot\n' | (nc localhost 4444 || true) | awk -v RS='#' '{ print; fflush(); if ($0 ~ /alpine:~$/) exit }'
         printf '
-mount /dev/sda /mnt
-cd /mnt
-mount /proc proc
-mount /sys sys
-mount --rbind /dev dev
-mount --rbind /run run
-chroot .
-echo "iface eth0 inet dhcp" > /etc/network/interfaces
-ifup eth0
-apk update
-apk add openssh-server
-ssh-keygen -A
-chown root:root /var/empty   # sshd complains if I dont do this
-mkdir -p /var/run/sshd
-/usr/sbin/sshd
-cd
-chown -R root:root .
 mkdir .ssh
 chmod 700 .ssh
 echo "%s" > .ssh/authorized_keys
@@ -164,6 +140,8 @@ echo ALL"DONE"NOW
         $ssh echo hello  # Check that it works
     fi
 fi
+
+exit
 
 echo "Checking if repo needs to be copied over..."
 if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
