@@ -71,7 +71,10 @@ elif MACOS:
     declare global __stdoutp: FILE*
     declare global __stderrp: FILE*
 elif NETBSD:
-    declare global __sF: byte[152][3]  # sizeof(FILE) == 152
+    if IS_32BIT:
+        declare global __sF: byte[88][3]  # sizeof(FILE) == 88
+    else:
+        declare global __sF: byte[152][3]  # sizeof(FILE) == 152
 else:
     declare global stdin: FILE*
     declare global stdout: FILE*
