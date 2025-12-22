@@ -22,25 +22,25 @@ esac
 mkdir -vp "$(dirname "$0")/alpinelinux-$arch"
 cd "$(dirname "$0")/alpinelinux-$arch"
 
-if ! [ -f disk.img ]; then
+if ! [ -f disk.img ] || ! [ -f disk-is-ready.txt ]; then
     # Install alpine linux onto a disk
 
-    # Download alpine linux
     ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/aarch64/alpine-standard-3.23.2-aarch64.iso $sha256
 
     echo "Creating empty disk image..."
     truncate -s 4G disk.img
 
     echo "Running alpine linux from CD image to install it..."
-    qemu-system-aarch64 \
-        -M virt \
-        -cpu cortex-a57 \
+    $qemu \
         -m 1G \
-        -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd \
+        -smp $(nproc) \
         -drive if=virtio,format=raw,file=alpine-standard-3.23.2-aarch64.iso,media=cdrom \
         -drive if=virtio,format=raw,file=disk.img \
         -serial tcp:localhost:4444,server=on,wait=off \
-        -nic user &
+        -nic user \
+        -nographic \
+        -monitor none \
+        &
 
     while true; do
         echo "Waiting for VM to boot from CD image..."
@@ -69,29 +69,12 @@ y
 
     echo "Now setup-alpine is done, powering off VM..."
     printf '\npoweroff\n' | (nc localhost 4444 || true)
+    wait
+
+    echo yes > disk-is-ready.txt
 fi
 
 exit
-
-    printf '
-setup-alpine -eq
-joupine
-eth0
-dhcp
-n
-
-
-UTC
-none
-busybox
-1
-no
-
-
-fi
-
-bash
-exit 0
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
     echo "TODO not implemented"
