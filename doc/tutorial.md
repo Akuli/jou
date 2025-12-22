@@ -491,18 +491,18 @@ import "stdlib/io.jou"
 import "stdlib/str.jou"
 
 def main() -> int:
-    printf("%lld\n", strlen("o"))  # Output: 1
-    printf("%lld\n", strlen("Ω"))  # Output: 2
-    printf("%lld\n", strlen("foo"))  # Output: 3
-    printf("%lld\n", strlen("fΩΩ"))  # Output: 5
+    printf("%zd\n", strlen("o"))  # Output: 1
+    printf("%zd\n", strlen("Ω"))  # Output: 2
+    printf("%zd\n", strlen("foo"))  # Output: 3
+    printf("%zd\n", strlen("fΩΩ"))  # Output: 5
     return 0
 ```
 
-We are using `%lld`, because `strlen()` returns an `int64`.
+We are using `%zd`, because `strlen()` returns an `intnative`.
 You can see it by looking at how [stdlib/str.jou](../stdlib/str.jou) declares `strlen()`:
 
 ```python
-declare strlen(s: byte*) -> int64
+declare strlen(s: byte*) -> intnative
 ```
 
 
