@@ -49,9 +49,9 @@ if ! [ -f NetBSD-10.1-$arch-live.img ]; then
     # Must not change length of file, otherwise offsets get messed up!
     offset=$(grep --text --byte-offset 'tty00."/usr/libexec/getty std.9600".unknown off secure' NetBSD-10.1-amd64-live.img | cut -d: -f1)
     echo "  Start of line in config file is at $offset"
-    (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=38330799 count=1000 status=none || true) | head -1  # show the line of text
+    (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=$offset count=1000 status=none || true) | head -1  # show the line of text
     printf "on " | dd of=NetBSD-10.1-amd64-live.img bs=1 seek=$((offset+44)) conv=notrunc status=none
-    (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=38330799 count=1000 status=none || true) | head -1  # show the line of text
+    (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=$offset count=1000 status=none || true) | head -1  # show the line of text
 fi
 
 # Make disk image large enough for LLVM and other tools.
