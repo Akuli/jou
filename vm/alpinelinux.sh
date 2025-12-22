@@ -9,15 +9,89 @@ fi
 arch=$1
 shift
 case $arch in
-    x86_64)
-        qemu=kvm
-        sha256_virt=c328a553ba9861e4ccb3560d69e426256955fa954bc6f084772e6e6cd5b0a4d0
-        sha256_minirootfs=b50bf42e519420ca2be48dd0efa22aa087c708d0602b67d413406533bef9dab5
+    aarch64)
+        qemu='qemu-system-aarch64 -M virt -cpu cortex-a57 -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd'
+        sha256=e2250daa46d0160d789da70a22db1f855adc89793b01687c7f8893d72d7934b4
         ;;
     *)
-        echo "$0: Unsupported architecture '$arch' (must be x86_64)"
+        echo "$0: Unsupported architecture '$arch' (must be aarch64)"
         exit 2
 esac
+
+# TODO: rename this script to alpinelinux.sh
+mkdir -vp "$(dirname "$0")/alpinelinux-$arch"
+cd "$(dirname "$0")/alpinelinux-$arch"
+
+if ! [ -f disk.img ]; then
+    # Install alpine linux onto a disk
+
+    # Download alpine linux
+    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/aarch64/alpine-standard-3.23.2-aarch64.iso $sha256
+
+    echo "Creating empty disk image..."
+    truncate -s 4G disk.img
+
+    echo "Running alpine linux from CD image to install it..."
+    qemu-system-aarch64 \
+        -M virt \
+        -cpu cortex-a57 \
+        -m 1G \
+        -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd \
+        -drive if=virtio,format=raw,file=alpine-standard-3.23.2-aarch64.iso,media=cdrom \
+        -drive if=virtio,format=raw,file=disk.img \
+        -serial tcp:localhost:4444,server=on,wait=off \
+        -nic user &
+
+    while true; do
+        echo "Waiting for VM to boot from CD image..."
+        if echo | (timeout 1 nc localhost 4444 || true) | grep 'login:'; then
+            break
+        fi
+        sleep 5
+    done
+
+    # This was a bit tricky to set up. We want to wait until "localhost:~#"
+    # appears, but when it does appears, there's no trailing newline so most
+    # (line-oriented) tools get stuck to reading the last line.
+    #
+    # Turns out that awk is less line-oriented than other tools, and works
+    # fine for this if we tell it to split the input by '#' characters.
+    echo "Logging in to CD image..."
+    printf '\nroot\n' | (nc localhost 4444 || true) | awk -v RS='#' '{ print; fflush(); if ($0 ~ /localhost:~$/) exit }'
+
+    echo "Running setup-alpine..."
+    echo "
+setup-alpine -c answerfile
+sed -i 's:DISKOPTS=none:DISKOPTS=\"-m sys /dev/vdb\":' answerfile
+setup-alpine -e -f answerfile
+y
+" | (nc localhost 4444 || true) | sed '/Installation is complete. Please reboot./q'
+
+    echo "Now setup-alpine is done, powering off VM..."
+    printf '\npoweroff\n' | (nc localhost 4444 || true)
+fi
+
+exit
+
+    printf '
+setup-alpine -eq
+joupine
+eth0
+dhcp
+n
+
+
+UTC
+none
+busybox
+1
+no
+
+
+fi
+
+bash
+exit 0
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
     echo "TODO not implemented"
@@ -25,29 +99,6 @@ if [ "$GITHUB_ACTIONS" = "true" ]; then
 else
     # During local development, let the VM stay alive after this script dies
     qemu="setsid $qemu"
-fi
-
-# TODO: rename this script to alpinelinux.sh
-mkdir -vp "$(dirname "$0")/alpinelinux-$arch"
-cd "$(dirname "$0")/alpinelinux-$arch"
-
-# Download alpine linux
-#
-# We download two things:
-#   - alpine-virt-...iso, a very minimal environment where the system boots from
-#   - alpine-minirootfs-...tar.gz, a file system that we can easily grow to desired size and then chroot into
-if ! [ -f alpine-virt-3.23.2-$arch.iso ]; then
-    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-virt-3.23.2-$arch.iso $sha256_virt
-fi
-if ! [ -f rootfs.img ]; then
-    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-minirootfs-3.23.2-$arch.tar.gz $sha256_minirootfs
-
-    # Convert rootfs into a disk image by extracting it to a temporary folder first
-    mkdir rootfs
-    tar xf alpine-minirootfs-3.23.2-$arch.tar.gz -C rootfs
-    truncate -s 4G rootfs.img
-    /sbin/mkfs.ext4 rootfs.img -d rootfs
-    rm -rf rootfs
 fi
 
 if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
