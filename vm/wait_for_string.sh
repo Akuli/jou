@@ -24,10 +24,16 @@
 #
 #   $ ./wait_for_string.sh foo bash -c 'echo blah; sleep 1; echo -n foo; sleep 1; echo bar'
 #
+# The following example demonstrates how slow this script is (it is pretty
+# slow, but that doesn't matter for our use cases):
+#
+#   $ vm/wait_for_string.sh hi base64 /dev/urandom
+#
 # Implementing this is more difficult than you would expect, because many tools
 # (sed, grep, awk, ...) don't process any input until a newline character
 # appears, and forcing them to process byte by byte instead of line by line is
-# difficult.
+# difficult. Performance is horrible because we work one byte a time, but it's
+# fine for this use case.
 
 set -e -o pipefail
 
@@ -51,7 +57,7 @@ trap 'rm "$statusfile"' EXIT
 
         # Check for the substring
         buf+="$byte"
-        if [[ "$buf" = *"$string" ]]; then
+        if [[ "$buf" == *"$string" ]]; then
             # Found substring. Let's find the command we called and kill it.
             for proc in $(pgrep -P $pid_of_this_script); do
                 # This output handling thing runs in a new process and we don't
@@ -63,9 +69,13 @@ trap 'rm "$statusfile"' EXIT
                     kill $proc
                 fi
             done
+            break
         fi
 
-        # TODO: limit length of buf
+        # Do not allow buf to become too long
+        if [ ${#buf} -gt 1000 ]; then
+            buf=${buf:500}
+        fi
     done
 # Fail if the command fails, except in the case were we killed it. Then we
 # ignore the "failure" (killed) status.
