@@ -30,8 +30,11 @@ Here are some guidelines for working on the scripts:
 - Use `set -e -o pipefail`. If this gets in your way, use `|| true` only in the
   places that need it. This way failures are not silenced except where you
   expect to get failures.
-- Do not use the `expect` program. It is meant for this kind of thing, but it
-  is an unnecessary dependency.
+- Use the [`wait_for_string.sh`](./wait_for_string.sh) script instead of the
+  `expect` program, for two reasons:
+    - Jou developers already need to know at least 4 programming languages, and
+      I don't really want to add Tcl to the mix.
+    - `expect` would be an unnecessary dependency.
 
 Dependencies (in addition to what you need for Jou anyway):
 
