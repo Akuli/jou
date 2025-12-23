@@ -118,7 +118,7 @@ if [[ "${OS:=$(uname)}" =~ NetBSD ]] && command -v gdiff >/dev/null; then
 else
     diff="diff"
 fi
-if [ $colors = yes ] && $diff --help | grep -q -- --color; then
+if [ $colors = yes ] && $diff --help 2>&1 | grep -q -- --color; then
     diff="$diff --color=always"
 fi
 

@@ -27,12 +27,13 @@ numbered_commits=(
     023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
     024_0d4b4082f6569131903af02ba5508210b8b474d8  # const fixes, typedef fixes, array_count, enum_count, const in array sizes
     025_5c60bc1f68efb3f957730bd97eb4607415368dd4  # parallel compiling, typedef fixes, initial values of globals, embed_file()
-    026_919588a1549ff8ab386e4011254c1c34668da902  # <--- bootstrap_transpiler.py starts here!
+    026_919588a1549ff8ab386e4011254c1c34668da902  # misc fixes
+    027_8a54e3b7a39531ce89bd13974cd2ecaf3f38aa08  # <--- bootstrap_transpiler.py starts here!
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=026_919588a1549ff8ab386e4011254c1c34668da902
+bootstrap_transpiler_numbered_commit=027_8a54e3b7a39531ce89bd13974cd2ecaf3f38aa08
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
@@ -147,6 +148,25 @@ def utf8_encode_char(u: uint32) -> byte*:
     return "jgdspoisajdgpoiasjdgoiasjdpoigdsa"
 ' > stdlib/utf8.jou
 
+        if [[ "$(uname -mp)" =~ arm ]]; then
+            echo "Patching support for ARM..."
+            sed -i -e s/X86/ARM/ compiler/target.jou compiler/llvm.jou
+            grep -q ARMTarget compiler/llvm.jou
+        fi
+
+        if [[ "$(uname -mp)" =~ armv6 ]]; then
+            target=$($LLVM_CONFIG --host-target)
+            if [[ $target =~ ^arm- ]]; then
+                echo "Patching the correct target for ARMv6"
+                target=${target/#arm-/armv6-}
+                sed -i -e s/'if WINDOWS'/'if True'/ -e s/'x86_64-pc-windows-gnu'/$target/ compiler/target.jou
+                grep -q "$target" compiler/target.jou
+                sed -i -e /JOU_TARGET/s/'""'/'"'$target'"'/ ../../../config.jou
+                # In theory, config.jou should be editable by the user so let's not check whether it includes $target.
+                : "${CFLAGS:=--target=$target}"
+            fi
+        fi
+
         echo "Converting Jou code to C..."
         "$python" ../../../bootstrap_transpiler.py compiler/main.jou > compiler.c
 
@@ -167,7 +187,7 @@ def utf8_encode_char(u: uint32) -> byte*:
         if [[ "$OS" =~ Windows ]]; then
             $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread -Wl,--stack,16777216 ${windows_llvm_files[@]}
         else
-            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread $(grep ^link config.jou | cut -d'"' -f2)
+            $clang -w -O2 $CFLAGS compiler.c -o jou_from_c$exe_suffix -pthread $(grep ^link config.jou | cut -d'"' -f2)
         fi
 
         # Transpiling produces a broken Jou compiler for some reason. I don't
