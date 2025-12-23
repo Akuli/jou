@@ -56,7 +56,7 @@ else
     if [ $small = yes ]; then
         # User has slow internet and doesn't want to download the whole mingw64.
         # Instead, download a release of Jou, and extract mingw and Jou compiler from there.
-        url=https://github.com/Akuli/jou/releases/download/2025-04-08-2200/jou_windows_64bit_2025-12-23-0400.zip
+        url=https://github.com/Akuli/jou/releases/download/2025-12-23-0400/jou_windows_64bit_2025-12-23-0400.zip
         filename=jou_windows_64bit_2025-12-23-0400.zip
         sha=0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5
         # This is the folder where the downloaded Jou compiler (jou.exe) will go.
