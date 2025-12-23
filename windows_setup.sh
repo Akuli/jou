@@ -58,7 +58,7 @@ else
         # Instead, download a release of Jou, and extract mingw and Jou compiler from there.
         url=https://github.com/Akuli/jou/releases/download/2025-12-23-0400/jou_windows_64bit_2025-12-23-0400.zip
         filename=jou_windows_64bit_2025-12-23-0400.zip
-        sha=0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5
+        sha=2dcfe26a7bb127f436f0df193387a1ecaaf7a83b15833928810ae8ebe0633cd4
         # This is the folder where the downloaded Jou compiler (jou.exe) will go.
         # Placing it here makes bootstrap.sh use our downloaded Jou compiler
         # instead of starting from scratch.
