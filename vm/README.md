@@ -39,8 +39,10 @@ Here are some guidelines for working on the scripts:
   to get access to a Jou developer's computer. Please don't use sha512, because
   sha512 hashes are ridiculously long, and not really meaningfully more secure
   than sha256.
-- Place the VMs into subfolders, so that Jou developers can have multiple VMs
-  at the same time without conflicts. All subfolders are gitignored.
+- Place the VMs into subdirectories, so that Jou developers can have multiple
+  VMs at the same time without conflicts. Make sure that everything goes in the
+  subdirectory, so that a simple `rm -rf vm/name_of_subdirectory` fully deletes
+  the VM. All subdirectories are gitignored.
 - Use `cd "$(dirname "$0")"` or similar so that scripts "just work" regardless
   of current working directory. This is convenient when you work on something
   and you want to check whether something works inside a VM.
