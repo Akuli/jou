@@ -52,7 +52,7 @@ expect {
     "~ # " {
         send "echo 'FAIL!!' >status && echo 'iface eth0 inet dhcp' >/etc/network/interfaces && ifup eth0 && "
         send "apk update && apk upgrade && TERM=dumb apk add bash clang llvm-dev make git grep patch libx11-dev && "
-        send "git clone ./jou.bundle jou && cd jou && git fetch https://github.com/Akuli/jou && "
+        send "git clone ./jou.bundle jou && cd jou && "
         send "./runtests.sh --verbose && mv jou jou_bootstrap && ./runtests.sh should_succeed && ./doctest.sh && "
         send "echo SUCCESS >~/status \r"
     }
