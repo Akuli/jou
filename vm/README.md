@@ -15,12 +15,22 @@ Here are some guidelines for working on the scripts:
   VM, copy Jou into the VM and run a command inside the VM.
 - The command-line usage of each script should be similar to
   `./netbsd.sh amd64 git status`: first command-line argument is the CPU
-  architecture, and the rest is a command to run inside the VM.
-- Scripts should be able to continue from an intermediate state. For example:
+  architecture, and the rest is a command to run inside the VM. If the script
+  supports just one architecture, you can just fail with an error if anything
+  else is specified.
+- Scripts should be able to continue from intermediate states when that can be
+  implemented with a reasonable amount of effort. However, don't go to the
+  other extreme and over-engineer this; just make sure that the developer
+  experience is good. For example:
+    - Don't create a new VM if it already exists.
+    - Don't delete the VM when the script finishes.
     - Don't download things again if already downloaded (partially or fully).
     - Don't restart the VM if it's already running.
     - Don't stop the VM when your script fails with an error, so that after
       fixing the error, you don't need to wait for it to start again.
+    - Don't bother with lock files, backup copies or state snapshots. If a VM
+      is broken, it is (by design) very easy to just delete the VM and re-run
+      the script again in exactly the same way.
 - Do not invoke `sudo` inside the scripts except when the script is running on
   GitHub Actions. Use the proper permissions for local development. For
   example, add yourself to the `kvm` group if you want to use kvm.
