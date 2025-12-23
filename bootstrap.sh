@@ -17,17 +17,7 @@ set -e -o pipefail
 # The numbering does not start from 0 for historical reasons. Commit 001 was
 # just before the original compiler written in C was deleted.
 numbered_commits=(
-    016_98c5fb2792eaac8bbe7496a176808d684f631d82  # <--- "./windows_setup.sh --small" starts from here! (release 2025-04-08-2200)
-    017_eed3b974ccb42a01339ead7f6dcaa0913ca2cd64  # fixed-size integer types, e.g. uint64
-    018_c594c326d3031a2894731f60ac9881a206793dfa  # infer types of integers in code
-    019_99de2976a7f3b34ec6b2b07725c5ad1400313dc1  # bitwise xor operator `^`
-    020_944c0f34e941d340af1749cdceea4621860ec69f  # bitwise '&' and '|', "const" supports integers other than int
-    021_9339a749315b82f73d19bacdccab5ee327c44822  # accessing fields and methods on pointers with '.' instead of '->'
-    022_e35573c899699e2d717421f3bcd29e16a5a35cc1  # bootstrap_transpiler.py used to start here, maybe not needed now...
-    023_525d0c746286bc9004c90173503e47e34010cc6a  # function pointers, no more automagic stdlib importing for io or assert
-    024_0d4b4082f6569131903af02ba5508210b8b474d8  # const fixes, typedef fixes, array_count, enum_count, const in array sizes
-    025_5c60bc1f68efb3f957730bd97eb4607415368dd4  # parallel compiling, typedef fixes, initial values of globals, embed_file()
-    026_919588a1549ff8ab386e4011254c1c34668da902  # misc fixes
+    026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d  # <--- "./windows_setup.sh --small" starts from here! (release 2025-12-23-0400)
     027_8a54e3b7a39531ce89bd13974cd2ecaf3f38aa08  # <--- bootstrap_transpiler.py starts here!
 )
 

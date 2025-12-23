@@ -56,13 +56,13 @@ else
     if [ $small = yes ]; then
         # User has slow internet and doesn't want to download the whole mingw64.
         # Instead, download a release of Jou, and extract mingw and Jou compiler from there.
-        url=https://github.com/Akuli/jou/releases/download/2025-04-08-2200/jou_windows_64bit_2025-04-08-2200.zip
-        filename=jou_windows_64bit_2025-04-08-2200.zip
-        sha=2945093e2ef7229729f010e45aac9bbe4635a4ee1289857d6aa0cdfb81b0d24b
+        url=https://github.com/Akuli/jou/releases/download/2025-12-23-0400/jou_windows_64bit_2025-12-23-0400.zip
+        filename=jou_windows_64bit_2025-12-23-0400.zip
+        sha=2dcfe26a7bb127f436f0df193387a1ecaaf7a83b15833928810ae8ebe0633cd4
         # This is the folder where the downloaded Jou compiler (jou.exe) will go.
         # Placing it here makes bootstrap.sh use our downloaded Jou compiler
         # instead of starting from scratch.
-        jou_exe_folder=tmp/bootstrap_cache/016_98c5fb2792eaac8bbe7496a176808d684f631d82
+        jou_exe_folder=tmp/bootstrap_cache/026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d
     else
         # This is a mingw64 version that comes with LLVM 19.
         url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
