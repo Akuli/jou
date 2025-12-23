@@ -19,13 +19,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-      # TODO: do we want a cache?
-#      - uses: actions/cache@v4
-#        with:
-#          path: jou_bootstrap.exe
-#          key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
-#      - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
-#        run: touch -c jou_bootstrap.exe
       # Do not use --small because it relies on a previously built zip
       - run: source activate && ./windows_setup.sh
         shell: bash
@@ -142,13 +135,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-      # TODO: do we want a cache?
-#      - uses: actions/cache@v4
-#        with:
-#          path: jou_bootstrap.exe
-#          key: bootstrap-${{ runner.os }}-${{ hashFiles('*.sh') }}
-#      - name: "Mark cached bootstrap compiler as modified so that it is not rebuilt"
-#        run: touch -c jou_bootstrap.exe
       - run: ./windows_setup.sh --small
         shell: bash
       - name: "Compile and test"
