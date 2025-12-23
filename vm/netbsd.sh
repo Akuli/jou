@@ -97,7 +97,7 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
     # We consider the VM started when it shows login prompt on serial port.
     # At that point it has also started ssh.
     echo "Waiting for VM to boot..."
-    echo | ../wait_for_string.sh 'login:' nc localhost 4444
+    until echo | ../wait_for_string.sh 'login:' nc localhost 4444; do sleep 1; done
     echo "Checking again if ssh works..."
     if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
         echo "ssh doesn't work. Let's set it up using serial port."
