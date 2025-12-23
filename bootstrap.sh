@@ -131,7 +131,7 @@ function transpile_with_python_and_compile() {
         if [[ "$OS" =~ Windows ]]; then
             # An if statement inside a function should get evaluated at compile time, but it doesn't
             echo "Patching Jou code to assume aarch64 support exists..."
-            grep LLVM_HAS_AARCH64 compiler/target.jou  # fail if there's nothing to replace
+            grep -q LLVM_HAS_AARCH64 compiler/target.jou  # fail if there's nothing to replace
             sed -i s/LLVM_HAS_AARCH64/True/g compiler/target.jou
         fi
 
