@@ -19,21 +19,20 @@
 #
 #   $ ./wait_for_string.sh foo python3 -u -c 'from time import sleep; print("blah"); sleep(1); print("foo",end=""); sleep(1); print("bar")'
 #
-# You can try the same with bash instead of Python, but it doesn't work as
-# well, because this script kills bash but not its "sleep" subprocess:
+# You can try the same with bash instead of Python, but note that the "sleep"
+# subprocess actually continues running because this script only kills bash:
 #
 #   $ ./wait_for_string.sh foo bash -c 'echo blah; sleep 1; echo -n foo; sleep 1; echo bar'
 #
 # The following example demonstrates how slow this script is (it is pretty
 # slow, but that doesn't matter for our use cases):
 #
-#   $ vm/wait_for_string.sh hi base64 /dev/urandom
+#   $ ./wait_for_string.sh hi base64 /dev/urandom
 #
 # Implementing this is more difficult than you would expect, because many tools
 # (sed, grep, awk, ...) don't process any input until a newline character
 # appears, and forcing them to process byte by byte instead of line by line is
-# difficult. Performance is horrible because we work one byte a time, but it's
-# fine for this use case.
+# not really a thing.
 
 set -e -o pipefail
 
