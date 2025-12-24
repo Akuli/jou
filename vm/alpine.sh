@@ -31,25 +31,23 @@ fi
 mkdir -vp "$(dirname "$0")/alpine-$arch"
 cd "$(dirname "$0")/alpine-$arch"
 
-# rootfs is where Jou will be stored. It is not where we boot from: we need two
-# separate disk images, because the bootable alpine image is too small for
-# installing Jou's dependencies.
-if ! [ -f rootfs-$arch.img ]; then
-    echo "Creating rootfs disk image... (rootfs-$arch.img)"
-#    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-minirootfs-3.23.2-$arch.tar.gz 99457a300f13d1971d4627a0ccdf4ae17db18807804e3b5867d4edf8afa16d23
-#    mkdir rootfs
-#    tar xf alpine-minirootfs-3.23.2-$arch.tar.gz -C rootfs
-#    rm alpine-minirootfs-3.23.2-$arch.tar.gz
-    truncate -s 4G rootfs-$arch.img
-#    /sbin/mkfs.ext4 -q rootfs-$arch.img -d rootfs
-#    rm -rf rootfs
-fi
-
 # The "virt" image is where we actually boot from.
 if ! [ -f virt-$arch.img ]; then
     echo "Downloading boot disk... (virt-$arch.img)"
     ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-virt-3.23.2-$arch.iso 4c6c76a7669c1ec55c6a7e9805b387abdd9bc5df308fd0e4a9c6e6ac028bc1cc
     mv -v alpine-virt-3.23.2-$arch.iso virt-$arch.img
+fi
+
+# We create a separate disk that will be mounted at /usr, so that:
+#   - the VM does not run out of disk space
+#   - the VM remembers the packages we installed, so we don't need to reinstall
+#     everything after a reboot.
+#
+# This is simpler than a full install of alpine.
+if ! [ -f usr-$arch.img ]; then
+    echo "Creating usr disk image... (usr-$arch.img)"
+    truncate -s 4G usr-$arch.img
+    /sbin/mkfs.ext4 -q usr-$arch.img
 fi
 
 if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
@@ -68,7 +66,7 @@ else
         -m 1G \
         -smp $(nproc) \
         -drive file=virt-$arch.img,format=raw,media=cdrom \
-        -drive file=rootfs-$arch.img,format=raw \
+        -drive file=usr-$arch.img,format=raw \
         -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
         -serial tcp:localhost:4444,server=on,wait=off \
         &
@@ -92,8 +90,6 @@ fi
 #  32 history
 #  33 history >h
 
-exit
-
 ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
 
 echo "Checking if ssh works..."
@@ -104,35 +100,33 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
     # We consider the VM started when it shows login prompt on serial port.
     # At that point it has also started ssh.
     echo "Waiting for VM to boot..."
-    until echo | ../wait_for_string.sh 'localhost login:' nc localhost 4444; do sleep 1; done
+    until echo | ../wait_for_string.sh 'login:' nc localhost 4444; do sleep 1; done
     echo "Checking again if ssh works..."
     if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
-        echo "ssh doesn't work. Let's set it up using serial port."
+        echo "ssh doesn't work. Let's set up ssh and /usr disk using serial port."
         (yes || true) | ssh-keygen -t ed25519 -f key -N ''
+        rm -vf my_known_hosts
         # Log in as root
-        echo root | ../wait_for_string.sh 'localhost:~#' nc localhost 4444
-        # Go to our rootfs disk with chroot and set up ssh
+        echo root | ../wait_for_string.sh ':~#' nc localhost 4444
+        # Set up usr disk, apk and ssh
         echo "
-mount -t ext4 /dev/sda /mnt
-cd /mnt
-mount -t proc /proc proc/
-mount -t sysfs /sys sys/
-mount --rbind /dev dev/
-mount --rbind /run run/
-chroot .
-echo 'iface eth0 inet dhcp' > /etc/network/interfaces
-ifup eth0
-apk update
-apk add openssh-server
-ssh-keygen -A
-chown root:root /var/empty  # don't know why sshd wants this
-/usr/sbin/sshd
+mount /dev/sda /mnt
+if ls /mnt | grep -v lost+found; then diskready=yes; else diskready=no; fi
+[ -d /mnt/usr ] || cp -r /usr /mnt/
+mount --bind /mnt/usr /usr
+[ -d /mnt/etc ] || cp -r /etc /mnt/
+mount --bind /mnt/etc /etc
+[ -d /mnt/root ] || cp -r /root /mnt/
+mount --bind /mnt/root /root
+[ \$diskready = yes ] || setup-alpine -eq  # TODO: do we need -e if we use -q?
 mkdir ~/.ssh
-echo '$(cat key.pub)' > ~/.ssh/authorized_keys
-chown root:root ~
 chmod 700 ~/.ssh
+echo '$(cat key.pub)' > ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
-exit
+ls -la ~
+ls -la ~/.ssh
+which sshd || apk add openssh-server
+rc-service sshd start
 echo ALL'DONE'NOW
 exit
 " | ../wait_for_string.sh ALLDONENOW nc localhost 4444
