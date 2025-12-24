@@ -118,6 +118,8 @@ mount --bind /mnt/usr /usr
 mount --bind /mnt/etc /etc
 [ -d /mnt/root ] || cp -r /root /mnt/
 mount --bind /mnt/root /root
+[ -d /var/root ] || cp -r /var /mnt/
+mount --bind /mnt/var /var
 [ \$diskready = yes ] || setup-alpine -eq  # TODO: do we need -e if we use -q?
 mkdir ~/.ssh
 chmod 700 ~/.ssh
