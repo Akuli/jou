@@ -31,12 +31,54 @@ fi
 mkdir -vp "$(dirname "$0")/alpine-$arch"
 cd "$(dirname "$0")/alpine-$arch"
 
-# The "virt" image is where we actually boot from.
-if ! [ -f virt-$arch.img ]; then
-    echo "Downloading boot disk... (virt-$arch.img)"
+if ! [ -f disk-$arch.img ]; then
+    # To install alpine, you run the "setup-alpine" program on alpine.
+    # So, we first download an intermediate version of alpine to boot from.
+    #
+    # There are other ways to set up alpine, such as downloading a separate
+    # rootfs, but using their install script seems to be easy and reliable.
+    echo "Downloading alpine linux..."
     ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-virt-3.23.2-$arch.iso 4c6c76a7669c1ec55c6a7e9805b387abdd9bc5df308fd0e4a9c6e6ac028bc1cc
-    mv -v alpine-virt-3.23.2-$arch.iso virt-$arch.img
+#    mv -v alpine-virt-3.23.2-$arch.iso virt-$arch.img
+
+    echo "Creating ssh key..."
+    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
+    rm -vf my_known_hosts
+
+    echo "Creating disk..."
+    truncate -s 4G disk-$arch.img
+
+    echo "Booting temporary VM to install alpine..."
+    $qemu \
+        -m 1G \
+        -smp $(nproc) \
+        -drive file=alpine-virt-3.23.2-$arch.iso,format=raw,media=cdrom \
+        -drive file=disk-$arch.img,format=raw \
+        -nic user \
+        -serial tcp:localhost:4444,server=on,wait=off \
+        &
+
+    echo "Waiting for temporary VM to boot so we can install alpine..."
+    until echo | ../wait_for_string.sh 'localhost login:' nc localhost 4444; do sleep 1; done
+
+    echo "Logging in to temporary VM..."
+    echo root | vm/wait_for_string.sh 'localhost:~#' nc localhost 4444
+
+    echo "Installing alpine..."
+    echo "
+setup-alpine -c answerfile
+echo 'DISKOPTS=\"-m sys /dev/sda\"' >> answerfile
+echo 'ROOTSSHKEY=\"$(cat key.pub)\"' >> answerfile
+setup-alpine -f answerfile -e
+y
+sync
+poweroff
+" | nc localhost 4444
+    wait  # Make sure qemu has died before we proceed further
 fi
+
+echo lgtm
+exit
 
 # We create a separate disk that will be mounted at /usr, so that:
 #   - the VM does not run out of disk space
