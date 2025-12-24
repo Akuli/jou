@@ -18,12 +18,12 @@ set -e -o pipefail
 # just before the original compiler written in C was deleted.
 numbered_commits=(
     026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d  # <--- "./windows_setup.sh --small" starts from here! (release 2025-12-23-0400)
-    027_8a54e3b7a39531ce89bd13974cd2ecaf3f38aa08  # <--- bootstrap_transpiler.py starts here!
+    027_8ee500e8901ae8ad819e4cce5ed79cccaf2925a0  # <--- bootstrap_transpiler.py starts here!
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=027_8a54e3b7a39531ce89bd13974cd2ecaf3f38aa08
+bootstrap_transpiler_numbered_commit=027_8ee500e8901ae8ad819e4cce5ed79cccaf2925a0
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
@@ -91,6 +91,9 @@ function transpile_with_python_and_compile() {
         clang="$PWD/mingw64/bin/clang.exe"
     else
         clang="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
+        if grep -q '^const JOU_FORCE_ARMV6: bool = True' config.jou; then
+            clang="$clang --target=$($LLVM_CONFIG --host-target | sed s/^arm-/armv6-/)"
+        fi
     fi
     echo "$clang"
 
@@ -124,7 +127,17 @@ function transpile_with_python_and_compile() {
             echo "Patching Jou code to assume aarch64 support exists..."
             grep -q LLVM_HAS_AARCH64 compiler/target.jou  # fail if there's nothing to replace
             sed -i s/LLVM_HAS_AARCH64/True/g compiler/target.jou
+        else
+            # TODO: get rid of this
+            echo "Adding legacy JOU_TARGET to config.jou..."
+            echo '@public' >> config.jou
+            if grep -q '^const JOU_FORCE_ARMV6: bool = True' config.jou; then
+                printf 'const JOU_TARGET: byte* = "%s"\n' $($LLVM_CONFIG --host-target | sed s/^arm-/armv6-/) >> config.jou
+            else
+                echo 'const JOU_TARGET: byte* = ""' >> config.jou
+            fi
         fi
+        cat config.jou
 
         # Compiler uses utf8_encode_char() to detect bad characters in Jou code.
         # Let's make it return something that is not in the code so it finds no bad characters.
@@ -137,25 +150,6 @@ function transpile_with_python_and_compile() {
 def utf8_encode_char(u: uint32) -> byte*:
     return "jgdspoisajdgpoiasjdgoiasjdpoigdsa"
 ' > stdlib/utf8.jou
-
-        if [[ "$(uname -mp)" =~ arm ]]; then
-            echo "Patching support for ARM..."
-            sed -i -e s/X86/ARM/ compiler/target.jou compiler/llvm.jou
-            grep -q ARMTarget compiler/llvm.jou
-        fi
-
-        if [[ "$(uname -mp)" =~ armv6 ]]; then
-            target=$($LLVM_CONFIG --host-target)
-            if [[ $target =~ ^arm- ]]; then
-                echo "Patching the correct target for ARMv6"
-                target=${target/#arm-/armv6-}
-                sed -i -e s/'if WINDOWS'/'if True'/ -e s/'x86_64-pc-windows-gnu'/$target/ compiler/target.jou
-                grep -q "$target" compiler/target.jou
-                sed -i -e /JOU_TARGET/s/'""'/'"'$target'"'/ ../../../config.jou
-                # In theory, config.jou should be editable by the user so let's not check whether it includes $target.
-                : "${CFLAGS:=--target=$target}"
-            fi
-        fi
 
         echo "Converting Jou code to C..."
         "$python" ../../../bootstrap_transpiler.py compiler/main.jou > compiler.c
