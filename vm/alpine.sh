@@ -103,7 +103,7 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
     until echo | ../wait_for_string.sh 'login:' nc localhost 4444; do sleep 1; done
     echo "Checking again if ssh works..."
     if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
-        echo "ssh doesn't work. Let's set up ssh and /usr disk using serial port."
+        echo "ssh doesn't work. Let's set up ssh, networking and data disk using serial port."
         (yes || true) | ssh-keygen -t ed25519 -f key -N ''
         rm -vf my_known_hosts
         # Log in as root
@@ -127,7 +127,7 @@ echo '$(cat key.pub)' > ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ls -la ~
 ls -la ~/.ssh
-which sshd || apk add openssh-server
+which sshd || (ifup eth0; apk add openssh-server)
 rc-service sshd start
 echo ALL'DONE'NOW
 exit
@@ -140,7 +140,7 @@ fi
 echo "Checking if repo needs to be copied over..."
 if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
     echo "Installing packages (if not already installed)..."
-    $ssh 'which git || apk add bash clang llvm-dev make git grep libx11-dev'
+    $ssh 'which git || (ifup eth0; apk add bash clang llvm-dev make git grep libx11-dev)'
 
     echo "Copying repository to VM..."
     git bundle create jou.bundle --all
