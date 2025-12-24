@@ -91,9 +91,6 @@ function transpile_with_python_and_compile() {
         clang="$PWD/mingw64/bin/clang.exe"
     else
         clang="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
-        if grep -q '^const JOU_FORCE_ARMV6: bool = True' config.jou; then
-            clang="$clang --target=$($LLVM_CONFIG --host-target | sed s/^arm-/armv6-/)"
-        fi
     fi
     echo "$clang"
 
@@ -101,6 +98,11 @@ function transpile_with_python_and_compile() {
         echo -e "${RED}Error: clang not found.${RESET}" >&2
         echo "Please create an issue on GitHub if you can't get this to work." >&2
         exit 1
+    fi
+
+    if grep -q '^const JOU_FORCE_ARMV6: bool = True' config.jou; then
+        clang="$clang --target=$($LLVM_CONFIG --host-target | sed s/^arm-/armv6-/)"
+        echo "clang will be invoked as: $clang"
     fi
 
     local folder=tmp/bootstrap_cache/$bootstrap_transpiler_numbered_commit
@@ -129,15 +131,13 @@ function transpile_with_python_and_compile() {
             sed -i s/LLVM_HAS_AARCH64/True/g compiler/target.jou
         else
             # TODO: get rid of this
-            echo "Adding legacy JOU_TARGET to config.jou..."
-            echo '@public' >> config.jou
-            if grep -q '^const JOU_FORCE_ARMV6: bool = True' config.jou; then
-                printf 'const JOU_TARGET: byte* = "%s"\n' $($LLVM_CONFIG --host-target | sed s/^arm-/armv6-/) >> config.jou
+            echo "Adding legacy JOU_TARGET to compiler/target.jou..."
+            if grep -q '^const JOU_FORCE_ARMV6: bool = True' compiler/target.jou; then
+                printf 'const JOU_TARGET: byte* = "%s"\n' $($LLVM_CONFIG --host-target | sed s/^arm-/armv6-/) >> compiler/target.jou
             else
-                echo 'const JOU_TARGET: byte* = ""' >> config.jou
+                echo 'const JOU_TARGET: byte* = ""' >> compiler/target.jou
             fi
         fi
-        cat config.jou
 
         # Compiler uses utf8_encode_char() to detect bad characters in Jou code.
         # Let's make it return something that is not in the code so it finds no bad characters.
@@ -171,7 +171,7 @@ def utf8_encode_char(u: uint32) -> byte*:
         if [[ "$OS" =~ Windows ]]; then
             $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread -Wl,--stack,16777216 ${windows_llvm_files[@]}
         else
-            $clang -w -O2 $CFLAGS compiler.c -o jou_from_c$exe_suffix -pthread $(grep ^link config.jou | cut -d'"' -f2)
+            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread $(grep ^link config.jou | cut -d'"' -f2)
         fi
 
         # Transpiling produces a broken Jou compiler for some reason. I don't
