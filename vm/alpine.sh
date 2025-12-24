@@ -36,13 +36,13 @@ cd "$(dirname "$0")/alpine-$arch"
 # installing Jou's dependencies.
 if ! [ -f rootfs-$arch.img ]; then
     echo "Creating rootfs disk image... (rootfs-$arch.img)"
-    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-minirootfs-3.23.2-$arch.tar.gz 99457a300f13d1971d4627a0ccdf4ae17db18807804e3b5867d4edf8afa16d23
-    mkdir rootfs
-    tar xf alpine-minirootfs-3.23.2-$arch.tar.gz -C rootfs
-    rm alpine-minirootfs-3.23.2-$arch.tar.gz
+#    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-minirootfs-3.23.2-$arch.tar.gz 99457a300f13d1971d4627a0ccdf4ae17db18807804e3b5867d4edf8afa16d23
+#    mkdir rootfs
+#    tar xf alpine-minirootfs-3.23.2-$arch.tar.gz -C rootfs
+#    rm alpine-minirootfs-3.23.2-$arch.tar.gz
     truncate -s 4G rootfs-$arch.img
-    /sbin/mkfs.ext4 -q rootfs-$arch.img -d rootfs
-    rm -rf rootfs
+#    /sbin/mkfs.ext4 -q rootfs-$arch.img -d rootfs
+#    rm -rf rootfs
 fi
 
 # The "virt" image is where we actually boot from.
@@ -78,6 +78,21 @@ else
     sleep 1
     kill -0 $qemu_pid  # stop if qemu died instantly
 fi
+
+#   9 setup-alpine -c x
+#  20 sed -i /DISKOPTS=none/d x
+#  21 echo 'DISKOPTS="-m sys /dev/sda"' >> x
+#  26 setup-alpine -f x
+#       y
+#  27 lsblk
+#  28 mount /dev/sda2 /mnt
+#  29 mount /dev/sda3 /mnt
+#  30 ls /mnt
+#  31 chroot /mnt
+#  32 history
+#  33 history >h
+
+exit
 
 ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
 
