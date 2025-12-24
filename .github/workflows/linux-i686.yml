@@ -12,4 +12,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-      - run: cd vm && ./alpine.sh
+      - run: sudo apt update && sudo apt -y install qemu-system-x86
+      - uses: actions/cache@v5
+        with:
+          path: vm/alpine-x86
+          key: alpine-${{ hashFiles('.github/workflows/alpine.yml', 'vm/alpine.sh', 'vm/download.sh') }}
+      - run: vm/alpine.sh x86 echo hello
+      - run: vm/alpine.sh x86 git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/alpine.sh x86 ./runtests.sh --verbose
+      - run: vm/alpine.sh x86 ./jou -o jou2 compiler/main.jou
+      - run: vm/alpine.sh x86 mv jou2 jou
+      - run: vm/alpine.sh x86 ./runtests.sh --verbose
+      - name: Shut down VM
+        run: |
+          ! vm/alpine.sh x86 /sbin/poweroff  # ssh should fail here
+          while kill -0 $(cat vm/alpine-x86/pid.txt); do sleep 1; done
+          rm vm/alpine-x86/pid.txt
