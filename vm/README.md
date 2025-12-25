@@ -60,5 +60,5 @@ Here are some guidelines for working on the scripts:
 Dependencies (in addition to what you need for Jou anyway):
 
 ```
-$ sudo apt install openssh-client qemu-system-x86
+$ sudo apt install openssh-client qemu-system-x86 qemu-system-aarch64 qemu-efi-aarch64
 ```
