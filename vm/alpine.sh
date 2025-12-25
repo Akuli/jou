@@ -126,7 +126,7 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
 
     echo "Copying repository to VM..."
     git bundle create jou.bundle --all
-    cat jou.bundle | $ssh 'cat > jou.bundle'  # easier and faster than using scp here
+    cat jou.bundle | $ssh 'cat > jou.bundle'
     rm jou.bundle
 
     echo "Checking out repository inside VM..."
