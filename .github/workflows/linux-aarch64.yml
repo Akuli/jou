@@ -33,105 +33,29 @@ jobs:
 
   test:
     needs: [check-if-needed]
+    if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
     timeout-minutes: 75  # Bootstrapping and running all the tests in qemu VM is REALLY slow.
     runs-on: ubuntu-latest
     steps:
-      - name: Install qemu
-        run: sudo apt update && sudo apt -y install qemu-system-aarch64
-
-      - name: Download Debian disk image
-        run: curl -L -o disk.qcow2 https://cloud.debian.org/images/cloud/trixie/20250814-2204/debian-13-nocloud-arm64-20250814-2204.qcow2
-
-      - name: Verify Debian disk image
-        run: echo 'bda283e7c7037220897e201a5387773e48f688d33795cccd84d20db01dbffcbc  disk.qcow2' | sha256sum --check
-
-      - name: Start qemu
-        # Figuring out the qemu command was painful and took a long time.
-        #
-        # Some notes:
-        #
-        #   - Without -bios the machine gets stuck with no output. See:
-        #     https://superuser.com/questions/1684886/qemu-aarch64-on-arm-mac-never-boots-and-only-shows-qemu-prompt
-        #
-        #   - There are 3 ways to specify networking. It seems like `-nic` is
-        #     the modern thing to do when you want something that just works.
-        #     We forward port 2222 to inside the VM, but for safety of anyone
-        #     running this command locally, only when connecting from localhost.
-        run: |
-          touch input output
-          tail -f input | \
-            qemu-system-aarch64 \
-            -machine virt \
-            -cpu cortex-a72 \
-            -smp 2 \
-            -m 1G \
-            -hda disk.qcow2 \
-            -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd \
-            -serial stdio \
-            -monitor none \
-            -nic user,hostfwd=tcp:127.0.0.1:2222-:2222 \
-            -nographic \
-            &> output &
-          echo $! > qemu-pid.txt
-
-      - name: Wait for Debian to boot and log in
-        run: |
-          tail -f output & trap "kill $!" EXIT
-          while ! grep -q 'localhost login:' output; do :; done
-          echo 'root' >> input  # user root, no password
-          while ! grep -q 'root@localhost:~#' output; do sleep 1; done
-
-      - name: Create runner script
-        run: |
-          cat >run.sh <<'EOF'
-          #!/bin/bash
-          [ $# == 1 ] || { echo "Usage: $0 <command>" >&2; exit 2; }
-          id="Command_$RANDOM$RANDOM$RANDOM$RANDOM"
-          tail -c0 -f output | sed -u 1d &
-          trap "kill $!" EXIT
-          sleep 0.5  # wait for the above tail pipeline to start
-          echo -n "$@" >> input
-          echo " ; echo Exit status: \$?; echo '$id'" >> input
-          while ! grep -q "^$id" output; do sleep 0.2; done
-          exit $(grep --text -o "Exit status: [0-9]*" output | tail -1 | cut -d ' ' -f 3)
-          EOF
-          chmod +x run.sh
-
-      - name: Install dependencies in VM
-        run: ./run.sh "apt update && apt -y install --no-install-recommends netcat-traditional git llvm-19-dev clang-19 make"
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          path: jou
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-
-      - name: Copy repository to VM
+      - run: sudo apt update && sudo apt -y install --no-install-recommends qemu-system-aarch64
+      - uses: actions/cache@v5
+        with:
+          path: vm/alpine-aarch64
+          key: alpine-${{ hashFiles('.github/workflows/alpine.yml', 'vm/alpine.sh', 'vm/download.sh') }}
+      - run: vm/alpine.sh aarch64 echo hello
+      - run: vm/alpine.sh aarch64 git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/alpine.sh aarch64 ./runtests.sh --verbose
+      - run: vm/alpine.sh aarch64 ./jou -o jou2 compiler/main.jou
+      - run: vm/alpine.sh aarch64 mv jou2 jou
+      - run: vm/alpine.sh aarch64 ./runtests.sh --verbose
+      - name: Shut down VM
         run: |
-          ./run.sh "nc -nlvp 2222 | tar x" &
-          sleep 3  # Wait for netcat to start
-          tar c jou | nc -q 3 localhost 2222 &
-          wait
-          ./run.sh "cd jou"
-
-      - name: Silence Git warning
-        run: ./run.sh "git config --global --add safe.directory /root/jou"
-
-      - name: Compile
-        run: ./run.sh "make"
-      - name: Run tests
-        run: ./run.sh "GITHUB_ACTIONS=true ./runtests.sh --verbose"
-      - name: Compile the compiler with itself
-        run: ./run.sh "./jou -o jou2 compiler/main.jou && mv jou2 jou"
-      - name: Run tests again
-        run: ./run.sh "GITHUB_ACTIONS=true ./runtests.sh --verbose"
-      - name: Run doctests
-        run: ./run.sh "./doctest.sh"
-
-      - name: Stop qemu
-        if: always()  # Run this even if there are errors
-        run: |
-          if [ -f qemu-pid.txt ]; then pid=$(cat qemu-pid.txt); echo "Killing $pid"; kill $pid; fi
+          ! vm/alpine.sh aarch64 /sbin/poweroff  # ssh should fail here
+          while kill -0 $(cat vm/alpine-aarch64/pid.txt); do sleep 1; done
+          rm vm/alpine-aarch64/pid.txt
 
   # Please keep in sync with valgrind.yml and macos.yml
   create-issue-on-failure:
