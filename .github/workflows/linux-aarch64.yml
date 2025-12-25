@@ -44,7 +44,7 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: vm/alpine-aarch64
-          key: alpine-${{ hashFiles('.github/workflows/alpine.yml', 'vm/alpine.sh', 'vm/download.sh') }}
+          key: alpine-aarch64-${{ hashFiles('.github/workflows/alpine.yml', 'vm/alpine.sh', 'vm/download.sh') }}
       - run: vm/alpine.sh aarch64 echo hello
       - run: vm/alpine.sh aarch64 git clean -ffdx -e tmp/bootstrap_cache
       - run: vm/alpine.sh aarch64 ./runtests.sh --verbose
