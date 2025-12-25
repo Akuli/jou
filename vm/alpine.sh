@@ -11,6 +11,11 @@ shift
 case $arch in
     x86)
         qemu=kvm
+        sha=4c6c76a7669c1ec55c6a7e9805b387abdd9bc5df308fd0e4a9c6e6ac028bc1cc
+        ;;
+    aarch64)
+        qemu='qemu-system-aarch64 -machine virt -cpu cortex-a72 -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd'
+        sha=ce1e5fb1318365401ce309eb57c39521c11ac087e348ea7f9d3dd2122a58d0c2
         ;;
     *)
         echo "$0: Unsupported architecture '$arch' (must be x86)"
@@ -35,7 +40,7 @@ if ! [ -f disk.img ]; then
     # There are other ways to set up alpine, such as downloading a separate
     # rootfs, but using their install script seems to be easy and reliable.
     echo "Downloading alpine linux..."
-    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-virt-3.23.2-$arch.iso 4c6c76a7669c1ec55c6a7e9805b387abdd9bc5df308fd0e4a9c6e6ac028bc1cc
+    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-virt-3.23.2-$arch.iso $sha
 
     echo "Creating ssh key..."
     (yes || true) | ssh-keygen -t ed25519 -f key -N ''
