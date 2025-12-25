@@ -115,10 +115,10 @@ else
     kill -0 $qemu_pid  # stop if qemu died instantly
 fi
 
-echo "Waiting for VM to boot..."
-until (timeout 2 nc localhost 2222 || true) < /dev/null | grep SSH; do sleep 5; done
-
 ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
+
+echo "Waiting for VM to boot..."
+until $ssh echo hello; do sleep 1; done
 
 echo "Checking if repo needs to be copied over..."
 if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
