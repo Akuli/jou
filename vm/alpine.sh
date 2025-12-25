@@ -67,9 +67,13 @@ if ! [ -f disk.img ]; then
         -nic user \
         -serial tcp:localhost:4444,server=on,wait=off \
         &
+    qemu_pid=$!
 
     echo "Waiting for temporary VM to boot so we can install alpine..."
-    until echo | ../wait_for_string.sh 'localhost login:' nc localhost 4444; do sleep 1; done
+    until echo | ../wait_for_string.sh 'localhost login:' nc localhost 4444; do
+        sleep 1
+        kill -0 $qemu_pid  # Stop if qemu dies
+    done
 
     echo "Logging in to temporary VM..."
     echo root | ../wait_for_string.sh 'localhost:~#' nc localhost 4444
@@ -117,14 +121,15 @@ else
     qemu_pid=$!
     echo $qemu_pid > pid.txt
     disown
-    sleep 1
-    kill -0 $qemu_pid  # stop if qemu died instantly
 fi
 
 ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
 
 echo "Waiting for VM to boot..."
-until $ssh echo hello; do sleep 1; done
+until $ssh echo hello; do
+    sleep 1
+    kill -0 $qemu_pid  # Stop if qemu dies
+done
 
 echo "Checking if repo needs to be copied over..."
 if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then

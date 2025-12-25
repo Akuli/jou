@@ -79,8 +79,6 @@ else
     qemu_pid=$!
     echo $qemu_pid > pid.txt
     disown
-    sleep 1
-    kill -0 $qemu_pid  # stop if qemu died instantly
 fi
 
 ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
@@ -93,7 +91,10 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
     # We consider the VM started when it shows login prompt on serial port.
     # At that point it has also started ssh.
     echo "Waiting for VM to boot..."
-    until echo | ../wait_for_string.sh 'login:' nc localhost 4444; do sleep 1; done
+    until echo | ../wait_for_string.sh 'login:' nc localhost 4444; do
+        sleep 1
+        kill -0 $qemu_pid  # Stop if qemu dies
+    done
     echo "Checking again if ssh works..."
     if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
         echo "ssh doesn't work. Let's set it up using serial port."
