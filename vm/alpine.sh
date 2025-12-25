@@ -116,7 +116,7 @@ else
 fi
 
 echo "Waiting for VM to boot..."
-until nc localhost 2222 < /dev/null | grep SSH; do sleep 5; done
+until (timeout 2 nc localhost 2222 || true) < /dev/null | grep SSH; do sleep 5; done
 
 ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
 
