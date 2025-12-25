@@ -10,8 +10,7 @@ arch=$1
 shift
 case $arch in
     x86)
-        #qemu=kvm  # Gives me random "Illegal instruction" errors locally???
-        qemu='qemu-system-i386 -cpu pentium3'
+        qemu=kvm
         ;;
     *)
         echo "$0: Unsupported architecture '$arch' (must be x86)"
@@ -85,9 +84,9 @@ fi
 if [ "$GITHUB_ACTIONS" != "true" ]; then
     # During local development, let the VM stay alive after this script dies.
     #
-    # This is not done for the temporary setup VM, because I don't expect to
-    # spend a lot of time debugging it, and I don't want to think about when
-    # an interrupted setup can be finished without starting from scratch.
+    # This is not done for the temporary setup VM, because I don't want to
+    # figure out when an interrupted setup can/cannot be completed without
+    # starting from scratch.
     qemu="setsid $qemu"
 fi
 
