@@ -123,7 +123,7 @@ ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_kno
 echo "Checking if repo needs to be copied over..."
 if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
     echo "Installing packages (if not already installed)..."
-    $ssh 'which git || (ifup eth0; apk add bash clang llvm-dev make git grep libx11-dev)'
+    $ssh 'which git || apk add bash clang llvm-dev make git grep libx11-dev'
 
     echo "Copying repository to VM..."
     git bundle create jou.bundle --all
