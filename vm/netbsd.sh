@@ -20,13 +20,9 @@ esac
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
     if [ $qemu = kvm ]; then
-        # I think sudo shouldn't be needed when developing locally, because you
-        # can add yourself to the kvm group.
-        #
-        # Please make a GitHub issue if I am wrong.
         qemu='sudo kvm'
     fi
-    # In GitHub Actions, don't show any kind of GUI
+    # Don't show any kind of GUI in GitHub Actions
     qemu="$qemu -nographic -monitor none"
 else
     # During local development, let the VM stay alive after this script dies
@@ -52,14 +48,14 @@ if ! [ -f NetBSD-10.1-$arch-live.img ]; then
     (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=$offset count=1000 status=none || true) | head -1  # show the line of text
     printf "on " | dd of=NetBSD-10.1-amd64-live.img bs=1 seek=$((offset+44)) conv=notrunc status=none
     (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=$offset count=1000 status=none || true) | head -1  # show the line of text
-fi
 
-# Make disk image large enough for LLVM and other tools.
-#
-# When NetBSD boots, it detects that the disk has been resized, adjusts its
-# partitions to use the whole disk, and automatically reboots.
-echo "Resizing disk..."
-truncate -s 4G NetBSD-10.1-$arch-live.img
+    # Make disk image large enough for LLVM and other tools.
+    #
+    # When NetBSD boots, it detects that the disk has been resized, adjusts its
+    # partitions to use the whole disk, and automatically reboots.
+    echo "Resizing disk..."
+    truncate -s 4G NetBSD-10.1-$arch-live.img
+fi
 
 if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
     qemu_pid=$(cat pid.txt)
@@ -102,6 +98,7 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
     if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
         echo "ssh doesn't work. Let's set it up using serial port."
         (yes || true) | ssh-keygen -t ed25519 -f key -N ''
+        rm -vf my_known_hosts
         # Log in as root and set up ssh key
         printf 'root\nmkdir .ssh\nchmod 700 .ssh\necho "%s" > .ssh/authorized_keys\necho ALL"DONE"NOW\nexit\n' "$(cat key.pub)" | ../wait_for_string.sh 'ALLDONENOW' nc localhost 4444
         echo "Now ssh setup is done, let's check one last time..."

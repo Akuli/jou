@@ -1,80 +1,143 @@
-#!/bin/sh
+#!/bin/bash
+set -e -o pipefail
 
-set -e
+if [ $# -lt 2 ]; then
+    echo "Usage: $0 <arch> <command inside VM>"
+    exit 1
+fi
 
-sudo apt update
-sudo apt --no-install-recommends install qemu-system-x86 expect
+arch=$1
+shift
+case $arch in
+    x86)
+        qemu=kvm
+        ;;
+    *)
+        echo "$0: Unsupported architecture '$arch' (must be x86)"
+        exit 2
+esac
 
-mkdir -p alpine && cd alpine
+if [ "$GITHUB_ACTIONS" = "true" ]; then
+    if [ $qemu = kvm ]; then
+        qemu='sudo kvm'
+    fi
+    # Don't show any kind of GUI in GitHub Actions
+    qemu="$qemu -nographic -monitor none"
+fi
 
-DOWNLOAD_PATH="https://dl-cdn.alpinelinux.org/latest-stable/releases/x86"
-../download.sh $DOWNLOAD_PATH/alpine-minirootfs-3.23.2-x86.tar.gz 99457a300f13d1971d4627a0ccdf4ae17db18807804e3b5867d4edf8afa16d23
-../download.sh $DOWNLOAD_PATH/alpine-virt-3.23.2-x86.iso 4c6c76a7669c1ec55c6a7e9805b387abdd9bc5df308fd0e4a9c6e6ac028bc1cc
+mkdir -vp "$(dirname "$0")/alpine-$arch"
+cd "$(dirname "$0")/alpine-$arch"
 
-mv -v alpine-minirootfs-*-x86.tar.gz rootfs.tar.gz
-mv -v alpine-virt-*-x86.iso virt.iso
+if ! [ -f disk.img ]; then
+    # To install alpine, you run the "setup-alpine" program on alpine.
+    # So, we first download an intermediate version of alpine to boot from.
+    #
+    # There are other ways to set up alpine, such as downloading a separate
+    # rootfs, but using their install script seems to be easy and reliable.
+    echo "Downloading alpine linux..."
+    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-virt-3.23.2-$arch.iso 4c6c76a7669c1ec55c6a7e9805b387abdd9bc5df308fd0e4a9c6e6ac028bc1cc
 
-mkdir rootfs
-tar xf rootfs.tar.gz -C rootfs
+    echo "Creating ssh key..."
+    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
+    rm -vf my_known_hosts
 
-git bundle create rootfs/root/jou.bundle --all
+    echo "Creating disk..."
+    trap 'rm -v disk.img' EXIT  # Avoid leaving behind a broken disk image
+    truncate -s 4G disk.img
 
-truncate -s 4G rootfs.img
-/sbin/mkfs.ext4 rootfs.img -d rootfs
-rm -rf rootfs
+    echo "Booting temporary VM to install alpine..."
+    # Explanations of qemu options:
+    #   -m: amount of RAM (linux typically uses all available RAM due to disk caching)
+    #   -smp: number of CPUs available inside the VM
+    #   -drive: where to boot from (cdrom), another disk that will appear inside VM
+    #   -nic: enable networking
+    #   -serial: make serial console available on host's port 4444
+    $qemu \
+        -m 1G \
+        -smp $(nproc) \
+        -drive file=alpine-virt-3.23.2-$arch.iso,format=raw,media=cdrom \
+        -drive file=disk.img,format=raw \
+        -nic user \
+        -serial tcp:localhost:4444,server=on,wait=off \
+        &
 
-expect <<END
-set timeout 300
+    echo "Waiting for temporary VM to boot so we can install alpine..."
+    until echo | ../wait_for_string.sh 'localhost login:' nc localhost 4444; do sleep 1; done
 
-spawn sudo kvm -m 2G -smp 2 -drive file=virt.iso,format=raw,media=cdrom -drive file=rootfs.img,format=raw -nographic
+    echo "Logging in to temporary VM..."
+    echo root | ../wait_for_string.sh 'localhost:~#' nc localhost 4444
 
-expect {
-    "localhost login: " {
-        send "root\r"
-    }
-}
-expect {
-    "localhost:~# " {
-        send "mount -t ext4 /dev/sda /mnt && cd /mnt && "
-        send "mount -t proc /proc proc/ && "
-        send "mount -t sysfs /sys sys/ && "
-        send "mount --rbind /dev dev/ && "
-        send "mount --rbind /run run/ && "
-        send "chroot . \r"
-    }
-}
-expect {
-    "/ # " {
-        send "cd \r"
-    }
-}
-expect {
-    "~ # " {
-        send "echo 'FAIL!!' >status && echo 'iface eth0 inet dhcp' >/etc/network/interfaces && ifup eth0 && "
-        send "apk update && apk upgrade && TERM=dumb apk add bash clang llvm-dev make git grep patch libx11-dev && "
-        send "git clone ./jou.bundle jou && cd jou && "
-        send "./runtests.sh --verbose && mv jou jou_bootstrap && ./runtests.sh should_succeed && ./doctest.sh && "
-        send "echo SUCCESS >~/status \r"
-    }
-}
-expect {
-    "~ # " {
-        exit 1
-    }
-    "~/jou # " {
-        send "cat ~/status \r"
-    }
-    timeout {
-        exit 67
-    }
-}
-expect {
-    "SUCCESS" {
-        exit 0
-    }
-    "FAIL!!" {
-        exit 1
-    }
-}
-wait
-END
+    echo "Installing alpine..."
+    echo "
+setup-alpine -c answerfile
+echo 'DISKOPTS=\"-m sys /dev/sda\"' >> answerfile
+echo 'ROOTSSHKEY=\"$(cat key.pub)\"' >> answerfile
+setup-alpine -f answerfile -e
+y
+sync
+poweroff
+" | nc localhost 4444
+    wait  # Make sure qemu has died before we proceed further
+    trap - EXIT  # Don't delete disk.img when we exit
+fi
+
+if [ "$GITHUB_ACTIONS" != "true" ]; then
+    # During local development, let the VM stay alive after this script dies.
+    #
+    # This is not done for the temporary setup VM, because I don't want to
+    # figure out when an interrupted setup can/cannot be completed without
+    # starting from scratch.
+    qemu="setsid $qemu"
+fi
+
+if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
+    qemu_pid=$(cat pid.txt)
+    echo "qemu is already running (PID $qemu_pid), not restarting."
+else
+    rm -f pid.txt
+    echo "Starting qemu..."
+    # Explanations of qemu options:
+    #   -m: amount of RAM (linux typically uses all available RAM due to disk caching)
+    #   -smp: number of CPUs available inside the VM
+    #   -drive: where to boot from
+    #   -nic: enable networking so that port 2222 on host is port 22 (ssh) in VM
+    $qemu \
+        -m 1G \
+        -smp $(nproc) \
+        -drive file=disk.img,format=raw \
+        -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
+        &
+    qemu_pid=$!
+    echo $qemu_pid > pid.txt
+    disown
+    sleep 1
+    kill -0 $qemu_pid  # stop if qemu died instantly
+fi
+
+ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
+
+echo "Waiting for VM to boot..."
+until $ssh echo hello; do sleep 1; done
+
+echo "Checking if repo needs to be copied over..."
+if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
+    echo "Installing packages (if not already installed)..."
+    $ssh 'which git || apk add bash clang llvm-dev make git grep libx11-dev'
+
+    echo "Copying repository to VM..."
+    git bundle create jou.bundle --all
+    cat jou.bundle | $ssh 'cat > jou.bundle'
+    rm jou.bundle
+
+    echo "Checking out repository inside VM..."
+    $ssh "
+    set -e
+    [ -d jou ] || git init jou
+    cd jou
+    git fetch ../jou.bundle
+    git checkout -f $(git rev-parse HEAD)  # The rev-parse runs on host, not inside VM
+    "
+fi
+
+echo "Running command in VM's jou folder: $@"
+$ssh cd jou '&&' "$@"
