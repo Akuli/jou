@@ -5,6 +5,7 @@ qemu-system-arm -M versatilepb -cpu arm1176 -m 256 -drive file=2021-12-02-raspio
 ^^^^ Toimii, mutta debian buster EOL 2024 joten aptijutut ei enää olemassa...
 
 wget https://dl-cdn.alpinelinux.org/v3.23/releases/armhf/alpine-minirootfs-3.23.2-armhf.tar.gz
+# TODO: this needs fakeroot...
 mkdir rootfs
 tar xf alpine-minirootfs-3.23.2-armhf.tar.gz -C rootfs
 truncate -s 2G alpine.img
@@ -24,9 +25,7 @@ apk add openrc
 
 this speeds up RNG init A LOT: -device virtio-rng-pci
 
-tar xf alpine-rpi-3.23.2-armhf.tar.gz -C alpine-rpi-armhf-tar/
-cp alpine-rpi-armhf-tar/apks/ rootfs
-/sbin/mkfs.ext4 alpine3.img -d rootfs 2G
+fakeroot bash -c 'set -e; tar xf alpine-rpi-3.23.2-armhf.tar.gz -C alpine-rpi-armhf-tar/; cp alpine-rpi-armhf-tar/apks/ rootfs; /sbin/mkfs.ext4 alpine3.img -d rootfs 2G'
 qemu-system-arm -M versatilepb -cpu arm1176 -m 256 -kernel qemu-rpi-kernel/kernel-qemu-5.10.63-bullseye -dtb qemu-rpi-kernel/versatile-pb-bullseye-5.10.63.dtb -drive file=alpine3.img,format=raw,if=none,id=disk0 -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off -append "root=/dev/vda rw console=ttyAMA0 init=/bin/sh" -serial stdio -netdev user,id=net0 -net nic,model=smc91c111,netdev=net0 -device virtio-rng-pci
 cd /
 mount -t proc proc proc
