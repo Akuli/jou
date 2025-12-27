@@ -1,0 +1,23 @@
+wget https://downloads.raspberrypi.org/raspios_oldstable_lite_armhf/images/raspios_oldstable_lite_armhf-2021-12-02/2021-12-02-raspios-buster-armhf-lite.zip
+https://github.com/dhruvvyas90/qemu-rpi-kernel
+qemu-system-arm -M versatilepb -cpu arm1176 -m 256 -drive file=2021-12-02-raspios-buster-armhf-lite.img,if=none,index=0,media=disk,format=raw,id=disk0 -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off -dtb qemu-rpi-kernel/versatile-pb-buster-5.4.51.dtb -kernel qemu-rpi-kernel/kernel-qemu-5.4.51-buster -append root=/dev/vda2 -netdev user,id=net0 -net nic,model=smc91c111,netdev=net0
+
+^^^^ Toimii, mutta debian buster EOL 2024 joten aptijutut ei enää olemassa...
+
+wget https://dl-cdn.alpinelinux.org/v3.23/releases/armhf/alpine-minirootfs-3.23.2-armhf.tar.gz
+mkdir rootfs
+tar xf alpine-minirootfs-3.23.2-armhf.tar.gz -C rootfs
+truncate -s 2G alpine.img
+/sbin/mkfs.ext4 -d rootfs alpine.img
+qemu-system-arm -M versatilepb -cpu arm1176 -m 256 -kernel qemu-rpi-kernel/kernel-qemu-5.10.63-bullseye -dtb qemu-rpi-kernel/versatile-pb-bullseye-5.10.63.dtb -drive file=alpine.img,format=raw,if=none,id=disk0 -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off -append root=/dev/vda rw console=ttyAMA0 -serial stdio -netdev user,id=net0 -net nic,model=smc91c111,netdev=net0
+
+Laitoin init=/bin/sh tähän...
+
+mount -t sysfs sysfs /sys
+mount -t proc proc /proc
+ip link set dev eth0 up
+udhcpc -i eth0
+
+"apk update" toimii mutta on HYVIN HIDAS (~1min).
+
+apk add openrc
