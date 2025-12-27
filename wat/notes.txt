@@ -9,7 +9,7 @@ mkdir rootfs
 tar xf alpine-minirootfs-3.23.2-armhf.tar.gz -C rootfs
 truncate -s 2G alpine.img
 /sbin/mkfs.ext4 -d rootfs alpine.img
-qemu-system-arm -M versatilepb -cpu arm1176 -m 256 -kernel qemu-rpi-kernel/kernel-qemu-5.10.63-bullseye -dtb qemu-rpi-kernel/versatile-pb-bullseye-5.10.63.dtb -drive file=alpine.img,format=raw,if=none,id=disk0 -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off -append root=/dev/vda rw console=ttyAMA0 -serial stdio -netdev user,id=net0 -net nic,model=smc91c111,netdev=net0
+qemu-system-arm -M versatilepb -cpu arm1176 -m 256 -kernel qemu-rpi-kernel/kernel-qemu-5.10.63-bullseye -dtb qemu-rpi-kernel/versatile-pb-bullseye-5.10.63.dtb -drive file=alpine.img,format=raw,if=none,id=disk0 -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off -append "root=/dev/vda rw console=ttyAMA0" -serial stdio -netdev user,id=net0 -net nic,model=smc91c111,netdev=net0
 
 Laitoin init=/bin/sh tähän...
 
@@ -21,3 +21,24 @@ udhcpc -i eth0
 "apk update" toimii mutta on HYVIN HIDAS (~1min).
 
 apk add openrc
+
+this speeds up RNG init A LOT: -device virtio-rng-pci
+
+tar xf alpine-rpi-3.23.2-armhf.tar.gz -C alpine-rpi-armhf-tar/
+cp alpine-rpi-armhf-tar/apks/ rootfs
+/sbin/mkfs.ext4 alpine3.img -d rootfs 2G
+qemu-system-arm -M versatilepb -cpu arm1176 -m 256 -kernel qemu-rpi-kernel/kernel-qemu-5.10.63-bullseye -dtb qemu-rpi-kernel/versatile-pb-bullseye-5.10.63.dtb -drive file=alpine3.img,format=raw,if=none,id=disk0 -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off -append "root=/dev/vda rw console=ttyAMA0 init=/bin/sh" -serial stdio -netdev user,id=net0 -net nic,model=smc91c111,netdev=net0 -device virtio-rng-pci
+cd /
+mount -t proc proc proc
+mount -t sysfs sys sys
+echo /apks > /etc/apk/repositories
+apk add alpine-base
+hostname alpine
+setup-alpine
+	network setup: just eth0, say "done" after it
+	disk: none is good
+echo 'ttyAMA0::respawn:/sbin/getty -L 115200 ttyAMA0 vt100' >> /etc/inittab
+sync
+
+Then the same without init=/bin/sh and you get root login prompt!!!
+sshd fails to start though...
