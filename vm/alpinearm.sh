@@ -6,8 +6,12 @@ arch=armv6
 mkdir -v "$(dirname "$0")/alpine-$arch"
 cd "$(dirname "$0")/alpine-$arch"
 
-# The situation for running ARM on qemu is complicated, and AI tools will
-# probably do a better job explaining it than me. But basically, you cannot use
+echo "Creating ssh key..."
+(yes || true) | ssh-keygen -t ed25519 -f key -N ''
+rm -vf my_known_hosts
+
+# The situation for running armv6 on qemu is complicated, and AI will
+# probably explain it better than me. But basically, you cannot use
 # most images available online, including images made for for raspberry pi 1,
 # because qemu doesn't emulate all the required hardware. Instead you need to
 # grab a linux kernel and device tree from this random github repo, and use
@@ -25,6 +29,7 @@ echo "Downloading alpine linux..."
 #   - tar thinks it's root, so it extracts file and sets its owner to root
 #   - fakeroot sees owner of file as root, so it becomes root-owned in VM disk
 #   - during the whole time, the file is actually owned by current user on host
+rm -rf rootfs alpine.img
 mkdir rootfs
 fakeroot bash -c 'set -e; tar xf alpine-minirootfs-3.23.2-armhf.tar.gz -C rootfs; /sbin/mkfs.ext4 -d rootfs alpine.img 2G'
 
@@ -40,7 +45,9 @@ qemu-system-arm \
     -append "root=/dev/vda rw console=ttyAMA0 init=/bin/sh" \
     -serial tcp:localhost:4444,server=on,wait=off \
     -netdev user,id=net0 \
-    -net nic,model=smc91c111,netdev=net0 &
+    -net nic,model=smc91c111,netdev=net0 \
+    -device virtio-rng-pci \
+    &
 qemu_pid=$!
 
 until ../wait_for_string.sh '~ #' nc localhost 4444; do
@@ -48,4 +55,19 @@ until ../wait_for_string.sh '~ #' nc localhost 4444; do
     kill -0 $qemu_pid  # Stop if qemu dies
 done
 
-bash  # DEBUG
+echo "
+mount -t sysfs sysfs /sys
+mount -t proc proc /proc
+ip link set dev eth0 up
+udhcpc -i eth0
+apk update
+apk add alpine-base
+hostname alpine
+setup-alpine -c answerfile
+echo 'ROOTSSHKEY=\"$(cat key.pub)\"' >> answerfile
+cat answerfile
+setup-alpine -f answerfile -e
+echo 'ttyAMA0::respawn:/sbin/getty -L 115200 ttyAMA0 vt100' >> /etc/inittab  # getty on serial port
+sync
+exec /sbin/init
+" | ../wait_for_string.sh 'alpine login:' nc localhost 4444
