@@ -19,8 +19,12 @@ case $arch in
         sha=ce1e5fb1318365401ce309eb57c39521c11ac087e348ea7f9d3dd2122a58d0c2
         disk_name_inside_vm=vdb
         ;;
+    armv6)
+        qemu=qemu-system-arm
+        # Heavily special-cased below
+        ;;
     *)
-        echo "$0: Unsupported architecture '$arch' (must be x86)"
+        echo "$0: Unsupported architecture '$arch' (must be one of: x86, aarch64, armv6)"
         exit 2
 esac
 
@@ -35,51 +39,138 @@ fi
 mkdir -vp "$(dirname "$0")/alpine-$arch"
 cd "$(dirname "$0")/alpine-$arch"
 
-if ! [ -f disk.img ]; then
-    # To install alpine, you run the "setup-alpine" program on alpine.
-    # So, we first download an intermediate version of alpine to boot from.
-    #
-    # There are other ways to set up alpine, such as downloading a separate
-    # rootfs, but using their install script seems to be easy and reliable.
-    echo "Downloading alpine linux..."
-    ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-virt-3.23.2-$arch.iso $sha
-
+if ! [ -f key ] || ! [ -f key.pub ]; then
     echo "Creating ssh key..."
     (yes || true) | ssh-keygen -t ed25519 -f key -N ''
     rm -vf my_known_hosts
+fi
 
+if ! [ -f disk.img ]; then
     echo "Creating disk..."
     trap 'rm -v disk.img' EXIT  # Avoid leaving behind a broken disk image
-    truncate -s 4G disk.img
 
-    echo "Booting temporary VM to install alpine..."
-    # Explanations of qemu options:
-    #   -m: amount of RAM (linux typically uses all available RAM due to disk caching)
-    #   -smp: number of CPUs available inside the VM
-    #   -drive: where to boot from (cdrom), another disk that will appear inside VM
-    #   -nic: enable networking
-    #   -serial: make serial console available on host's port 4444
-    $qemu \
-        -m 1G \
-        -smp $(nproc) \
-        -drive file=alpine-virt-3.23.2-$arch.iso,format=raw,media=cdrom \
-        -drive file=disk.img,format=raw \
-        -nic user \
-        -serial tcp:localhost:4444,server=on,wait=off \
-        &
-    qemu_pid=$!
+    if [ $arch == armv6 ]; then
+        # Running armv6 on qemu is complicated, and AI will probably explain it
+        # better than me. But basically, you cannot use most images available
+        # online, including images made for for raspberry pi 1, because qemu
+        # doesn't emulate all the required hardware. Instead you need to grab a
+        # linux kernel and device tree from this random github repo, and use
+        # them with the file system of alpine linux (or other distro).
+        echo "Downloading ARM kernel and device tree made for QEMU..."
+        commit=9fb4fcf463df4341dbb7396df127374214b90841  # latest commit on master at the time of writing this
+        ../download.sh https://github.com/dhruvvyas90/qemu-rpi-kernel/raw/$commit/kernel-qemu-5.10.63-bullseye 19f348e9fe2b9b7e9330ce2eb4e7f177a71585651080ca9add378a497ebed9ae
+        ../download.sh https://github.com/dhruvvyas90/qemu-rpi-kernel/raw/$commit/versatile-pb-bullseye-5.10.63.dtb 0bc0c0b0858cefd3c32b385c0d66d97142ded29472a496f4f490e42fc7615b25
 
-    echo "Waiting for temporary VM to boot so we can install alpine..."
-    until echo | ../wait_for_string.sh 'localhost login:' nc localhost 4444; do
-        sleep 1
-        kill -0 $qemu_pid  # Stop if qemu dies
-    done
+        echo "Downloading alpine linux..."
+        ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/armhf/alpine-minirootfs-3.23.2-armhf.tar.gz 80ab58e50bd7fee394ada49f43685a0dde2407cbe5cc714cfe5117f5fc5e9b16
 
-    echo "Logging in to temporary VM..."
-    echo root | ../wait_for_string.sh 'localhost:~#' nc localhost 4444
+        # fakeroot is needed so that ownership info is preserved. For example,
+        # if a file is actually owned by root, here's what happens to it:
+        #   - tar thinks it's root, so it extracts file and sets its owner to root
+        #   - mkfs sees owner of file as root, so it becomes root-owned in VM disk
+        #   - during the whole time, the file is actually owned by current user on host
+        echo "Putting alpine minirootfs to disk image..."
+        rm -rf rootfs
+        mkdir rootfs
+        fakeroot bash -c 'set -e; tar xf alpine-minirootfs-3.23.2-armhf.tar.gz -C rootfs; /sbin/mkfs.ext4 -d rootfs disk.img 2G'
 
-    echo "Installing alpine..."
-    echo "
+        echo "Booting temporary VM to install alpine..."
+        # Start with init=/bin/sh for now, minirootfs is so minimal it doesn't have a proper init system
+        #
+        # Explanations of VM options:
+        #   -M: machine model that the github repo mentioned above happens to support
+        #   -cpu: basically the same CPU as in raspberry pi 0 and 1 i guess? TODO: is it? change?
+        #   -m 256M: the largest supported memory size with versatilepb
+        #   -kernel: load this linux kernel and boot directly from it with no grub or other bootloader
+        #   -dtb: device tree file, tells linux kernel what things the computer has
+        #   -drive: the / file system
+        #   -device virtio-blk-pci: no idea why we need this or what it does
+        #   -device virtio-rng-pci: gives the kernel access to random data, so it doesn't get stuck waiting for randomness when it boots
+        #   -append: flags for linux kernel, corresponds to "linux" line in grub (in case you're familiar with that)
+        #   -serial: make serial console available on host's port 4444
+        #   -nic: set up networking so that we emulate a versatilepb-compatible device
+        $qemu \
+            -M versatilepb \
+            -cpu arm1176 \
+            -m 256M \
+            -kernel kernel-qemu-5.10.63-bullseye \
+            -dtb versatile-pb-bullseye-5.10.63.dtb \
+            -drive file=disk.img,format=raw,if=none,id=disk0 \
+            -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off \
+            -device virtio-rng-pci \
+            -append "root=/dev/vda rw console=ttyAMA0 init=/bin/sh" \
+            -serial tcp:localhost:4444,server=on,wait=off \
+            -nic user,model=smc91c111 \
+            &
+        qemu_pid=$!
+
+        echo "Waiting for temporary VM to boot so we can install alpine..."
+        until echo | ../wait_for_string.sh '~ #' nc localhost 4444; do
+            sleep 1
+            kill -0 $qemu_pid  # Stop if qemu dies
+        done
+
+        echo "Installing alpine..."
+        # Set up networking
+        # Install setup-alpine
+        # Run setup-alpine and let it setup ssh (a few errors, mostly works)
+        echo "
+mount -t sysfs sysfs /sys
+mount -t proc proc /proc
+ip link set dev eth0 up
+udhcpc -i eth0
+apk update
+apk add alpine-base
+hostname alpine
+setup-alpine -c answerfile
+echo 'ROOTSSHKEY=\"$(cat key.pub)\"' >> answerfile
+setup-alpine -f answerfile -e
+sync  # Hopefully this is enough to get qemu to save changes?
+echo ALL'DONE'NOW
+" | ../wait_for_string.sh ALLDONENOW nc localhost 4444
+
+        # We don't have a working "poweroff" command yet, because init=/bin/sh is a bit hacky
+        kill -INT $qemu_pid
+
+    else
+        truncate -s 4G disk.img
+
+        # To install alpine, you run the "setup-alpine" program on alpine.
+        # So, we first download an intermediate version of alpine to boot from.
+        #
+        # There are other ways to set up alpine, such as downloading a separate
+        # rootfs, but using their install script seems to be easy and reliable.
+        echo "Downloading alpine linux..."
+        ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-virt-3.23.2-$arch.iso $sha
+
+        echo "Booting temporary VM to install alpine..."
+        # Explanations of qemu options:
+        #   -m: amount of RAM (linux typically uses all available RAM due to disk caching)
+        #   -smp: number of CPUs available inside the VM
+        #   -drive: where to boot from (cdrom), another disk that will appear inside VM
+        #   -nic: enable networking
+        #   -serial: make serial console available on host's port 4444
+        $qemu \
+            -m 1G \
+            -smp $(nproc) \
+            -drive file=alpine-virt-3.23.2-$arch.iso,format=raw,media=cdrom \
+            -drive file=disk.img,format=raw \
+            -nic user \
+            -serial tcp:localhost:4444,server=on,wait=off \
+            &
+        qemu_pid=$!
+
+        echo "Waiting for temporary VM to boot so we can install alpine..."
+        until echo | ../wait_for_string.sh 'localhost login:' nc localhost 4444; do
+            sleep 1
+            kill -0 $qemu_pid  # Stop if qemu dies
+        done
+
+        echo "Logging in to temporary VM..."
+        echo root | ../wait_for_string.sh 'localhost:~#' nc localhost 4444
+
+        echo "Installing alpine..."
+        echo "
 setup-alpine -c answerfile
 echo 'DISKOPTS=\"-m sys /dev/$disk_name_inside_vm\"' >> answerfile
 echo 'ROOTSSHKEY=\"$(cat key.pub)\"' >> answerfile
@@ -88,7 +179,11 @@ y
 sync
 poweroff
 " | nc localhost 4444
-    wait  # Make sure qemu has died before we proceed further
+    fi
+
+    echo "Waiting for temporary VM to shut down..."
+    wait
+
     trap - EXIT  # Don't delete disk.img when we exit
 fi
 
@@ -107,19 +202,38 @@ if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
 else
     rm -f pid.txt
     echo "Starting qemu..."
-    # Explanations of qemu options:
-    #   -m: amount of RAM (linux typically uses all available RAM due to disk caching)
-    #   -smp: number of CPUs available inside the VM
-    #   -drive: where to boot from
-    #   -nic: enable networking so that port 2222 on host is port 22 (ssh) in VM
-    $qemu \
-        -m 1G \
-        -smp $(nproc) \
-        -drive file=disk.img,format=raw \
-        -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
-        &
-    qemu_pid=$!
-    echo $qemu_pid > pid.txt
+    if [ $arch == armv6 ]; then
+        # Same as before, but:
+        #   - no init=/bin/sh, so we use proper init system (openrc) that setup-alpine installed
+        #   - forward port 2222 on host is port 22 (ssh) in VM
+        #   - no installation CD
+        #   - no serial console on tcp port
+        $qemu \
+            -M versatilepb \
+            -cpu arm1176 \
+            -m 256M \
+            -kernel kernel-qemu-5.10.63-bullseye \
+            -dtb versatile-pb-bullseye-5.10.63.dtb \
+            -drive file=disk.img,format=raw,if=none,id=disk0 \
+            -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off \
+            -device virtio-rng-pci \
+            -append "root=/dev/vda rw console=ttyAMA0" \
+            -nic user,model=smc91c111,hostfwd=tcp:127.0.0.1:2222-:22 \
+            &
+    else
+        # Same as before, but:
+        #   - forward port 2222 on host is port 22 (ssh) in VM
+        #   - no installation CD
+        #   - no serial console on tcp port
+        $qemu \
+            -m 1G \
+            -smp $(nproc) \
+            -drive file=disk.img,format=raw \
+            -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
+            &
+        qemu_pid=$!
+        echo $qemu_pid > pid.txt
+    fi
     disown
 fi
 
