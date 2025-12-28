@@ -12,6 +12,7 @@ import "stdlib/mem.jou"
 import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/sort.jou"
+import "stdlib/list.jou"
 
 
 # The sum calculator consists of 45 adders and outputs 46 bits z00,z01,...,z45.
@@ -204,10 +205,8 @@ def count_errors(orig_gates: Gate*, ngates: int, mark_sus: bool) -> int:
     return error_count
 
 
-def read_gates(filename: byte*, ngates: int*) -> Gate[250]:
-    gates: Gate[250]
-    memset(gates, 0, sizeof(gates))  # TODO: why is this needed to prevent compiler warning?
-    *ngates = 0
+def read_gates(filename: byte*) -> List[Gate]:
+    result = List[Gate]{}
 
     f = fopen(filename, "r")
     assert f != NULL
@@ -258,18 +257,17 @@ def read_gates(filename: byte*, ngates: int*) -> Gate[250]:
                 case _:
                     assert False
 
-        assert *ngates < array_count(gates)
-        gates[(*ngates)++] = g
+        result.append(g)
 
     fclose(f)
-    return gates
+    return result
 
 
 # Ensures that counting errors returns 0 when there are no errors.
 def test_counting() -> None:
-    ngates: int
-    gates = read_gates("sampleinput2-correct.txt", &ngates)
-    assert count_errors(gates, ngates, False) == 0
+    gates = read_gates("sampleinput2-correct.txt")
+    assert count_errors(gates.ptr, gates.len as int, False) == 0
+    free(gates.ptr)
 
 
 def fix_order_of_outputs(gates: Gate*, ngates: int) -> None:
@@ -316,18 +314,21 @@ def fix_order_of_outputs(gates: Gate*, ngates: int) -> None:
 def main() -> int:
     test_counting()
 
-    ngates: int
-    gates = read_gates("sampleinput2-mixed.txt", &ngates)
+    orig_gates = read_gates("sampleinput2-mixed.txt")
 
-    orig_gates = gates
-    fix_order_of_outputs(gates, ngates)
+    fixed_gates = List[Gate]{}
+    fixed_gates.extend(orig_gates)
+    fix_order_of_outputs(fixed_gates.ptr, fixed_gates.len as int)
 
     bad_outputs: byte*[10]
     bad_outputs_len = 0
-    for i = 0; i < ngates; i++:
-        if strcmp(orig_gates[i].output, gates[i].output) != 0:
+    assert orig_gates.len == fixed_gates.len
+    for i = 0; i < orig_gates.len; i++:
+        if strcmp(orig_gates.ptr[i].output, fixed_gates.ptr[i].output) != 0:
             assert bad_outputs_len < 10
-            bad_outputs[bad_outputs_len++] = orig_gates[i].output
+            bad_outputs[bad_outputs_len++] = orig_gates.ptr[i].output
+    free(orig_gates.ptr)
+    free(fixed_gates.ptr)
 
     # Output: 4 gates were in the wrong place (2 swaps)
     printf("%d gates were in the wrong place (%d swaps)\n", bad_outputs_len, bad_outputs_len / 2)
