@@ -80,8 +80,9 @@ def init_tables() -> None:
     numpad_table['A'] = [2, 3]
 
 
-def add_dx_string(dx: int, dest: byte*) -> None:
+def add_dx_string(dx: int, dest: byte*, dest_size: int) -> None:
     offset = strlen(dest)
+    assert offset + abs(dx) < dest_size
     if dx >= 0:
         memset(&dest[offset], '>', dx)
     else:
@@ -89,8 +90,9 @@ def add_dx_string(dx: int, dest: byte*) -> None:
     dest[offset + abs(dx)] = '\0'
 
 
-def add_dy_string(dy: int, dest: byte*) -> None:
+def add_dy_string(dy: int, dest: byte*, dest_size: int) -> None:
     offset = strlen(dest)
+    assert offset + abs(dy) < dest_size
     if dy >= 0:
         memset(&dest[offset], 'v', dy)
     else:
@@ -98,23 +100,21 @@ def add_dy_string(dy: int, dest: byte*) -> None:
     dest[offset + abs(dy)] = '\0'
 
 
-# Each sequence of moves fits in 20 characters:
-#   - numpad is 3x4, so each move is at most 5 characters (2 horizontal, 3 vertical)
+# Each sequence of moves fits in 24 characters:
+#   - numpad is 3x4, so each move is <=6 characters (2 horizontal, 3 vertical, 'A')
 #   - there are 4 moves
 #
 # There are at most 16 sequences of moves:
 #   - start with no moves (1 empty sequence)
 #   - for each move, we have in the worst case 2 different ways to do it, doubles 4 times
-#
-# I used bigger size in case there's mistake :D
-def get_numpad_move_sequences(code: byte*) -> byte[50][50]:
+def get_numpad_move_sequences(code: byte*) -> byte[25][17]:
     assert strlen(code) == 4
     assert is_ascii_digit(code[0])
     assert is_ascii_digit(code[1])
     assert is_ascii_digit(code[2])
     assert code[3] == 'A'
 
-    results: byte[50][50]
+    results: byte[25][17]
     memset(results, 0, sizeof(results))
     nresults = 1
 
@@ -131,36 +131,39 @@ def get_numpad_move_sequences(code: byte*) -> byte[50][50]:
 
         if dx == 0:
             for i = 0; i < nresults; i++:
-                add_dy_string(dy, results[i])
+                add_dy_string(dy, results[i], sizeof(results[i]))
         elif dy == 0:
             for i = 0; i < nresults; i++:
-                add_dx_string(dx, results[i])
+                add_dx_string(dx, results[i], sizeof(results[i]))
         elif old_pos[0] == 0 and new_pos[1] == 3:
             # Can't do vertical first, would go to forbidden part
             for i = 0; i < nresults; i++:
-                add_dx_string(dx, results[i])
-                add_dy_string(dy, results[i])
+                add_dx_string(dx, results[i], sizeof(results[i]))
+                add_dy_string(dy, results[i], sizeof(results[i]))
         elif old_pos[1] == 3 and new_pos[0] == 0:
             # Can't do horizontal first, would go to forbidden part
             for i = 0; i < nresults; i++:
-                add_dy_string(dy, results[i])
-                add_dx_string(dx, results[i])
+                add_dy_string(dy, results[i], sizeof(results[i]))
+                add_dx_string(dx, results[i], sizeof(results[i]))
         else:
             # We can move first horizontal then vertical, or first vertical then horizontal.
             # Duplicate results and do both.
             assert 2 * nresults < array_count(results)
             memcpy(&results[nresults], results, sizeof(results[0]) * nresults)
             for i = 0; i < nresults; i++:
-                add_dx_string(dx, results[i])
-                add_dy_string(dy, results[i])
+                add_dx_string(dx, results[i], sizeof(results[i]))
+                add_dy_string(dy, results[i], sizeof(results[i]))
             for i = nresults; i < 2*nresults; i++:
-                add_dy_string(dy, results[i])
-                add_dx_string(dx, results[i])
+                add_dy_string(dy, results[i], sizeof(results[i]))
+                add_dx_string(dx, results[i], sizeof(results[i]))
             nresults *= 2
 
         for i = 0; i < nresults; i++:
+            assert strlen(results[i]) + 1 < sizeof(results[i])
             strcat(results[i], "A")
 
+    for i = 0; i < nresults; i++:
+        assert strlen(results[i]) <= 24
     return results
 
 
@@ -224,8 +227,8 @@ def main() -> int:
     initial_level = 2
 
     # Actual input parameters for part 2
-    #filename = "input"
-    #initial_level = 25
+    filename = "input"
+    initial_level = 25
 
     f = fopen(filename, "r")
     assert f != NULL
