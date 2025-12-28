@@ -327,8 +327,6 @@ def main() -> int:
         if strcmp(orig_gates.ptr[i].output, fixed_gates.ptr[i].output) != 0:
             assert bad_outputs_len < 10
             bad_outputs[bad_outputs_len++] = orig_gates.ptr[i].output
-    free(orig_gates.ptr)
-    free(fixed_gates.ptr)
 
     # Output: 4 gates were in the wrong place (2 swaps)
     printf("%d gates were in the wrong place (%d swaps)\n", bad_outputs_len, bad_outputs_len / 2)
@@ -341,4 +339,6 @@ def main() -> int:
         printf("%s", bad_outputs[i])
     printf("\n")
 
+    free(orig_gates.ptr)
+    free(fixed_gates.ptr)
     return 0
