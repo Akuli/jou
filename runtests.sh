@@ -301,8 +301,8 @@ function run_test()
     fi
 }
 
-# How many tests to run in parallel? Fall back to 2 if nproc fails or doesn't exist.
-num_tests_in_parallel=$(nproc 2>/dev/null || echo 2)
+# How many tests to run in parallel?
+num_tests_in_parallel=$(getconf _NPROCESSORS_ONLN)
 
 counter=0
 skipped=0
