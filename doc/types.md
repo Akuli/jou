@@ -33,12 +33,7 @@ For convenience, the most commonly used types have simpler names:
 
 The `intnative` type is defined in [stdlib/intnative.jou](../stdlib/intnative.jou),
 not built-in like other integer types shown here.
-It is `int` on 32-bit platforms and `int64` on 64-bit platforms.
-So, if you don't care about supporting 32-bit systems,
-just think of `intnative` as another name for `int64`.
-Similarly, if your code only needs to run on 32-bit systems,
-you can think of `intnative` as another name for `int`.
-
+There is [a better explanation of it in the Jou tutorial](tutorial.md#intnative).
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you need a corresponding `uintnative` type.
 
@@ -82,7 +77,7 @@ so the same `%f` works for both floating-point types.
 See [pointers in the Jou tutorial](tutorial.md#pointers) if you are not already familiar with pointers.
 
 The size of a pointer is 32 bits on a 32-bit system and 64 bits on a 64-bit system.
-In other words, the size of any pointer is the size of [intnative](#integers):
+In other words, the size of any pointer is the size of [intnative](tutorial.md#intnative):
 a pointer is basically an `intnative` that contains the location of something in the computer's memory.
 
 An array is simply `n` instances of type `T` next to each other in memory.

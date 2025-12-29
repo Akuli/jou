@@ -449,6 +449,74 @@ The purpose of Jou is to be a lot like C,
 but with various annoyances fixed, and of course, with Python's simple syntax.
 
 
+## 32-bit vs 64-bit
+
+As you probably know, most computers are 64-bit.
+It basically means that the size of a [pointer](#pointers) is 64 bits,
+and in general, the computer is good at doing math with 64-bit numbers.
+
+The following program prints the size of a pointer.
+On a 64-bit computer, it prints `8 bytes`,
+because [the `sizeof` keyword](keywords.md#sizeof) gives the size as bytes,
+and 8 bytes is 64 bits because each byte is 8 bits.
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    thing = 123
+    printf("%d bytes\n", sizeof(&thing))
+    return 0
+```
+
+Jou also supports some 32-bit platforms (TODO: link to list of supported platforms when it exists),
+so on some computers the above program prints `4` instead of `8`.
+
+You can use the `int64` and `uint64` types even on 32-bit systems.
+This is always possible, because the compiler can use two 32-bit numbers to fake a 64-bit number:
+
+![A funny image that illustrates how 64-bit numbers work on 32-bit computers](images/64bit-meme.jpg)
+
+
+## `intnative`
+
+Many things in [C's standard library](#cs-standard-library)
+are `int` on 32-bit systems and `int64` in 64-bit systems.
+To support these, [stdlib/intnative.jou](../stdlib/intnative.jou)
+defines the `intnative` data type using [typedef](keywords.md#typedef).
+It is `int` on 32-bit platforms and `int64` on 64-bit platforms.
+So, if you don't care about supporting 32-bit systems,
+just think of `intnative` as another name for `int64`.
+Similarly, if your code only needs to run on 32-bit systems,
+you can think of `intnative` as another name for `int`.
+
+You can use `as int` or `as int64` to convert an `intnative`
+to a number whose size is always the same,
+but you need to do this surprisingly rarely.
+For example, to print an `intnative` with `printf()`, you can use `%zd`,
+which is just like `%d` on 32-bit systems,
+and just like [`%lld`](#byte-int-int64) on 64-bit systems:
+
+```python
+import "stdlib/intnative.jou"
+import "stdlib/io.jou"
+
+def main() -> int:
+    n = 123 as intnative
+
+    # This always works
+    printf("%zd\n", n)  # Output: 123
+
+    # This works on 32-bit systems, but may print a garbage value on 64-bit systems
+    #printf("%d\n", n)
+
+    # This works on 64-bit systems, but may print a garbage value on 32-bit systems
+    #printf("%lld\n", n)
+
+    return 0
+```
+
+
 ## Characters
 
 You can place a character in single quotes to specify a byte.
@@ -498,7 +566,7 @@ def main() -> int:
     return 0
 ```
 
-We are using `%zd`, because `strlen()` returns an `intnative`.
+We are using `%zd`, because `strlen()` returns an [intnative](#intnative).
 You can see it by looking at how [stdlib/str.jou](../stdlib/str.jou) declares `strlen()`:
 
 ```python
