@@ -452,7 +452,7 @@ but with various annoyances fixed, and of course, with Python's simple syntax.
 ## 32-bit vs 64-bit
 
 As you probably know, most computers are 64-bit.
-It basically means that the size of a [pointer](#pointers) is 64 bits,
+It basically means that the size of any [pointer](#pointers) is 64 bits,
 and in general, the computer is good at doing math with 64-bit numbers.
 
 The following program prints the size of a pointer.
