@@ -125,7 +125,7 @@ def main() -> int:
 ```
 
 Because the type of `numbers.len` is `intnative` [as explained below](#how-lists-are-implemented),
-it [should be printed with `%zd`](types.md#integers).
+it [should be printed with `%zd`](tutorial.md#intnative).
 
 Here `List[int]{}` is [the syntax for creating a new instance of a class](classes.md#instantiating-syntax).
 In this case, the class is `List[int]`, which means a list of `int`s.
@@ -220,13 +220,14 @@ class SimpleList:
     len: int64
 ```
 
-An even better choice is [the `intnative` type](types.md#integers) from [stdlib/intnative.jou](../stdlib/intnative.jou).
-It is `int` on 32-bit systems and `int64` on 64-bit systems.
+An even better choice is [the `intnative` type](tutorial.md#intnative).
 Many functions in [stdlib/mem.jou](../stdlib/mem.jou) expect sizes to be specified with `intnative`,
 so with `len: int64`, cross-platform code would need to use a lot of `list.len as intnative`
 when combining lists with other memory management things.
 
 ```python
+import "stdlib/intnative.jou"
+
 class SimpleList:
     ptr: int*
     len: intnative
@@ -240,6 +241,8 @@ This way the next 3 appends don't need to allocate memory at all.
 To do this, we need to keep track of how much memory we have already allocated:
 
 ```python
+import "stdlib/intnative.jou"
+
 class SimpleList:
     ptr: int*
     len: intnative
