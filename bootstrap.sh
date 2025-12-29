@@ -158,7 +158,8 @@ def utf8_encode_char(u: uint32) -> byte*:
         fi
 
         echo "Converting Jou code to C..."
-        local n=$(nproc 2>/dev/null || echo 2)
+        local n
+        n=$(nproc 2>/dev/null || echo 2)
         "$python" ../../../bootstrap_transpiler.py --split $n compiler/main.jou > compiler.c
 
         echo "Compiling C code... ($n parallel processes)"
@@ -188,8 +189,6 @@ def utf8_encode_char(u: uint32) -> byte*:
         else
             $clang compiler*.o -o jou_from_c -pthread $(grep ^link config.jou | cut -d'"' -f2)
         fi
-
-        asopdkasfopk
 
         # Transpiling produces a broken Jou compiler for some reason. I don't
         # know why. But if I recompile once more, it fixes itself.
