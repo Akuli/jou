@@ -2747,7 +2747,7 @@ def main() -> None:
     parser.add_argument("main_file", help="the Jou file with main() function")
     args = parser.parse_args()
 
-    if args.split is not None:
+    if args.split >= 2:
         global SPLIT_COUNTER
         SPLIT_COUNTER = itertools.cycle(range(1, args.split + 1))
 
