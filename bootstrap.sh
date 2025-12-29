@@ -159,7 +159,7 @@ def utf8_encode_char(u: uint32) -> byte*:
 
         echo "Converting Jou code to C..."
         local n
-        n=$(nproc 2>/dev/null || echo 2)
+        n=$(getconf _NPROCESSORS_ONLN)
         "$python" ../../../bootstrap_transpiler.py --split $n compiler/main.jou > compiler.c
 
         echo "Compiling C code... ($n parallel processes)"
