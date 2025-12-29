@@ -475,7 +475,7 @@ so on some computers the above program prints `4` instead of `8`.
 You can use the `int64` and `uint64` types even on 32-bit systems.
 This is always possible, because the compiler can use two 32-bit numbers to fake a 64-bit number:
 
-![A funny image that illustrates how 64-bit numbers work on 32-bit computers](images/64bit-meme.jpg)
+![A funny image that illustrates how 64-bit numbers work on 32-bit computers](images/64bit-meme-small.jpg)
 
 
 ## `intnative`
@@ -491,15 +491,14 @@ Similarly, if your code only needs to run on 32-bit systems,
 you can think of `intnative` as another name for `int`.
 
 You can use `as int` or `as int64` to convert an `intnative`
-to a number whose size is always the same,
-but you need to do this surprisingly rarely.
+to a number whose size is always the same, but that is rarely needed.
 For example, to print an `intnative` with `printf()`, you can use `%zd`,
 which is just like `%d` on 32-bit systems,
 and just like [`%lld`](#byte-int-int64) on 64-bit systems:
 
 ```python
-import "stdlib/intnative.jou"
 import "stdlib/io.jou"
+import "stdlib/intnative.jou"
 
 def main() -> int:
     n = 123 as intnative
