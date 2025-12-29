@@ -134,7 +134,7 @@ done
 echo "Checking if repo needs to be copied over..."
 if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
     echo "Installing packages (if not already installed)..."
-    $ssh 'which git || apk add bash clang llvm-dev make git grep libx11-dev'
+    $ssh 'which git || apk add bash clang llvm-dev make git grep'
 
     echo "Copying repository to VM..."
     git bundle create jou.bundle --all
