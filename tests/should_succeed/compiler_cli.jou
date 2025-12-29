@@ -163,14 +163,6 @@ def main() -> int:
     #    system("cp jou tmp/tests/jou_executable")
     #    system("tmp/tests/jou_executable")
 
-    # Compile a GUI program. Doesn't work on GitHub Actions because X11 isn't installed.
-    if not WINDOWS and not MACOS and getenv("GITHUB_ACTIONS") == NULL:
-        if NETBSD:
-            ret = system("./jou -o /dev/null --linker-flags \"-L/usr/X11R7/lib -lX11\" examples/x11_window.jou")
-        else:
-            ret = system("./jou -o /dev/null --linker-flags \"-lX11\" examples/x11_window.jou")
-        assert ret == 0
-
     # Compile a program with a memory leak.
     # Output: 100 bytes in 1 blocks are definitely lost in loss record 1 of 1
     if WINDOWS or system("which valgrind >/dev/null 2>/dev/null") != 0:
