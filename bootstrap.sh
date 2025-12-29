@@ -158,27 +158,38 @@ def utf8_encode_char(u: uint32) -> byte*:
         fi
 
         echo "Converting Jou code to C..."
-        "$python" ../../../bootstrap_transpiler.py compiler/main.jou > compiler.c
+        local n=$(nproc 2>/dev/null || echo 2)
+        "$python" ../../../bootstrap_transpiler.py --split $n compiler/main.jou > compiler.c
 
-        echo "Compiling C code..."
-        # TODO: -w silences all warnings. We might not want that in the future.
-        #
-        # TODO: On windows, this needs at least -O2 because the C code is so
-        #       bad it overflows the stack if optimizer doesn't reduce stack
-        #       usage!!! Instead emit better C code? Or at least handle union
-        #       members, or don't create so many local variables? Last time it
-        #       failed on creating an AstExpression on stack with all the
-        #       different kinds of expressions as struct members instead of
-        #       union members...
-        #
-        #       UPDATE: We hit the Windows stack limit again... and I just
-        #       bumped it to 16M instead of the default 1M. Maybe some day I
-        #       will clean this up :)
+        echo "Compiling C code with $n processes in parallel..."
+        local i
+        for i in $(seq 1 $n); do
+            # TODO: On windows, this needs at least -O2 because the C code is so
+            #       bad it overflows the stack if optimizer doesn't reduce stack
+            #       usage!!! Instead emit better C code? Or at least handle union
+            #       members, or don't create so many local variables? Last time it
+            #       failed on creating an AstExpression on stack with all the
+            #       different kinds of expressions as struct members instead of
+            #       union members...
+            #
+            #       UPDATE: We hit the Windows stack limit again... and I just
+            #       bumped it to 16M instead of the default 1M. Maybe some day I
+            #       will clean this up :)
+            $clang -w -O2 $CFLAGS -c compiler.c -o compiler$i.o -DSPLIT$i &
+        done
+
+        # Unlike a plain "wait", this loop doesn't ignore failures inside individual jobs.
+        for i in $(seq 1 $n); do wait -n; done
+
+        echo "Linking C code..."
         if [[ "$OS" =~ Windows ]]; then
-            $clang -w -O2 compiler.c -o jou_from_c$exe_suffix -pthread -Wl,--stack,16777216 ${windows_llvm_files[@]}
+            # TODO: stack size is a hack... see above
+            $clang compiler*.o -o jou_from_c.exe -pthread -Wl,--stack,16777216 ${windows_llvm_files[@]}
         else
-            $clang -w -O2 $CFLAGS compiler.c -o jou_from_c$exe_suffix -pthread $(grep ^link config.jou | cut -d'"' -f2)
+            $clang compiler*.o -o jou_from_c -pthread $(grep ^link config.jou | cut -d'"' -f2)
         fi
+
+        asopdkasfopk
 
         # Transpiling produces a broken Jou compiler for some reason. I don't
         # know why. But if I recompile once more, it fixes itself.

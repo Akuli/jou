@@ -17,6 +17,7 @@ from the full Jou compiler:
 
 from __future__ import annotations
 
+import argparse
 import itertools
 import functools
 import sys
@@ -24,7 +25,7 @@ import os
 import string
 import re
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
     # First element is always a string, but explainin that to mypy without
@@ -42,6 +43,7 @@ CONSTANTS: dict[str, dict[str, JouValue | None]] = {}  # None means not found
 ENUMS: dict[str, dict[str, list[str] | None]] = {}  # None means not found
 GLOBAL_NAME_COUNTER = itertools.count()
 FUNCTION_QUEUE: list[tuple[str, AST, JouType | None]] = []
+SPLIT_COUNTER: Iterator[int] | None = None
 
 
 @dataclass
@@ -1716,6 +1718,11 @@ def find_global_var_ptr(path, varname):
             vartype = type_from_ast(path, vartype_ast)
             vartype_c = vartype.to_c()
             print(f"// Create global variable {varname} according to {path}.")
+            if SPLIT_COUNTER is not None:
+                # Extern it in all but one compilation
+                print(f"#ifndef SPLIT{next(SPLIT_COUNTER)}")
+                print("extern")
+                print("#endif")
             print(f"{vartype_c} jou_g_{varname};")
             print()
             result = JouValue(vartype.pointer_type(), f"(&jou_g_{varname})")
@@ -2691,6 +2698,10 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
     # The function maker has now printed everything it needs to exist globally.
     # We can now print the function we made.
 
+    if SPLIT_COUNTER is not None:
+        # Enable this in just one compilation
+        print(f"#ifdef SPLIT{next(SPLIT_COUNTER)}")
+
     print(f"// This is the body of function {name}() defined in {path}.")
     declaration = declare_c_function(path, ast, klass=klass)[1]
     print(declaration, "{")
@@ -2725,12 +2736,22 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
         raise error
 
     print("}")
+    if SPLIT_COUNTER is not None:
+        print("#endif")
     print()
 
 
 def main() -> None:
-    [main_file] = sys.argv[1:]
-    parse_file(main_file)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--split", type=int, default=1, help="how many parallel C compilers to use")
+    parser.add_argument("main_file", help="the Jou file with main() function")
+    args = parser.parse_args()
+
+    if args.split is not None:
+        global SPLIT_COUNTER
+        SPLIT_COUNTER = itertools.cycle(range(1, args.split + 1))
+
+    parse_file(args.main_file)
     while parse_an_imported_file() or evaluate_a_compile_time_if_statement():
         pass
 
@@ -2745,9 +2766,9 @@ def main() -> None:
 
     # Everything else is done on-demand / as needed.
     main_ast = next(
-        item for item in ASTS[main_file] if item[:2] == ("function_def", "main")
+        item for item in ASTS[args.main_file] if item[:2] == ("function_def", "main")
     )
-    FUNCTION_QUEUE.append((main_file, main_ast, None))
+    FUNCTION_QUEUE.append((args.main_file, main_ast, None))
 
     processed = []
     while FUNCTION_QUEUE:
