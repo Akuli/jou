@@ -235,11 +235,6 @@ function should_skip()
         fi
     fi
 
-    # This file is very slow compared to other advent of codes
-    if [ $joufile = examples/aoc2023/day24/part2.jou ]; then
-        return 0
-    fi
-
     return 1  # false, don't skip
 }
 
