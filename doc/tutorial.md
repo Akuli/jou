@@ -500,9 +500,7 @@ just think of `intnative` as another name for `int64`.
 Similarly, if your code only needs to run on 32-bit systems,
 think of `intnative` as another name for `int`.
 
-You can use `as int` or `as int64` to convert an `intnative`
-to a number whose size is always the same, but that is rarely needed.
-For example, to print an `intnative` with `printf()`, you can use `%zd`,
+To print an `intnative` with `printf()`, you can use `%zd`,
 which is just like `%d` on 32-bit systems,
 and just like [`%lld`](#byte-int-int64) on 64-bit systems:
 
@@ -524,6 +522,12 @@ def main() -> int:
 
     return 0
 ```
+
+You can also use `as int` or `as intnative`
+to convert between `intnative` and other integer types.
+You probably won't need `as int64`, because Jou
+[implicitly converts integers](types.md#casts) to a bigger type as needed.
+For example, you can pass an `intnative` to a function that expects `int64`.
 
 
 ## Characters
