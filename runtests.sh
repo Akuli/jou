@@ -216,12 +216,12 @@ function should_skip()
 
     # When running valgrind, skip compiler unit tests. They link with LLVM and
     # LLVM leaks memory when the program starts, even if it is never called.
-    if [ $valgrind = yes ] &&  [ $joufile = tests/should_succeed/compiler_unit_tests.jou ]; then
+    if [ $valgrind = yes ] && [ $joufile = tests/should_succeed/compiler_unit_tests.jou ]; then
         return 0
     fi
 
     # Skip special programs that don't interact nicely with automated tests
-    if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/memory_leak.jou ]; then
+    if [ $joufile = examples/memory_leak.jou ]; then
         return 0
     fi
 
