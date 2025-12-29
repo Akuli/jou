@@ -165,6 +165,8 @@ def utf8_encode_char(u: uint32) -> byte*:
         echo "Compiling C code... ($n parallel processes)"
         local i
         for i in $(seq 1 $n); do
+            # TODO: -w silences all warnings. We might not want that in the future.
+            #
             # TODO: On windows, this needs at least -O2 because the C code is so
             #       bad it overflows the stack if optimizer doesn't reduce stack
             #       usage!!! Instead emit better C code? Or at least handle union
