@@ -161,7 +161,7 @@ def utf8_encode_char(u: uint32) -> byte*:
         local n=$(nproc 2>/dev/null || echo 2)
         "$python" ../../../bootstrap_transpiler.py --split $n compiler/main.jou > compiler.c
 
-        echo "Compiling C code with $n processes in parallel..."
+        echo "Compiling C code... ($n parallel processes)"
         local i
         for i in $(seq 1 $n); do
             # TODO: On windows, this needs at least -O2 because the C code is so
