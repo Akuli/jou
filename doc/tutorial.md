@@ -483,12 +483,22 @@ This is always possible, because the compiler can use two 32-bit numbers to fake
 Many things in [C's standard library](#cs-standard-library-libc)
 are `int` on 32-bit systems and `int64` in 64-bit systems.
 To support these, [stdlib/intnative.jou](../stdlib/intnative.jou)
-defines the `intnative` data type using [typedef](keywords.md#typedef).
-It is `int` on 32-bit platforms and `int64` on 64-bit platforms.
-So, if you don't care about supporting 32-bit systems,
+defines the `intnative` data type using [typedef](keywords.md#typedef) like this:
+
+```python
+if IS_32BIT:
+    @public
+    typedef intnative = int
+else:
+    @public
+    typedef intnative = int64
+```
+
+So `intnative` is same as `int` on 32-bit systems, and same as `int64` on 64-bit systems.
+If you don't care about supporting 32-bit systems,
 just think of `intnative` as another name for `int64`.
 Similarly, if your code only needs to run on 32-bit systems,
-you can think of `intnative` as another name for `int`.
+think of `intnative` as another name for `int`.
 
 You can use `as int` or `as int64` to convert an `intnative`
 to a number whose size is always the same, but that is rarely needed.
