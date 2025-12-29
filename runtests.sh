@@ -235,11 +235,6 @@ function should_skip()
         fi
     fi
 
-    # This file is very slow compared to other advent of codes
-    if [ $joufile = examples/aoc2023/day24/part2.jou ]; then
-        return 0
-    fi
-
     return 1  # false, don't skip
 }
 
@@ -301,8 +296,8 @@ function run_test()
     fi
 }
 
-# How many tests to run in parallel? Fall back to 2 if nproc fails or doesn't exist.
-num_tests_in_parallel=$(nproc 2>/dev/null || echo 2)
+# How many tests to run in parallel?
+num_tests_in_parallel=$(getconf _NPROCESSORS_ONLN)
 
 counter=0
 skipped=0
