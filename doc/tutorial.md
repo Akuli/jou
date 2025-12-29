@@ -452,7 +452,7 @@ but with various annoyances fixed, and of course, with Python's simple syntax.
 ## 32-bit vs 64-bit
 
 As you probably know, most computers are 64-bit.
-It basically means that the size of a [pointer](#pointers) is 64 bits,
+It basically means that the size of any [pointer](#pointers) is 64 bits,
 and in general, the computer is good at doing math with 64-bit numbers.
 
 The following program prints the size of a pointer.
@@ -481,7 +481,7 @@ This is always possible, because the compiler can use two 32-bit numbers to fake
 ## `intnative`
 
 Many things in [C's standard library](#cs-standard-library-libc)
-are `int` on 32-bit systems and `int64` in 64-bit systems.
+are `int` on 32-bit systems and `int64` on 64-bit systems.
 To support these, [stdlib/intnative.jou](../stdlib/intnative.jou)
 defines the `intnative` data type using [typedef](keywords.md#typedef) like this:
 
