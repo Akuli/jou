@@ -71,10 +71,10 @@ if ! [ -f disk.img ]; then
         #   - tar thinks it's root, so it extracts file and sets its owner to root
         #   - mkfs sees owner of file as root, so it becomes root-owned in VM disk
         #   - during the whole time, the file is actually owned by current user on host
-        echo "Putting alpine minirootfs to disk image..."
+        echo "Putting alpine minirootfs and 1GB swap to disk image..."
         rm -rf rootfs
         mkdir rootfs
-        fakeroot bash -c 'set -e; tar xf alpine-minirootfs-3.23.2-armhf.tar.gz -C rootfs; /sbin/mkfs.ext4 -d rootfs disk.img 2G'
+        fakeroot bash -c 'set -e; tar xf alpine-minirootfs-3.23.2-armhf.tar.gz -C rootfs; head -c 1G /dev/zero > rootfs/swapfile; /sbin/mkfs.ext4 -d rootfs disk.img 3G'
 
         echo "Booting temporary VM to install alpine..."
         # Start with init=/bin/sh for now, minirootfs is so minimal it doesn't have a proper init system
