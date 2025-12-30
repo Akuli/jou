@@ -277,9 +277,6 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
                     wget -q $url1 || wget -q $url2 || wget $url1 || wget $url2
                 )
             done
-            echo "  Mounting shared folder..."
-            $ssh mkdir shared_folder || true  # fails if already mounted
-            $ssh mount -t 9p share shared_folder || true  # fails if already mounted
             echo "  Installing packages from shared folder..."
             $ssh 'apk add --network=no /root/shared_folder/*.apk'
         else
