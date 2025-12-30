@@ -123,7 +123,10 @@ set_inode_field .ssh/authorized_keys gid 1000
 
 quit' | /sbin/debugfs -w partition.img
 
-    echo "Making disk bigger... (step 1)"
+    echo 'Disabling annoying "ssh may not work" warning message when using ssh...'
+    echo 'unlink /etc/ssh/sshd_config.d/rename_user.conf' | /sbin/debugfs -w partition.img
+
+    echo "Making disk bigger..."
     # Three things have to happen to get more storage:
     #   1. Disk or disk image gets bigger (e.g. user wrote the image to a huge sd card)
     #   2. Partition table must be updated so that second (main) partition fills rest of the disk
@@ -203,41 +206,29 @@ until $ssh echo hello; do
     kill -0 $qemu_pid  # Stop if qemu dies
 done
 
-echo "DEBUG STOP!!"
-exit
-
 echo "Checking if repo needs to be copied over..."
 if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
     echo "Mounting shared folder if not already mounted..."
-    $ssh 'mount | grep shared_folder || (mkdir -vp shared_folder && mount -t 9p share shared_folder)'
+    $ssh 'mount | grep shared_folder || (mkdir -vp shared_folder && sudo mount -t 9p share shared_folder)'
 
     echo "Checking if packages are installed..."
-    packages='bash clang llvm-dev make git grep'
+    packages='git llvm-19-dev clang-19 make'
     if ! $ssh which git; then
         echo "Getting ready to install packages..."
         # Internet inside the VM is really slow for some reason, so even
-        # `apt update` takes a very long time (about 10 minutes).
+        # "sudo apt update" takes a very long time (about 8.5 minutes).
         $ssh sudo apt update
 
         # Download the packages on host and transfer them to the VM using a
         # shared folder.
-            echo "  Downloading packages (on host computer)..."
-            rm -f shared_folder/*.apk
-            for package in $($ssh apk fetch --simulate --recursive $packages | sed s/'Downloading '//); do
-                echo "    $package"
-                url1=https://dl-cdn.alpinelinux.org/alpine/v3.23/main/armhf/$package.apk
-                url2=https://dl-cdn.alpinelinux.org/alpine/v3.23/community/armhf/$package.apk
-                (
-                    cd shared_folder
-                    # First try with -q, then without -q to make errors visible
-                    wget -q $url1 || wget -q $url2 || wget $url1 || wget $url2
-                )
-            done
-            echo "  Installing packages from shared folder..."
-            $ssh 'apk add --network=no /root/shared_folder/*.apk'
-        else
-            $ssh apk add $packages
-        fi
+        echo "  Downloading packages (on host computer)..."
+        $ssh apt-get install --print-uris -y $packages | grep "^'http" | tr -d "'" | while read -r url filename ignore_the_rest; do
+            echo "    $filename"
+            wget -q --continue -O "shared_folder/$filename" "$url"
+        done
+
+        echo "  Installing packages from shared folder..."
+        $ssh "sudo cp -v shared_folder/* /var/cache/apt/archives/ && sudo apt install -y $packages"
     fi
 
     echo "Exporting git repository to shared folder..."
