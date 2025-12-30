@@ -124,20 +124,29 @@ set_inode_field .ssh/authorized_keys gid 1000
 
 quit' | /sbin/debugfs -w partition.img
 
+    echo "Making disk bigger... (step 1)"
+    # Three things have to happen to get more storage:
+    #   1. Disk or disk image gets bigger (e.g. user wrote the image to a huge sd card)
+    #   2. Partition table must be updated so that second (main) partition fills rest of the disk
+    #   3. File system on the partition must be resized to fill the entire partition
+    #
+    # Usually Raspberry Pi OS would do steps 2 and 3 automatically, but it
+    # doesn't work, because we boot it in a weird/crude way that skips a bunch
+    # of things.
+
+    # Step 1
+    truncate -s +2G disk.img
+    truncate -s +2G partition.img
+
+    # Step 2
+    /sbin/parted --script disk.img resizepart 2 100%
+
+    # Step 3
+    /sbin/resize2fs partition.img
+
     echo "Writing main partition back to disk image..."
     dd if=partition.img of=disk.img bs=512 seek=$offset conv=notrunc
     rm -f partition.img
-
-    echo "Making disk image bigger..."
-    # Three things have to happen:
-    #   1. Disk or disk image gets bigger (e.g. user wrote the image to a huge sd card)
-    #   2. Second (main) partition must be resized to fill the rest of the disk
-    #   3. File system on the partition must be resized to fill the entire partition
-    #
-    # Usually Raspberry Pi OS would do steps 2 and 3. Here it can do only step 3,
-    # because we boot it in a weird/crude way that skips a bunch of things.
-    truncate -s 4G disk.img  # Step 1
-    /sbin/parted --script disk.img resizepart 2 100%  # Step 2
 fi
 
 if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then

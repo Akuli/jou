@@ -62,4 +62,4 @@ Dependencies (in addition to what you need for Jou anyway):
 - x86: `sudo apt install qemu-system-x86`
 - aarch64: `sudo apt install qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu`
 - armv6: `sudo apt install wget qemu-system-arm`
-- Raspberry Pi OS: `sudo apt install parted jq`
+- Raspberry Pi OS: `sudo apt install parted jq e2fsprogs`
