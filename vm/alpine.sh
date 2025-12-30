@@ -66,15 +66,27 @@ if ! [ -f disk.img ]; then
         # Use Ctrl+F or similar when you update it.
         ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/armhf/alpine-minirootfs-3.23.2-armhf.tar.gz 80ab58e50bd7fee394ada49f43685a0dde2407cbe5cc714cfe5117f5fc5e9b16
 
+        # Swap file is created here because creating it inside VM turned out to
+        # be very slow. We can't give the VM more than 256MB of RAM, see below.
+        #
+        # I tried filling the file initially with zero bytes, but the zeros got
+        # special-cased somewhere:
+        #
+        #    ~ # swapon /swapfile
+        #    swapon: /swapfile: file has holes
+        #
+        echo "Creating 1GB swap file..."
+        head -c 1G /dev/urandom > swapfile
+
         # fakeroot is needed so that ownership info is preserved. For example,
         # if a file is actually owned by root, here's what happens to it:
         #   - tar thinks it's root, so it extracts file and sets its owner to root
         #   - mkfs sees owner of file as root, so it becomes root-owned in VM disk
         #   - during the whole time, the file is actually owned by current user on host
-        echo "Putting alpine minirootfs and 1GB swap to disk image..."
+        echo "Putting alpine minirootfs and our swapfile to disk image..."
         rm -rf rootfs
         mkdir rootfs
-        fakeroot bash -c 'set -e; tar xf alpine-minirootfs-3.23.2-armhf.tar.gz -C rootfs; head -c 1G /dev/zero > rootfs/swapfile; /sbin/mkfs.ext4 -d rootfs disk.img 3G'
+        fakeroot bash -c 'set -e; tar xf alpine-minirootfs-3.23.2-armhf.tar.gz -C rootfs; mv swapfile rootfs; /sbin/mkfs.ext4 -d rootfs disk.img 3G'
 
         echo "Booting temporary VM to install alpine..."
         # Start with init=/bin/sh for now, minirootfs is so minimal it doesn't have a proper init system
@@ -116,6 +128,7 @@ if ! [ -f disk.img ]; then
         # Set up networking
         # Install setup-alpine
         # Run setup-alpine and let it setup ssh (a few errors, mostly works)
+        # Configure our swapfile
         echo "
 mount -t sysfs sysfs /sys
 mount -t proc proc /proc
@@ -127,6 +140,10 @@ hostname alpine
 setup-alpine -c answerfile
 echo 'ROOTSSHKEY=\"$(cat key.pub)\"' >> answerfile
 setup-alpine -f answerfile -e
+chown root:root /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
 sync  # Hopefully this is enough to get qemu to save changes?
 echo ALL'DONE'NOW
 " | ../wait_for_string.sh ALLDONENOW nc localhost 4444
