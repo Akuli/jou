@@ -216,12 +216,12 @@ function should_skip()
 
     # When running valgrind, skip compiler unit tests. They link with LLVM and
     # LLVM leaks memory when the program starts, even if it is never called.
-    if [ $valgrind = yes ] &&  [ $joufile = tests/should_succeed/compiler_unit_tests.jou ]; then
+    if [ $valgrind = yes ] && [ $joufile = tests/should_succeed/compiler_unit_tests.jou ]; then
         return 0
     fi
 
     # Skip special programs that don't interact nicely with automated tests
-    if [ $joufile = examples/x11_window.jou ] || [ $joufile = examples/memory_leak.jou ]; then
+    if [ $joufile = examples/memory_leak.jou ]; then
         return 0
     fi
 
@@ -233,11 +233,6 @@ function should_skip()
         if [[ $joufile =~ (relative|system)_path && ! -e "$(pkg-config --variable=libdir liblzma)/liblzma.a" ]]; then
             return 0
         fi
-    fi
-
-    # This file is very slow compared to other advent of codes
-    if [ $joufile = examples/aoc2023/day24/part2.jou ]; then
-        return 0
     fi
 
     return 1  # false, don't skip
@@ -301,8 +296,8 @@ function run_test()
     fi
 }
 
-# How many tests to run in parallel? Fall back to 2 if nproc fails or doesn't exist.
-num_tests_in_parallel=$(nproc 2>/dev/null || echo 2)
+# How many tests to run in parallel?
+num_tests_in_parallel=$(getconf _NPROCESSORS_ONLN)
 
 counter=0
 skipped=0

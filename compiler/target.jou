@@ -31,6 +31,7 @@ class GlobalTarget:
     triple: byte[100]
     target: LLVMTarget*
     data_layout: byte[500]
+    feature_flags: byte[100]
 
 
 @public
@@ -92,6 +93,10 @@ def init_global_target() -> None:
         strcpy(global_compiler_state.target.triple, triple)
         LLVMDisposeMessage(triple)
 
+    if (starts_with(global_compiler_state.target.triple, "armv6") and
+        ends_with(global_compiler_state.target.triple, "hf")):
+        strcpy(global_compiler_state.target.feature_flags, "+vfp2")
+
     error: byte* = NULL
     if LLVMGetTargetFromTriple(global_compiler_state.target.triple, &global_compiler_state.target.target, &error) != 0:
         assert error != NULL
@@ -115,6 +120,7 @@ def init_global_target() -> None:
     if global_compiler_state.args.verbosity >= 2:
         printf("Target triple: %s\n", global_compiler_state.target.triple)
         printf("Data layout: %s\n", global_compiler_state.target.data_layout)
+        printf("CPU feature flags: %s\n", global_compiler_state.target.feature_flags)
 
 
 @public
@@ -125,7 +131,7 @@ def init_thread_local_target() -> ThreadLocalTarget:
         global_compiler_state.target.target,
         global_compiler_state.target.triple,
         "",
-        "",
+        global_compiler_state.target.feature_flags,
         LLVMCodeGenOptLevel.Default,
         LLVMRelocMode.PIC,
         LLVMCodeModel.Default,
