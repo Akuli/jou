@@ -1,40 +1,147 @@
+# This file tells GitHub Actions to run tests on virtual machines.
+#
+# Running tests on x86 is a LOT faster (a few minutes vs about an hour) than on
+# other architectures because of KVM. So we run the x86 VM on pull requests,
+# and we run other VMs every night, and we create issues if they fail.
+
 on:
   # This is super slow in GitHub Actions because we need to emulate aarch64 CPU.
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:  # Can also be triggered manually from github UI
+    inputs:
+      arch:
+        description: "CPU architecture"
+        type: choice
+        required: true
+        default: all
+        options:
+          # If you add architectures, make sure to add them to all the places with Ctrl+F.
+          - x86
+          - armv6
+          - aarch64
+          - all
   pull_request:
     paths:
       - .github/workflows/linux-vm.yml  # Run whenever this file is modified
 
 jobs:
-  # Please keep in sync with macos.yml and valgrind.yml
-  check-if-needed:
+  # Let's first decide what we should run:
+  #
+  #   none
+  #     Do nothing.
+  #
+  #   all
+  #     Run everything. Really slow.
+  #
+  #   x86
+  #   armv6
+  #   aarch64
+  #     Tests for one specific architecture (most often x86) will run.
+  #
+  decide:
     timeout-minutes: 1
     runs-on: ubuntu-latest
     outputs:
-      needed: ${{ steps.check.outputs.run }}
+      arch: ${{ steps.check.outputs.arch }}  # Expose it from $GITHUB_OUTPUT
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the whole Git history so we can surely check what was modified
       - id: check
         run: |
-          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
-            echo "Triggered manually"
-            echo "run=true" >> $GITHUB_OUTPUT
-          elif [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
-            echo "This is a fork of Jou, skipping"
-            echo "run=false" >> $GITHUB_OUTPUT
-          elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
-            echo "No recent commits, skipping"
-            echo "run=false" >> $GITHUB_OUTPUT
-          else
-            echo "run=true" >> $GITHUB_OUTPUT
-          fi
+          echo $GITHUB_EVENT_NAME
+          case $GITHUB_EVENT_NAME in
+            workflow_dispatch)
+              echo "Triggered manually with ${{ github.event.inputs.arch }}"
+              echo "arch=${{ github.event.inputs.arch }}" >> $GITHUB_OUTPUT
+              ;;
+            schedule)
+              if [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
+                echo "Skipping scheduled run because this is a fork of Jou."
+                echo "arch=none" >> $GITHUB_OUTPUT
+              elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+                echo "Skipping scheduled run, because there are no recent commits."
+                echo "arch=none" >> $GITHUB_OUTPUT
+              else
+                echo "Let's do a full scheduled run."
+                echo "arch=all" >> $GITHUB_OUTPUT
+              fi
+              ;;
+            pull_request)
+              git fetch origin ${{ github.base_ref }}
+              if git --no-pager diff --exit-code --name-only origin/${{ github.base_ref }} -- .github/workflows/linux-vm.yml vm/alpine.sh; then
+                echo "Let's run just the x86 tests on this PR. Nice and quick."
+                echo "arch=x86" >> $GITHUB_OUTPUT
+              else
+                echo "Relevant files modified in PR. Let's run everything."
+                echo "arch=all" >> $GITHUB_OUTPUT
+              fi
+              ;;
+            *)
+              echo "Unsupported event name" >&2
+              exit 1
+          esac
 
-  test:
-    needs: [check-if-needed]
-    if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
-    timeout-minutes: 75  # Bootstrapping and running all the tests in qemu VM is REALLY slow.
+  # TODO: matrix instead of copy/pasta?
+  x86:
+    needs: [decide]
+    if: ${{ needs.decide.outputs.arch == 'x86' || needs.decide.outputs.arch == 'all' }}
+    timeout-minutes: 10  # MUCH faster than others because kvm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+      - run: sudo apt update && sudo apt -y install --no-install-recommends qemu-system-x86
+      - uses: actions/cache@v5
+        with:
+          path: vm/alpine-x86
+          key: alpine-x86-${{ hashFiles('.github/workflows/linux-vm.yml', 'vm/alpine.sh', 'vm/download.sh') }}
+      - run: vm/alpine.sh x86 echo hello
+      - run: vm/alpine.sh x86 git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/alpine.sh x86 ./runtests.sh --verbose
+      - run: vm/alpine.sh x86 ./jou -o jou2 compiler/main.jou
+      - run: vm/alpine.sh x86 mv jou2 jou
+      - run: vm/alpine.sh x86 ./runtests.sh --verbose
+      - name: Shut down VM
+        run: |
+          ! vm/alpine.sh x86 /sbin/poweroff  # ssh should fail here
+          while kill -0 $(cat vm/alpine-x86/pid.txt); do sleep 1; done
+          rm vm/alpine-x86/pid.txt
+
+  # TODO: matrix instead of copy/pasta?
+  armv6:
+    needs: [decide]
+    if: ${{ needs.decide.outputs.arch == 'armv6' || needs.decide.outputs.arch == 'all' }}
+    timeout-minutes: 90  # Bootstrapping and running all the tests in qemu VM can be REALLY slow.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+      - run: sudo apt update && sudo apt -y install --no-install-recommends qemu-system-arm fakeroot
+      - uses: actions/cache@v5
+        with:
+          path: vm/alpine-armv6
+          key: alpine-armv6-${{ hashFiles('.github/workflows/linux-vm.yml', 'vm/alpine.sh', 'vm/download.sh') }}
+      - run: vm/alpine.sh armv6 echo hello
+      - run: vm/alpine.sh armv6 git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/alpine.sh armv6 ./runtests.sh --verbose
+      - run: vm/alpine.sh armv6 ./jou -o jou2 compiler/main.jou
+      - run: vm/alpine.sh armv6 mv jou2 jou
+      - run: vm/alpine.sh armv6 ./runtests.sh --verbose
+      - name: Shut down VM
+        run: |
+          ! vm/alpine.sh armv6 /sbin/poweroff  # ssh should fail here
+          while kill -0 $(cat vm/alpine-armv6/pid.txt); do sleep 1; done
+          rm vm/alpine-armv6/pid.txt
+
+  # TODO: matrix instead of copy/pasta?
+  aarch64:
+    needs: [decide]
+    if: ${{ needs.decide.outputs.arch == 'aarch64' || needs.decide.outputs.arch == 'all' }}
+    timeout-minutes: 90  # Bootstrapping and running all the tests in qemu VM can be REALLY slow.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +151,7 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: vm/alpine-aarch64
-          key: alpine-aarch64-${{ hashFiles('.github/workflows/alpine.yml', 'vm/alpine.sh', 'vm/download.sh') }}
+          key: alpine-aarch64-${{ hashFiles('.github/workflows/linux-vm.yml', 'vm/alpine.sh', 'vm/download.sh') }}
       - run: vm/alpine.sh aarch64 echo hello
       - run: vm/alpine.sh aarch64 git clean -ffdx -e tmp/bootstrap_cache
       - run: vm/alpine.sh aarch64 ./runtests.sh --verbose
@@ -62,10 +169,19 @@ jobs:
     name: Create an issue if failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [check-if-needed, test]
-    if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
+    needs: [armv6, aarch64]  # No need to create issue for x86 failures, because those tests run on PRs
+    if: >
+      ${{
+        github.event_name != 'pull_request'
+        && github.repository == 'Akuli/jou'
+        && always()
+        && (needs.armv6.result == 'failure' || needs.aarch64.result == 'failure')
+      }}
     permissions:
       issues: write
     steps:
       - uses: actions/checkout@v4
-      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux aarch64 failed"
+      - if: needs.armv6.result == 'failure'
+        run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux armv6 failed"
+      - if: needs.aarch64.result == 'failure'
+        run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux aarch64 failed"
