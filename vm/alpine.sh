@@ -285,7 +285,7 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
     fi
 
     echo "Exporting git repository to shared folder..."
-    git bundle create shared_folder/jou.bundle --all
+    git bundle create -q shared_folder/jou.bundle --all
 
     echo "Checking out git repository in VM..."
     $ssh "
