@@ -56,24 +56,6 @@ if ! [ -f disk.img ]; then
     xz -d 2025-12-04-raspios-trixie-armhf-lite.img.xz
     mv -v 2025-12-04-raspios-trixie-armhf-lite.img disk.img
 
-    # The user 'pi' used to have a default password 'raspberry', but that is no
-    # longer true. Instead the password is disabled, so you cannot log in.
-    #
-    # The official thing to do is to create /boot/userconf.txt. Note that even
-    # though there are two partitions, /boot is still on the second (main)
-    # partition, because the first partition is just /boot/firmware:
-    #
-    #    pi@raspberrypi:~ $ lsblk
-    #    NAME      MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
-    #    loop0       7:0    0   78M  0 loop
-    #    sr0        11:0    1 1024M  0 rom
-    #    mtdblock0  31:0    0   64M  0 disk
-    #    vda       254:0    0  2.5G  0 disk
-    #    ├─vda1    254:1    0  512M  0 part /boot/firmware
-    #    └─vda2    254:2    0    2G  0 part /
-    #
-    # So adding userconf.txt would be quite similar to adding userconf.txt.
-
     echo "Taking main partition from disk image..."
     # These are in sectors (512-byte blocks), not bytes, so that we don't need
     # to make dd go one byte at a time. That would be ridiculously slow.
@@ -83,7 +65,14 @@ if ! [ -f disk.img ]; then
     dd if=disk.img of=partition.img bs=512 skip=$offset count=$size
 
     echo "Adding ssh key to home folder of the 'pi' user..."
-    # The mode specified in debugfs is  not only permission bits but also the
+    # The user 'pi' used to have a default password 'raspberry', but that is no
+    # longer true. Instead the password is disabled, so you cannot log in.
+    #
+    # The official thing to do is to add a userconf.txt file. But if we're
+    # going to add a file, we might as well add the ssh key directly, since we
+    # want to use ssh anyway.
+    #
+    # The mode specified in debugfs is not only permission bits but also the
     # inode type:
     #
     #   directory    = 0x4000 = octal  40000
@@ -119,9 +108,7 @@ set_inode_field .ssh gid 1000
 
 set_inode_field .ssh/authorized_keys mode 0100600
 set_inode_field .ssh/authorized_keys uid 1000
-set_inode_field .ssh/authorized_keys gid 1000
-
-quit' | /sbin/debugfs -w partition.img
+set_inode_field .ssh/authorized_keys gid 1000' | /sbin/debugfs -w partition.img
 
     echo 'Disabling annoying "ssh may not work" warning message when using ssh...'
     echo 'unlink /etc/ssh/sshd_config.d/rename_user.conf' | /sbin/debugfs -w partition.img
@@ -214,21 +201,21 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
     echo "Checking if packages are installed..."
     packages='git llvm-19-dev clang-19 make'
     if ! $ssh which git; then
-        echo "Getting ready to install packages..."
+        echo 'Running "sudo apt update"... (this is really slow)'
         # Internet inside the VM is really slow for some reason, so even
         # "sudo apt update" takes a very long time (about 8.5 minutes).
         $ssh sudo apt update
 
         # Download the packages on host and transfer them to the VM using a
         # shared folder.
-        echo "  Downloading packages (on host computer)..."
+        echo "Downloading packages into shared folder..."
         $ssh apt-get install --print-uris -y $packages | grep "^'http" | tr -d "'" | while read -r url filename ignore_the_rest; do
             echo "    $filename"
             wget -q --continue -O "shared_folder/$filename" "$url"
         done
 
-        echo "  Installing packages from shared folder..."
-        $ssh "sudo cp -v shared_folder/* /var/cache/apt/archives/ && sudo apt install -y $packages"
+        echo "Installing packages from shared folder..."
+        $ssh "sudo cp -v shared_folder/*.deb /var/cache/apt/archives/ && sudo apt install -y $packages"
     fi
 
     echo "Exporting git repository to shared folder..."
