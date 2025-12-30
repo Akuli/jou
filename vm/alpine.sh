@@ -220,6 +220,7 @@ else
             -append "root=/dev/vda rw console=ttyAMA0" \
             -nic user,model=smc91c111,hostfwd=tcp:127.0.0.1:2222-:22 \
             &
+        qemu_pid=$!
     else
         # Same as before, but:
         #   - forward port 2222 on host is port 22 (ssh) in VM
@@ -232,8 +233,8 @@ else
             -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
             &
         qemu_pid=$!
-        echo $qemu_pid > pid.txt
     fi
+    echo $qemu_pid > pid.txt
     disown
 fi
 
