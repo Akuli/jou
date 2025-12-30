@@ -52,9 +52,8 @@ import "./ast_to_builder.jou"
 #
 # As a "last resort" I just use an array of i64 large enough and hope it's aligned as needed.
 def union_type_to_llvm(state: ThreadLocalCompilerState*, types: LLVMType**, ntypes: int) -> LLVMType*:
-    # For some reason uncommenting this makes stuff compile almost 2x slower...
-    #if ntypes == 1:
-    #    return types[0]
+    if ntypes == 1:
+        return types[0]
 
     sizeneeded = 0 as int64
     for i = 0; i < ntypes; i++:
