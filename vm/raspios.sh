@@ -40,11 +40,10 @@ fi
 
 if ! [ -f disk.img ]; then
     # Running armv6 on qemu is complicated, and AI will probably explain it
-    # better than me. But basically, you cannot use most images available
-    # online, including images made for for raspberry pi 1, because qemu
-    # doesn't emulate all the required hardware. Instead you need to grab a
+    # better than me. But basically, qemu doesn't emulate all the required
+    # hardware to boot Raspberry Pi images as is. Instead you need to grab a
     # linux kernel and device tree from this random github repo, and use
-    # them with the file system of alpine linux (or other distro).
+    # them with the file system of whatever linux distro you want.
     echo "Downloading ARM kernel and device tree made for QEMU..."
     commit=9fb4fcf463df4341dbb7396df127374214b90841  # latest commit on master at the time of writing this
     ../download.sh https://github.com/dhruvvyas90/qemu-rpi-kernel/raw/$commit/kernel-qemu-5.10.63-bullseye 19f348e9fe2b9b7e9330ce2eb4e7f177a71585651080ca9add378a497ebed9ae
