@@ -62,6 +62,8 @@ if ! [ -f disk.img ]; then
         ../download.sh https://github.com/dhruvvyas90/qemu-rpi-kernel/raw/$commit/versatile-pb-bullseye-5.10.63.dtb 0bc0c0b0858cefd3c32b385c0d66d97142ded29472a496f4f490e42fc7615b25
 
         echo "Downloading alpine linux..."
+        # Note that version number is also mentioned later in this script!
+        # Use Ctrl+F or similar when you update it.
         ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/armhf/alpine-minirootfs-3.23.2-armhf.tar.gz 80ab58e50bd7fee394ada49f43685a0dde2407cbe5cc714cfe5117f5fc5e9b16
 
         # fakeroot is needed so that ownership info is preserved. For example,
@@ -202,12 +204,14 @@ if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
 else
     rm -f pid.txt
     echo "Starting qemu..."
+    mkdir -vp shared_folder
     if [ $arch == armv6 ]; then
         # Same as before, but:
         #   - no init=/bin/sh, so we use proper init system (openrc) that setup-alpine installed
         #   - forward port 2222 on host is port 22 (ssh) in VM
         #   - no installation CD
         #   - no serial console on tcp port
+        #   - shared_folder is available in the VM with name "share"
         $qemu \
             -M versatilepb \
             -cpu arm1176 \
@@ -219,6 +223,7 @@ else
             -device virtio-rng-pci \
             -append "root=/dev/vda rw console=ttyAMA0" \
             -nic user,model=smc91c111,hostfwd=tcp:127.0.0.1:2222-:22 \
+            -virtfs local,path=shared_folder,mount_tag=share,security_model=none \
             &
         qemu_pid=$!
     else
@@ -226,11 +231,13 @@ else
         #   - forward port 2222 on host is port 22 (ssh) in VM
         #   - no installation CD
         #   - no serial console on tcp port
+        #   - shared_folder is available in the VM with name "share"
         $qemu \
             -m 1G \
             -smp $(nproc) \
             -drive file=disk.img,format=raw \
             -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
+            -virtfs local,path=shared_folder,mount_tag=share,security_model=none \
             &
         qemu_pid=$!
     fi
@@ -248,20 +255,47 @@ done
 
 echo "Checking if repo needs to be copied over..."
 if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
-    echo "Installing packages (if not already installed)..."
-    $ssh 'which git || apk add bash clang llvm-dev make git grep libx11-dev'
+    echo "Mounting shared folder if not already mounted..."
+    $ssh 'mount | grep shared_folder || (mkdir -vp shared_folder && mount -t 9p share shared_folder)'
 
-    echo "Copying repository to VM..."
-    git bundle create jou.bundle --all
-    cat jou.bundle | $ssh 'cat > jou.bundle'
-    rm jou.bundle
+    echo "Checking if packages are installed..."
+    packages='bash clang llvm-dev make git grep'
+    if ! $ssh which git; then
+        echo "Installing packages..."
+        if [ $arch == armv6 ]; then
+            # Internet inside the VM is really slow for some reason. Download the
+            # packages on host and transfer them to the VM using a shared folder.
+            echo "  Downloading packages (on host computer)..."
+            rm -f shared_folder/*.apk
+            for package in $($ssh apk fetch --simulate --recursive $packages | sed s/'Downloading '//); do
+                echo "    $package"
+                url1=https://dl-cdn.alpinelinux.org/alpine/v3.23/main/armhf/$package.apk
+                url2=https://dl-cdn.alpinelinux.org/alpine/v3.23/community/armhf/$package.apk
+                (
+                    cd shared_folder
+                    # First try with -q, then without -q to make errors visible
+                    wget -q $url1 || wget -q $url2 || wget $url1 || wget $url2
+                )
+            done
+            echo "  Mounting shared folder..."
+            $ssh mkdir shared_folder || true  # fails if already mounted
+            $ssh mount -t 9p share shared_folder || true  # fails if already mounted
+            echo "  Installing packages from shared folder..."
+            $ssh 'apk add --network=no /root/shared_folder/*.apk'
+        else
+            $ssh apk add $packages
+        fi
+    fi
 
-    echo "Checking out repository inside VM..."
+    echo "Exporting git repository to shared folder..."
+    git bundle create shared_folder/jou.bundle --all
+
+    echo "Checking out git repository in VM..."
     $ssh "
     set -e
     [ -d jou ] || git init jou
     cd jou
-    git fetch ../jou.bundle
+    git fetch ../shared_folder/jou.bundle
     git checkout -f $(git rev-parse HEAD)  # The rev-parse runs on host, not inside VM
     "
 fi

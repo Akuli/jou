@@ -58,6 +58,6 @@ Here are some guidelines for working on the scripts:
     - `expect` would be an unnecessary dependency.
 
 Dependencies (in addition to what you need for Jou anyway):
-- x86: `sudo apt install openssh-client qemu-system-x86`
-- aarch64: `sudo apt install openssh-client qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu`
-- armv6: `sudo apt install qemu-system-arm fakeroot`
+- x86: `sudo apt install wget openssh-client qemu-system-x86`
+- aarch64: `sudo apt install wget openssh-client qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu`
+- armv6: `sudo apt install wget qemu-system-arm fakeroot`
