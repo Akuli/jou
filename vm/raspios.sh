@@ -136,7 +136,7 @@ quit' | /sbin/debugfs -w partition.img
     #
     # Usually Raspberry Pi OS would do steps 2 and 3. Here it can do only step 3,
     # because we boot it in a weird/crude way that skips a bunch of things.
-    truncate -s +2G disk.img  # Step 1
+    truncate -s 4G disk.img  # Step 1
     /sbin/parted --script disk.img resizepart 2 100%  # Step 2
 fi
 
