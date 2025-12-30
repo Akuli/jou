@@ -65,10 +65,10 @@ if ! [ -f disk.img ]; then
     #
     #    pi@raspberrypi:~ $ lsblk
     #    NAME      MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
-    #    loop0       7:0    0   78M  0 loop 
-    #    sr0        11:0    1 1024M  0 rom  
-    #    mtdblock0  31:0    0   64M  0 disk 
-    #    vda       254:0    0  2.5G  0 disk 
+    #    loop0       7:0    0   78M  0 loop
+    #    sr0        11:0    1 1024M  0 rom
+    #    mtdblock0  31:0    0   64M  0 disk
+    #    vda       254:0    0  2.5G  0 disk
     #    ├─vda1    254:1    0  512M  0 part /boot/firmware
     #    └─vda2    254:2    0    2G  0 part /
     #
