@@ -76,9 +76,10 @@ if ! [ -f disk.img ]; then
     # So adding userconf.txt would be quite similar to adding userconf.txt.
 
     echo "Taking main partition from disk image..."
-    # These are in 512-byte blocks, not bytes!
-    offset=$(/sbin/fdisk -l disk.img | tail -1 | awk '{print $2}')
-    size=$(/sbin/fdisk -l disk.img | tail -1 | awk '{print $4}')
+    # These are in sectors (512-byte blocks), not bytes, so that we don't need
+    # to make dd go one byte at a time. That would be ridiculously slow.
+    offset=$(/sbin/parted --json disk.img unit s print | jq -r '.disk.partitions[1].start' | tr -d s)
+    size=$(/sbin/parted --json disk.img unit s print | jq -r '.disk.partitions[1].size' | tr -d s)
     echo "  $size blocks at $offset"
     dd if=disk.img of=partition.img bs=512 skip=$offset count=$size
 
@@ -128,7 +129,15 @@ quit' | /sbin/debugfs -w partition.img
     rm -f partition.img
 
     echo "Making disk image bigger..."
-    truncate -s 4G disk.img
+    # Three things have to happen:
+    #   1. Disk or disk image gets bigger (e.g. user wrote the image to a huge sd card)
+    #   2. Second (main) partition must be resized to fill the rest of the disk
+    #   3. File system on the partition must be resized to fill the entire partition
+    #
+    # Usually Raspberry Pi OS would do steps 2 and 3. Here it can do only step 3,
+    # because we boot it in a weird/crude way that skips a bunch of things.
+    truncate -s +2G disk.img  # Step 1
+    /sbin/parted --script disk.img resizepart 2 100%  # Step 2
 fi
 
 if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
@@ -162,7 +171,7 @@ else
         -drive file=disk.img,format=raw,if=none,id=disk0 \
         -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off \
         -device virtio-rng-pci \
-        -append "root=/dev/vda2 rw console=ttyAMA0" \
+        -append "root=/dev/vda2 rw console=ttyAMA0 resize" \
         -serial tcp:localhost:4444,server=on,wait=off \
         -nic user,model=smc91c111,hostfwd=tcp:127.0.0.1:2222-:22 \
         -virtfs local,path=shared_folder,mount_tag=share,security_model=none \
