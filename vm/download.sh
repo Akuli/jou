@@ -9,7 +9,7 @@
 #     it is first placed into a separate "downloads/" folder and then copied to
 #     wherever you need it.
 #
-#   - This file verifies that the downloaded file content matches a given
+#   - This script verifies that the downloaded file content matches a given
 #     SHA256 hash.
 #
 # This assumes that you don't download two different files with the same name.
