@@ -234,12 +234,13 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
         # to download, put them to the right places through our shared folder,
         # and then run "sudo apt update".
         echo "Downloading 'apt update' files into shared folder..."
+        rm -rf shared_folder/apt_update  # Prevents a bunch of corner cases we don't care about
         mkdir -vp shared_folder/apt_update
         $ssh apt-get update --print-uris | tr -d "'" | while read -r url filename ignore_the_rest; do
             echo "$url"
             (
                 cd shared_folder/apt_update
-                if wget -q --continue -O "$filename" "$url"; then
+                if wget -q -O "$filename" "$url"; then
                     if [[ "$url" == *.xz ]]; then
                         # File is xz compressed
                         mv "$filename" "$filename.xz"
