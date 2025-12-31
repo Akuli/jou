@@ -91,7 +91,7 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
     # We consider the VM started when it shows login prompt on serial port.
     # At that point it has also started ssh.
     echo "Waiting for VM to boot..."
-    until echo | timeout 3 ../wait_for_string.sh 'login:' nc localhost 4444; do
+    until echo | ../wait_for_string.sh 'login:' nc localhost 4444; do
         sleep 1
         kill -0 $qemu_pid  # Stop if qemu dies
     done
