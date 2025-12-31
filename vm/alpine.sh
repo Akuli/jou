@@ -70,7 +70,7 @@ if ! [ -f disk.img ]; then
     qemu_pid=$!
 
     echo "Waiting for temporary VM to boot so we can install alpine..."
-    until echo | ../wait_for_string.sh 'localhost login:' nc localhost 4444; do
+    until echo | timeout 3 ../wait_for_string.sh 'localhost login:' nc localhost 4444; do
         sleep 1
         kill -0 $qemu_pid  # Stop if qemu dies
     done
