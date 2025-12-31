@@ -56,7 +56,10 @@ jobs:
       - name: Shut down VM
         run: |
           ! vm/raspios.sh armv6 /sbin/poweroff  # ssh should fail here
-          while kill -0 $(cat vm/raspios-armv6/pid.txt); do sleep 1; done
+          # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
+          # Instead linux kernel panics because init is exiting. Let's wait for that.
+          vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc localhost 2222
+          kill -INT $(cat vm/raspios-armv6/pid.txt)
           rm vm/raspios-armv6/pid.txt
 
   # Please keep in sync with valgrind.yml and macos.yml
