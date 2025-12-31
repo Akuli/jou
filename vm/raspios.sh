@@ -56,6 +56,9 @@ if ! [ -f disk.img ]; then
     xz -d 2025-12-04-raspios-trixie-armhf-lite.img.xz
     mv -v 2025-12-04-raspios-trixie-armhf-lite.img disk.img
 
+    # We separate the main partition into a file for two reasons:
+    #   - adding files to it (we could mount it, but then we need sudo)
+    #   - resizing
     echo "Taking main partition from disk image..."
     # These are in sectors (512-byte blocks), not bytes, so that we don't need
     # to make dd go one byte at a time. That would be ridiculously slow.
@@ -63,6 +66,26 @@ if ! [ -f disk.img ]; then
     size=$(/sbin/parted --json disk.img unit s print | jq -r '.disk.partitions[1].size' | tr -d s)
     echo "  $size blocks at $offset"
     dd if=disk.img of=partition.img bs=512 skip=$offset count=$size
+
+    echo "Resizing disk..."
+    # Three things have to happen to get more storage:
+    #   1. Disk or disk image gets bigger (e.g. user wrote the image to a huge sd card)
+    #   2. Partition table must be updated so that second (main) partition fills rest of the disk
+    #   3. File system on the partition must be resized to fill the entire partition
+    #
+    # Usually Raspberry Pi OS would do steps 2 and 3 automatically, but it
+    # doesn't work, because we boot it in a weird/crude way that skips a bunch
+    # of things.
+
+    # Step 1
+    truncate -s +3G disk.img
+    truncate -s +3G partition.img
+
+    # Step 2
+    /sbin/parted --script disk.img resizepart 2 100%
+
+    # Step 3
+    /sbin/resize2fs partition.img
 
     echo "Adding ssh key to home folder of the 'pi' user..."
     # The user 'pi' used to have a default password 'raspberry', but that is no
@@ -111,31 +134,34 @@ set_inode_field .ssh/authorized_keys uid 1000
 set_inode_field .ssh/authorized_keys gid 1000' | /sbin/debugfs -w partition.img
 
     echo 'Disabling annoying "ssh may not work" warning message when using ssh...'
-    echo 'unlink /etc/ssh/sshd_config.d/rename_user.conf' | /sbin/debugfs -w partition.img
+    echo 'rm /etc/ssh/sshd_config.d/rename_user.conf' | /sbin/debugfs -w partition.img
 
-    echo "Making disk bigger..."
-    # Three things have to happen to get more storage:
-    #   1. Disk or disk image gets bigger (e.g. user wrote the image to a huge sd card)
-    #   2. Partition table must be updated so that second (main) partition fills rest of the disk
-    #   3. File system on the partition must be resized to fill the entire partition
+    echo "Adding 1GB swap file..."
+    # I tried filling the file initially with zero bytes, but the zeros got
+    # special-cased somewhere:
     #
-    # Usually Raspberry Pi OS would do steps 2 and 3 automatically, but it
-    # doesn't work, because we boot it in a weird/crude way that skips a bunch
-    # of things.
-
-    # Step 1
-    truncate -s +2G disk.img
-    truncate -s +2G partition.img
-
-    # Step 2
-    /sbin/parted --script disk.img resizepart 2 100%
-
-    # Step 3
-    /sbin/resize2fs partition.img
+    #    ~ # swapon /swapfile
+    #    swapon: /swapfile: file has holes
+    #
+    head -c 1G /dev/urandom > swapfile
+    /sbin/mkswap swapfile
+    echo '
+write swapfile /swapfile
+set_inode_field /swapfile mode 0100600
+set_inode_field /swapfile uid 0
+set_inode_field /swapfile gid 0
+dump /etc/fstab fstab
+' | /sbin/debugfs -w partition.img
+    echo '/swapfile none swap sw 0 0' >> fstab
+    echo '
+rm /etc/fstab
+write fstab /etc/fstab' | /sbin/debugfs -w partition.img
+    rm swapfile
+    rm fstab
 
     echo "Writing main partition back to disk image..."
     dd if=partition.img of=disk.img bs=512 seek=$offset conv=notrunc
-    rm -f partition.img
+    rm partition.img
 fi
 
 if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
