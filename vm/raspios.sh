@@ -239,22 +239,16 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
             echo "$url"
             (
                 cd shared_folder/apt_update
-
-                if [[ "$url" == *.xz ]]; then
-                    # File is compressed
-                    temp_ext=".xz"
-                else
-                    temp_ext=""
-                fi
-
-                if wget -q --continue -O "$filename$temp_ext" "$url"; then
-                    if [ "$temp_ext" == ".xz" ]; then
+                if wget -q --continue -O "$filename" "$url"; then
+                    if [[ "$url" == *.xz ]]; then
+                        # File is xz compressed
+                        mv "$filename" "$filename.xz"
                         xz -d "$filename.xz"
                     fi
                     echo "--> ok"
                 else
                     # Some of the URLs return 404, seems to be intentional
-                    rm -vf "$filename$temp_ext"
+                    rm -vf "$filename"
                     echo "--> not working but probably doesn't matter"
                 fi
             )
