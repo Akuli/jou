@@ -74,9 +74,9 @@ function transpile_with_python_and_compile() {
     echo -n "Finding Python... "
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
         # Avoid the "python.exe" launcher that opens app store for installing python.
-        python=$( (command -v py python || true) | (grep -v Microsoft/WindowsApps || true) | head -1)
+        python=$(command -v py python | grep -v Microsoft/WindowsApps | head -1 || true)
     else
-        python=$( (command -v python3 python python3.{10..20} || true) | head -1)
+        python=$(command -v python3 python python3.{10..20} | head -1 || true)
     fi
     echo "$python"
 
