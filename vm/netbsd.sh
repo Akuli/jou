@@ -91,7 +91,7 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
     # We consider the VM started when it shows login prompt on serial port.
     # At that point it has also started ssh.
     echo "Waiting for VM to boot..."
-    until echo | ../wait_for_string.sh 'login:' nc localhost 4444; do
+    until echo | ../wait_for_string.sh 'login:' nc.traditional localhost 4444; do
         sleep 1
         kill -0 $qemu_pid  # Stop if qemu dies
     done
@@ -101,7 +101,7 @@ if ! [ -f key ] || ! timeout 5 $ssh echo hello; then
         (yes || true) | ssh-keygen -t ed25519 -f key -N ''
         rm -vf my_known_hosts
         # Log in as root and set up ssh key
-        printf 'root\nmkdir .ssh\nchmod 700 .ssh\necho "%s" > .ssh/authorized_keys\necho ALL"DONE"NOW\nexit\n' "$(cat key.pub)" | ../wait_for_string.sh 'ALLDONENOW' nc localhost 4444
+        printf 'root\nmkdir .ssh\nchmod 700 .ssh\necho "%s" > .ssh/authorized_keys\necho ALL"DONE"NOW\nexit\n' "$(cat key.pub)" | ../wait_for_string.sh 'ALLDONENOW' nc.traditional localhost 4444
         echo "Now ssh setup is done, let's check one last time..."
         $ssh echo hello  # Check that it works
     fi
