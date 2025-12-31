@@ -227,21 +227,47 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
     echo "Checking if packages are installed..."
     packages='git llvm-19-dev clang-19 make'
     if ! $ssh which git; then
-        echo 'Running "sudo apt update"... (this is really slow)'
         # Internet inside the VM is really slow for some reason, so even
-        # "sudo apt update" takes a very long time (about 8.5 minutes).
-        $ssh sudo apt update
+        # "sudo apt update" takes a very long time (about 8 minutes).
+        #
+        # To work around this, we ask apt in the VM what files it would like
+        # to download, put them to the right places through our shared folder,
+        # and then run "sudo apt update".
+        echo "Downloading 'apt update' files into shared folder..."
+        mkdir -vp shared_folder/apt_update
+        $ssh apt-get update --print-uris | tr -d "'" | while read -r url filename ignore_the_rest; do
+            echo "$url"
+            (
+                cd shared_folder/apt_update
+                if wget -q --continue -O "$filename" "$url"; then
+                    if [[ "$url" == *.xz ]]; then
+                        # File is xz compressed
+                        mv "$filename" "$filename.xz"
+                        xz -d "$filename.xz"
+                    fi
+                    echo "--> ok"
+                else
+                    # Some of the URLs return 404, seems to be intentional
+                    rm -vf "$filename"
+                    echo "--> not working but probably doesn't matter"
+                fi
+            )
+        done
+
+        echo "Doing 'apt update' with files from shared folder..."
+        $ssh "sudo cp -v shared_folder/apt_update/* /var/lib/apt/lists/ && sudo apt update"
 
         # Download the packages on host and transfer them to the VM using a
         # shared folder.
         echo "Downloading packages into shared folder..."
+        mkdir -vp shared_folder/apt_install
         $ssh apt-get install --print-uris -y $packages | grep "^'http" | tr -d "'" | while read -r url filename ignore_the_rest; do
-            echo "    $filename"
-            wget -q --continue -O "shared_folder/$filename" "$url"
+            echo "  $filename"
+            wget -q --continue -O "shared_folder/apt_install/$filename" "$url"
         done
 
         echo "Installing packages from shared folder..."
-        $ssh "sudo cp -v shared_folder/*.deb /var/cache/apt/archives/ && sudo apt install -y $packages"
+        $ssh "sudo cp -v shared_folder/apt_install/*.deb /var/cache/apt/archives/ && sudo apt install -y $packages"
     fi
 
     echo "Exporting git repository to shared folder..."
