@@ -48,7 +48,6 @@ pid_of_this_script=$$
 statusfile="$(mktemp)"
 trap 'rm "$statusfile"' EXIT
 
-# Run the command and pipe its output.
 "$@" | (
     buf=""
     while IFS= read -r -N1 -d '' byte; do
@@ -77,8 +76,6 @@ trap 'rm "$statusfile"' EXIT
             buf=${buf:500}
         fi
     done
-# Ignore the command's exit code.
-) || true
-
-# Instead exit with 0 if we found the substring, 1 otherwise.
-[ "$(cat "$statusfile" 2>/dev/null)" == "killed" ]
+# Fail if the command fails, except in the case were we killed it. Then we
+# ignore the "failure" (killed) status.
+) || [ "$(cat "$statusfile")" == killed ]
