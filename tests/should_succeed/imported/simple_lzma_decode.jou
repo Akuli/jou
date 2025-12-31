@@ -2,14 +2,15 @@
 
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/intnative.jou"
 
 class lzma_stream:
     next_in: byte*
-    avail_in: int64
+    avail_in: intnative
     total_in: int64
 
     next_out: byte*
-    avail_out: int64
+    avail_out: intnative
     total_out: int64
 
     dummy: byte[1000]  # should be big enough, currently the whole struct 136 bytes on my system
