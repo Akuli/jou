@@ -20,11 +20,11 @@ jobs:
           path: vm/netbsd-amd64
           key: netbsd-${{ hashFiles('.github/workflows/netbsd.yml', 'vm/netbsd.sh', 'vm/download.sh') }}
       - run: vm/netbsd.sh amd64
-      - run: vm/ssh.sh git clean -ffdx -e tmp/bootstrap_cache
-      - run: vm/ssh.sh ./runtests.sh --verbose
-      - run: vm/ssh.sh ./jou -o jou2 compiler/main.jou
-      - run: vm/ssh.sh mv jou2 jou
-      - run: vm/ssh.sh ./runtests.sh --verbose
+      - run: vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+      - run: vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
+      - run: vm/ssh.sh cd jou '&&' mv jou2 jou
+      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
       - name: Shut down VM
         run: |
           ! vm/ssh.sh /sbin/poweroff  # should fail with "unexpected" disconnected
