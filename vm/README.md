@@ -7,17 +7,27 @@ created here.
 The scripts assume that the host computer (that is, your actual computer or
 GitHub Actions) is a reasonably modern linux distro on x86_64.
 
+Example commands to get you started:
+
+```
+$ vm/alpine.sh x86  # Create and start a VM (opens a window, close it to stop the VM)
+$ vm/ssh.sh         # Connect to VM, interactive ssh shell
+$ vm/ssh.sh ls jou  # Run command in VM
+```
+
 Here are some guidelines for working on the scripts:
 - Scripts should work on GitHub Actions and locally. This way they are easy to
   develop and debug.
-- Make the scripts as self-contained as possible. The same script should
-  download an operating system, create a VM, set up the operating system in the
-  VM, copy Jou into the VM and run a command inside the VM.
+- Make the scripts self-contained. The same script should download an operating
+  system, create a VM, set up the operating system in the VM, install packages
+  and copy Jou into the VM. Once the script has completed, ssh should be
+  available on port 2222 of localhost.
+- Use `keygen.sh` to generate the ssh key. This way all VMs will use the same
+  key, and scripts like `ssh.sh` will always work the same.
 - The command-line usage of each script should be similar to
-  `./netbsd.sh amd64 git status`: first command-line argument is the CPU
-  architecture, and the rest is a command to run inside the VM. If the script
-  supports just one architecture, you can just fail with an error if anything
-  else is specified.
+  `./netbsd.sh amd64`: just one argument that is the CPU architecture. If the
+  script supports just one architecture, it should fail with an error if
+  anything else is specified.
 - Scripts should be able to continue from intermediate states when that can be
   implemented with a reasonable amount of effort. However, don't go to the
   other extreme and over-engineer this; just make sure that the developer

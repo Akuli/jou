@@ -47,15 +47,15 @@ jobs:
         with:
           path: vm/alpine-aarch64
           key: alpine-aarch64-${{ hashFiles('.github/workflows/alpine.yml', 'vm/alpine.sh', 'vm/download.sh') }}
-      - run: vm/alpine.sh aarch64 echo hello
-      - run: vm/alpine.sh aarch64 git clean -ffdx -e tmp/bootstrap_cache
-      - run: vm/alpine.sh aarch64 ./runtests.sh --verbose
-      - run: vm/alpine.sh aarch64 ./jou -o jou2 compiler/main.jou
-      - run: vm/alpine.sh aarch64 mv jou2 jou
-      - run: vm/alpine.sh aarch64 ./runtests.sh --verbose
+      - run: vm/alpine.sh aarch64
+      - run: vm/ssh.sh git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/ssh.sh ./runtests.sh --verbose
+      - run: vm/ssh.sh ./jou -o jou2 compiler/main.jou
+      - run: vm/ssh.sh mv jou2 jou
+      - run: vm/ssh.sh ./runtests.sh --verbose
       - name: Shut down VM
         run: |
-          ! vm/alpine.sh aarch64 /sbin/poweroff  # ssh should fail here
+          ! vm/ssh.sh /sbin/poweroff  # should fail with "unexpected" disconnected
           while kill -0 $(cat vm/alpine-aarch64/pid.txt); do sleep 1; done
           rm vm/alpine-aarch64/pid.txt
 

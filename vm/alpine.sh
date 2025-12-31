@@ -1,13 +1,12 @@
 #!/bin/bash
 set -e -o pipefail
 
-if [ $# -lt 2 ]; then
-    echo "Usage: $0 <arch> <command inside VM>"
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <architecture>"
     exit 1
 fi
 
 arch=$1
-shift
 case $arch in
     x86)
         qemu=kvm
@@ -44,10 +43,6 @@ if ! [ -f disk.img ]; then
     echo "Downloading alpine linux..."
     ../download.sh https://dl-cdn.alpinelinux.org/v3.23/releases/$arch/alpine-virt-3.23.2-$arch.iso $sha
 
-    echo "Creating ssh key..."
-    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
-    rm -vf my_known_hosts
-
     echo "Creating disk..."
     trap 'rm -v disk.img' EXIT  # Avoid leaving behind a broken disk image
     truncate -s 4G disk.img
@@ -82,7 +77,7 @@ if ! [ -f disk.img ]; then
     echo "
 setup-alpine -c answerfile
 echo 'DISKOPTS=\"-m sys /dev/$disk_name_inside_vm\"' >> answerfile
-echo 'ROOTSSHKEY=\"$(cat key.pub)\"' >> answerfile
+echo 'ROOTSSHKEY=\"$(../keygen.sh)\"' >> answerfile
 setup-alpine -f answerfile -e
 y
 sync
@@ -123,26 +118,26 @@ else
     disown
 fi
 
-ssh="ssh root@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
-
 echo "Waiting for VM to boot..."
-until $ssh echo hello; do
+until ../ssh.sh echo hello; do
     sleep 1
     kill -0 $qemu_pid  # Stop if qemu dies
 done
 
-echo "Checking if repo needs to be copied over..."
-if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
-    echo "Installing packages (if not already installed)..."
-    $ssh 'which git || apk add bash clang llvm-dev make git grep'
+echo "Installing packages if not already installed..."
+../ssh.sh 'which git || apk add bash clang llvm-dev make git grep'
 
+echo "Checking if repo needs to be copied over..."
+if [ "$(../ssh.sh 'cd jou && git rev-parse HEAD' || true)" == "$(git rev-parse HEAD)" ]; then
+    echo "Commit $(git rev-parse HEAD) is already checked out in VM."
+else
     echo "Copying repository to VM..."
     git bundle create jou.bundle --all
-    cat jou.bundle | $ssh 'cat > jou.bundle'
+    cat jou.bundle | ../ssh.sh 'cat > jou.bundle'
     rm jou.bundle
 
     echo "Checking out repository inside VM..."
-    $ssh "
+    ../ssh.sh "
     set -e
     [ -d jou ] || git init jou
     cd jou
@@ -150,6 +145,3 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
     git checkout -f $(git rev-parse HEAD)  # The rev-parse runs on host, not inside VM
     "
 fi
-
-echo "Running command in VM's jou folder: $@"
-$ssh cd jou '&&' "$@"
