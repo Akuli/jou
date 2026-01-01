@@ -1,13 +1,13 @@
-name: "Linux aarch64"
+name: "Linux raspios"
 
 on:
-  # This is super slow in GitHub Actions because we need to emulate aarch64 CPU.
+  # This is super slow in GitHub Actions because we need to emulate armv6 CPU.
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:  # Can also be triggered manually from github UI
   pull_request:
     paths:
-      - .github/workflows/linux-aarch64.yml  # Run whenever this file is modified
+      - .github/workflows/raspios.yml  # Run whenever this file is modified
 
 jobs:
   # Please keep in sync with: macos.yml, valgrind.yml, linux-aarch64.yml, raspios.yml
@@ -36,28 +36,31 @@ jobs:
   test:
     needs: [check-if-needed]
     if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
-    timeout-minutes: 75  # Bootstrapping and running all the tests in qemu VM is REALLY slow.
+    timeout-minutes: 120  # Bootstrapping and running all the tests in qemu VM is REALLY slow.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-      - run: sudo apt update && sudo apt -y install --no-install-recommends qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu netcat-traditional
+      - run: sudo apt update && sudo apt -y install --no-install-recommends qemu-system-arm
       - uses: actions/cache@v5
         with:
-          path: vm/alpine-aarch64
-          key: alpine-aarch64-${{ hashFiles('.github/workflows/alpine.yml', 'vm/alpine.sh', 'vm/download.sh') }}
-      - run: vm/alpine.sh aarch64 echo hello
-      - run: vm/alpine.sh aarch64 git clean -ffdx -e tmp/bootstrap_cache
-      - run: vm/alpine.sh aarch64 ./runtests.sh --verbose
-      - run: vm/alpine.sh aarch64 ./jou -o jou2 compiler/main.jou
-      - run: vm/alpine.sh aarch64 mv jou2 jou
-      - run: vm/alpine.sh aarch64 ./runtests.sh --verbose
+          path: vm/raspios-armv6
+          key: raspios-armv6-${{ hashFiles('.github/workflows/raspios.yml', 'vm/raspios.sh', 'vm/download.sh') }}
+      - run: vm/raspios.sh armv6 echo hello
+      - run: vm/raspios.sh armv6 git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/raspios.sh armv6 ./runtests.sh --verbose
+      - run: vm/raspios.sh armv6 ./jou -o jou2 compiler/main.jou
+      - run: vm/raspios.sh armv6 mv jou2 jou
+      - run: vm/raspios.sh armv6 ./runtests.sh --verbose
       - name: Shut down VM
         run: |
-          ! vm/alpine.sh aarch64 /sbin/poweroff  # ssh should fail here
-          while kill -0 $(cat vm/alpine-aarch64/pid.txt); do sleep 1; done
-          rm vm/alpine-aarch64/pid.txt
+          ! vm/raspios.sh armv6 sudo /sbin/poweroff  # ssh should fail here
+          # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
+          # Instead linux kernel panics because init is exiting. Let's wait for that.
+          vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc localhost 2222
+          kill -INT $(cat vm/raspios-armv6/pid.txt)
+          rm vm/raspios-armv6/pid.txt
 
   # Please keep in sync with valgrind.yml and macos.yml
   create-issue-on-failure:
@@ -70,4 +73,4 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v4
-      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux aarch64 failed"
+      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux armv6 failed"
