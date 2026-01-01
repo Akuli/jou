@@ -240,6 +240,27 @@ is not currently supported.
 Run `jou --update`.
 
 
+## Supported Platforms
+
+Jou works on the following platforms:
+
+- Typical desktop and laptop computers
+    - Windows 7 or newer on x86_64 (that is, 32-bit Windows and Windows Arm are not supported)
+    - Any reasonably new MacOS (Intel or ARM)
+    - Linux: x86, x86_64, arm, aarch64
+    - NetBSD 10: x86, x86_64, arm, aarch64
+- Raspberry Pi 1 and 4
+    - Linux (e.g. Raspberry Pi OS)
+    - NetBSD
+    - No pi-specific Jou libraries yet, e.g. there's nothing to manipulate GPIO pins
+
+Please create an issue on GitHub if you would like to use Jou on some platform not mentioned here.
+I want to know even if you tried Jou and it worked perfectly,
+because that means I can add the platform to the above list :)
+
+TODO: check raspberry pi version, I think it's 4 but not sure...
+
+
 ## Bootstrapping
 
 The Jou compiler (in [compiler/](./compiler/) folder) is written in Jou.
