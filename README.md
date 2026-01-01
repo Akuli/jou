@@ -251,7 +251,7 @@ Jou works on the following platforms:
     - NetBSD 10: x86, x86_64, arm, aarch64
 - Raspberry Pi 1 and 4
     - Linux (e.g. Raspberry Pi OS)
-    - NetBSD
+    - NetBSD 10
     - No pi-specific Jou libraries yet, e.g. there's nothing to manipulate GPIO pins
 
 Please create an issue on GitHub if you would like to use Jou on some platform not mentioned here.
