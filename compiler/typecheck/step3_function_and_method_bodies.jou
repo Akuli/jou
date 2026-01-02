@@ -684,10 +684,19 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
 
     field = self_class.find_class_field(member_name)
     if field == NULL:
-        snprintf(
-            msg, sizeof(msg),
-            "class %s does not have a method named '%s'", self_class.name, member_name)
-        fail(func_location, msg)
+        # TODO: better error messages!!!!!
+        big_msg: byte* = NULL
+        asprintf(
+            &big_msg,
+            "method '%s' not found in class %s. The problem is ONE of the following: 1) you didn't import the file that defines class %s, 2) the '%s' method is private, 3) there really is no such method in class %s. I know that this is a bad compiler error message, and I will later split this into 3 different error messages.",
+            member_name,
+            self_class.name,
+            self_class.name,
+            member_name,
+            self_class.name,
+        )
+        assert big_msg != NULL
+        fail(func_location, big_msg)
 
     # It is a function pointer call where the function is in a class field.
     # It looks like obj.field().

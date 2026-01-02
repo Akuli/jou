@@ -2,6 +2,5 @@ import "./imported/point_factory.jou"
 
 def blah() -> int:
     p = make_point()
-    # TODO: Ideally the error message would say that the thing exists, but must
-    #       be imported explicitly.
-    return p.get_sum()  # Error: class Point does not have a method named 'get_sum'
+    # TODO: Improve this error!
+    return p.get_sum()  # Error: method 'get_sum' not found in class Point. The problem is ONE of the following: 1) you didn't import the file that defines class Point, 2) the 'get_sum' method is private, 3) there really is no such method in class Point. I know that this is a bad compiler error message, and I will later split this into 3 different error messages.
