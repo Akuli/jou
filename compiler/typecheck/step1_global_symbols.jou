@@ -78,7 +78,7 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
     msg: byte[500]
 
     # Find the Jou file where the statement is defined
-    finding: void* = stmt.method.containing_classdef if stmt.kind == AstStatementKind.MethodDef else stmt
+    finding = stmt.method.containing_class_def if stmt.kind == AstStatementKind.MethodDef else stmt
     jou_file: JouFile* = NULL
     for j = global_compiler_state.jou_files.ptr; j < global_compiler_state.jou_files.end(); j++:
         if j.ast.ptr <= finding and finding < j.ast.end():
@@ -114,6 +114,14 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
             stmt.symbol().type = actual_type
         case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
             stmt.symbol().signature = typecheck_signature(jou_file, &stmt.function, NULL)
+        case AstStatementKind.MethodDef:
+            classdef = stmt.method.containing_class_def
+            assert classdef != NULL
+            assert classdef.kind == AstStatementKind.Class
+            typecheck_statement_with_symbol(classdef)
+            self_class = classdef.symbol().type  # works for generic and non-generic classes
+            assert self_class != NULL
+            stmt.symbol().signature = typecheck_signature(jou_file, &stmt.method, self_class)
         case AstStatementKind.Class:
             t = create_empty_class(stmt.symbol().name)
             if stmt.classdef.is_generic():

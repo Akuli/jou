@@ -145,7 +145,7 @@ def collect_symbol_statements(ast: List[AstStatement]) -> List[AstStatement*]:
         if stmt.kind == AstStatementKind.Class:
             for member = stmt.classdef.body.ptr; member < stmt.classdef.body.end(); member++:
                 if member.kind == AstStatementKind.MethodDef:
-                    member.method.containing_classdef = &stmt.classdef
+                    member.method.containing_class_def = stmt
                     result.append(member)
 
     return result

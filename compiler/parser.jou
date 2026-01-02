@@ -288,6 +288,7 @@ class Parser:
     is_main_file: bool
     loop_vars: List[byte*]  # NULL means a loop that doesn't look like "for foo = bar; ..."
     what_are_we_parsing: WhatAreWeParsing
+    containing_class_name: byte[100]
 
     def check_top_level(self, what_is_it: byte*) -> None:
         if self.what_are_we_parsing != WhatAreWeParsing.TopLevel:
@@ -1504,10 +1505,17 @@ class Parser:
         body = self.parse_body()
         self.what_are_we_parsing = old
 
-        symbol = GlobalSymbol{name = signature.name, kind = GlobalSymbolKind.Function}
-        if strcmp(symbol.name, "main") == 0 and self.is_main_file:
-            # Implicitly public main function
-            symbol.public = True
+        if is_method:
+            symbol = GlobalSymbol{kind = GlobalSymbolKind.Method}
+            assert self.containing_class_name[0] != '\0'
+            # Name the symbol e.g. "List.append"
+            # TODO: name might not fit...
+            snprintf(symbol.name, sizeof(symbol.name), "%s.%s", self.containing_class_name, signature.name)
+        else:
+            symbol = GlobalSymbol{name = signature.name, kind = GlobalSymbolKind.Function}
+            if strcmp(symbol.name, "main") == 0 and self.is_main_file:
+                # Implicitly public main function
+                symbol.public = True
 
         return AstFunctionOrMethod{symbol = symbol, ast_signature = signature, body = body}
 
@@ -1534,10 +1542,15 @@ class Parser:
                 snprintf(msg, sizeof(msg), "at least one generic type parameter is needed, e.g. 'class %s[T]:'", name, name)
                 fail(close_bracket.location, msg)
 
-        old = self.what_are_we_parsing
+        assert self.containing_class_name[0] == '\0'
+        self.containing_class_name = name
+        old_what_are_we_parsing = self.what_are_we_parsing
         self.what_are_we_parsing = WhatAreWeParsing.ClassBody
+
         body = self.parse_body()
-        self.what_are_we_parsing = old
+
+        self.what_are_we_parsing = old_what_are_we_parsing
+        self.containing_class_name = ""
 
         return AstClassDef{
             symbol = GlobalSymbol{

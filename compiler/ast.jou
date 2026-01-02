@@ -1303,7 +1303,7 @@ class AstFunctionOrMethod:
     body: List[AstStatement]
     locals: List[LocalVariable]  # populated in typecheck, empty before typecheck
     inline: bool  # is it decorated with @inline
-    containing_classdef: AstClassDef*  # only for methods, the class definition where it is
+    containing_class_def: AstStatement*  # only for methods, the class definition where it is
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
