@@ -26,7 +26,10 @@ import "./types.jou"
 
 def defines_main(jou_file: JouFile*) -> bool:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        if stmt.kind == AstStatementKind.FunctionDef and stmt.symbol().signature.is_main_function():
+        if (
+            stmt.kind == AstStatementKind.FunctionDef
+            and strcmp(stmt.symbol().signature.name, "main") == 0
+        ):
             return True
     return False
 
@@ -42,7 +45,7 @@ def warn_about_unused(jou_file: JouFile*) -> None:
 
         if (
             stmt.kind == AstStatementKind.FunctionDef
-            and stmt.function.symbol.signature.is_main_function()
+            and strcmp(stmt.symbol().signature.name, "main") == 0
         ):
             continue
 
