@@ -1,7 +1,8 @@
 # Second step of type checking is to go through bodies of classes and populate
 # the corresponding type objects. However, we don't look inside bodies of
-# methods yet; we only handle the fields (e.g. "x: int" inside a class) and
-# method signatures (argument and return types).
+# methods yet; we only handle the fields (e.g. "x: int" inside a class).
+#
+# Methods are completely ignored at this stage. They are treated like functions.
 
 import "stdlib/assert.jou"
 import "stdlib/str.jou"
@@ -76,6 +77,10 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
                     t.classdata.fields.append(f)
 
             case AstStatementKind.Pass:
+                pass
+
+            case AstStatementKind.MethodDef:
+                # These are checked elsewhere just like functions, nothing to do here
                 pass
 
             case _:
