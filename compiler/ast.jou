@@ -72,15 +72,19 @@ class AstType:
         generic: AstGenericType     # AstTypeKind.Generic
         func_ptr: AstFuncPtrType    # AstTypeKind.FuncPtr
 
+    @public
     def is_void(self) -> bool:
         return self.kind == AstTypeKind.BuiltIn and strcmp(self.name, "void") == 0
 
+    @public
     def is_none(self) -> bool:
         return self.kind == AstTypeKind.BuiltIn and strcmp(self.name, "None") == 0
 
+    @public
     def is_noreturn(self) -> bool:
         return self.kind == AstTypeKind.BuiltIn and strcmp(self.name, "noreturn") == 0
 
+    @public
     def print(self, show_lineno: bool) -> None:
         match self.kind:
             case AstTypeKind.BuiltIn:
@@ -119,6 +123,7 @@ class AstType:
         if show_lineno:
             printf(" [line %d]", self.location.lineno)
 
+    @public
     def free(self) -> None:
         match self.kind:
             case AstTypeKind.BuiltIn | AstTypeKind.Named:
@@ -196,6 +201,7 @@ class AstInstantiation:
     type: AstType
     fields: List[AstInstantiationField]
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -304,6 +310,7 @@ class AstExpression:
         operands: AstExpression*  # Only for operators. Length is arity, see get_arity()
         constant: Constant
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -421,6 +428,7 @@ class AstExpression:
         for i = 0; i < self.get_arity(); i++:
             self.operands[i].print_with_tree_printer(tp.print_prefix(i == self.get_arity()-1))
 
+    @public
     def free(self) -> None:
         match self.kind:
             case AstExpressionKind.Constant:
@@ -449,6 +457,7 @@ class AstExpression:
                     free(self.operands)
 
     # arity = number of operands, e.g. 2 for a binary operator such as "+"
+    @public
     def get_arity(self) -> int:
         match self.kind:
             case (
@@ -508,6 +517,7 @@ class AstExpression:
             ):
                 return 0
 
+    @public
     def is_valid_as_a_statement(self) -> bool:
         return (
             self.kind == AstExpressionKind.Call
@@ -524,6 +534,7 @@ class AstAs:
     value: AstExpression
     type: AstType
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -544,6 +555,7 @@ class AstEnumCount:
     enum_type_ast: AstType
     enum_type: Type*
 
+    @public
     def print(self) -> None:
         printf("enum_count ")
         self.enum_type_ast.print(True)
@@ -573,12 +585,14 @@ class AstCall:
     signature_if_known: Signature*
 
     # Useful for formatting error messages, but not much else.
+    @public
     def function_or_method(self) -> byte*:
         if self.method_call_self == NULL:
             return "function"
         else:
             return "method"
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -633,6 +647,7 @@ class AstConstStatement:
     type: AstType
     value: AstExpression
 
+    @public
     def print(self) -> None:
         printf("%s: ", self.symbol.name)
         self.type.print(True)
@@ -715,6 +730,7 @@ class AstStatement:
         link_statement: AstLink
         const_statement: AstConstStatement
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -822,6 +838,7 @@ class AstStatement:
                 printf("const statement ")
                 self.const_statement.print()
 
+    @public
     def free(self) -> None:
         match self.kind:
             case AstStatementKind.ExpressionStatement | AstStatementKind.Link:
@@ -884,6 +901,7 @@ class AstStatement:
                 pass
 
     @inline
+    @public
     def symbol(self) -> GlobalSymbol*:
         match self.kind:
             case (
@@ -951,6 +969,7 @@ class AstConditionAndBody:
     condition: AstExpression
     body: List[AstStatement]
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{}, True)
 
@@ -974,6 +993,7 @@ class AstAssignment:
     target: AstExpression
     value: AstExpression
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -999,6 +1019,7 @@ class AstIfStatement:
     if_and_elifs: List[AstConditionAndBody]  # At least 1 (the if statement). The rest, if any, are elifs.
     else_body: List[AstStatement]    # Empty if there is no else
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -1088,6 +1109,7 @@ class AstForLoop:
     incr: AstStatement*   # may be NULL
     body: List[AstStatement]
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -1137,6 +1159,7 @@ class AstNameTypeValue:
     type: AstType
     value: AstExpression*  # can be NULL
 
+    @public
     def print(self) -> None:
         tp = TreePrinter{}
         self.print_with_tree_printer(&tp)
@@ -1167,6 +1190,7 @@ class AstGlobalVarDeclare:
     symbol: GlobalSymbol
     type: AstType
 
+    @public
     def print(self) -> None:
         printf("%s: ", self.symbol.name)
         self.type.print(True)
@@ -1185,6 +1209,7 @@ class AstGlobalVarDef:
     initial_value: AstExpression*  # may be NULL
     initial_value_constant: Constant  # used only when initial_value != NULL
 
+    @public
     def print(self) -> None:
         printf("%s", self.symbol.name)
         if self.type == NULL:
@@ -1233,6 +1258,7 @@ class AstSignature:
     takes_varargs: bool  # True for functions like printf()
     return_type: AstType
 
+    @public
     def print(self) -> None:
         printf("%s(", self.name)
         for p = self.args.ptr; p < self.args.end(); p++:
@@ -1272,6 +1298,7 @@ class AstImport:
     resolved_path: byte*  # Absolute path or relative to current working directory e.g. "/home/akuli/jou/stdlib/io.jou"
     used: bool  # For warning messages
 
+    @public
     def print(self) -> None:
         printf(
             "import \"%s\", which resolves to \"%s\"\n",
@@ -1289,6 +1316,7 @@ class AstLink:
     specified_flags: byte*  # Path in jou code e.g. "../libs/foo.a"
     resolved_flags: byte*  # Contains absolute paths or relative to current working directory e.g. "/home/akuli/jou/libs/foo.a"
 
+    @public
     def print(self) -> None:
         printf("link \"%s\" (resolves to \"%s\")\n", self.specified_flags, self.resolved_flags)
 
@@ -1314,6 +1342,7 @@ class AstFunctionOrMethod:
     inline: bool  # is it decorated with @inline
     containing_class_def: AstStatement*  # only for methods, the class definition where it is
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -1336,9 +1365,11 @@ class AstClassDef:
     generic_typevar_names: List[byte[100]]  # the "T1" and "T2" of "class Foo[T1, T2]", empty means not generic
     body: List[AstStatement]
 
+    @public
     def is_generic(self) -> bool:
         return self.generic_typevar_names.len > 0
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -1362,6 +1393,7 @@ class AstEnumDef:
     name_location: Location
     members: List[byte[100]]
 
+    @public
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})
 
@@ -1382,6 +1414,7 @@ class AstTypeDef:
     symbol: GlobalSymbol
     ast_type: AstType
 
+    @public
     def print(self) -> None:
         printf("typedef \"%s\" to be ", self.symbol.name)
         self.ast_type.print(True)

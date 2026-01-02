@@ -765,6 +765,7 @@ class TokenizeResult:
     #       ...
     file_content: byte*
 
+    @public
     def free(self) -> None:
         free_tokens(self.tokens)
         free(self.file_content)

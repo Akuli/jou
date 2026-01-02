@@ -46,6 +46,7 @@ class GlobalSymbol:
         type: Type*  # GlobalSymbolKind.Type, GlobalSymbolKind.GlobalVar, GlobalSymbolKind.GenericClass
         constant: Constant  # GlobalSymbolKind.Const
 
+    @public
     def free(self) -> None:
         match self.kind:
             case GlobalSymbolKind.Function:
@@ -55,6 +56,7 @@ class GlobalSymbol:
             case _:
                 pass
 
+    @public
     def short_description(self) -> byte*:
         match self.kind:
             case GlobalSymbolKind.Function:

@@ -52,6 +52,7 @@ class UvgBlock:
     def free(self) -> None:
         free(self.instructions.ptr)
 
+    @public
     def jumps_to(self, other: UvgBlock*) -> bool:
         match self.terminator.kind:
             case UvgTerminatorKind.Jump:
@@ -72,6 +73,7 @@ class Uvg:
     blocks: List[UvgBlock*]
     varnames: List[byte[100]]
 
+    @public
     def free(self) -> None:
         for b = self.blocks.ptr; b < self.blocks.end(); b++:
             (*b).free()
@@ -85,6 +87,7 @@ class Uvg:
                 return i
         assert False
 
+    @public
     def print(self) -> None:
         sigstr = self.signature.to_string(True, True)
         printf("===== UVG for %s =====\n", sigstr)
@@ -136,6 +139,7 @@ class Uvg:
                     printf("(terminator not set)\n")
         printf("\n")
 
+    @public
     def add_block(self) -> UvgBlock*:
         b: UvgBlock* = malloc(sizeof(*b))
         assert b != NULL
@@ -143,6 +147,7 @@ class Uvg:
         self.blocks.append(b)
         return b
 
+    @public
     def has_local_var(self, varname: byte*) -> bool:
         assert varname != NULL
         for v = self.varnames.ptr; v < self.varnames.end(); v++:
@@ -150,6 +155,7 @@ class Uvg:
                 return True
         return False
 
+    @public
     def get_local_var_ptr(self, varname: byte*) -> int:
         if varname != NULL:
             for i = 0; i < self.varnames.len; i++:
