@@ -42,7 +42,7 @@ def warn_about_unused(jou_file: JouFile*) -> None:
             snprintf(msg, sizeof msg, "\"%s\" imported but not used", stmt.import_statement.specified_path)
             show_warning(stmt.location, msg)
 
-    for sym_stmt = jou_file.symbol_statements.ptr; sym_stmt < jou_file.symbol_statements.ptr; sym_stmt++:
+    for sym_stmt = jou_file.symbol_statements.ptr; sym_stmt < jou_file.symbol_statements.end(); sym_stmt++:
         stmt = *sym_stmt
 
         symbol = stmt.symbol()
