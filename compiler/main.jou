@@ -43,6 +43,16 @@ def warn_about_unused(jou_file: JouFile*) -> None:
             show_warning(stmt.location, msg)
             continue
 
+        # Do not show a warning if a private main function is unused.
+        #
+        # You are probably wondering: what the heck is a private main function?
+        #
+        # If an imported file has a main() function, it becomes private.
+        #
+        # This is useful in large Jou projects. For example, utils/json.jou
+        # might have public functions for working with JSON, and some example
+        # code in a main() function. That main() is usually private, but if you
+        # run "jou utils/json.jou", then it becomes public and runs.
         if (
             stmt.kind == AstStatementKind.FunctionDef
             and strcmp(stmt.symbol().signature.name, "main") == 0
