@@ -198,10 +198,6 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 if strcmp(stmt.function.ast_signature.name, "main") == 0:
                     fail(location, "the main() function cannot be @public")
-            case AstStatementKind.MethodDef:
-                # For now, decorating a method with @public does nothing.
-                # Methods will be private by default in the future.
-                return
             case _:
                 pass
 
