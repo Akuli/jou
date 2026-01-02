@@ -698,9 +698,6 @@ class Signature:
                     assert False
         return NULL
 
-    def is_main_function(self) -> bool:
-        return self.get_self_class() == NULL and strcmp(self.name, "main") == 0
-
     # Useful for error messages, not much else.
     def function_or_method(self) -> byte*:
         if self.get_self_class() == NULL:

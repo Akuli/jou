@@ -26,7 +26,10 @@ import "./types.jou"
 
 def defines_main(jou_file: JouFile*) -> bool:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        if stmt.kind == AstStatementKind.FunctionDef and stmt.symbol().signature.is_main_function():
+        if (
+            stmt.kind == AstStatementKind.FunctionDef
+            and strcmp(stmt.symbol().signature.name, "main") == 0
+        ):
             return True
     return False
 
@@ -40,14 +43,21 @@ def warn_about_unused(jou_file: JouFile*) -> None:
             show_warning(stmt.location, msg)
             continue
 
-        if (
-            stmt.kind == AstStatementKind.FunctionDef
-            and stmt.function.symbol.signature.is_main_function()
-        ):
-            continue
-
         symbol = stmt.symbol()
         if symbol == NULL or symbol.public or symbol.used:
+            continue
+
+        # Do not show a warning if a private main function is unused.
+        #
+        # You are probably wondering: what the heck is a private main function?
+        #
+        # If an imported file has a main() function, it becomes private.
+        #
+        # This is useful in large Jou projects. For example, utils/json.jou
+        # might have public functions for working with JSON, and some example
+        # code in a main() function. That main() is usually private, but if you
+        # run "jou utils/json.jou", then it becomes public and runs.
+        if stmt.kind == AstStatementKind.FunctionDef and strcmp(symbol.name, "main") == 0:
             continue
 
         match stmt.kind:
@@ -143,7 +153,7 @@ def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Parsing %s\n", path)
-    jou_file.ast = parse(tokenize_result.tokens)
+    jou_file.ast = parse(tokenize_result.tokens, jou_file.is_main_file)
     tokenize_result.free()
 
     if global_compiler_state.args.verbosity >= 1:
@@ -284,7 +294,7 @@ def tokenize_only() -> None:
 
 def parse_only() -> None:
     tokenize_result = tokenize(global_compiler_state.args.infile, NULL)
-    ast = parse(tokenize_result.tokens)
+    ast = parse(tokenize_result.tokens, True)
     printf("===== AST for file \"%s\" =====\n", global_compiler_state.args.infile)
     for p = ast.ptr; p < ast.end(); p++:
         p.print()
