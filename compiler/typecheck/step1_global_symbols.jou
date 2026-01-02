@@ -78,11 +78,12 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
     msg: byte[500]
 
     # Find the Jou file where the statement is defined
+    finding: void* = stmt.method.containing_classdef if stmt.kind == AstStatementKind.MethodDef else stmt
     jou_file: JouFile* = NULL
     for j = global_compiler_state.jou_files.ptr; j < global_compiler_state.jou_files.end(); j++:
-        if j.ast.ptr <= stmt and stmt < j.ast.end():
+        if j.ast.ptr <= finding and finding < j.ast.end():
+            assert jou_file == NULL
             jou_file = j
-            break
     assert jou_file != NULL
 
     assert stmt.symbol() != NULL
