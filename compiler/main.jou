@@ -101,31 +101,28 @@ def check_class_fields_before_methods(body: List[AstStatement]) -> None:
                     seen_other = True
 
 
-def check_duplicate_defining(body: List[AstStatement]) -> None:
+# TODO: test what this does for methods
+def check_duplicate_defining(symbol_statements: List[AstStatement*]) -> None:
     msg: byte[300]
 
-    for stmt1 = body.ptr; stmt1 < body.end(); stmt1++:
-        for stmt2 = &stmt1[1]; stmt2 < body.end(); stmt2++:
-            if (
-                stmt1.symbol() != NULL
-                and stmt2.symbol() != NULL
-                and strcmp(stmt1.symbol().name, stmt2.symbol().name) == 0
-            ):
+    for p1 = symbol_statements.ptr; p1 < symbol_statements.end(); p1++:
+        for p2 = &p1[1]; p2 < symbol_statements.end(); p2++:
+            if strcmp((*p1).symbol().name, (*p2).symbol().name) == 0:
                 snprintf(
                     msg,
                     sizeof(msg),
                     "a %s named '%s' already exists (defined on line %d)",
-                    stmt1.symbol().short_description(),
-                    stmt1.symbol().name,
-                    stmt1.location.lineno,
+                    (*p1).symbol().short_description(),
+                    (*p1).symbol().name,
+                    (*p1).location.lineno,
                 )
-                fail(stmt2.location, msg)
+                fail((*p2).location, msg)
 
     # Special-casing for the special constants, because they don't come from anything in AST
-    for stmt = body.ptr; stmt < body.end(); stmt++:
-        if stmt.symbol() != NULL and get_special_constant(stmt.symbol().name) != NULL:
-            snprintf(msg, sizeof(msg), "a special constant named '%s' already exists", stmt.symbol().name)
-            fail(stmt.location, msg)
+    for p = symbol_statements.ptr; p < symbol_statements.end(); p++:
+        if get_special_constant((*p).symbol().name) != NULL:
+            snprintf(msg, sizeof(msg), "a special constant named '%s' already exists", (*p).symbol().name)
+            fail((*p).location, msg)
 
 
 def find_file(path: byte*) -> JouFile*:
@@ -185,11 +182,9 @@ def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
 
     check_imports_at_start_of_file(jou_file.ast)
     check_class_fields_before_methods(jou_file.ast)
-    check_duplicate_defining(jou_file.ast)
 
-    # Must be after evaluating compile-time if statements and anything else
-    # that may bring more stuff into the AST.
     jou_file.symbol_statements = collect_symbol_statements(jou_file.ast)
+    check_duplicate_defining(jou_file.symbol_statements)
 
     global_compiler_state.jou_files.append(jou_file)
 
@@ -235,8 +230,9 @@ def make_imported_statements_available() -> None:
                     fail(the_import.location, msg)
             seen_before.append(imported)
 
-            for imported_stmt = imported.ast.ptr; imported_stmt < imported.ast.end(); imported_stmt++:
-                if imported_stmt.symbol() == NULL or not imported_stmt.symbol().public:
+            for p = imported.symbol_statements.ptr; p < imported.symbol_statements.end(); p++:
+                imported_stmt = *p
+                if not imported_stmt.symbol().public:
                     continue
 
                 # Check if two imported files define something conflicting
@@ -259,10 +255,8 @@ def make_imported_statements_available() -> None:
                 })
 
         # Check if this file defines something that conflicts with an import
-        for stmt = importer.ast.ptr; stmt < importer.ast.end(); stmt++:
-            if stmt.symbol() == NULL:
-                continue
-
+        for p = importer.symbol_statements.ptr; p < importer.symbol_statements.end(); p++:
+            stmt = *p
             for old_imported = importer.available_symbols.ptr; old_imported < importer.available_symbols.end(); old_imported++:
                 assert old_imported.the_import != NULL  # non-imported symbols not added yet
                 if strcmp(old_imported.statement.symbol().name, stmt.symbol().name) == 0:
@@ -280,11 +274,10 @@ def make_imported_statements_available() -> None:
     # We have now listed all imported symbols that will be available.
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         # Add symbols defined in the file itself
-        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-            if stmt.symbol() != NULL:
-                jou_file.available_symbols.append(AvailableSymbol{statement = stmt})
+        for p = jou_file.symbol_statements.ptr; p < jou_file.symbol_statements.end(); p++:
+            jou_file.available_symbols.append(AvailableSymbol{statement = *p})
 
-        # We have now listed all imported that will be available. Set up hash
+        # We have now listed all symbols that will be available. Set up hash
         # table for quick access to them.
         create_global_symbol_lookup_hash_table(jou_file)
 
