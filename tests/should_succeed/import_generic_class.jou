@@ -1,16 +1,7 @@
-# There was a bug that caused generic classes to not appear as generic when imported.
-
-import "stdlib/io.jou"
-import "./imported/generic.jou"
-
-class Foo:
-    pair: Point2D[int]
+import "./imported/point_factory.jou"
+import "./imported/bar.jou"  # Contains definition of Point. Needed to access Point's methods.
 
 def main() -> int:
-    point = Point2D[int]{x = 1, y = 2}
-    printf("%d %d\n", point.x, point.y)  # Output: 1 2
-
-    f = Foo{pair = point}
-    printf("%d %d\n", f.pair.x, f.pair.y)  # Output: 1 2
-
-    return 0
+    p = make_point()
+    sum = p.get_sum()
+    printf("%d\n", sum)  # Output: 3

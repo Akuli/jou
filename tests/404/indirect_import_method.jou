@@ -1,0 +1,7 @@
+import "./imported/point_factory.jou"
+
+def blah() -> int:
+    p = make_point()
+    # TODO: Ideally the error message would say that the thing exists, but must
+    #       be imported explicitly.
+    return p.get_sum()  # Error: class Point does not have a method named 'get_sum'
