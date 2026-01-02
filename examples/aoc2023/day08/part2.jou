@@ -71,17 +71,18 @@ class ZCounts:
         free(self.non_repeating.ptr)
         free(self.first_cycle.ptr)
 
-    def print(self) -> None:
-        printf("  ")
-        for p = self.non_repeating.ptr; p < self.non_repeating.end(); p++:
-            printf("%d ", *p)
-        for k=0; k<2; k++:
-            # Print "|" character between cycles to distinguish them.
-            # Numbers before the first "|" do not belong to any cycle.
-            printf("| ")
-            for p = self.first_cycle.ptr; p < self.first_cycle.end(); p++:
-                printf("%d ", *p + k*self.cycle_offset)
-        printf("| ...\n")
+    if False:
+        def print(self) -> None:
+            printf("  ")
+            for p = self.non_repeating.ptr; p < self.non_repeating.end(); p++:
+                printf("%d ", *p)
+            for k=0; k<2; k++:
+                # Print "|" character between cycles to distinguish them.
+                # Numbers before the first "|" do not belong to any cycle.
+                printf("| ")
+                for p = self.first_cycle.ptr; p < self.first_cycle.end(); p++:
+                    printf("%d ", *p + k*self.cycle_offset)
+            printf("| ...\n")
 
     def simplify_cycles(self) -> None:
         # If the first cycle repeats the same thing twice, reduce it to half of its length.

@@ -89,8 +89,9 @@ class Graph:
         self.matrix[a][b] = weight
         self.matrix[b][a] = weight
 
-    if not WINDOWS:
+    if False:
         def visualize_with_graphviz(self) -> None:
+            assert not WINDOWS
             f = fopen("/tmp/aoc23-graph.txt", "w")
             assert f != NULL
 

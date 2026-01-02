@@ -19,12 +19,13 @@ class Equation:
         assert 0 <= var and var < self.nvariables
         return not self.coeffs[var].is_zero()
 
-    def print(self) -> None:
-        for v = 0; v < self.nvariables; v++:
-            if v > 0:
-                printf(" + ")
-            printf("%lld x%d", self.coeffs[v].to_int64(), v)
-        printf(" = %lld\n", self.rhs.to_int64())
+    if False:
+        def print(self) -> None:
+            for v = 0; v < self.nvariables; v++:
+                if v > 0:
+                    printf(" + ")
+                printf("%lld x%d", self.coeffs[v].to_int64(), v)
+            printf(" = %lld\n", self.rhs.to_int64())
 
 
 def add_with_coeff(dest: Equation*, src: Equation*, coeff: BigInt) -> None:
