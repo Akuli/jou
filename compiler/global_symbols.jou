@@ -19,6 +19,7 @@ import "./types.jou"
 @public
 enum GlobalSymbolKind:
     Function
+    Method
     Type
     GenericClass  # similar to Type, contains something like List[T] where T is a type variable
     GlobalVar
@@ -58,6 +59,8 @@ class GlobalSymbol:
         match self.kind:
             case GlobalSymbolKind.Function:
                 return "function"
+            case GlobalSymbolKind.Method:
+                return "method"
             case GlobalSymbolKind.GlobalVar:
                 return "global variable"
             case GlobalSymbolKind.Type:

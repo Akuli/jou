@@ -904,13 +904,15 @@ class AstStatement:
                 | AstStatementKind.InPlaceBitXor
                 | AstStatementKind.InPlaceBitShiftLeft
                 | AstStatementKind.InPlaceBitShiftRight
-                | AstStatementKind.MethodDef
             ):
                 # These things can't e.g. be imported to other file, no global symbol here
                 return NULL
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 assert self.function.symbol.kind == GlobalSymbolKind.Function
                 return &self.function.symbol
+            case AstStatementKind.MethodDef:
+                assert self.method.symbol.kind == GlobalSymbolKind.Method
+                return &self.method.symbol
             case AstStatementKind.Class:
                 assert (
                     self.classdef.symbol.kind == GlobalSymbolKind.Type
@@ -1301,6 +1303,7 @@ class AstFunctionOrMethod:
     body: List[AstStatement]
     locals: List[LocalVariable]  # populated in typecheck, empty before typecheck
     inline: bool  # is it decorated with @inline
+    containing_classdef: AstClassDef*  # only for methods, the class definition where it is
 
     def print(self) -> None:
         self.print_with_tree_printer(TreePrinter{})

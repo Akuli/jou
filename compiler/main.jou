@@ -41,10 +41,12 @@ def warn_about_unused(jou_file: JouFile*) -> None:
         if stmt.kind == AstStatementKind.Import and not stmt.import_statement.used:
             snprintf(msg, sizeof msg, "\"%s\" imported but not used", stmt.import_statement.specified_path)
             show_warning(stmt.location, msg)
-            continue
+
+    for sym_stmt = jou_file.symbol_statements.ptr; sym_stmt < jou_file.symbol_statements.ptr; sym_stmt++:
+        stmt = *sym_stmt
 
         symbol = stmt.symbol()
-        if symbol == NULL or symbol.public or symbol.used:
+        if symbol.public or symbol.used:
             continue
 
         # Do not show a warning if a private main function is unused.
@@ -133,6 +135,22 @@ def find_file(path: byte*) -> JouFile*:
     return NULL
 
 
+# AST must not move to new memory location after this runs
+def collect_symbol_statements(ast: List[AstStatement]) -> List[AstStatement*]:
+    result = List[AstStatement*]{}
+
+    for stmt = ast.ptr; stmt < ast.end(); stmt++:
+        if stmt.symbol() != NULL:
+            result.append(stmt)
+        if stmt.kind == AstStatementKind.Class:
+            for member = stmt.classdef.body.ptr; member < stmt.classdef.body.end(); member++:
+                if member.kind == AstStatementKind.MethodDef:
+                    member.method.containing_classdef = &stmt.classdef
+                    #result.append(member)  # TODO: enable this
+
+    return result
+
+
 def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
     if find_file(path) != NULL:
         # already parsed
@@ -168,6 +186,10 @@ def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
     check_imports_at_start_of_file(jou_file.ast)
     check_class_fields_before_methods(jou_file.ast)
     check_duplicate_defining(jou_file.ast)
+
+    # Must be after evaluating compile-time if statements and anything else
+    # that may bring more stuff into the AST.
+    jou_file.symbol_statements = collect_symbol_statements(jou_file.ast)
 
     global_compiler_state.jou_files.append(jou_file)
 

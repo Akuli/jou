@@ -72,6 +72,8 @@ def check_global_var_def(jou_file: JouFile*, global_stmt: AstGlobalVarDef*, loca
     assert global_stmt.symbol.type != NULL
 
 
+# To support various cyclic things, this may also type-check other things than
+# the one statement we tell it to check.
 def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
     msg: byte[500]
 
@@ -205,10 +207,9 @@ def typecheck_step1_global_symbols() -> None:
         if global_compiler_state.args.verbosity >= 1:
             printf("  %s\n", jou_file.path)
 
+        for sym_stmt = jou_file.symbol_statements.ptr; sym_stmt < jou_file.symbol_statements.end(); sym_stmt++:
+            typecheck_statement_with_symbol(*sym_stmt)
+
         for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-            if stmt.symbol() != NULL:
-                # To support various cyclic things, this may also type-check
-                # other things than the one statement we tell it to check.
-                typecheck_statement_with_symbol(stmt)
             if stmt.kind == AstStatementKind.Assert:
                 check_compile_time_assert(jou_file, stmt.location, &stmt.assertion.condition)

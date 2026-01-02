@@ -33,12 +33,19 @@ class JouFile:
     is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
     ast: List[AstStatement]
 
+    # Contains pointers to all AstStatements of this file that have a global
+    # symbol: function definitions, class definitions, consts etc.
+    #
+    # This also contains pointers to methods, which are inside the classes: a
+    # class Foo with method bar() has a symbol named "Foo.bar".
+    symbol_statements: List[AstStatement*]
+
     # Points to @public things in ASTS of this file and other files that have
     # been imported into this file. Used when finding basically anything other
     # than local variables.
     available_symbols: List[AvailableSymbol]
 
-    # For finding imported symbols quickly
+    # For finding available symbols quickly
     symbol_hash_table: int*
 
     # Path of .o file in jou_compiled. Includes hashes, see doc/compiler_internals/lazy-recompile.md
