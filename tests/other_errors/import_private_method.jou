@@ -1,0 +1,6 @@
+import "./imported/privates.jou"
+
+def foo() -> None:
+    p = PublicClass{}
+    # TODO: ideally error message would say that it exists but is private
+    p.private_method()  # Error: class PublicClass does not have a method named 'private_method'
