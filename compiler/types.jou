@@ -733,3 +733,12 @@ class Signature:
         result.args = List[NameAndType]{}
         result.args.extend(self.args)
         return result
+
+    # Used to turn append(self: List[T]*, item: T) into append(self: List[int]*, item: int)
+    # Modifies the signature in-place! Please copy first as needed.
+    def substitute_generic_params(self, from: Type**, to: Type**, n: int) -> None:
+        for arg = self.args.ptr; arg < self.args.end(); arg++:
+            assert arg.type != NULL
+            arg.type = arg.type.substitute_generic_params(from, to, n)
+        if self.return_type != NULL:
+            self.return_type = self.return_type.substitute_generic_params(from, to, n)

@@ -664,12 +664,22 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
         fail(func_location, msg)
     assert self_class.kind == TypeKind.Class
 
-    call.signature_if_known = find_and_typecheck_method(state.jou_file, self_class, member_name)
-    if call.signature_if_known != NULL:
+    assert call.signature_if_known == NULL
+    sig = find_and_typecheck_method(state.jou_file, self_class, member_name)
+    if sig != NULL:
         # It is a method
         free(call.function)
         call.function = NULL
         call.method_call_self = obj
+        sig2 = sig.copy()
+        if self_class.classdata.is_generic():
+            from = sig.get_self_class().classdata.generic_params  # List[T] --> list containing T
+            to = self_class.classdata.generic_params
+            assert from.len == to.len
+            sig2.substitute_generic_params(from.ptr, to.ptr, from.len as int)
+        call.signature_if_known = malloc(sizeof(sig2))
+        assert call.signature_if_known != NULL
+        *call.signature_if_known = sig2
         return NULL
 
     field = self_class.find_class_field(member_name)
@@ -730,7 +740,9 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
             # It is a basic function call like printf("hi\n").
             # Let's get the signature of the function so we can use it for error messages.
             assert call.function.get_func_ptr.signature != NULL
-            call.signature_if_known = call.function.get_func_ptr.signature
+            call.signature_if_known = malloc(sizeof(*call.signature_if_known))
+            assert call.signature_if_known != NULL
+            *call.signature_if_known = call.function.get_func_ptr.signature.copy()
 
     assert (
         funcptr_type != NULL and call.function != NULL and call.method_call_self == NULL

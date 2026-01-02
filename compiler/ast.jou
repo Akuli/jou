@@ -561,9 +561,15 @@ class AstCall:
     method_call_self: AstExpression*  # NULL for function calls, the foo of foo.bar() for method calls
     args: List[AstExpression]
 
-    # Populated in typecheck. NULL before typecheck runs. Not owned.
+    # Populated in typecheck. NULL before typecheck runs. Owned!
     #
     # For some calls, this remains NULL forever because argument names are not available.
+    #
+    # When this is not NULL, type variables (if any) have been substituted: this
+    # is append(self: List[int]*, item: int), not append(self: List[T]*, item: T).
+    #
+    # TODO: This is probably not the ideal place to store the result of
+    #       substituting away type variables in generic method calls.
     signature_if_known: Signature*
 
     # Useful for formatting error messages, but not much else.
@@ -604,6 +610,9 @@ class AstCall:
         if self.method_call_self != NULL:
             self.method_call_self.free()
             free(self.method_call_self)
+        if self.signature_if_known != NULL:
+            self.signature_if_known.free()
+            free(self.signature_if_known)
 
 
 # assert foo
