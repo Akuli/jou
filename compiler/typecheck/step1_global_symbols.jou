@@ -188,7 +188,6 @@ def find_and_typecheck_method(jou_file: JouFile*, class_type: Type*, method_name
 
     stmt = find_global_symbol_statement(jou_file, symbol_name, GlobalSymbolKind.Method)
     if stmt == NULL:
-        printf("find_and_typecheck_method: %s not found in %s\n", symbol_name, jou_file.path)
         return NULL
     typecheck_statement_with_symbol(stmt)
     return &stmt.symbol().signature
