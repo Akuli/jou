@@ -14,6 +14,7 @@ import "../errors_and_warnings.jou"
 import "./common.jou"
 
 
+# TODO: do this in parser!
 def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> None:
     msg: byte[500]
     assert t.kind == TypeKind.Class
@@ -34,9 +35,9 @@ def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> N
             snprintf(msg, sizeof(msg), "class %s already has a field named '%s'", t.name, name)
         fail(location, msg)
 
-    if t.find_method(name) != NULL:
-        snprintf(msg, sizeof(msg), "class %s already has a method named '%s'", t.name, name)
-        fail(location, msg)
+#    if t.find_method(name) != NULL:
+#        snprintf(msg, sizeof(msg), "class %s already has a method named '%s'", t.name, name)
+#        fail(location, msg)
 
 
 def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
@@ -74,14 +75,6 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
                     check_class_member_not_exist(t, f.name, ntv.name_location)
                     t.classdata.fields.append(f)
 
-            case AstStatementKind.MethodDef:
-                # Don't handle the method body yet: that is a part of step 3, not step 2
-                sig = typecheck_signature(jou_file, &stmt.method, t)
-                stmt.method.symbol.signature = sig
-
-                check_class_member_not_exist(t, sig.name, stmt.location)
-                t.classdata.methods.append(sig.copy())
-
             case AstStatementKind.Pass:
                 pass
 
@@ -89,7 +82,7 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
                 assert False
 
     if t.classdata.is_generic():
-        t.update_fields_and_methods_to_generic_instances()
+        t.update_fields_to_generic_instances()
 
 
 @public

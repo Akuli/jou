@@ -175,6 +175,24 @@ def find_and_typecheck_function(jou_file: JouFile*, name: byte*) -> Signature*:
     return &stmt.symbol().signature
 
 
+# Returns signature of method if found, NULL for not found.
+@public
+def find_and_typecheck_method(jou_file: JouFile*, class_type: Type*, method_name: byte*) -> Signature*:
+    assert class_type != NULL
+    assert class_type.kind == TypeKind.Class
+
+    # The "append" method in List[int] is named "List.append"
+    n = strcspn(class_type.name, "[")
+    symbol_name: byte[200]
+    snprintf(symbol_name, sizeof(symbol_name), "%.*s.%s", n as int, class_type.name, method_name)
+
+    stmt = find_global_symbol_statement(jou_file, symbol_name, GlobalSymbolKind.Method)
+    if stmt == NULL:
+        return NULL
+    typecheck_statement_with_symbol(stmt)
+    return &stmt.symbol().signature
+
+
 # Returns type if found, NULL if not found.
 @public
 def find_and_typecheck_type(jou_file: JouFile*, name: byte*) -> Type*:

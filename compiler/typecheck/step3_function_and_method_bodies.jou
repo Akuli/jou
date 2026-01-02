@@ -664,7 +664,7 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
         fail(func_location, msg)
     assert self_class.kind == TypeKind.Class
 
-    call.signature_if_known = self_class.find_method(member_name)
+    call.signature_if_known = find_and_typecheck_method(state.jou_file, self_class, member_name)
     if call.signature_if_known != NULL:
         # It is a method
         free(call.function)
@@ -695,7 +695,7 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
         assert obj_type.value_type.kind == TypeKind.Class
         call.function.kind = AstExpressionKind.GetClassFieldPtr
 
-    t = typecheck_class_field(self_class, member_name, func_location).type
+    t = typecheck_class_field(state, self_class, member_name, func_location).type
     call.function.types.orig_type = t
     call.function.types.implicit_cast_type = t
     return t
@@ -821,6 +821,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
 
 
 def typecheck_class_field(
+    state: State*,
     classtype: Type*,
     fieldname: byte*,
     location: Location,
@@ -832,7 +833,11 @@ def typecheck_class_field(
 
     msg: byte[500]
 
-    if classtype.find_method(fieldname) == NULL:
+    # TODO: When trying to treat an unavailable private method as a field, this
+    #       error message should say "is a method", not "has no field". One way
+    #       to fix this could be to pass in the Jou file where the class has
+    #       been defined.
+    if find_and_typecheck_method(state.jou_file, classtype, fieldname) == NULL:
         snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype.name, fieldname)
     else:
         snprintf(msg, sizeof(msg), "%s.%s() is a method, it can be called but it cannot be used in any other way", classtype.name, fieldname)
@@ -854,7 +859,7 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
 
     specified_fields = List[ClassField*]{}
     for f = inst.fields.ptr; f < inst.fields.end(); f++:
-        field = typecheck_class_field(t, f.name, f.value.location)
+        field = typecheck_class_field(state, t, f.name, f.value.location)
 
         snprintf(msg, sizeof msg,
             "value for field '%s' of class %s must be of type <to>, not <from>",
@@ -1140,10 +1145,10 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             temptype = typecheck_expression_not_void(state, expr.class_field.instance, NULL)
             if temptype.kind == TypeKind.Class:
                 expr.kind = AstExpressionKind.GetClassField
-                result = typecheck_class_field(temptype, expr.class_field.field_name, expr.location).type
+                result = typecheck_class_field(state, temptype, expr.class_field.field_name, expr.location).type
             elif temptype.kind == TypeKind.Pointer and temptype.value_type.kind == TypeKind.Class:
                 expr.kind = AstExpressionKind.GetClassFieldPtr
-                result = typecheck_class_field(temptype.value_type, expr.class_field.field_name, expr.location).type
+                result = typecheck_class_field(state, temptype.value_type, expr.class_field.field_name, expr.location).type
             else:
                 snprintf(
                     msg, sizeof(msg),

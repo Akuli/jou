@@ -21,7 +21,6 @@ class ClassField:
 class ClassData:
     generic_params: List[Type*]   # this is the "int" part of List[int]
     fields: List[ClassField]
-    methods: List[Signature]
 
     def is_generic(self) -> bool:
         return self.generic_params.len > 0
@@ -31,17 +30,6 @@ class ClassData:
         result.extend(self.fields)
         for f = result.ptr; f < result.end(); f++:
             f.type = f.type.substitute_generic_params(from, to, n)
-        return result
-
-    def substitute_generic_params_to_methods(self, from: Type**, to: Type**, n: int) -> List[Signature]:
-        result = List[Signature]{}
-        for sig1 = self.methods.ptr; sig1 < self.methods.end(); sig1++:
-            sig2 = sig1.copy()
-            for arg = sig2.args.ptr; arg < sig2.args.end(); arg++:
-                arg.type = arg.type.substitute_generic_params(from, to, n)
-            if sig2.return_type != NULL:
-                sig2.return_type = sig2.return_type.substitute_generic_params(from, to, n)
-            result.append(sig2)
         return result
 
 
@@ -269,7 +257,6 @@ class Type:
                 # Recursively convert everything inside the class.
                 result.classdata.generic_params = generic_params
                 result.classdata.fields = self.classdata.substitute_generic_params_to_fields(from, to, n)
-                result.classdata.methods = self.classdata.substitute_generic_params_to_methods(from, to, n)
                 return result
 
             case TypeKind.Pointer:
@@ -306,12 +293,12 @@ class Type:
                 return self
 
     # Suppose we have a generic class Foo[T]. It may be referenced as Foo[int]
-    # before the fields and methods of Foo are populated. In that case, the
-    # Foo[int] class will continue to have no methods or fields.
+    # before the fields of Foo are populated. In that case, the Foo[int] class
+    # will continue to have no fields.
     #
-    # This method fixes that. If Foo[int] has been created, its fields and
-    # methods are recomputed from the fields and methods of Foo[T].
-    def update_fields_and_methods_to_generic_instances(self) -> None:
+    # This method fixes that. If Foo[int] has been created, its fields are
+    # recomputed from the fields of Foo[T].
+    def update_fields_to_generic_instances(self) -> None:
         assert self.kind == TypeKind.Class
 
         from = self.classdata.generic_params.ptr
@@ -328,12 +315,6 @@ class Type:
             if t.classdata.fields.len < self.classdata.fields.len:
                 free(t.classdata.fields.ptr)
                 t.classdata.fields = self.classdata.substitute_generic_params_to_fields(from, to, n)
-
-            if t.classdata.methods.len < self.classdata.methods.len:
-                for sig = t.classdata.methods.ptr; sig < t.classdata.methods.end(); sig++:
-                    sig.free()
-                free(t.classdata.methods.ptr)
-                t.classdata.methods = self.classdata.substitute_generic_params_to_methods(from, to, n)
 
     def short_description(self) -> byte*:
         match self.kind:
@@ -359,15 +340,6 @@ class Type:
         for f = self.classdata.fields.ptr; f < self.classdata.fields.end(); f++:
             if strcmp(f.name, name) == 0:
                 return f
-        return NULL
-
-    def find_method(self, name: byte*) -> Signature*:
-        if self.kind != TypeKind.Class:
-            return NULL
-
-        for sig = self.classdata.methods.ptr; sig < self.classdata.methods.end(); sig++:
-            if strcmp(sig.name, name) == 0:
-                return sig
         return NULL
 
     def find_enum_member(self, name: byte*) -> int:
@@ -582,11 +554,8 @@ def free_type(t: Type*) -> None:
 
     match t.kind:
         case TypeKind.Class:
-            for sig = t.classdata.methods.ptr; sig < t.classdata.methods.end(); sig++:
-                sig.free()
             free(t.classdata.generic_params.ptr)
             free(t.classdata.fields.ptr)
-            free(t.classdata.methods.ptr)
         case TypeKind.Enum:
             free(t.enum_members.ptr)
         case TypeKind.FuncPtr:
