@@ -143,7 +143,7 @@ def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Parsing %s\n", path)
-    jou_file.ast = parse(tokenize_result.tokens)
+    jou_file.ast = parse(tokenize_result.tokens, jou_file.is_main_file)
     tokenize_result.free()
 
     if global_compiler_state.args.verbosity >= 1:
@@ -284,7 +284,7 @@ def tokenize_only() -> None:
 
 def parse_only() -> None:
     tokenize_result = tokenize(global_compiler_state.args.infile, NULL)
-    ast = parse(tokenize_result.tokens)
+    ast = parse(tokenize_result.tokens, True)
     printf("===== AST for file \"%s\" =====\n", global_compiler_state.args.infile)
     for p = ast.ptr; p < ast.end(); p++:
         p.print()

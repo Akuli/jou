@@ -285,6 +285,7 @@ enum WhatAreWeParsing:
 
 class Parser:
     tokens: Token*
+    is_main_file: bool
     loop_vars: List[byte*]  # NULL means a loop that doesn't look like "for foo = bar; ..."
     what_are_we_parsing: WhatAreWeParsing
 
@@ -1503,11 +1504,12 @@ class Parser:
         body = self.parse_body()
         self.what_are_we_parsing = old
 
-        return AstFunctionOrMethod{
-            symbol = GlobalSymbol{name = signature.name, kind = GlobalSymbolKind.Function},
-            ast_signature = signature,
-            body = body,
-        }
+        symbol = GlobalSymbol{name = signature.name, kind = GlobalSymbolKind.Function}
+        if strcmp(symbol.name, "main") == 0 and self.is_main_file:
+            # Implicitly public main function
+            symbol.public = True
+
+        return AstFunctionOrMethod{symbol = symbol, ast_signature = signature, body = body}
 
     def parse_class(self) -> AstClassDef:
         assert self.tokens.is_keyword("class")
@@ -1595,8 +1597,8 @@ class Parser:
         return result
 
 @public
-def parse(tokens: Token*) -> List[AstStatement]:
-    parser = Parser{tokens = tokens}
+def parse(tokens: Token*, is_main_file: bool) -> List[AstStatement]:
+    parser = Parser{tokens = tokens, is_main_file = is_main_file}
     result = List[AstStatement]{}
 
     while parser.tokens.kind != TokenKind.EndOfFile:

@@ -811,11 +811,7 @@ def feed_ast_to_builder(fom: AstFunctionOrMethod*, func_location: Location, is_m
         # Calls to this function will be inlined. Pretend the function doesn't exist.
         return
 
-    public = (
-        fom.symbol.public
-        or fom.symbol.signature.get_self_class() != NULL
-        or (is_main_file and fom.symbol.signature.is_main_function())
-    )
+    public = (fom.symbol.public or fom.symbol.signature.get_self_class() != NULL)
     ast2ir = AstToBuilder{builder = builder}
     ast2ir.begin_function(&fom.symbol.signature, fom.locals, func_location, public)
     ast2ir.build_body(fom.body)
