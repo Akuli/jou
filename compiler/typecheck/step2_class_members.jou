@@ -5,40 +5,12 @@
 # Methods are completely ignored at this stage. They are treated like functions.
 
 import "stdlib/assert.jou"
-import "stdlib/str.jou"
 import "stdlib/io.jou"
 
 import "../ast.jou"
 import "../state.jou"
 import "../types.jou"
-import "../errors_and_warnings.jou"
 import "./common.jou"
-
-
-# TODO: do this in parser!
-def check_class_member_not_exist(t: Type*, name: byte*, location: Location) -> None:
-    msg: byte[500]
-    assert t.kind == TypeKind.Class
-
-    field = t.find_class_field(name)
-    if field != NULL:
-        # TODO: this is complicated, should just use same error message for fields and union members
-        assert t.classdata.fields.ptr <= field and field < t.classdata.fields.end()
-
-        belongs_to_a_union = (
-            (field > t.classdata.fields.ptr and field[-1].union_id == field.union_id)
-            or (&field[1] < t.classdata.fields.end() and field[1].union_id == field.union_id)
-        )
-
-        if belongs_to_a_union:
-            snprintf(msg, sizeof(msg), "class %s already has a union member named '%s'", t.name, name)
-        else:
-            snprintf(msg, sizeof(msg), "class %s already has a field named '%s'", t.name, name)
-        fail(location, msg)
-
-#    if t.find_method(name) != NULL:
-#        snprintf(msg, sizeof(msg), "class %s already has a method named '%s'", t.name, name)
-#        fail(location, msg)
 
 
 def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
@@ -56,31 +28,23 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
                     type = type_from_ast(jou_file, t, &stmt.class_field.type),
                     union_id = union_id++,
                 }
-                check_class_member_not_exist(t, f.name, stmt.location)
                 t.classdata.fields.append(f)
 
             case AstStatementKind.ClassUnion:
                 uid = union_id++
                 for ntv = stmt.union_fields.ptr; ntv < stmt.union_fields.end(); ntv++:
-                    for ntv2 = &ntv[1]; ntv2 < stmt.union_fields.end(); ntv2++:
-                        if strcmp(ntv.name, ntv2.name) == 0:
-                            msg: byte[500]
-                            snprintf(msg, sizeof(msg), "duplicate union member '%s'", ntv.name)
-                            fail(ntv2.name_location, msg)
-
                     f = ClassField{
                         name = ntv.name,
                         type = type_from_ast(jou_file, t, &ntv.type),
                         union_id = uid,
                     }
-                    check_class_member_not_exist(t, f.name, ntv.name_location)
                     t.classdata.fields.append(f)
 
             case AstStatementKind.Pass:
                 pass
 
             case AstStatementKind.MethodDef:
-                # These are checked elsewhere just like functions, nothing to do here
+                # Checking is done elsewhere to treat methods similarly to functions.
                 pass
 
             case _:

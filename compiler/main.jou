@@ -89,16 +89,70 @@ def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
             seen_other = True
 
 
-def check_class_fields_before_methods(body: List[AstStatement]) -> None:
+# Used for error messages of repeated members
+class ClassMemberDupInfo:
+    member_name: byte*
+    description: byte*  # e.g. "a field", "a union member"
+
+
+def check_if_class_member_is_duplicate(
+    class_name: byte*,
+    seen: List[ClassMemberDupInfo]*,
+    member_name: byte*,
+    description: byte*,
+    location: Location,
+) -> None:
+    msg: byte[500]
+
+    for info = seen.ptr; info < seen.end(); info++:
+        if strcmp(info.member_name, member_name) == 0:
+            snprintf(msg, sizeof(msg), "class %s already has %s named '%s'", class_name, info.description, member_name)
+            fail(location, msg)
+
+    seen.append(ClassMemberDupInfo{member_name = member_name, description = description})
+
+
+# This must be done after evaluating compile-time if statements, but before we
+# check for duplicate global symbols, so that a duplicate method gets its error
+# message from here.
+def check_class_for_duplicate_members(classdef: AstClassDef*) -> None:
+    class_name = classdef.symbol.name
+    seen = List[ClassMemberDupInfo]{}
+
+    for stmt = classdef.body.ptr; stmt < classdef.body.end(); stmt++:
+        match stmt.kind:
+            case AstStatementKind.ClassField:
+                check_if_class_member_is_duplicate(class_name, &seen, stmt.class_field.name, "a field", stmt.location)
+            case AstStatementKind.ClassUnion:
+                for ntv = stmt.union_fields.ptr; ntv < stmt.union_fields.end(); ntv++:
+                    check_if_class_member_is_duplicate(class_name, &seen, ntv.name, "a union member", ntv.name_location)
+            case AstStatementKind.Pass:
+                pass
+            case AstStatementKind.MethodDef:
+                check_if_class_member_is_duplicate(class_name, &seen, stmt.method.ast_signature.name, "a method", stmt.method.ast_signature.name_location)
+            case _:
+                assert False
+
+    free(seen.ptr)
+
+
+def check_class_fields_are_before_methods(classdef: AstClassDef*) -> None:
+    seen_other = False
+    for p = classdef.body.ptr; p < classdef.body.end(); p++:
+        if p.kind == AstStatementKind.ClassField or p.kind == AstStatementKind.ClassUnion:
+            if seen_other:
+                fail(p.location, "class fields must be defined before methods")
+        else:
+            seen_other = True
+
+
+# This must be done after evaluating compile-time if statements, because a
+# class body can contain if statements but this asserts that there aren't any.
+def check_classes(body: List[AstStatement]) -> None:
     for stmt = body.ptr; stmt < body.end(); stmt++:
         if stmt.kind == AstStatementKind.Class:
-            seen_other = False
-            for p = stmt.classdef.body.ptr; p < stmt.classdef.body.end(); p++:
-                if p.kind == AstStatementKind.ClassField or p.kind == AstStatementKind.ClassUnion:
-                    if seen_other:
-                        fail(p.location, "class fields must be defined before methods")
-                else:
-                    seen_other = True
+            check_class_fields_are_before_methods(&stmt.classdef)
+            check_class_for_duplicate_members(&stmt.classdef)
 
 
 # TODO: test what this does for methods
@@ -181,7 +235,7 @@ def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
             p.print()
 
     check_imports_at_start_of_file(jou_file.ast)
-    check_class_fields_before_methods(jou_file.ast)
+    check_classes(jou_file.ast)
 
     jou_file.symbol_statements = collect_symbol_statements(jou_file.ast)
     check_duplicate_defining(jou_file.symbol_statements)
