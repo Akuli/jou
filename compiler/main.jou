@@ -43,6 +43,10 @@ def warn_about_unused(jou_file: JouFile*) -> None:
             show_warning(stmt.location, msg)
             continue
 
+        symbol = stmt.symbol()
+        if symbol == NULL or symbol.public or symbol.used:
+            continue
+
         # Do not show a warning if a private main function is unused.
         #
         # You are probably wondering: what the heck is a private main function?
@@ -53,14 +57,7 @@ def warn_about_unused(jou_file: JouFile*) -> None:
         # might have public functions for working with JSON, and some example
         # code in a main() function. That main() is usually private, but if you
         # run "jou utils/json.jou", then it becomes public and runs.
-        if (
-            stmt.kind == AstStatementKind.FunctionDef
-            and strcmp(stmt.symbol().signature.name, "main") == 0
-        ):
-            continue
-
-        symbol = stmt.symbol()
-        if symbol == NULL or symbol.public or symbol.used:
+        if stmt.kind == AstStatementKind.FunctionDef and strcmp(symbol.name, "main") == 0:
             continue
 
         match stmt.kind:
