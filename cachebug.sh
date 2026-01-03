@@ -24,8 +24,6 @@ rm -rf tmp/cachebug/src/jou_compiled/
 md5sum tmp/cachebug/exe{1,2,3}
 if ! diff tmp/cachebug/exe{2,3}; then
     echo "CACHE BUG FOUND!!!!!!"
-    exit 1
+    git add src1 src2
+    git commit -m "Reduce cache bug with $0"
 fi
-
-git add src1 src2
-git commit -m "Reduced cache bug with $0"
