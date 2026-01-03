@@ -196,7 +196,7 @@ def find_current_executable() -> byte*:
                 if ret < 0:
                     break  # error
                 if ret < size:
-                    buf[ret] = '\0'  # Work around valgrind bug: https://github.com/Akuli/jou/issues/1190
+                    buf[ret] = '\0'  # Work around valgrind bug: https://bugs.kde.org/show_bug.cgi?id=514094
                     return buf  # success, it fits
 
     # TODO: show os error message? (GetLastError / errno)
