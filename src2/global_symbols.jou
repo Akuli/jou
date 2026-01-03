@@ -1,0 +1,138 @@
+# A global symbol is anything that can be referred by name anywhere in a file,
+# e.g. a class, a function or a global constant. If a symbol is decorated with
+# @public, it is also accessible in other files.
+#
+# The Jou compiler does not allocate memory for symbols separately. Instead,
+# the symbols are simply placed inside the AST statement classes.
+
+import "stdlib/assert.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+import "./ast.jou"
+import "./hash.jou"
+import "./state.jou"
+import "./types.jou"
+
+
+@public
+enum GlobalSymbolKind:
+    Function
+    Method
+    Type
+    GenericClass  # similar to Type, contains something like List[T] where T is a type variable
+    GlobalVar
+    Const
+
+@public
+enum GlobalSymbolStatus:
+    NotTypeChecked  # Type checking not started yet (the default, must be first)
+    TypeChecking    # We are currently type checking this. Used to detect self-referencing things.
+    Ready           # Type checked, e.g. we now know the value of a constant or members of a class
+
+
+@public
+class GlobalSymbol:
+    name: byte[200]  # can be "SomeClass.some_method", where class and method name are max 99 bytes
+    kind: GlobalSymbolKind
+    status: GlobalSymbolStatus
+    public: bool  # Is it decorated with @public?
+    used: bool    # If not @public, this is used to show unused warnings
+
+    union:
+        # These are zero initialized at first, populated during type checking.
+        signature: Signature  # GlobalSymbolKind.Function, GlobalSymbolKind.Method
+        type: Type*  # GlobalSymbolKind.Type, GlobalSymbolKind.GlobalVar, GlobalSymbolKind.GenericClass
+        constant: int  # GlobalSymbolKind.Const
+
+    @public
+    def free(self) -> None:
+        match self.kind:
+            case GlobalSymbolKind.Function | GlobalSymbolKind.Method:
+                self.signature.free()
+            case _:
+                pass
+
+    @public
+    def short_description(self) -> byte*:
+        match self.kind:
+            case GlobalSymbolKind.Function:
+                return "function"
+            case GlobalSymbolKind.Method:
+                return "method"
+            case GlobalSymbolKind.GlobalVar:
+                return "global variable"
+            case GlobalSymbolKind.Type:
+                return "type"
+            case GlobalSymbolKind.GenericClass:
+                return "generic class"
+            case GlobalSymbolKind.Const:
+                return "constant"
+
+
+# Hash table size = this constant * number of symbols
+# This leaves plenty of room so that lookup is fast because we don't put things
+# into consecutive indexes.
+const HASH_TABLE_FACTOR: int = 4
+
+
+# Called when we know that there will be no more global symbols available in a
+# file. Sets up a hash table that is used to find the symbols quickly.
+@public
+def create_global_symbol_lookup_hash_table(jou_file: JouFile*) -> None:
+    assert jou_file != NULL
+    assert jou_file.symbol_hash_table == NULL
+
+    if jou_file.available_symbols.len == 0:
+        return
+
+    hash_table_len = jou_file.available_symbols.len * HASH_TABLE_FACTOR
+    jou_file.symbol_hash_table = malloc(hash_table_len * sizeof(jou_file.symbol_hash_table[0]))
+    assert jou_file.symbol_hash_table != NULL
+
+    # Mark all entries as empty
+    for i = 0; i < hash_table_len; i++:
+        jou_file.symbol_hash_table[i] = -1
+
+    for avail_index = 0; avail_index < jou_file.available_symbols.len; avail_index++:
+        avail = &jou_file.available_symbols.ptr[avail_index]
+        assert avail.statement.symbol() != NULL
+        hash = new_hash()
+        hash.add_string(avail.statement.symbol().name)
+
+        # Find empty spot
+        table_index = hash.hash % hash_table_len
+        while jou_file.symbol_hash_table[table_index] != -1:
+            table_index = (table_index+1) % hash_table_len
+
+        # Put it there
+        jou_file.symbol_hash_table[table_index] = avail_index
+
+
+# If you have a Jou file that has access to printf() function from stdlib/io.jou,
+# then this function returns the `declare` statement in stdlib/io.jou when you
+# call this with the file and the string "printf".
+#
+# This also finds things defined in the same file.
+#
+# Note: For special constants like "WINDOWS" this returns NULL, be aware!!!
+@public
+def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSymbolKind) -> AstStatement*:
+    assert jou_file != NULL
+
+    # Look up from hash table. Handles imports and everything defined in the current file.
+    if jou_file.available_symbols.len != 0:
+        hash = new_hash()
+        hash.add_string(name)
+        hash_table_len = jou_file.available_symbols.len * HASH_TABLE_FACTOR
+        for table_index = hash.hash % hash_table_len; jou_file.symbol_hash_table[table_index] != -1; table_index = (table_index+1) % hash_table_len:
+            avail_index = jou_file.symbol_hash_table[table_index]
+            avail = &jou_file.available_symbols.ptr[avail_index]
+            assert avail.statement.symbol() != NULL
+            if strcmp(avail.statement.symbol().name, name) == 0 and avail.statement.symbol().kind == kind:
+                avail.statement.symbol().used = True
+                if avail.the_import != NULL:
+                    avail.the_import.used = True
+                return avail.statement
+
+    return NULL

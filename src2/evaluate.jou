@@ -1,0 +1,168 @@
+import "stdlib/assert.jou"
+import "stdlib/limits.jou"
+import "stdlib/io.jou"
+import "stdlib/errno.jou"
+import "stdlib/str.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+
+import "./ast.jou"
+import "./paths.jou"
+import "./typecheck/common.jou"
+import "./state.jou"
+import "./errors_and_warnings.jou"
+import "./types.jou"
+
+
+@public
+def get_special_constant(name: byte*) -> int*:
+    return NULL
+
+
+# Return values: 1=true 0=false -1=error
+def evaluate_boolean_and_or(jou_file: JouFile*, expr: AstExpression*, and_or: byte*) -> int:
+    return 0
+
+
+def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Location) -> List[byte]:
+    msg: byte[500]
+
+    # If I remember correctly, dirname() may modify the given path
+    joufile_path = strdup(jou_file.path)
+    assert joufile_path != NULL
+
+    full_path: byte* = NULL
+    asprintf(&full_path, "%s/%s", dirname(joufile_path), specified_path)
+    assert full_path != NULL
+    free(joufile_path)
+
+    file = fopen(full_path, "rb")
+    if file == NULL:
+        simplify_path(full_path)
+        snprintf(msg, sizeof(msg), "cannot open file \"%s\": %s", full_path, strerror(get_errno()))
+        fail(location, msg)
+
+    file_content = List[byte]{}
+    buf: byte[4096]
+    while True:
+        num_read = fread(buf, 1, sizeof buf, file)
+        if num_read == 0:
+            if ferror(file) != 0:
+                # TODO: include errno in the error message?
+                # TODO: test this?
+                # If you change this, you might also want to change the tokenizer.
+                fail(location, "cannot read file")
+            break
+        file_content.extend_from_ptr(buf, num_read)
+    fclose(file)
+
+    if file_content.len == 0:
+        simplify_path(full_path)
+        snprintf(msg, sizeof(msg), "file \"%s\" is empty", full_path)
+        fail(location, msg)
+
+    free(full_path)
+    return file_content
+
+
+@public
+def evaluate_array_length(jou_file: JouFile*, expr: AstExpression*) -> int:
+    return 0
+
+
+def choose_if_elif_branch(jou_file: JouFile*, if_stmt: AstIfStatement*) -> List[AstStatement]*:
+    return NULL
+
+
+# Replaces the statement body.ptr[i] with statements from a given list.
+def replace(body: List[AstStatement]*, i: int, new: List[AstStatement]) -> None:
+    body.ptr[i].free()
+    body.grow(body.len + new.len)
+
+    # How many statements after index i we want to preserve
+    nkeep = body.len - (i+1)
+
+    # Delete body.ptr[i] and shift everything after it to their new place
+    memmove(&body.ptr[i + new.len], &body.ptr[i+1], nkeep * sizeof(body.ptr[0]))
+
+    # Put the new statements to their place.
+    memcpy(&body.ptr[i], new.ptr, new.len * sizeof(new.ptr[0]))
+
+    body.len += new.len - 1  # -1 for index i which was removed
+
+
+def evaluate_if_statements_in_body(jou_file: JouFile*, body: List[AstStatement]*, must_succeed: bool) -> None:
+    # Must use indexes, because mutating the body may reallocate it to different memory location.
+    for i = 0; i < body.len; i++:
+        match body.ptr[i].kind:
+            case AstStatementKind.If:
+                if_stmt = &body.ptr[i].if_statement
+
+                branch = choose_if_elif_branch(jou_file, if_stmt)
+                if branch == NULL and must_succeed:
+                    fail(body.ptr[i].location, "cannot evaluate condition at compile time")
+
+                if branch != NULL:
+                    # The if/elif statement always takes the same branch.
+                    # Replace the whole if/elif with that branch.
+                    replacement = *branch
+                    *branch = List[AstStatement]{}  # avoid double-free
+                    replace(body, i, replacement)
+                    free(replacement.ptr)
+                    i--  # cancels i++ to do same index again, so that we handle nested if statements
+                    continue
+
+                # Recurse into inner if statements. Needed when compile-time if
+                # statement is inside a runtime if statement.
+                for p = if_stmt.if_and_elifs.ptr; p < if_stmt.if_and_elifs.end(); p++:
+                    evaluate_if_statements_in_body(jou_file, &p.body, False)
+                evaluate_if_statements_in_body(jou_file, &if_stmt.else_body, False)
+
+            case AstStatementKind.WhileLoop:
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].while_loop.body, False)
+            case AstStatementKind.ForLoop:
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].for_loop.body, False)
+            case AstStatementKind.Class:
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].classdef.body, True)
+            case AstStatementKind.FunctionDef:
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].function.body, False)
+            case AstStatementKind.MethodDef:
+                evaluate_if_statements_in_body(jou_file, &body.ptr[i].method.body, False)
+            case (
+                AstStatementKind.ExpressionStatement
+                | AstStatementKind.Link
+                | AstStatementKind.Assert
+                | AstStatementKind.Pass
+                | AstStatementKind.Return
+                | AstStatementKind.Match
+                | AstStatementKind.Break
+                | AstStatementKind.Continue
+                | AstStatementKind.DeclareLocalVar
+                | AstStatementKind.Assign
+                | AstStatementKind.InPlaceAdd
+                | AstStatementKind.InPlaceSub
+                | AstStatementKind.InPlaceMul
+                | AstStatementKind.InPlaceDiv
+                | AstStatementKind.InPlaceMod
+                | AstStatementKind.InPlaceBitAnd
+                | AstStatementKind.InPlaceBitOr
+                | AstStatementKind.InPlaceBitXor
+                | AstStatementKind.InPlaceBitShiftLeft
+                | AstStatementKind.InPlaceBitShiftRight
+                | AstStatementKind.FunctionDeclare
+                | AstStatementKind.Enum
+                | AstStatementKind.GlobalVariableDeclare
+                | AstStatementKind.GlobalVariableDef
+                | AstStatementKind.Import
+                | AstStatementKind.ClassField
+                | AstStatementKind.ClassUnion
+                | AstStatementKind.Const
+                | AstStatementKind.TypeDef
+            ):
+                # these statements cannot contain if statements, no need to recurse inside
+                pass
+
+
+@public
+def evaluate_compile_time_if_statements(jou_file: JouFile*) -> None:
+    evaluate_if_statements_in_body(jou_file, &jou_file.ast, True)

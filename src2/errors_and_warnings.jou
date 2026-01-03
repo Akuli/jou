@@ -1,0 +1,49 @@
+import "stdlib/process.jou"
+import "stdlib/io.jou"
+
+import "./state.jou"
+
+@public
+class Location:
+    path: byte*  # Not owned. Points to a string that is held elsewhere.
+    lineno: int
+
+
+# When stdout is redirected to same place as stderr,
+# make sure that normal printf()s show up before our warning.
+def flush_streams() -> None:
+    fflush(get_stdout())
+    fflush(get_stderr())
+
+
+@public
+def show_warning(location: Location, message: byte*) -> None:
+    flush_streams()
+
+    fprintf(get_stderr(), "compiler warning for file \"%s\"", location.path)
+    if location.lineno != 0:
+        fprintf(get_stderr(), ", line %d", location.lineno)
+    fprintf(get_stderr(), ": %s\n", message)
+
+    global_compiler_state.warnings_shown = True
+
+
+# Fail with an error if --fail-on-warnings is given on command line and
+# warnings have been shown.
+@public
+def fail_if_warnings_and_flag() -> None:
+    if global_compiler_state.warnings_shown and global_compiler_state.args.fail_on_warnings:
+        fprintf(get_stderr(), "compiler error: there were warnings and --fail-on-warnings was given\n")
+        exit(1)
+
+
+@public
+def fail(location: Location, message: byte*) -> noreturn:
+    flush_streams()
+
+    fprintf(get_stderr(), "compiler error in file \"%s\"", location.path)
+    if location.lineno != 0:
+        fprintf(get_stderr(), ", line %d", location.lineno)
+    fprintf(get_stderr(), ": %s\n", message)
+
+    exit(1)

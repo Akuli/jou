@@ -1,0 +1,92 @@
+import "stdlib/list.jou"
+import "stdlib/process.jou"
+import "stdlib/mem.jou"
+import "stdlib/io.jou"
+
+import "./ast.jou"
+import "./command_line_args.jou"
+import "./errors_and_warnings.jou"
+import "./hash.jou"
+import "./types.jou"
+
+
+@public
+class AvailableSymbol:
+    # The statement that defines the thing. Either in the current file or
+    # something @public-decorated in another file.
+    statement: AstStatement*
+
+    # Import statement in AST of current file, or NULL if not imported
+    the_import: AstImport*
+
+    # Location of the import statement, if imported
+    import_location: Location
+
+
+# Jou source code file (.jou)
+@public
+class JouFile:
+    path: byte*  # owned, always set, unique
+    is_main_file: bool  # is this the file passed in Jou compiler command? False means imported file
+    ast: List[AstStatement]
+
+    # Contains pointers to all AstStatements of this file that have a global
+    # symbol: function definitions, class definitions, consts etc.
+    #
+    # This also contains pointers to methods, which are inside the classes: a
+    # class Foo with method bar() has a symbol named "Foo.bar".
+    symbol_statements: List[AstStatement*]
+
+    # Points to @public things in ASTS of this file and other files that have
+    # been imported into this file. Used when finding basically anything other
+    # than local variables.
+    available_symbols: List[AvailableSymbol]
+
+    # For finding available symbols quickly
+    symbol_hash_table: int*
+
+    # Path of .o file in jou_compiled. Includes hashes, see doc/compiler_internals/lazy-recompile.md
+    object_file_path: byte*
+
+    def free(self) -> None:
+        for p = self.ast.ptr; p < self.ast.end(); p++:
+            p.free()
+        free(self.ast.ptr)
+        free(self.path)
+        free(self.symbol_statements.ptr)
+        free(self.available_symbols.ptr)
+        free(self.symbol_hash_table)
+        free(self.object_file_path)
+
+
+@public
+class GlobalCompilerState:
+    args: CommandLineArgs
+    stdlib_path: byte*  # owned
+    types: TypeState
+    warnings_shown: bool  # for the --fail-on-warnings compiler flag
+    cached_compiler_hash: Hash
+
+    # Appending to this list happens only in the early stages of compilation,
+    # so for most purposes, pointers into this list are stable and won't ever
+    # become invalid.
+    jou_files: List[JouFile]
+
+    # This method exists only to make valgrind happy. It is called only when
+    # the compiler is exiting and the operating system is about to free all
+    # memory we used anyway.
+    @public
+    def free(self) -> None:
+        free(self.stdlib_path)
+        for p = self.jou_files.ptr; p < self.jou_files.end(); p++:
+            p.free()
+        free(self.jou_files.ptr)
+        self.types.free()
+
+
+# Yes, I know, everyone hates global variables, especially public global variables...
+#
+# For now, there wouldn't be much advantage in passing this around.
+# Can be cleaned up later if needed.
+@public
+global global_compiler_state: GlobalCompilerState

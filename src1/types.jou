@@ -1,0 +1,766 @@
+import "stdlib/assert.jou"
+import "stdlib/mem.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+import "stdlib/limits.jou"
+import "stdlib/intnative.jou"
+
+import "./ast.jou"
+import "./state.jou"
+
+
+@public
+class ClassField:
+    name: byte[100]
+    type: Type*
+    # If multiple fields have the same union_id, they belong to the same union.
+    # It means that only one of the fields can be used at a time.
+    union_id: int
+
+
+class ClassData:
+    generic_params: List[Type*]   # this is the "int" part of List[int]
+    fields: List[ClassField]
+
+    @public
+    def is_generic(self) -> bool:
+        return self.generic_params.len > 0
+
+    def substitute_generic_params_to_fields(self, from: Type**, to: Type**, n: int) -> List[ClassField]:
+        result = List[ClassField]{}
+        result.extend(self.fields)
+        for f = result.ptr; f < result.end(); f++:
+            f.type = f.type.substitute_generic_params(from, to, n)
+        return result
+
+
+class ArrayType:
+    item_type: Type*
+    count: int
+
+
+class FuncPtrType:
+    argtypes: List[Type*]
+    takes_varargs: bool
+    return_type: Type*  # NULL if does not return a value
+    is_noreturn: bool
+
+    # Return a string that is e.g. "byte*, byte*" for strcmp() or "byte*, ..." for printf().
+    @public
+    def arguments_string(self) -> byte*:
+        alloc_size: intnative = 10  # plenty for '\0' and the possible "..." at the end
+        for i = 0; i < self.argtypes.len; i++:
+            alloc_size += strlen(self.argtypes.ptr[i].name)
+            alloc_size += strlen(", ")
+
+        result: byte* = malloc(alloc_size)
+        assert result != NULL
+        strcpy(result, "")
+
+        for p = self.argtypes.ptr; p < self.argtypes.end(); p++:
+            if result[0] != '\0':
+                strcat(result, ", ")
+            strcat(result, (*p).name)
+
+        if self.takes_varargs:
+            if result[0] != '\0':
+                strcat(result, ", ")
+            strcat(result, "...")
+
+        return result
+
+@public
+enum TypeKind:
+    SignedInteger
+    UnsignedInteger
+    Bool
+    FloatingPoint  # float or double
+    Pointer
+    VoidPointer
+    FuncPtr
+    Array
+    Class
+    TypeVar  # the unknown type "T" of "class List[T]"
+    Enum
+
+
+@public
+class Type:
+    name: byte[500]   # All types have a name for error messages and debugging.
+    kind: TypeKind
+    union:
+        size_in_bits: int  # SignedInteger, UnsignedInteger, FloatingPoint
+        value_type: Type*  # Pointer
+        func_ptr: FuncPtrType
+        classdata: ClassData  # Class
+        array: ArrayType  # Array
+        typedef_actual_type: Type*  # TypeDef
+        enum_members: List[byte[100]]
+
+    @public
+    def is_integer_type(self) -> bool:
+        return self.kind == TypeKind.SignedInteger or self.kind == TypeKind.UnsignedInteger
+
+    @public
+    def is_number_type(self) -> bool:
+        return self.is_integer_type() or self.kind == TypeKind.FloatingPoint
+
+    @public
+    def min_value(self) -> int64:
+        # See doc/types.md
+        match self.kind:
+            case TypeKind.SignedInteger:
+                match self.size_in_bits:
+                    case 8:
+                        return INT8_MIN
+                    case 16:
+                        return INT16_MIN
+                    case 32:
+                        return INT32_MIN
+                    case 64:
+                        return INT64_MIN
+                    case _:
+                        assert False
+            case TypeKind.UnsignedInteger:
+                return 0
+            case _:
+                assert False
+
+    @public
+    def max_value(self) -> uint64:
+        # See doc/types.md
+        match self.kind:
+            case TypeKind.SignedInteger:
+                match self.size_in_bits:
+                    case 8:
+                        return 0x7f
+                    case 16:
+                        return 0x7fff
+                    case 32:
+                        return 0x7fff_ffff
+                    case 64:
+                        return 0x7fff_ffff_ffff_ffff
+                    case _:
+                        assert False
+            case TypeKind.UnsignedInteger:
+                match self.size_in_bits:
+                    case 8:
+                        return 0xff
+                    case 16:
+                        return 0xffff
+                    case 32:
+                        return 0xffff_ffff
+                    case 64:
+                        return 0xffff_ffff_ffff_ffff
+                    case _:
+                        assert False
+            case _:
+                assert False
+
+    @public
+    def is_pointer_type(self) -> bool:
+        match self.kind:
+            case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
+                return True
+            case _:
+                return False
+
+    # Returns a type that represents pointer to the original type.
+    # Result is cached. Don't worry about freeing it.
+    @public
+    def pointer_type(self) -> Type*:
+        info = cast_type_to_typeinfo(self)
+        if info.pointer == NULL:
+            ptr: TypeInfo* = calloc(1, sizeof *ptr)
+            ptr.type = Type{kind=TypeKind.Pointer, value_type=self}
+            if self.kind == TypeKind.FuncPtr:
+                snprintf(ptr.type.name, sizeof ptr.type.name, "(%s)*", self.name)
+            else:
+                snprintf(ptr.type.name, sizeof ptr.type.name, "%s*", self.name)
+            info.pointer = ptr
+        return &info.pointer.type
+
+    # Returns a type that represents array where items are the original type.
+    # Result is cached. Don't worry about freeing it.
+    @public
+    def array_type(self, count: int) -> Type*:
+        info = cast_type_to_typeinfo(self)
+
+        assert count > 0
+        for t = info.related_types.ptr; t < info.related_types.end(); t++:
+            if (
+                (*t).type.kind == TypeKind.Array
+                and (*t).type.array.item_type == self
+                and (*t).type.array.count == count
+            ):
+                return &(*t).type
+
+        arr: TypeInfo* = calloc(1, sizeof *arr)
+        arr.type = Type{kind = TypeKind.Array, array = ArrayType{item_type = self, count = count}}
+        if self.kind == TypeKind.FuncPtr:
+            snprintf(arr.type.name, sizeof arr.type.name, "(%s)[%d]", self.name, count)
+        else:
+            snprintf(arr.type.name, sizeof arr.type.name, "%s[%d]", self.name, count)
+
+        info.related_types.append(arr)
+        return &arr.type
+
+    # This method is used to create List[int] from a generic List[T].
+    # The result is cached similarly to arrays.
+    @public
+    def substitute_generic_params(self, from: Type**, to: Type**, n: int) -> Type*:
+        if n == 0:
+            return self
+
+        assert n > 0
+        for i = 0; i < n; i++:
+            assert from[i].kind == TypeKind.TypeVar
+
+        match self.kind:
+            case TypeKind.TypeVar:
+                # the T of List[T] becomes the int of List[int]
+                for i = 0; i < n; i++:
+                    if from[i] == self:
+                        return to[i]
+                return self
+
+            case TypeKind.Class:
+                generic_params = List[Type*]{}
+                for p = self.classdata.generic_params.ptr; p < self.classdata.generic_params.end(); p++:
+                    generic_params.append((*p).substitute_generic_params(from, to, n))
+
+                # Special case: No substitutions need to be done.
+                # Used e.g. when List[T] occurs inside the body of class List[T].
+                # This also handles non-generic classes.
+                ret = memcmp(
+                    self.classdata.generic_params.ptr,
+                    generic_params.ptr,
+                    generic_params.len * sizeof(generic_params.ptr[0])
+                )
+                if ret == 0:
+                    free(generic_params.ptr)
+                    return self
+
+                # Results are cached in related_types, just like arrays.
+                # Before we go further, let's check if the type we want is already cached.
+                info = cast_type_to_typeinfo(self)
+                for r = info.related_types.ptr; r < info.related_types.end(); r++:
+                    t = &(*r).type
+                    if (
+                        t.kind == TypeKind.Class
+                        and t.classdata.generic_params.len == generic_params.len
+                        and memcmp(t.classdata.generic_params.ptr, generic_params.ptr, sizeof(generic_params.ptr[0]) * generic_params.len) == 0
+                    ):
+                        free(generic_params.ptr)
+                        return t
+
+                # Cache the incomplete result. This helps avoid infinite recursion when
+                # a class contains a pointer to itself. When visiting the pointer, we see
+                # the already cached type.
+                new_info: TypeInfo* = calloc(1, sizeof(*new_info))
+                assert new_info != NULL
+                info.related_types.append(new_info)
+                result = &new_info.type
+                *result = *self
+                result.name = create_type_name_with_params(self.name, generic_params)
+
+                # Recursively convert everything inside the class.
+                result.classdata.generic_params = generic_params
+                result.classdata.fields = self.classdata.substitute_generic_params_to_fields(from, to, n)
+                return result
+
+            case TypeKind.Pointer:
+                new_value_type = self.value_type.substitute_generic_params(from, to, n)
+                return new_value_type.pointer_type()
+
+            case TypeKind.Array:
+                new_item_type = self.array.item_type.substitute_generic_params(from, to, n)
+                return new_item_type.array_type(self.array.count)
+
+            case TypeKind.FuncPtr:
+                nargs = self.func_ptr.argtypes.len
+                assert nargs <= MAX_ARGS
+                new_argtypes: Type*[MAX_ARGS]
+
+                for i = 0; i < nargs; i++:
+                    new_argtypes[i] = self.func_ptr.argtypes.ptr[i].substitute_generic_params(from, to, n)
+
+                if self.func_ptr.return_type == NULL:
+                    new_return_type = NULL
+                else:
+                    new_return_type = self.func_ptr.return_type.substitute_generic_params(from, to, n)
+
+                return funcptr_type(new_argtypes, nargs, self.func_ptr.takes_varargs, new_return_type, self.func_ptr.is_noreturn)
+
+            case (
+                TypeKind.SignedInteger
+                | TypeKind.UnsignedInteger
+                | TypeKind.FloatingPoint
+                | TypeKind.Bool
+                | TypeKind.Enum
+                | TypeKind.VoidPointer
+            ):
+                return self
+
+    # Suppose we have a generic class Foo[T]. It may be referenced as Foo[int]
+    # before the fields of Foo are populated. In that case, the Foo[int] class
+    # will continue to have no fields.
+    #
+    # This method fixes that. If Foo[int] has been created, its fields are
+    # recomputed from the fields of Foo[T].
+    @public
+    def update_fields_to_generic_instances(self) -> None:
+        assert self.kind == TypeKind.Class
+
+        from = self.classdata.generic_params.ptr
+        n = self.classdata.generic_params.len as int
+        assert n > 0
+
+        info = cast_type_to_typeinfo(self)
+        for r = info.related_types.ptr; r < info.related_types.end(); r++:
+            t = &(*r).type
+            if t.kind != TypeKind.Class or t.classdata.generic_params.len != n:
+                continue
+            to = t.classdata.generic_params.ptr
+
+            if t.classdata.fields.len < self.classdata.fields.len:
+                free(t.classdata.fields.ptr)
+                t.classdata.fields = self.classdata.substitute_generic_params_to_fields(from, to, n)
+
+    @public
+    def short_description(self) -> byte*:
+        match self.kind:
+            case TypeKind.Class:
+                return "a class"
+            case TypeKind.Enum:
+                return "an enum"
+            case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
+                return "a pointer type"
+            case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.FloatingPoint:
+                return "a number type"
+            case TypeKind.Array:
+                return "an array type"
+            case TypeKind.Bool:
+                return "the built-in bool type"
+            case TypeKind.TypeVar:
+                return "an unknown type"
+
+    @public
+    def find_class_field(self, name: byte*) -> ClassField*:
+        if self.kind != TypeKind.Class:
+            return NULL
+
+        for f = self.classdata.fields.ptr; f < self.classdata.fields.end(); f++:
+            if strcmp(f.name, name) == 0:
+                return f
+        return NULL
+
+    @public
+    def find_enum_member(self, name: byte*) -> int:
+        if self.kind != TypeKind.Enum:
+            return -1
+
+        for i = 0; i < self.enum_members.len; i++:
+            if strcmp(self.enum_members.ptr[i], name) == 0:
+                return i
+        return -1
+
+
+# The TypeInfo for type T contains the type T* (if it has been used)
+# and all array and pointer types with element type T.
+class TypeInfo:
+    type: Type
+    pointer: TypeInfo*
+    related_types: List[TypeInfo*]
+
+    def free_related_types(self) -> None:
+        if self.pointer != NULL:
+            free_type(&self.pointer.type)
+        for t = self.related_types.ptr; t < self.related_types.end(); t++:
+            assert &(*t).type != NULL
+            free_type(&(*t).type)
+        free(self.related_types.ptr)
+
+
+# You can think of Type as public members and TypeInfo as private members. From
+# that point of view, this function gives you access to the privates.
+def cast_type_to_typeinfo(t: Type*) -> TypeInfo*:
+    info = t as TypeInfo*
+    assert t == &info.type  # the 'type' field is first member and has 0 bytes offset
+    return info
+
+
+# Types are cached into global state. This makes a lot of things easier
+# because you don't need to copy and free the types everywhere. This is
+# important: previously it was a lot of work to find forgotten copies and
+# frees with valgrind.
+#
+# This also simplifies checking whether two types are the same type: you
+# can simply use "==" between two Type* pointers.
+@public
+class TypeState:
+    ints: TypeInfo[5]     # signed 8,16,32,64,128 bit integers
+    uints: TypeInfo[5]    # unsigned 8,16,32,64,128 bit integers
+    boolean: TypeInfo
+    floater: TypeInfo
+    doublelele: TypeInfo
+    voidptr: TypeInfo
+    funcptr_types: List[TypeInfo*]  # All funcptr types. TODO: use a hash table
+    other_types: List[TypeInfo*]
+
+    @public
+    def free(self) -> None:
+        self.boolean.free_related_types()
+        self.floater.free_related_types()
+        self.doublelele.free_related_types()
+        self.voidptr.free_related_types()
+        for i = 0; i < array_count(self.ints); i++:
+            self.ints[i].free_related_types()
+        for i = 0; i < array_count(self.uints); i++:
+            self.uints[i].free_related_types()
+        for p = self.funcptr_types.ptr; p < self.funcptr_types.end(); p++:
+            free_type(&(*p).type)
+        free(self.funcptr_types.ptr)
+        for p = self.other_types.ptr; p < self.other_types.end(); p++:
+            free_type(&(*p).type)
+        free(self.other_types.ptr)
+
+
+# Returns the "bool" type
+@public
+def bool_type() -> Type*:
+    return &global_compiler_state.types.boolean.type
+
+# Returns the "float" type
+@public
+def float_type() -> Type*:
+    return &global_compiler_state.types.floater.type
+
+# Returns the "double" type
+@public
+def double_type() -> Type*:
+    return &global_compiler_state.types.doublelele.type
+
+# Returns the "void*" type
+@public
+def void_ptr_type() -> Type*:
+    return &global_compiler_state.types.voidptr.type
+
+
+# Examples: int_type(32) returns the "int" type, int_type(64) is int64
+# int_type(128) is not accessible in Jou code and is used only for intermediate values.
+@public
+def int_type(bits: int) -> Type*:
+    match bits:
+        case 8:
+            return &global_compiler_state.types.ints[0].type
+        case 16:
+            return &global_compiler_state.types.ints[1].type
+        case 32:
+            return &global_compiler_state.types.ints[2].type
+        case 64:
+            return &global_compiler_state.types.ints[3].type
+        case 128:
+            return &global_compiler_state.types.ints[4].type
+        case _:
+            assert False
+
+# Examples: uint_type(8) returns the "byte" type, uint_type(64) is int64
+# uint_type(128) is not accessible in Jou code and is used only for intermediate values.
+@public
+def uint_type(bits: int) -> Type*:
+    match bits:
+        case 8:
+            return &global_compiler_state.types.uints[0].type
+        case 16:
+            return &global_compiler_state.types.uints[1].type
+        case 32:
+            return &global_compiler_state.types.uints[2].type
+        case 64:
+            return &global_compiler_state.types.uints[3].type
+        case 128:
+            return &global_compiler_state.types.uints[4].type
+        case _:
+            assert False
+
+
+# Return a function pointer type like "funcptr(int, int) -> int"
+@public
+def funcptr_type(argtypes: Type**, nargs: intnative, takes_varargs: bool, return_type: Type*, is_noreturn: bool) -> Type*:
+    if is_noreturn:
+        assert return_type == NULL
+
+    # Do we already have this funcptr type?
+    for infoptr = global_compiler_state.types.funcptr_types.ptr; infoptr < global_compiler_state.types.funcptr_types.end(); infoptr++:
+        t: Type* = &(*infoptr).type
+        assert t.kind == TypeKind.FuncPtr
+        assert sizeof(t.func_ptr.argtypes.ptr[0]) == sizeof(argtypes[0])
+        if (
+            t.func_ptr.argtypes.len == nargs
+            and memcmp(t.func_ptr.argtypes.ptr, argtypes, sizeof(argtypes[0]) * nargs) == 0
+            and t.func_ptr.takes_varargs == takes_varargs
+            and t.func_ptr.return_type == return_type
+            and t.func_ptr.is_noreturn == is_noreturn
+        ):
+            # Yes: do not create another one so that we can use "==" to compare types given as Type*
+            return t
+
+    if return_type == NULL:
+        if is_noreturn:
+            ret_name = "noreturn"
+        else:
+            ret_name = "None"
+    else:
+        assert not is_noreturn
+        ret_name = return_type.name
+
+    info: TypeInfo* = calloc(1, sizeof *info)
+    assert info != NULL
+
+    fptype = FuncPtrType{
+        return_type = return_type,
+        takes_varargs = takes_varargs,
+        is_noreturn = is_noreturn,
+    }
+    for i = 0; i < nargs; i++:
+        fptype.argtypes.append(argtypes[i])
+
+    info.type = Type{
+        kind = TypeKind.FuncPtr,
+        func_ptr = fptype,
+    }
+
+    argstr = fptype.arguments_string()
+    snprintf(info.type.name, sizeof(t.name), "funcptr(%s) -> %s", argstr, ret_name)
+    free(argstr)
+
+    global_compiler_state.types.funcptr_types.append(info)
+    return &info.type
+
+
+@public
+def init_types() -> None:
+    memset(&global_compiler_state.types, 0, sizeof(global_compiler_state.types))
+    *bool_type() = Type{name = "bool", kind = TypeKind.Bool }
+    *void_ptr_type() = Type{name = "void*", kind = TypeKind.VoidPointer }
+    *float_type() = Type{name = "float", kind = TypeKind.FloatingPoint, size_in_bits = 32 }
+    *double_type() = Type{name = "double", kind = TypeKind.FloatingPoint, size_in_bits = 64 }
+
+    # Currently int128 and uint128 are not exposed in the language, but int128 is used
+    # for temporary values hidden from users.
+    for size = 8; size <= 128; size *= 2:
+        uint_type(size).kind = TypeKind.UnsignedInteger
+        uint_type(size).size_in_bits = size
+        sprintf(uint_type(size).name, "uint%d", size)
+
+        int_type(size).kind = TypeKind.SignedInteger
+        int_type(size).size_in_bits = size
+        sprintf(int_type(size).name, "int%d", size)
+
+    uint_type(8).name = "byte"
+    int_type(32).name = "int"
+
+
+# Usually you don't need to free a type. This is in a function to make you
+# think twice about it.
+# TODO: should probably be a method in TypeInfo
+def free_type(t: Type*) -> None:
+    assert t != NULL
+
+    match t.kind:
+        case TypeKind.Class:
+            free(t.classdata.generic_params.ptr)
+            free(t.classdata.fields.ptr)
+        case TypeKind.Enum:
+            free(t.enum_members.ptr)
+        case TypeKind.FuncPtr:
+            free(t.func_ptr.argtypes.ptr)
+        case _:
+            pass
+
+    cast_type_to_typeinfo(t).free_related_types()
+    free(t)
+
+
+# Ensures that the type is freed when compiler is done. Operating system would
+# do it anyway, but communicating this to valgrind is complicated because of
+# how pointers and arrays work.
+def satisfy_valgrind(ti: TypeInfo*) -> None:
+    global_compiler_state.types.other_types.append(ti)
+
+
+def create_simple_type(name: byte*, kind: TypeKind) -> Type*:
+    result: TypeInfo* = calloc(1, sizeof *result)
+    result.type = Type{kind = kind}
+
+    assert strlen(name) < sizeof result.type.name
+    strcpy(result.type.name, name)
+
+    satisfy_valgrind(result)
+    return &result.type
+
+
+# Creates a class with no members. Used for classes before their members are known.
+@public
+def create_empty_class(name: byte*) -> Type*:
+    return create_simple_type(name, TypeKind.Class)
+
+
+# Used for generics. This creates the unknown type "T" when defining class "List[T]".
+@public
+def create_typevar(name: byte*) -> Type*:
+    return create_simple_type(name, TypeKind.TypeVar)
+
+
+@public
+def create_enum(name: byte*, members: List[byte[100]]) -> Type*:
+    copied_members = List[byte[100]]{}
+    copied_members.extend(members)
+
+    result: TypeInfo* = calloc(1, sizeof *result)
+    result.type = Type{kind = TypeKind.Enum, enum_members = copied_members}
+
+    assert strlen(name) < sizeof result.type.name
+    strcpy(result.type.name, name)
+
+    satisfy_valgrind(result)
+    return &result.type
+
+
+# Returns a string like "ClassName[Param1, Param2, Param3]", e.g. "List[int]"
+# If class name already has "[", only the part before "[" is used.
+@public
+def create_type_name_with_params(class_name: byte*, params: List[Type*]) -> byte[500]:
+    class_name_len = strcspn(class_name, "[")
+
+    assert params.len >= 1
+    total_len = class_name_len + strlen("[]") + (params.len - 1)*strlen(", ")
+    for p = params.ptr; p < params.end(); p++:
+        total_len += strlen((*p).name)
+
+    result: byte[500]
+    if total_len < sizeof(result):
+        sprintf(result, "%.*s[", class_name_len as int, class_name)
+        for p = params.ptr; p < params.end(); p++:
+            if p != params.ptr:
+                strcat(result, ", ")
+            strcat(result, (*p).name)
+        strcat(result, "]")
+    else:
+        snprintf(result, sizeof(result), "%.*s[...]", class_name_len as int, class_name)
+
+    return result
+
+
+@public
+class NameAndType:
+    name: byte[100]
+    type: Type*
+
+
+@public
+class Signature:
+    name: byte[100]  # Function or method name. For methods it does not include the name of the class.
+    args: List[NameAndType]
+    takes_varargs: bool  # true for functions like printf()
+    return_type: Type*    # NULL, if does not return a value
+    is_noreturn: bool
+    ast_to_inline: AstFunctionOrMethod*  # NULL if not @inline function
+
+    @public
+    def free(self) -> None:
+        free(self.args.ptr)
+
+    @public
+    def get_self_class(self) -> Type*:
+        if self.args.len > 0 and strcmp(self.args.ptr[0].name, "self") == 0:
+            type_of_self = self.args.ptr[0].type
+            match type_of_self.kind:
+                case TypeKind.Pointer:
+                    return type_of_self.value_type
+                case TypeKind.Class:
+                    return type_of_self
+                case _:
+                    assert False
+        return NULL
+
+    # Useful for error messages, not much else.
+    @public
+    def function_or_method(self) -> byte*:
+        if self.get_self_class() == NULL:
+            return "function"
+        else:
+            return "method"
+
+    @public
+    def to_string(self, include_return_type: bool, include_self: bool) -> byte*:
+        result = strdup(self.name)
+        assert result != NULL
+
+        result = realloc(result, strlen(result) + 2)
+        assert result != NULL
+        strcat(result, "(")
+
+        for arg = self.args.ptr; arg < self.args.end(); arg++:
+            if strcmp(arg.name, "self") == 0 and not include_self:
+                continue
+
+            assert sizeof arg.name == 100
+            assert sizeof arg.type.name == 500
+            result = realloc(result, strlen(result) + 1000)
+            assert result != NULL
+            strcat(result, arg.name)
+            strcat(result, ": ")
+            strcat(result, arg.type.name)
+            if arg != &self.args.end()[-1]:
+                strcat(result, ", ")
+
+        result = realloc(result, strlen(result) + 100)
+        assert result != NULL
+
+        if self.takes_varargs:
+            if self.args.len != 0:
+                strcat(result, ", ")
+            strcat(result, "...")
+        strcat(result, ")")
+
+        if include_return_type:
+            assert sizeof(self.return_type.name) == 500
+            result = realloc(result, strlen(result) + 600)
+            assert result != NULL
+
+            strcat(result, " -> ")
+            if self.is_noreturn:
+                strcat(result, "noreturn")
+            elif self.return_type == NULL:
+                strcat(result, "None")
+            else:
+                strcat(result, self.return_type.name)
+
+        return result
+
+    # Turns "strcmp(s1: byte*, s2: byte*) -> int" into "funcptr(byte*, byte*) -> int"
+    @public
+    def to_funcptr_type(self) -> Type*:
+        assert self.args.len <= MAX_ARGS
+        argtypes: Type*[MAX_ARGS]
+        for i = 0; i < self.args.len; i++:
+            argtypes[i] = self.args.ptr[i].type
+        return funcptr_type(argtypes, self.args.len, self.takes_varargs, self.return_type, self.is_noreturn)
+
+    @public
+    def copy(self) -> Signature:
+        result = *self
+        result.args = List[NameAndType]{}
+        result.args.extend(self.args)
+        return result
+
+    # Used to turn append(self: List[T]*, item: T) into append(self: List[int]*, item: int)
+    # Modifies the signature in-place! Please copy first as needed.
+    @public
+    def substitute_generic_params(self, from: Type**, to: Type**, n: int) -> None:
+        for arg = self.args.ptr; arg < self.args.end(); arg++:
+            assert arg.type != NULL
+            arg.type = arg.type.substitute_generic_params(from, to, n)
+        if self.return_type != NULL:
+            self.return_type = self.return_type.substitute_generic_params(from, to, n)
