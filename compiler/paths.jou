@@ -171,7 +171,7 @@ def find_current_executable() -> byte*:
             return result
 
     else:
-        buf = NULL
+        buf: byte* = NULL
         for size = 2; True; size *= 2:
             buf = realloc(buf, size)
             memset(buf, 0, size)
@@ -196,6 +196,7 @@ def find_current_executable() -> byte*:
                 if ret < 0:
                     break  # error
                 if ret < size:
+                    buf[ret] = '\0'  # Work around valgrind bug: https://bugs.kde.org/show_bug.cgi?id=514094
                     return buf  # success, it fits
 
     # TODO: show os error message? (GetLastError / errno)
