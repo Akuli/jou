@@ -3,6 +3,10 @@ set -e
 
 make
 
+rm -rf src2
+cp -r src1 src2
+sed -i s/100/200/ src2/*.jou
+
 rm -rf tmp/cachebug
 mkdir -vp tmp/cachebug
 
