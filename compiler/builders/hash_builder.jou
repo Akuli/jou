@@ -159,6 +159,11 @@ class HBuilder:
         field = classtype.find_class_field(field_name)
         assert field != NULL
 
+        # TODO: Result of &ptr.field depends on the offset of the field in the
+        #       struct, so ideally we would get it here somehow and compute
+        #       that instead of hashing the whole struct.
+        hash_type(&self.hash, classtype)
+
         self.hash.add_string("class_field_pointer")
         self.hash.add_int64(ptr.id)
         self.hash.add_int(field.union_id)
