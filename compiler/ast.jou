@@ -561,6 +561,7 @@ class AstEnumCount:
         self.enum_type_ast.print(True)
         printf("\n")
 
+    @public  # TODO: remove this, you will get warning saying that this is never used
     def free(self) -> None:
         self.enum_type_ast.free()
 
@@ -1320,6 +1321,7 @@ class AstLink:
     def print(self) -> None:
         printf("link \"%s\" (resolves to \"%s\")\n", self.specified_flags, self.resolved_flags)
 
+    @public  # TODO: remove this, you will get warning saying that this is never used
     def free(self) -> None:
         free(self.specified_flags)
         free(self.resolved_flags)
