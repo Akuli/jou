@@ -139,6 +139,7 @@ def utf8_encode_char(u: uint32) -> byte*:
 
         echo "Compiling C code... ($n parallel processes)"
         local i
+        target=$(grep JOU_TARGET config.jou | awk -F '"' '{ if ($2) print "-target " $2}' || true)
         for i in $(seq 1 $n); do
             # TODO: -w silences all warnings. We might not want that in the future.
             #
@@ -153,7 +154,7 @@ def utf8_encode_char(u: uint32) -> byte*:
             #       UPDATE: We hit the Windows stack limit again... and I just
             #       bumped it to 16M instead of the default 1M. Maybe some day I
             #       will clean this up :)
-            $clang -w -O2 $CFLAGS -c compiler.c -o compiler$i.o -DSPLIT$i &
+            $clang -w -O2 $target -c compiler.c -o compiler$i.o -DSPLIT$i &
         done
 
         # Unlike a plain "wait", this loop doesn't ignore failures inside individual jobs.
