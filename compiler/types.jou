@@ -57,6 +57,7 @@ class FuncPtrType:
     is_noreturn: bool
 
     # Return a string that is e.g. "byte*, byte*" for strcmp() or "byte*, ..." for printf().
+    @public
     def arguments_string(self) -> byte*:
         alloc_size: intnative = 10  # plenty for '\0' and the possible "..." at the end
         for i = 0; i < self.argtypes.len; i++:
@@ -107,12 +108,15 @@ class Type:
         typedef_actual_type: Type*  # TypeDef
         enum_members: List[byte[100]]
 
+    @public
     def is_integer_type(self) -> bool:
         return self.kind == TypeKind.SignedInteger or self.kind == TypeKind.UnsignedInteger
 
+    @public
     def is_number_type(self) -> bool:
         return self.is_integer_type() or self.kind == TypeKind.FloatingPoint
 
+    @public
     def min_value(self) -> int64:
         # See doc/types.md
         match self.kind:
@@ -133,6 +137,7 @@ class Type:
             case _:
                 assert False
 
+    @public
     def max_value(self) -> uint64:
         # See doc/types.md
         match self.kind:
@@ -163,6 +168,7 @@ class Type:
             case _:
                 assert False
 
+    @public
     def is_pointer_type(self) -> bool:
         match self.kind:
             case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
@@ -172,6 +178,7 @@ class Type:
 
     # Returns a type that represents pointer to the original type.
     # Result is cached. Don't worry about freeing it.
+    @public
     def pointer_type(self) -> Type*:
         info = cast_type_to_typeinfo(self)
         if info.pointer == NULL:
@@ -186,6 +193,7 @@ class Type:
 
     # Returns a type that represents array where items are the original type.
     # Result is cached. Don't worry about freeing it.
+    @public
     def array_type(self, count: int) -> Type*:
         info = cast_type_to_typeinfo(self)
 
@@ -210,6 +218,7 @@ class Type:
 
     # This method is used to create List[int] from a generic List[T].
     # The result is cached similarly to arrays.
+    @public
     def substitute_generic_params(self, from: Type**, to: Type**, n: int) -> Type*:
         if n == 0:
             return self
@@ -335,6 +344,7 @@ class Type:
                 free(t.classdata.methods.ptr)
                 t.classdata.methods = self.classdata.substitute_generic_params_to_methods(from, to, n)
 
+    @public
     def short_description(self) -> byte*:
         match self.kind:
             case TypeKind.Class:
@@ -352,6 +362,7 @@ class Type:
             case TypeKind.TypeVar:
                 return "an unknown type"
 
+    @public
     def find_class_field(self, name: byte*) -> ClassField*:
         if self.kind != TypeKind.Class:
             return NULL
@@ -370,6 +381,7 @@ class Type:
                 return sig
         return NULL
 
+    @public
     def find_enum_member(self, name: byte*) -> int:
         if self.kind != TypeKind.Enum:
             return -1
@@ -422,6 +434,7 @@ class TypeState:
     funcptr_types: List[TypeInfo*]  # All funcptr types. TODO: use a hash table
     other_types: List[TypeInfo*]
 
+    @public
     def free(self) -> None:
         self.boolean.free_related_types()
         self.floater.free_related_types()
@@ -683,9 +696,11 @@ class Signature:
     is_noreturn: bool
     ast_to_inline: AstFunctionOrMethod*  # NULL if not @inline function
 
+    @public
     def free(self) -> None:
         free(self.args.ptr)
 
+    @public
     def get_self_class(self) -> Type*:
         if self.args.len > 0 and strcmp(self.args.ptr[0].name, "self") == 0:
             type_of_self = self.args.ptr[0].type
@@ -699,12 +714,14 @@ class Signature:
         return NULL
 
     # Useful for error messages, not much else.
+    @public
     def function_or_method(self) -> byte*:
         if self.get_self_class() == NULL:
             return "function"
         else:
             return "method"
 
+    @public
     def to_string(self, include_return_type: bool, include_self: bool) -> byte*:
         result = strdup(self.name)
         assert result != NULL
@@ -752,6 +769,7 @@ class Signature:
         return result
 
     # Turns "strcmp(s1: byte*, s2: byte*) -> int" into "funcptr(byte*, byte*) -> int"
+    @public
     def to_funcptr_type(self) -> Type*:
         assert self.args.len <= MAX_ARGS
         argtypes: Type*[MAX_ARGS]
@@ -759,6 +777,7 @@ class Signature:
             argtypes[i] = self.args.ptr[i].type
         return funcptr_type(argtypes, self.args.len, self.takes_varargs, self.return_type, self.is_noreturn)
 
+    @public
     def copy(self) -> Signature:
         result = *self
         result.args = List[NameAndType]{}

@@ -25,6 +25,7 @@ class BigInt:
         memcpy(&result, &self.data, sizeof(result))
         return result
 
+    @public
     def add(self: BigInt, other: BigInt) -> BigInt:
         result = bigint(0)
         carry_bit = 0
@@ -40,6 +41,7 @@ class BigInt:
         return result
 
     # -x
+    @public
     def neg(self: BigInt) -> BigInt:
         # Flipping all bits (~x) is almost same as negating the value.
         # For example, -7 is f9ffffff... and ~7 is f8ffffff...
@@ -48,6 +50,7 @@ class BigInt:
         return self.add(bigint(1))
 
     # x-y
+    @public
     def sub(self: BigInt, other: BigInt) -> BigInt:
         return self.add(other.neg())
 
@@ -55,6 +58,7 @@ class BigInt:
     #   self < other  -->  -1
     #   self == other -->  0
     #   self > other  -->  1
+    @public
     def compare(self: BigInt, other: BigInt) -> int:
         self_sign_bit = self.data[sizeof(self.data) - 1] / 128
         other_sign_bit = other.data[sizeof(other.data) - 1] / 128
@@ -71,10 +75,12 @@ class BigInt:
         return 0
 
     # x == y
+    @public
     def equals(self: BigInt, other: BigInt) -> bool:
         return self.compare(other) == 0
 
     # x == 0
+    @public
     def is_zero(self: BigInt) -> bool:
         return self.compare(bigint(0)) == 0
 
@@ -82,10 +88,12 @@ class BigInt:
     #   positive --> 1
     #   zero     --> 0
     #   negative --> -1
+    @public
     def sign(self: BigInt) -> int:
         return self.compare(bigint(0))
 
     # |x|
+    @public
     def abs(self: BigInt) -> BigInt:
         if self.sign() < 0:
             return self.neg()
@@ -93,6 +101,7 @@ class BigInt:
             return self
 
     # x*y
+    @public
     def mul(self: BigInt, other: BigInt) -> BigInt:
         result_sign = self.sign() * other.sign()
         self = self.abs()
@@ -191,12 +200,14 @@ class BigInt:
         #                assert result[1].to_int64() == x % y
 
     # self / y
+    @public
     def div(self: BigInt, other: BigInt) -> BigInt:
         pair = self.divmod(other)
         return pair[0]
 
     # assert x % y == 0
     # x / y
+    @public
     def div_exact(self: BigInt, other: BigInt) -> BigInt:
         pair = self.divmod(other)
         assert pair[1].is_zero()

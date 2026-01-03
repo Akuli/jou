@@ -73,12 +73,15 @@ class Token:
             case TokenKind.Dedent:
                 printf("dedent (-4 spaces)\n")
 
+    @public
     def is_keyword(self, kw: byte*) -> bool:
         return self.kind == TokenKind.Keyword and strcmp(self.short_string, kw) == 0
 
+    @public
     def is_operator(self, op: byte*) -> bool:
         return self.kind == TokenKind.Operator and strcmp(self.short_string, op) == 0
 
+    @public
     def is_comparison(self) -> bool:
         return (
             self.is_operator("==")
@@ -89,12 +92,15 @@ class Token:
             or self.is_operator(">=")
         )
 
+    @public
     def is_open_paren(self) -> bool:
         return self.is_operator("(") or self.is_operator("[") or self.is_operator("{")
 
+    @public
     def is_close_paren(self) -> bool:
         return self.is_operator(")") or self.is_operator("]") or self.is_operator("}")
 
+    @public
     def fail_expected_got(self, what_was_expected_instead: byte*) -> noreturn:
         got: byte[100]
         match self.kind:

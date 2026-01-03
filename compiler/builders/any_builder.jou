@@ -39,6 +39,7 @@ class AnyBuilder:
     ubuilder: UBuilder*
     hbuilder: HBuilder*
 
+    @public
     def should_functions_marked_with_inline_be_inlined(self) -> bool:
         return (
             (self.lbuilder != NULL and self.lbuilder.should_functions_marked_with_inline_be_inlined())
@@ -46,6 +47,7 @@ class AnyBuilder:
             or (self.hbuilder != NULL and self.hbuilder.should_functions_marked_with_inline_be_inlined())
         )
 
+    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.begin_function(sig, public)
@@ -54,6 +56,7 @@ class AnyBuilder:
         if self.hbuilder != NULL:
             self.hbuilder.begin_function(sig, public)
 
+    @public
     def end_function(self) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.end_function()
@@ -62,6 +65,7 @@ class AnyBuilder:
         if self.hbuilder != NULL:
             self.hbuilder.end_function()
 
+    @public
     def begin_statement_in_a_body(self) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.begin_statement_in_a_body()
@@ -70,6 +74,7 @@ class AnyBuilder:
         if self.hbuilder != NULL:
             self.hbuilder.begin_statement_in_a_body()
 
+    @public
     def set_location(self, location: Location) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.set_location(location)
@@ -81,6 +86,7 @@ class AnyBuilder:
     # Allocates enough stack space in the function to hold a value of given type.
     # Returns a pointer to the stack space.
     # If allocated stack memory is not a local variable, varname must be NULL.
+    @public
     def stack_alloc(self, t: Type*, varname: byte*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -92,6 +98,7 @@ class AnyBuilder:
         return result
 
     # *ptr = value
+    @public
     def set_ptr(self, ptr: AnyBuilderValue, value: AnyBuilderValue) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.set_ptr(ptr.lvalue, value.lvalue)
@@ -101,6 +108,7 @@ class AnyBuilder:
             self.hbuilder.set_ptr(ptr.hvalue, value.hvalue)
 
     # *ptr
+    @public
     def dereference(self, ptr: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -112,6 +120,7 @@ class AnyBuilder:
         return result
 
     # Returns &ptr[index]
+    @public
     def indexed_pointer(self, ptr: AnyBuilderValue, index: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -123,6 +132,7 @@ class AnyBuilder:
         return result
 
     # Returns &ptr.field
+    @public
     def class_field_pointer(self, ptr: AnyBuilderValue, field_name: byte*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -135,6 +145,7 @@ class AnyBuilder:
 
     # Returns &global_variable. Type needs to be passed in because a new builder
     # unaware of global variables is created for each function.
+    @public
     def global_var_ptr(self, name: byte*, var_type: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -146,6 +157,7 @@ class AnyBuilder:
         return result
 
     # Returns a function as funcptr
+    @public
     def get_funcptr(self, sig: Signature*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -157,6 +169,7 @@ class AnyBuilder:
         return result
 
     # Returns the i'th argument given to function
+    @public
     def get_argument(self, i: int, argtype: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -168,6 +181,7 @@ class AnyBuilder:
         return result
 
     # Function call through a function pointer
+    @public
     def call_function(self, funcptr_type: Type*, func_ptr: AnyBuilderValue, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
         assert funcptr_type.kind == TypeKind.FuncPtr
         assert nargs >= funcptr_type.func_ptr.argtypes.len
@@ -196,6 +210,7 @@ class AnyBuilder:
         return result
 
     # self with the correct type must be included in args
+    @public
     def call_method(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
         result = AnyBuilderValue{}
 
@@ -219,6 +234,7 @@ class AnyBuilder:
 
         return result
 
+    @public
     def array_of_bytes(self, bytes: List[byte]) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -230,6 +246,7 @@ class AnyBuilder:
         return result
 
     # string as '\0' terminated pointer
+    @public
     def pointer_string(self, s: byte*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -240,6 +257,7 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.pointer_string(s)
         return result
 
+    @public
     def boolean(self, b: bool) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -250,6 +268,7 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.boolean(b)
         return result
 
+    @public
     def integer(self, t: Type*, value: int64) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -260,6 +279,7 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.integer(t, value)
         return result
 
+    @public
     def float_or_double(self, t: Type*, string: byte*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -270,6 +290,7 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.float_or_double(t, string)
         return result
 
+    @public
     def zero_of_type(self, t: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -280,6 +301,7 @@ class AnyBuilder:
             result.hvalue = self.hbuilder.zero_of_type(t)
         return result
 
+    @public
     def enum_member(self, t: Type*, name: byte*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -291,6 +313,7 @@ class AnyBuilder:
         return result
 
     # a + b
+    @public
     def add(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -302,6 +325,7 @@ class AnyBuilder:
         return result
 
     # a - b
+    @public
     def sub(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -313,6 +337,7 @@ class AnyBuilder:
         return result
 
     # a * b
+    @public
     def mul(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -324,6 +349,7 @@ class AnyBuilder:
         return result
 
     # a / b
+    @public
     def div(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -335,6 +361,7 @@ class AnyBuilder:
         return result
 
     # a % b
+    @public
     def mod(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -346,6 +373,7 @@ class AnyBuilder:
         return result
 
     # a & b
+    @public
     def bit_and(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -357,6 +385,7 @@ class AnyBuilder:
         return result
 
     # a | b
+    @public
     def bit_or(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -368,6 +397,7 @@ class AnyBuilder:
         return result
 
     # a ^ b
+    @public
     def bit_xor(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -379,6 +409,7 @@ class AnyBuilder:
         return result
 
     # a << b
+    @public
     def bit_shift_left(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -390,6 +421,7 @@ class AnyBuilder:
         return result
 
     # a >> b
+    @public
     def bit_shift_right(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -401,6 +433,7 @@ class AnyBuilder:
         return result
 
     # a == b
+    @public
     def eq(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -412,6 +445,7 @@ class AnyBuilder:
         return result
 
     # a < b
+    @public
     def lt(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -423,6 +457,7 @@ class AnyBuilder:
         return result
 
     # not value
+    @public
     def not_(self, value: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -434,6 +469,7 @@ class AnyBuilder:
         return result
 
     # ~value
+    @public
     def bit_not(self, value: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -445,6 +481,7 @@ class AnyBuilder:
         return result
 
     # sizeof(any value of given type)
+    @public
     def size_of(self, t: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -456,6 +493,7 @@ class AnyBuilder:
         return result
 
     # memset(ptr, 0, sizeof(*ptr))
+    @public
     def memset_to_zero(self, ptr: AnyBuilderValue) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.memset_to_zero(ptr.lvalue)
@@ -465,6 +503,7 @@ class AnyBuilder:
             self.hbuilder.memset_to_zero(ptr.hvalue)
 
     # value as to
+    @public
     def cast(self, value: AnyBuilderValue, to: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
@@ -476,6 +515,7 @@ class AnyBuilder:
         return result
 
     # Blocks are used to implement e.g. if statements and loops.
+    @public
     def add_block(self) -> AnyBuilderBlock:
         result = AnyBuilderBlock{}
         if self.lbuilder != NULL:
@@ -487,6 +527,7 @@ class AnyBuilder:
         return result
 
     # Decide which block will contain the resulting instructions.
+    @public
     def set_current_block(self, block: AnyBuilderBlock) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.set_current_block(block.lblock)
@@ -505,6 +546,7 @@ class AnyBuilder:
     # This terminates the current block and hence leaves the builder in a
     # "no current block" state, i.e. you must call set_current_block()
     # before the builder is usable again.
+    @public
     def branch(self, cond: AnyBuilderValue, then: AnyBuilderBlock, otherwise: AnyBuilderBlock) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.branch(cond.lvalue, then.lblock, otherwise.lblock)
@@ -520,6 +562,7 @@ class AnyBuilder:
     # This terminates the current block and hence leaves the builder in a
     # "no current block" state, i.e. you must call set_current_block()
     # before the builder is usable again.
+    @public
     def jump(self, next_block: AnyBuilderBlock) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.jump(next_block.lblock)
@@ -530,6 +573,7 @@ class AnyBuilder:
 
     # Add an instruction that should never run.
     # May be used by optimizer, but also tells LLVM that the block ends here.
+    @public
     def unreachable(self) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.unreachable()
@@ -539,6 +583,7 @@ class AnyBuilder:
             self.hbuilder.unreachable()
 
     # Return from function/method. Value should be NULL if the function is '-> None'.
+    @public
     def ret(self, value: AnyBuilderValue*) -> None:
         if self.lbuilder != NULL:
             if value == NULL:

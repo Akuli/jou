@@ -83,21 +83,26 @@ class HBuilder:
     hash: Hash
     id_counter: int64
 
+    @public
     def should_functions_marked_with_inline_be_inlined(self) -> bool:
         return True  # same as LLVM builder
 
+    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.hash.add_string("begin func")
         hash_signature(&self.hash, sig)
         self.hash.add_bool(public)
 
+    @public
     def end_function(self) -> None:
         pass
 
+    @public
     def begin_statement_in_a_body(self) -> None:
         pass
 
     # TODO: If in the future, location is used for debug info, we should do something with it.
+    @public
     def set_location(self, location: Location) -> None:
         pass
 
@@ -112,6 +117,7 @@ class HBuilder:
             hash_type(&self.hash, t)
         return HBuilderValue{type = t, id = id}
 
+    @public
     def stack_alloc(self, t: Type*, varname: byte*) -> HBuilderValue:
         # Do nothing with varname, so that renaming a local variable doesn't cause a rebuild
         # TODO: Will need to be different if debug info is enabled
@@ -120,12 +126,14 @@ class HBuilder:
         return self.new_value(t.pointer_type())
 
     # *ptr = value
+    @public
     def set_ptr(self, ptr: HBuilderValue, value: HBuilderValue) -> None:
         self.hash.add_string("set_ptr")
         self.hash.add_int64(ptr.id)
         self.hash.add_int64(value.id)
 
     # *ptr
+    @public
     def dereference(self, ptr: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("deref")
         self.hash.add_int64(ptr.id)
@@ -133,6 +141,7 @@ class HBuilder:
         return self.new_value(ptr.type.value_type)
 
     # Returns &ptr[index]
+    @public
     def indexed_pointer(self, ptr: HBuilderValue, index: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("indexed_pointer")
         self.hash.add_int64(ptr.id)
@@ -141,6 +150,7 @@ class HBuilder:
         return self.new_value(ptr.type)
 
     # Returns &ptr.field
+    @public
     def class_field_pointer(self, ptr: HBuilderValue, field_name: byte*) -> HBuilderValue:
         # Do not hash field name, renaming fields should not cause recompiling
         assert ptr.type.kind == TypeKind.Pointer
@@ -155,23 +165,27 @@ class HBuilder:
         return self.new_value(field.type.pointer_type())
 
     # &global_variable
+    @public
     def global_var_ptr(self, name: byte*, var_type: Type*) -> HBuilderValue:
         self.hash.add_string("global_var_ptr")
         self.hash.add_string(name)
         return self.new_value(var_type.pointer_type())
 
     # some_function
+    @public
     def get_funcptr(self, signature: Signature*) -> HBuilderValue:
         self.hash.add_string("funcptr")
         self.hash.add_string(signature.name)
         return self.new_value(signature.to_funcptr_type())
 
     # i'th argument given to this function
+    @public
     def get_argument(self, i: int, argtype: Type*) -> HBuilderValue:
         self.hash.add_string("arg")
         self.hash.add_int(i)
         return self.new_value(argtype)
 
+    @public
     def call_function(self, funcptr_type: Type*, func: HBuilderValue, args: HBuilderValue*, nargs: int) -> HBuilderValue:
         self.hash.add_string("call_func")
         self.hash.add_int64(func.id)
@@ -184,6 +198,7 @@ class HBuilder:
         else:
             return HBuilderValue{id = -1}
 
+    @public
     def call_method(self, sig: Signature*, args: HBuilderValue*, nargs: int) -> HBuilderValue:
         hash_signature(&self.hash, sig)
         for p = args; p < &args[nargs]; p++:
@@ -195,6 +210,7 @@ class HBuilder:
             return HBuilderValue{id = -1}
 
     # string as array of bytes
+    @public
     def array_of_bytes(self, bytes: List[byte]) -> HBuilderValue:
         self.hash.add_string("array_of_bytes")
         assert bytes.len <= INT32_MAX
@@ -203,30 +219,36 @@ class HBuilder:
         return self.new_value(uint_type(8).array_type(bytes.len as int))
 
     # string as '\0' terminated pointer
+    @public
     def pointer_string(self, s: byte*) -> HBuilderValue:
         self.hash.add_string("pointer_string")
         self.hash.add_string(s)
         return self.new_value(uint_type(8).pointer_type())
 
+    @public
     def boolean(self, b: bool) -> HBuilderValue:
         self.hash.add_string("bool")
         self.hash.add_bool(b)
         return self.new_value(bool_type())
 
+    @public
     def integer(self, t: Type*, value: int64) -> HBuilderValue:
         self.hash.add_string("integer")
         self.hash.add_int64(value)
         return self.new_value(t)
 
+    @public
     def float_or_double(self, t: Type*, string: byte*) -> HBuilderValue:
         self.hash.add_string("float_or_double")
         self.hash.add_string(string)
         return self.new_value(t)
 
+    @public
     def zero_of_type(self, t: Type*) -> HBuilderValue:
         self.hash.add_string("zero")
         return self.new_value(t)
 
+    @public
     def enum_member(self, t: Type*, name: byte*) -> HBuilderValue:
         self.hash.add_string("enum")
         int_value = t.find_enum_member(name)
@@ -235,6 +257,7 @@ class HBuilder:
         return self.new_value(t)
 
     # a + b
+    @public
     def add(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("add")
         self.hash.add_int64(a.id)
@@ -243,6 +266,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a - b
+    @public
     def sub(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("sub")
         self.hash.add_int64(a.id)
@@ -251,6 +275,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a * b
+    @public
     def mul(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("mul")
         self.hash.add_int64(a.id)
@@ -259,6 +284,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a / b
+    @public
     def div(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("div")
         self.hash.add_int64(a.id)
@@ -267,6 +293,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a % b
+    @public
     def mod(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("mod")
         self.hash.add_int64(a.id)
@@ -275,6 +302,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a & b
+    @public
     def bit_and(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("and")
         self.hash.add_int64(a.id)
@@ -283,6 +311,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a | b
+    @public
     def bit_or(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("or")
         self.hash.add_int64(a.id)
@@ -291,6 +320,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a ^ b
+    @public
     def bit_xor(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("xor")
         self.hash.add_int64(a.id)
@@ -299,6 +329,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a << b
+    @public
     def bit_shift_left(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("shl")
         self.hash.add_int64(a.id)
@@ -307,6 +338,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a >> b
+    @public
     def bit_shift_right(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("shr")
         self.hash.add_int64(a.id)
@@ -315,6 +347,7 @@ class HBuilder:
         return self.new_value(a.type)
 
     # a == b
+    @public
     def eq(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("eq")
         self.hash.add_int64(a.id)
@@ -322,6 +355,7 @@ class HBuilder:
         return self.new_value(bool_type())
 
     # a < b
+    @public
     def lt(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("lt")
         self.hash.add_int64(a.id)
@@ -329,34 +363,40 @@ class HBuilder:
         return self.new_value(bool_type())
 
     # not value
+    @public
     def not_(self, value: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("not")
         self.hash.add_int64(value.id)
         return self.new_value(bool_type())
 
     # ~value
+    @public
     def bit_not(self, value: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("bitnot")
         self.hash.add_int64(value.id)
         return self.new_value(value.type)
 
     # sizeof(any value of given type)
+    @public
     def size_of(self, t: Type*) -> HBuilderValue:
         self.hash.add_string("sizeof")
         hash_type(&self.hash, t)
         return self.new_value(int_type(32))
 
     # memset(ptr, 0, sizeof(*ptr))
+    @public
     def memset_to_zero(self, ptr: HBuilderValue) -> None:
         self.hash.add_string("memset0")
         self.hash.add_int64(ptr.id)
 
     # value as to
+    @public
     def cast(self, value: HBuilderValue, to: Type*) -> HBuilderValue:
         self.hash.add_string("cast")
         self.hash.add_int64(value.id)
         return self.new_value(to)
 
+    @public
     def add_block(self) -> int64:
         self.hash.add_string("add block")
         block_id = self.id_counter++
@@ -364,23 +404,28 @@ class HBuilder:
         return block_id
 
     # Decide which block will contain the resulting instructions.
+    @public
     def set_current_block(self, block_id: int64) -> None:
         self.hash.add_string("set block")
         self.hash.add_int64(block_id)
 
+    @public
     def branch(self, cond: HBuilderValue, then_block_id: int64, otherwise_block_id: int64) -> None:
         self.hash.add_string("br")
         self.hash.add_int64(cond.id)
         self.hash.add_int64(then_block_id)
         self.hash.add_int64(otherwise_block_id)
 
+    @public
     def jump(self, next_block_id: int64) -> None:
         self.hash.add_string("jump")
         self.hash.add_int64(next_block_id)
 
+    @public
     def unreachable(self) -> None:
         self.hash.add_string("unreachable")
 
+    @public
     def ret(self, value: HBuilderValue*) -> None:
         if value == NULL:
             self.hash.add_string("ret null")
