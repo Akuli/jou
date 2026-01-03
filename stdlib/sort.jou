@@ -24,6 +24,7 @@ declare qsort(
 #   positive    if first > second
 @public
 class Sorter[T]:
+    @public
     @inline
     def sort(self: Sorter[T], ptr: T*, len: intnative, comparator: funcptr(T*, T*) -> int) -> None:
         qsort(ptr, len, sizeof(ptr[0]), comparator as funcptr(void*, void*) -> int)

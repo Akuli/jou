@@ -225,12 +225,19 @@ function should_skip()
         return 0
     fi
 
-    # If liblzma is not installed in a pkg-config compatible way, skip tests that use it
-    if [[ $joufile =~ link_with_liblzma ]]; then
-        if ! (pkg-config --exists liblzma 2>/dev/null); then
+    # If liblzma is not readily available, skip tests that use it.
+    if [[ $joufile =~ link_with_liblzma_dynamic ]]; then
+        if ! (pkg-config --exists liblzma 2>/dev/null || compgen -G /usr/lib/liblzma.so* >/dev/null); then
             return 0
         fi
-        if [[ $joufile =~ (relative|system)_path && ! -e "$(pkg-config --variable=libdir liblzma)/liblzma.a" ]]; then
+    fi
+    if [[ $joufile =~ link_with_liblzma_relative_path ]]; then
+        if ! [[ -e "$(pkg-config --variable=libdir liblzma 2>/dev/null)/liblzma.a" || -e /usr/lib/liblzma.a ]]; then
+            return 0
+        fi
+    fi
+    if [[ $joufile =~ link_with_liblzma_system_path ]]; then
+        if ! [[ -e "$(pkg-config --variable=libdir liblzma 2>/dev/null)/liblzma.a" ]]; then
             return 0
         fi
     fi
@@ -269,7 +276,7 @@ function run_test()
 
     if [[ $joufile =~ link_with_liblzma_relative_path ]]; then
         # This test passes a relative path to the "link" keyword and expects to find liblzma.a with it
-        command="cp '$(pkg-config --variable=libdir liblzma)/liblzma.a' tmp/tests/ && $command"
+        command="cp '$(pkg-config --variable=libdir liblzma 2>/dev/null || echo /usr/lib)/liblzma.a' tmp/tests/ && $command"
     fi
 
     show_run "$command"

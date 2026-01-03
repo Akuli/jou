@@ -26,7 +26,10 @@ import "./types.jou"
 
 def defines_main(jou_file: JouFile*) -> bool:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        if stmt.kind == AstStatementKind.FunctionDef and stmt.symbol().signature.is_main_function():
+        if (
+            stmt.kind == AstStatementKind.FunctionDef
+            and strcmp(stmt.symbol().signature.name, "main") == 0
+        ):
             return True
     return False
 
@@ -38,16 +41,25 @@ def warn_about_unused(jou_file: JouFile*) -> None:
         if stmt.kind == AstStatementKind.Import and not stmt.import_statement.used:
             snprintf(msg, sizeof msg, "\"%s\" imported but not used", stmt.import_statement.specified_path)
             show_warning(stmt.location, msg)
-            continue
 
-        if (
-            stmt.kind == AstStatementKind.FunctionDef
-            and stmt.function.symbol.signature.is_main_function()
-        ):
-            continue
+    for sym_stmt = jou_file.symbol_statements.ptr; sym_stmt < jou_file.symbol_statements.end(); sym_stmt++:
+        stmt = *sym_stmt
 
         symbol = stmt.symbol()
-        if symbol == NULL or symbol.public or symbol.used:
+        if symbol.public or symbol.used:
+            continue
+
+        # Do not show a warning if a private main function is unused.
+        #
+        # You are probably wondering: what the heck is a private main function?
+        #
+        # If an imported file has a main() function, it becomes private.
+        #
+        # This is useful in large Jou projects. For example, utils/json.jou
+        # might have public functions for working with JSON, and some example
+        # code in a main() function. That main() is usually private, but if you
+        # run "jou utils/json.jou", then it becomes public and runs.
+        if stmt.kind == AstStatementKind.FunctionDef and strcmp(symbol.name, "main") == 0:
             continue
 
         match stmt.kind:
@@ -77,43 +89,94 @@ def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
             seen_other = True
 
 
-def check_class_fields_before_methods(body: List[AstStatement]) -> None:
+# Used for error messages of repeated members
+class ClassMemberDupInfo:
+    member_name: byte*
+    description: byte*  # e.g. "a field", "a union member"
+
+
+def check_if_class_member_is_duplicate(
+    class_name: byte*,
+    seen: List[ClassMemberDupInfo]*,
+    member_name: byte*,
+    description: byte*,
+    location: Location,
+) -> None:
+    msg: byte[500]
+
+    for info = seen.ptr; info < seen.end(); info++:
+        if strcmp(info.member_name, member_name) == 0:
+            snprintf(msg, sizeof(msg), "class %s already has %s named '%s'", class_name, info.description, member_name)
+            fail(location, msg)
+
+    seen.append(ClassMemberDupInfo{member_name = member_name, description = description})
+
+
+# This must be done after evaluating compile-time if statements, but before we
+# check for duplicate global symbols, so that a duplicate method gets its error
+# message from here.
+def check_class_for_duplicate_members(classdef: AstClassDef*) -> None:
+    class_name = classdef.symbol.name
+    seen = List[ClassMemberDupInfo]{}
+
+    for stmt = classdef.body.ptr; stmt < classdef.body.end(); stmt++:
+        match stmt.kind:
+            case AstStatementKind.ClassField:
+                check_if_class_member_is_duplicate(class_name, &seen, stmt.class_field.name, "a field", stmt.location)
+            case AstStatementKind.ClassUnion:
+                for ntv = stmt.union_fields.ptr; ntv < stmt.union_fields.end(); ntv++:
+                    check_if_class_member_is_duplicate(class_name, &seen, ntv.name, "a union member", ntv.name_location)
+            case AstStatementKind.Pass:
+                pass
+            case AstStatementKind.MethodDef:
+                check_if_class_member_is_duplicate(class_name, &seen, stmt.method.ast_signature.name, "a method", stmt.method.ast_signature.name_location)
+            case _:
+                assert False
+
+    free(seen.ptr)
+
+
+def check_class_fields_are_before_methods(classdef: AstClassDef*) -> None:
+    seen_other = False
+    for p = classdef.body.ptr; p < classdef.body.end(); p++:
+        if p.kind == AstStatementKind.ClassField or p.kind == AstStatementKind.ClassUnion:
+            if seen_other:
+                fail(p.location, "class fields must be defined before methods")
+        else:
+            seen_other = True
+
+
+# This must be done after evaluating compile-time if statements, because a
+# class body can contain if statements but this asserts that there aren't any.
+def check_classes(body: List[AstStatement]) -> None:
     for stmt = body.ptr; stmt < body.end(); stmt++:
         if stmt.kind == AstStatementKind.Class:
-            seen_other = False
-            for p = stmt.classdef.body.ptr; p < stmt.classdef.body.end(); p++:
-                if p.kind == AstStatementKind.ClassField or p.kind == AstStatementKind.ClassUnion:
-                    if seen_other:
-                        fail(p.location, "class fields must be defined before methods")
-                else:
-                    seen_other = True
+            check_class_fields_are_before_methods(&stmt.classdef)
+            check_class_for_duplicate_members(&stmt.classdef)
 
 
-def check_duplicate_defining(body: List[AstStatement]) -> None:
+# TODO: test what this does for methods
+def check_duplicate_defining(symbol_statements: List[AstStatement*]) -> None:
     msg: byte[300]
 
-    for stmt1 = body.ptr; stmt1 < body.end(); stmt1++:
-        for stmt2 = &stmt1[1]; stmt2 < body.end(); stmt2++:
-            if (
-                stmt1.symbol() != NULL
-                and stmt2.symbol() != NULL
-                and strcmp(stmt1.symbol().name, stmt2.symbol().name) == 0
-            ):
+    for p1 = symbol_statements.ptr; p1 < symbol_statements.end(); p1++:
+        for p2 = &p1[1]; p2 < symbol_statements.end(); p2++:
+            if strcmp((*p1).symbol().name, (*p2).symbol().name) == 0:
                 snprintf(
                     msg,
                     sizeof(msg),
                     "a %s named '%s' already exists (defined on line %d)",
-                    stmt1.symbol().short_description(),
-                    stmt1.symbol().name,
-                    stmt1.location.lineno,
+                    (*p1).symbol().short_description(),
+                    (*p1).symbol().name,
+                    (*p1).location.lineno,
                 )
-                fail(stmt2.location, msg)
+                fail((*p2).location, msg)
 
     # Special-casing for the special constants, because they don't come from anything in AST
-    for stmt = body.ptr; stmt < body.end(); stmt++:
-        if stmt.symbol() != NULL and get_special_constant(stmt.symbol().name) != NULL:
-            snprintf(msg, sizeof(msg), "a special constant named '%s' already exists", stmt.symbol().name)
-            fail(stmt.location, msg)
+    for p = symbol_statements.ptr; p < symbol_statements.end(); p++:
+        if get_special_constant((*p).symbol().name) != NULL:
+            snprintf(msg, sizeof(msg), "a special constant named '%s' already exists", (*p).symbol().name)
+            fail((*p).location, msg)
 
 
 def find_file(path: byte*) -> JouFile*:
@@ -121,6 +184,22 @@ def find_file(path: byte*) -> JouFile*:
         if strcmp(p.path, path) == 0:
             return p
     return NULL
+
+
+# AST must not move to new memory location after this runs
+def collect_symbol_statements(ast: List[AstStatement]) -> List[AstStatement*]:
+    result = List[AstStatement*]{}
+
+    for stmt = ast.ptr; stmt < ast.end(); stmt++:
+        if stmt.symbol() != NULL:
+            result.append(stmt)
+        if stmt.kind == AstStatementKind.Class:
+            for member = stmt.classdef.body.ptr; member < stmt.classdef.body.end(); member++:
+                if member.kind == AstStatementKind.MethodDef:
+                    member.method.containing_class_def = stmt
+                    result.append(member)
+
+    return result
 
 
 def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
@@ -143,7 +222,7 @@ def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
 
     if global_compiler_state.args.verbosity >= 1:
         printf("Parsing %s\n", path)
-    jou_file.ast = parse(tokenize_result.tokens)
+    jou_file.ast = parse(tokenize_result.tokens, jou_file.is_main_file)
     tokenize_result.free()
 
     if global_compiler_state.args.verbosity >= 1:
@@ -156,8 +235,10 @@ def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
             p.print()
 
     check_imports_at_start_of_file(jou_file.ast)
-    check_class_fields_before_methods(jou_file.ast)
-    check_duplicate_defining(jou_file.ast)
+    check_classes(jou_file.ast)
+
+    jou_file.symbol_statements = collect_symbol_statements(jou_file.ast)
+    check_duplicate_defining(jou_file.symbol_statements)
 
     global_compiler_state.jou_files.append(jou_file)
 
@@ -203,8 +284,9 @@ def make_imported_statements_available() -> None:
                     fail(the_import.location, msg)
             seen_before.append(imported)
 
-            for imported_stmt = imported.ast.ptr; imported_stmt < imported.ast.end(); imported_stmt++:
-                if imported_stmt.symbol() == NULL or not imported_stmt.symbol().public:
+            for p = imported.symbol_statements.ptr; p < imported.symbol_statements.end(); p++:
+                imported_stmt = *p
+                if not imported_stmt.symbol().public:
                     continue
 
                 # Check if two imported files define something conflicting
@@ -227,10 +309,8 @@ def make_imported_statements_available() -> None:
                 })
 
         # Check if this file defines something that conflicts with an import
-        for stmt = importer.ast.ptr; stmt < importer.ast.end(); stmt++:
-            if stmt.symbol() == NULL:
-                continue
-
+        for p = importer.symbol_statements.ptr; p < importer.symbol_statements.end(); p++:
+            stmt = *p
             for old_imported = importer.available_symbols.ptr; old_imported < importer.available_symbols.end(); old_imported++:
                 assert old_imported.the_import != NULL  # non-imported symbols not added yet
                 if strcmp(old_imported.statement.symbol().name, stmt.symbol().name) == 0:
@@ -248,11 +328,10 @@ def make_imported_statements_available() -> None:
     # We have now listed all imported symbols that will be available.
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         # Add symbols defined in the file itself
-        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-            if stmt.symbol() != NULL:
-                jou_file.available_symbols.append(AvailableSymbol{statement = stmt})
+        for p = jou_file.symbol_statements.ptr; p < jou_file.symbol_statements.end(); p++:
+            jou_file.available_symbols.append(AvailableSymbol{statement = *p})
 
-        # We have now listed all imported that will be available. Set up hash
+        # We have now listed all symbols that will be available. Set up hash
         # table for quick access to them.
         create_global_symbol_lookup_hash_table(jou_file)
 
@@ -284,7 +363,7 @@ def tokenize_only() -> None:
 
 def parse_only() -> None:
     tokenize_result = tokenize(global_compiler_state.args.infile, NULL)
-    ast = parse(tokenize_result.tokens)
+    ast = parse(tokenize_result.tokens, True)
     printf("===== AST for file \"%s\" =====\n", global_compiler_state.args.infile)
     for p = ast.ptr; p < ast.end(); p++:
         p.print()

@@ -21,8 +21,8 @@ class ClassField:
 class ClassData:
     generic_params: List[Type*]   # this is the "int" part of List[int]
     fields: List[ClassField]
-    methods: List[Signature]
 
+    @public
     def is_generic(self) -> bool:
         return self.generic_params.len > 0
 
@@ -31,17 +31,6 @@ class ClassData:
         result.extend(self.fields)
         for f = result.ptr; f < result.end(); f++:
             f.type = f.type.substitute_generic_params(from, to, n)
-        return result
-
-    def substitute_generic_params_to_methods(self, from: Type**, to: Type**, n: int) -> List[Signature]:
-        result = List[Signature]{}
-        for sig1 = self.methods.ptr; sig1 < self.methods.end(); sig1++:
-            sig2 = sig1.copy()
-            for arg = sig2.args.ptr; arg < sig2.args.end(); arg++:
-                arg.type = arg.type.substitute_generic_params(from, to, n)
-            if sig2.return_type != NULL:
-                sig2.return_type = sig2.return_type.substitute_generic_params(from, to, n)
-            result.append(sig2)
         return result
 
 
@@ -57,6 +46,7 @@ class FuncPtrType:
     is_noreturn: bool
 
     # Return a string that is e.g. "byte*, byte*" for strcmp() or "byte*, ..." for printf().
+    @public
     def arguments_string(self) -> byte*:
         alloc_size: intnative = 10  # plenty for '\0' and the possible "..." at the end
         for i = 0; i < self.argtypes.len; i++:
@@ -107,12 +97,15 @@ class Type:
         typedef_actual_type: Type*  # TypeDef
         enum_members: List[byte[100]]
 
+    @public
     def is_integer_type(self) -> bool:
         return self.kind == TypeKind.SignedInteger or self.kind == TypeKind.UnsignedInteger
 
+    @public
     def is_number_type(self) -> bool:
         return self.is_integer_type() or self.kind == TypeKind.FloatingPoint
 
+    @public
     def min_value(self) -> int64:
         # See doc/types.md
         match self.kind:
@@ -133,6 +126,7 @@ class Type:
             case _:
                 assert False
 
+    @public
     def max_value(self) -> uint64:
         # See doc/types.md
         match self.kind:
@@ -163,6 +157,7 @@ class Type:
             case _:
                 assert False
 
+    @public
     def is_pointer_type(self) -> bool:
         match self.kind:
             case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
@@ -172,6 +167,7 @@ class Type:
 
     # Returns a type that represents pointer to the original type.
     # Result is cached. Don't worry about freeing it.
+    @public
     def pointer_type(self) -> Type*:
         info = cast_type_to_typeinfo(self)
         if info.pointer == NULL:
@@ -186,6 +182,7 @@ class Type:
 
     # Returns a type that represents array where items are the original type.
     # Result is cached. Don't worry about freeing it.
+    @public
     def array_type(self, count: int) -> Type*:
         info = cast_type_to_typeinfo(self)
 
@@ -210,6 +207,7 @@ class Type:
 
     # This method is used to create List[int] from a generic List[T].
     # The result is cached similarly to arrays.
+    @public
     def substitute_generic_params(self, from: Type**, to: Type**, n: int) -> Type*:
         if n == 0:
             return self
@@ -269,7 +267,6 @@ class Type:
                 # Recursively convert everything inside the class.
                 result.classdata.generic_params = generic_params
                 result.classdata.fields = self.classdata.substitute_generic_params_to_fields(from, to, n)
-                result.classdata.methods = self.classdata.substitute_generic_params_to_methods(from, to, n)
                 return result
 
             case TypeKind.Pointer:
@@ -306,12 +303,13 @@ class Type:
                 return self
 
     # Suppose we have a generic class Foo[T]. It may be referenced as Foo[int]
-    # before the fields and methods of Foo are populated. In that case, the
-    # Foo[int] class will continue to have no methods or fields.
+    # before the fields of Foo are populated. In that case, the Foo[int] class
+    # will continue to have no fields.
     #
-    # This method fixes that. If Foo[int] has been created, its fields and
-    # methods are recomputed from the fields and methods of Foo[T].
-    def update_fields_and_methods_to_generic_instances(self) -> None:
+    # This method fixes that. If Foo[int] has been created, its fields are
+    # recomputed from the fields of Foo[T].
+    @public
+    def update_fields_to_generic_instances(self) -> None:
         assert self.kind == TypeKind.Class
 
         from = self.classdata.generic_params.ptr
@@ -329,12 +327,7 @@ class Type:
                 free(t.classdata.fields.ptr)
                 t.classdata.fields = self.classdata.substitute_generic_params_to_fields(from, to, n)
 
-            if t.classdata.methods.len < self.classdata.methods.len:
-                for sig = t.classdata.methods.ptr; sig < t.classdata.methods.end(); sig++:
-                    sig.free()
-                free(t.classdata.methods.ptr)
-                t.classdata.methods = self.classdata.substitute_generic_params_to_methods(from, to, n)
-
+    @public
     def short_description(self) -> byte*:
         match self.kind:
             case TypeKind.Class:
@@ -352,6 +345,7 @@ class Type:
             case TypeKind.TypeVar:
                 return "an unknown type"
 
+    @public
     def find_class_field(self, name: byte*) -> ClassField*:
         if self.kind != TypeKind.Class:
             return NULL
@@ -361,15 +355,7 @@ class Type:
                 return f
         return NULL
 
-    def find_method(self, name: byte*) -> Signature*:
-        if self.kind != TypeKind.Class:
-            return NULL
-
-        for sig = self.classdata.methods.ptr; sig < self.classdata.methods.end(); sig++:
-            if strcmp(sig.name, name) == 0:
-                return sig
-        return NULL
-
+    @public
     def find_enum_member(self, name: byte*) -> int:
         if self.kind != TypeKind.Enum:
             return -1
@@ -422,6 +408,7 @@ class TypeState:
     funcptr_types: List[TypeInfo*]  # All funcptr types. TODO: use a hash table
     other_types: List[TypeInfo*]
 
+    @public
     def free(self) -> None:
         self.boolean.free_related_types()
         self.floater.free_related_types()
@@ -582,11 +569,8 @@ def free_type(t: Type*) -> None:
 
     match t.kind:
         case TypeKind.Class:
-            for sig = t.classdata.methods.ptr; sig < t.classdata.methods.end(); sig++:
-                sig.free()
             free(t.classdata.generic_params.ptr)
             free(t.classdata.fields.ptr)
-            free(t.classdata.methods.ptr)
         case TypeKind.Enum:
             free(t.enum_members.ptr)
         case TypeKind.FuncPtr:
@@ -683,9 +667,11 @@ class Signature:
     is_noreturn: bool
     ast_to_inline: AstFunctionOrMethod*  # NULL if not @inline function
 
+    @public
     def free(self) -> None:
         free(self.args.ptr)
 
+    @public
     def get_self_class(self) -> Type*:
         if self.args.len > 0 and strcmp(self.args.ptr[0].name, "self") == 0:
             type_of_self = self.args.ptr[0].type
@@ -698,16 +684,15 @@ class Signature:
                     assert False
         return NULL
 
-    def is_main_function(self) -> bool:
-        return self.get_self_class() == NULL and strcmp(self.name, "main") == 0
-
     # Useful for error messages, not much else.
+    @public
     def function_or_method(self) -> byte*:
         if self.get_self_class() == NULL:
             return "function"
         else:
             return "method"
 
+    @public
     def to_string(self, include_return_type: bool, include_self: bool) -> byte*:
         result = strdup(self.name)
         assert result != NULL
@@ -755,6 +740,7 @@ class Signature:
         return result
 
     # Turns "strcmp(s1: byte*, s2: byte*) -> int" into "funcptr(byte*, byte*) -> int"
+    @public
     def to_funcptr_type(self) -> Type*:
         assert self.args.len <= MAX_ARGS
         argtypes: Type*[MAX_ARGS]
@@ -762,8 +748,19 @@ class Signature:
             argtypes[i] = self.args.ptr[i].type
         return funcptr_type(argtypes, self.args.len, self.takes_varargs, self.return_type, self.is_noreturn)
 
+    @public
     def copy(self) -> Signature:
         result = *self
         result.args = List[NameAndType]{}
         result.args.extend(self.args)
         return result
+
+    # Used to turn append(self: List[T]*, item: T) into append(self: List[int]*, item: int)
+    # Modifies the signature in-place! Please copy first as needed.
+    @public
+    def substitute_generic_params(self, from: Type**, to: Type**, n: int) -> None:
+        for arg = self.args.ptr; arg < self.args.end(); arg++:
+            assert arg.type != NULL
+            arg.type = arg.type.substitute_generic_params(from, to, n)
+        if self.return_type != NULL:
+            self.return_type = self.return_type.substitute_generic_params(from, to, n)

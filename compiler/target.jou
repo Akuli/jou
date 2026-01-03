@@ -41,6 +41,7 @@ class ThreadLocalTarget:
     machine: LLVMTargetMachine*
     data: LLVMTargetData*
 
+    @public
     def free(self) -> None:
         LLVMDisposeTargetMachine(self.machine)
         LLVMDisposeTargetData(self.data)

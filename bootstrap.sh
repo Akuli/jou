@@ -19,6 +19,7 @@ set -e -o pipefail
 numbered_commits=(
     026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d  # <--- "./windows_setup.sh --small" starts from here! (release 2025-12-23-0400)
     027_8a54e3b7a39531ce89bd13974cd2ecaf3f38aa08  # <--- bootstrap_transpiler.py starts here!
+    028_3f878188ab2f5784514bb0c19057bee37c98bd60  # accept @public decorator on methods
 )
 
 # This should be an item of the above list according to what
@@ -74,9 +75,9 @@ function transpile_with_python_and_compile() {
     echo -n "Finding Python... "
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
         # Avoid the "python.exe" launcher that opens app store for installing python.
-        python=$( (command -v py python || true) | (grep -v Microsoft/WindowsApps || true) | head -1)
+        python=$(command -v py python | grep -v Microsoft/WindowsApps | head -1 || true)
     else
-        python=$( (command -v python3 python python3.{10..20} || true) | head -1)
+        python=$(command -v python3 python python3.{10..20} | head -1 || true)
     fi
     echo "$python"
 

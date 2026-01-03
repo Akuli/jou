@@ -4,9 +4,7 @@ import "stdlib/math.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
-
-if not WINDOWS:
-    import "stdlib/process.jou"
+import "stdlib/list.jou"
 
 
 class Graph:
@@ -20,8 +18,9 @@ class Graph:
         free(self.matrix)
         free(self.weights)
 
-    if not WINDOWS:
+    if False:
         def visualize_with_graphviz(self) -> None:
+            assert not WINDOWS
             f = fopen("/tmp/aoc25-graph.txt", "w")
             assert f != NULL
 

@@ -19,6 +19,7 @@ import "./types.jou"
 @public
 enum GlobalSymbolKind:
     Function
+    Method
     Type
     GenericClass  # similar to Type, contains something like List[T] where T is a type variable
     GlobalVar
@@ -33,7 +34,7 @@ enum GlobalSymbolStatus:
 
 @public
 class GlobalSymbol:
-    name: byte[100]
+    name: byte[200]  # can be "SomeClass.some_method", where class and method name are max 99 bytes
     kind: GlobalSymbolKind
     status: GlobalSymbolStatus
     public: bool  # Is it decorated with @public?
@@ -41,23 +42,27 @@ class GlobalSymbol:
 
     union:
         # These are zero initialized at first, populated during type checking.
-        signature: Signature  # GlobalSymbolKind.Function
+        signature: Signature  # GlobalSymbolKind.Function, GlobalSymbolKind.Method
         type: Type*  # GlobalSymbolKind.Type, GlobalSymbolKind.GlobalVar, GlobalSymbolKind.GenericClass
         constant: Constant  # GlobalSymbolKind.Const
 
+    @public
     def free(self) -> None:
         match self.kind:
-            case GlobalSymbolKind.Function:
+            case GlobalSymbolKind.Function | GlobalSymbolKind.Method:
                 self.signature.free()
             case GlobalSymbolKind.Const:
                 self.constant.free()
             case _:
                 pass
 
+    @public
     def short_description(self) -> byte*:
         match self.kind:
             case GlobalSymbolKind.Function:
                 return "function"
+            case GlobalSymbolKind.Method:
+                return "method"
             case GlobalSymbolKind.GlobalVar:
                 return "global variable"
             case GlobalSymbolKind.Type:

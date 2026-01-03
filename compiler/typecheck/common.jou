@@ -5,6 +5,7 @@ import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/list.jou"
 
 import "../ast.jou"
 import "../state.jou"
@@ -256,7 +257,7 @@ def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_clas
     else:
         sig.return_type = type_from_ast(jou_file, self_class, &astsig.return_type)
 
-    if sig.is_main_function():
+    if self_class == NULL and strcmp(sig.name, "main") == 0:
         if sig.return_type == NULL or sig.return_type != int_type(32):
             fail(astsig.return_type.location, "the main() function must return int")
         if (
