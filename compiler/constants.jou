@@ -53,6 +53,7 @@ class Constant:
         boolean: bool
         enum_member: EnumMemberConstant
 
+    @public
     def print(self) -> None:
         match self.kind:
             case ConstantKind.EnumMember:
@@ -91,6 +92,7 @@ class Constant:
                 print_string(self.pointer_string)
                 printf("\n")
 
+    @public
     def free(self) -> None:
         match self.kind:
             case ConstantKind.ArrayOfBytes:
@@ -100,6 +102,7 @@ class Constant:
             case _:
                 pass
 
+    @public
     def copy(self: Constant) -> Constant:
         match self.kind:
             case ConstantKind.ArrayOfBytes:
@@ -112,6 +115,7 @@ class Constant:
                 pass
         return self
 
+    @public
     def get_type(self) -> Type*:
         match self.kind:
             case ConstantKind.EnumMember:

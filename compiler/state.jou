@@ -81,6 +81,7 @@ class GlobalCompilerState:
     # This method exists only to make valgrind happy. It is called only when
     # the compiler is exiting and the operating system is about to free all
     # memory we used anyway.
+    @public
     def free(self) -> None:
         free(self.stdlib_path)
         for p = self.jou_files.ptr; p < self.jou_files.end(); p++:
@@ -103,6 +104,7 @@ class ThreadLocalCompilerState:
     llvm_context: LLVMContext*
 
     # If you don't call this, each thread leaks memory
+    @public
     def free(self) -> None:
         self.target.free()
         LLVMContextDispose(self.llvm_context)

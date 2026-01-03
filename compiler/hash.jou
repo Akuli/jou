@@ -22,27 +22,34 @@ class Hash:
     created_correctly: bool
 
     # Add data to hash
+    @public
     def add_byte(self, b: byte) -> None:
         assert self.created_correctly  # If this fails, use new_hash() function
         self.hash ^= b
         self.hash *= 0x100_0000_01b3
 
+    @public
     def add_bytes(self, data: byte*, len: int64) -> None:
         for i: int64 = 0; i < len; i++:
             self.add_byte(data[i])
 
+    @public
     def add_bool(self, b: bool) -> None:
         self.add_byte(b as byte)
 
+    @public
     def add_int(self, i: int) -> None:
         self.add_bytes(&i as byte*, sizeof(i))
 
+    @public
     def add_int64(self, i: int64) -> None:
         self.add_bytes(&i as byte*, sizeof(i))
 
+    @public
     def add_uint64(self, i: uint64) -> None:
         self.add_bytes(&i as byte*, sizeof(i))
 
+    @public
     def add_string(self, s: byte*) -> None:
         len = strlen(s)
         self.add_int64(len)

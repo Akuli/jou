@@ -27,21 +27,25 @@ class UBuilder:
     current_block: UvgBlock*
     location: Location
 
+    @public
     def should_functions_marked_with_inline_be_inlined(self) -> bool:
         # Inlining can create two variables with the same name. This confuses UVGs.
         #
         # We also don't want to show warnings coming from inlined code.
         return False
 
+    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.uvg.signature = sig
         self.current_block = self.uvg.add_block()
 
+    @public
     def end_function(self) -> None:
         self.ret(NULL)
         self.current_block = NULL
         self.location = Location{}
 
+    @public
     def set_location(self, location: Location) -> None:
         self.location = location
 
@@ -56,6 +60,7 @@ class UBuilder:
         assert b != NULL
         b.instructions.append(ins)
 
+    @public
     def begin_statement_in_a_body(self) -> None:
         self.add_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})
 
@@ -71,121 +76,151 @@ class UBuilder:
         if var >= 0:
             self.add_instruction(UvgInstruction{kind = UvgInstructionKind.DontAnalyze, var = var})
 
+    @public
     def stack_alloc(self, t: Type*, varname: byte*) -> int:
         if varname != NULL:
             # Currently the UVG does not support multiple variables with the same name.
             assert not self.uvg.has_local_var(varname)
         return self.uvg.get_local_var_ptr(varname)
 
+    @public
     def set_ptr(self, ptr: int, value: int) -> None:
         self.dont_analyze(value)
         self.set(ptr)
 
+    @public
     def dereference(self, ptr: int) -> int:
         self.use(ptr)
         return ANONYMOUS_VALUE_ID
 
+    @public
     def indexed_pointer(self, ptr: int, index: int) -> int:
         self.dont_analyze(ptr)
         return ANONYMOUS_VALUE_ID
 
+    @public
     def class_field_pointer(self, ptr: int, field_name: byte*) -> int:
         self.dont_analyze(ptr)
         return ANONYMOUS_VALUE_ID
 
+    @public
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
+    @public
     def get_funcptr(self, signature: Signature*) -> int:
         return ANONYMOUS_VALUE_ID
 
+    @public
     def get_argument(self, i: int, argtype: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
+    @public
     def call_function(self, funcptr_type: Type*, func: int, args: int*, nargs: int) -> int:
         self.use(func)
         for i = 0; i < nargs; i++:
             self.dont_analyze(args[i])
         return ANONYMOUS_VALUE_ID
 
+    @public
     def call_method(self, sig: Signature*, args: int*, nargs: int) -> int:
         for i = 0; i < nargs; i++:
             self.dont_analyze(args[i])
         return ANONYMOUS_VALUE_ID
 
+    @public
     def array_of_bytes(self, bytes: List[byte]) -> int:
         return ANONYMOUS_VALUE_ID
 
+    @public
     def pointer_string(self, s: byte*) -> int:
         return ANONYMOUS_VALUE_ID
 
+    @public
     def boolean(self, b: bool) -> int:
         if b:
             return TRUE_ID
         else:
             return FALSE_ID
 
+    @public
     def integer(self, t: Type*, value: int64) -> int:
         return ANONYMOUS_VALUE_ID
 
+    @public
     def float_or_double(self, t: Type*, string: byte*) -> int:
         return ANONYMOUS_VALUE_ID
 
+    @public
     def zero_of_type(self, t: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
+    @public
     def enum_member(self, t: Type*, name: byte*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a + b
+    @public
     def add(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a - b
+    @public
     def sub(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a * b
+    @public
     def mul(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a / b
+    @public
     def div(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a % b
+    @public
     def mod(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a & b
+    @public
     def bit_and(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a | b
+    @public
     def bit_or(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a ^ b
+    @public
     def bit_xor(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a << b
+    @public
     def bit_shift_left(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a >> b
+    @public
     def bit_shift_right(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a == b
+    @public
     def eq(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # a < b
+    @public
     def lt(self, a: int, b: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # not value
+    @public
     def not_(self, value: int) -> int:
         match value:
             case TRUE_ID:
@@ -196,18 +231,22 @@ class UBuilder:
                 return ANONYMOUS_VALUE_ID
 
     # ~value
+    @public
     def bit_not(self, value: int) -> int:
         return ANONYMOUS_VALUE_ID
 
     # sizeof(any value of given type)
+    @public
     def size_of(self, t: Type*) -> int:
         return ANONYMOUS_VALUE_ID
 
     # memset(ptr, 0, sizeof(*ptr))
+    @public
     def memset_to_zero(self, ptr: int) -> None:
         self.set(ptr)
 
     # value as to
+    @public
     def cast(self, value: int, to: Type*) -> int:
         if to.is_pointer_type():
             # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
@@ -222,13 +261,16 @@ class UBuilder:
             return ANONYMOUS_VALUE_ID
 
     # Blocks are used to implement e.g. if statements and loops.
+    @public
     def add_block(self) -> UvgBlock*:
         return self.uvg.add_block()
 
     # Decide which block will contain the resulting instructions.
+    @public
     def set_current_block(self, block: UvgBlock*) -> None:
         self.current_block = block
 
+    @public
     def branch(self, cond: int, then: UvgBlock*, otherwise: UvgBlock*) -> None:
         match cond:
             case TRUE_ID:
@@ -244,6 +286,7 @@ class UBuilder:
                 }
                 self.current_block = NULL
 
+    @public
     def jump(self, next_block: UvgBlock*) -> None:
         assert self.current_block != NULL
         assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
@@ -253,12 +296,14 @@ class UBuilder:
         }
         self.current_block = NULL
 
+    @public
     def unreachable(self) -> None:
         assert self.current_block != NULL
         assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
         self.current_block.terminator = UvgTerminator{kind = UvgTerminatorKind.Unreachable}
         self.current_block = NULL
 
+    @public
     def ret(self, value: int*) -> None:
         if value != NULL:
             self.set(self.uvg.get_local_var_ptr("return"))
