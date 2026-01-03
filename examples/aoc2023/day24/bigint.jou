@@ -18,6 +18,7 @@ def bigint(value: int64) -> BigInt:
 class BigInt:
     data: byte[48]  # little endian, last byte includes sign bit
 
+    @public
     def to_int64(self: BigInt) -> int64:
         # assume that value fits into int64
         # also assume little-endian

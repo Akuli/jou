@@ -10,13 +10,14 @@ class State:
     numbers: int*  # -1 terminated, not owned
     repeat_count: int64  # how many equal states does this object represent, not enough mem without this
 
-    def print(self) -> None:
-        printf("State{qs=\"%s\", nums=[", self.questional_string)
-        for i = 0; self.numbers[i] != -1; i++:
-            if i > 0:
-                printf(",")
-            printf("%d", self.numbers[i])
-        printf("], repeat=%lld}\n", self.repeat_count)
+    if False:
+        def print(self) -> None:
+            printf("State{qs=\"%s\", nums=[", self.questional_string)
+            for i = 0; self.numbers[i] != -1; i++:
+                if i > 0:
+                    printf(",")
+                printf("%d", self.numbers[i])
+            printf("], repeat=%lld}\n", self.repeat_count)
 
     def simplify(self) -> None:
         s = &self.questional_string[0]

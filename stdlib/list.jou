@@ -15,6 +15,7 @@ class List[T]:
 
     # Ensure that the list has room for at least the given number of elements.
     # Newly allocated space at the end of list will contain uninitialized/garbage values.
+    @public
     @inline
     def grow(self, n: intnative) -> None:
         if self.alloc >= n:
@@ -32,6 +33,7 @@ class List[T]:
         assert self.ptr != NULL  # If this fails, we ran out of memory
 
     # Add item to end of the list.
+    @public
     @inline
     def append(self, item: T) -> None:
         self.grow(self.len + 1)
@@ -39,6 +41,7 @@ class List[T]:
 
     # Append n items to the list, starting at the given pointer.
     # For example, with n=3, this appends ptr[0], ptr[1] and ptr[2].
+    @public
     @inline
     def extend_from_ptr(self, ptr: T*, n: intnative) -> None:
         self.grow(self.len + n)
@@ -46,12 +49,14 @@ class List[T]:
         self.len += n
 
     # Append all items in the given list.
+    @public
     @inline
     def extend(self, other: List[T]) -> None:
         self.extend_from_ptr(other.ptr, other.len)
 
     # Return a pointer just beyond the last element of the list.
     # Use list.end()[-1] to get the last element.
+    @public
     @inline
     def end(self) -> T*:
         return &self.ptr[self.len]
@@ -60,6 +65,7 @@ class List[T]:
     #
     # In reality, the item remains in the memory used by the list, and only the
     # length of the list changes.
+    @public
     @inline
     def pop(self) -> T:
         assert self.len > 0  # If this fails, you are trying to pop from an empty list

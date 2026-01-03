@@ -561,6 +561,7 @@ class AstEnumCount:
         self.enum_type_ast.print(True)
         printf("\n")
 
+    @public  # TODO: remove this, you will get warning saying that this is never used
     def free(self) -> None:
         self.enum_type_ast.free()
 
@@ -573,9 +574,15 @@ class AstCall:
     method_call_self: AstExpression*  # NULL for function calls, the foo of foo.bar() for method calls
     args: List[AstExpression]
 
-    # Populated in typecheck. NULL before typecheck runs. Not owned.
+    # Populated in typecheck. NULL before typecheck runs. Owned!
     #
     # For some calls, this remains NULL forever because argument names are not available.
+    #
+    # When this is not NULL, type variables (if any) have been substituted: this
+    # is append(self: List[int]*, item: int), not append(self: List[T]*, item: T).
+    #
+    # TODO: This is probably not the ideal place to store the result of
+    #       substituting away type variables in generic method calls.
     signature_if_known: Signature*
 
     # Useful for formatting error messages, but not much else.
@@ -618,6 +625,9 @@ class AstCall:
         if self.method_call_self != NULL:
             self.method_call_self.free()
             free(self.method_call_self)
+        if self.signature_if_known != NULL:
+            self.signature_if_known.free()
+            free(self.signature_if_known)
 
 
 # assert foo
@@ -922,13 +932,15 @@ class AstStatement:
                 | AstStatementKind.InPlaceBitXor
                 | AstStatementKind.InPlaceBitShiftLeft
                 | AstStatementKind.InPlaceBitShiftRight
-                | AstStatementKind.MethodDef
             ):
                 # These things can't e.g. be imported to other file, no global symbol here
                 return NULL
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 assert self.function.symbol.kind == GlobalSymbolKind.Function
                 return &self.function.symbol
+            case AstStatementKind.MethodDef:
+                assert self.method.symbol.kind == GlobalSymbolKind.Method
+                return &self.method.symbol
             case AstStatementKind.Class:
                 assert (
                     self.classdef.symbol.kind == GlobalSymbolKind.Type
@@ -1309,6 +1321,7 @@ class AstLink:
     def print(self) -> None:
         printf("link \"%s\" (resolves to \"%s\")\n", self.specified_flags, self.resolved_flags)
 
+    @public  # TODO: remove this, you will get warning saying that this is never used
     def free(self) -> None:
         free(self.specified_flags)
         free(self.resolved_flags)
@@ -1329,6 +1342,7 @@ class AstFunctionOrMethod:
     body: List[AstStatement]
     locals: List[LocalVariable]  # populated in typecheck, empty before typecheck
     inline: bool  # is it decorated with @inline
+    containing_class_def: AstStatement*  # only for methods, the class definition where it is
 
     @public
     def print(self) -> None:

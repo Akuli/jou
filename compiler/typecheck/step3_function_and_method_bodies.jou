@@ -664,20 +664,41 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
         fail(func_location, msg)
     assert self_class.kind == TypeKind.Class
 
-    call.signature_if_known = self_class.find_method(member_name)
-    if call.signature_if_known != NULL:
+    assert call.signature_if_known == NULL
+    sig = find_and_typecheck_method(state.jou_file, self_class, member_name)
+    if sig != NULL:
         # It is a method
         free(call.function)
         call.function = NULL
         call.method_call_self = obj
+        sig2 = sig.copy()
+        if self_class.classdata.is_generic():
+            from = sig.get_self_class().classdata.generic_params  # List[T] --> list containing T
+            to = self_class.classdata.generic_params
+            assert from.len == to.len
+            sig2.substitute_generic_params(from.ptr, to.ptr, from.len as int)
+        call.signature_if_known = malloc(sizeof(sig2))
+        assert call.signature_if_known != NULL
+        *call.signature_if_known = sig2
         return NULL
 
     field = self_class.find_class_field(member_name)
     if field == NULL:
-        snprintf(
-            msg, sizeof(msg),
-            "class %s does not have a method named '%s'", self_class.name, member_name)
-        fail(func_location, msg)
+        # TODO: better error messages!!!!!
+        big_msg: byte* = NULL
+        asprintf(
+            &big_msg,
+            "method '%s' not found in class %s. The problem is ONE of the following: 1) you didn't import the file that defines class %.*s, 2) the '%s' method is private, 3) there really is no such method in class %.*s. I know that this is a bad compiler error message, and I will later split this into 3 different error messages.",
+            member_name,
+            self_class.name,
+            strcspn(self_class.name, "[") as int,  # List[int] --> List
+            self_class.name,
+            member_name,
+            strcspn(self_class.name, "[") as int,  # List[int] --> List
+            self_class.name,
+        )
+        assert big_msg != NULL
+        fail(func_location, big_msg)
 
     # It is a function pointer call where the function is in a class field.
     # It looks like obj.field().
@@ -695,7 +716,7 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
         assert obj_type.value_type.kind == TypeKind.Class
         call.function.kind = AstExpressionKind.GetClassFieldPtr
 
-    t = typecheck_class_field(self_class, member_name, func_location).type
+    t = typecheck_class_field(state, self_class, member_name, func_location).type
     call.function.types.orig_type = t
     call.function.types.implicit_cast_type = t
     return t
@@ -730,7 +751,9 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
             # It is a basic function call like printf("hi\n").
             # Let's get the signature of the function so we can use it for error messages.
             assert call.function.get_func_ptr.signature != NULL
-            call.signature_if_known = call.function.get_func_ptr.signature
+            call.signature_if_known = malloc(sizeof(*call.signature_if_known))
+            assert call.signature_if_known != NULL
+            *call.signature_if_known = call.function.get_func_ptr.signature.copy()
 
     assert (
         funcptr_type != NULL and call.function != NULL and call.method_call_self == NULL
@@ -821,6 +844,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
 
 
 def typecheck_class_field(
+    state: State*,
     classtype: Type*,
     fieldname: byte*,
     location: Location,
@@ -832,7 +856,11 @@ def typecheck_class_field(
 
     msg: byte[500]
 
-    if classtype.find_method(fieldname) == NULL:
+    # TODO: When trying to treat an unavailable private method as a field, this
+    #       error message should say "is a method", not "has no field". One way
+    #       to fix this could be to pass in the Jou file where the class has
+    #       been defined.
+    if find_and_typecheck_method(state.jou_file, classtype, fieldname) == NULL:
         snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype.name, fieldname)
     else:
         snprintf(msg, sizeof(msg), "%s.%s() is a method, it can be called but it cannot be used in any other way", classtype.name, fieldname)
@@ -854,7 +882,7 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
 
     specified_fields = List[ClassField*]{}
     for f = inst.fields.ptr; f < inst.fields.end(); f++:
-        field = typecheck_class_field(t, f.name, f.value.location)
+        field = typecheck_class_field(state, t, f.name, f.value.location)
 
         snprintf(msg, sizeof msg,
             "value for field '%s' of class %s must be of type <to>, not <from>",
@@ -1140,10 +1168,10 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             temptype = typecheck_expression_not_void(state, expr.class_field.instance, NULL)
             if temptype.kind == TypeKind.Class:
                 expr.kind = AstExpressionKind.GetClassField
-                result = typecheck_class_field(temptype, expr.class_field.field_name, expr.location).type
+                result = typecheck_class_field(state, temptype, expr.class_field.field_name, expr.location).type
             elif temptype.kind == TypeKind.Pointer and temptype.value_type.kind == TypeKind.Class:
                 expr.kind = AstExpressionKind.GetClassFieldPtr
-                result = typecheck_class_field(temptype.value_type, expr.class_field.field_name, expr.location).type
+                result = typecheck_class_field(state, temptype.value_type, expr.class_field.field_name, expr.location).type
             else:
                 snprintf(
                     msg, sizeof(msg),

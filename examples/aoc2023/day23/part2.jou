@@ -6,9 +6,6 @@ import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "../grid.jou"
 
-if not WINDOWS:
-    import "stdlib/process.jou"
-
 
 def is_intersection(grid: Grid*, point: int[2]) -> bool:
     # Treat start and goal as intersections
@@ -89,8 +86,9 @@ class Graph:
         self.matrix[a][b] = weight
         self.matrix[b][a] = weight
 
-    if not WINDOWS:
+    if False:
         def visualize_with_graphviz(self) -> None:
+            assert not WINDOWS
             f = fopen("/tmp/aoc23-graph.txt", "w")
             assert f != NULL
 

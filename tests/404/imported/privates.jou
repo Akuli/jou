@@ -1,8 +1,15 @@
+import "stdlib/io.jou"
+
 def private_function() -> None:
     pass
 
 class PrivateClass:
     x: int
+
+@public
+class PublicClass:
+    def private_method(self) -> None:
+        puts("This should never run.")
 
 global globaah: int
 declare global decl_g: int
@@ -18,6 +25,8 @@ const PRIVATE_CONSTANT: int = 123
 def this_function_silences_warnings_about_unused_things() -> None:
     private_function()
     x = PrivateEnum.Foo
-    y: PrivateClass
+    y1: PrivateClass
+    y2 = PublicClass{}
+    y2.private_method()
     z = PRIVATE_CONSTANT
     globaah++

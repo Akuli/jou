@@ -198,10 +198,6 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
             case AstStatementKind.FunctionDeclare | AstStatementKind.FunctionDef:
                 if strcmp(stmt.function.ast_signature.name, "main") == 0:
                     fail(location, "the main() function cannot be @public")
-            case AstStatementKind.MethodDef:
-                # For now, decorating a method with @public does nothing.
-                # Methods will be private by default in the future.
-                return
             case _:
                 pass
 
@@ -288,6 +284,7 @@ class Parser:
     is_main_file: bool
     loop_vars: List[byte*]  # NULL means a loop that doesn't look like "for foo = bar; ..."
     what_are_we_parsing: WhatAreWeParsing
+    containing_class_name: byte[100]
 
     def check_top_level(self, what_is_it: byte*) -> None:
         if self.what_are_we_parsing != WhatAreWeParsing.TopLevel:
@@ -544,10 +541,12 @@ class Parser:
         self.eat_keyword("typedef", False, NULL)
         name = self.eat_by_kind(TokenKind.Name, True, "the name for a type").short_string
         self.eat_operator("=", True, "'=' between name and type")
-        return AstTypeDef{
-            symbol = GlobalSymbol{name = name, kind = GlobalSymbolKind.Type},
-            ast_type = self.parse_type(),
-        }
+
+        symbol = GlobalSymbol{kind = GlobalSymbolKind.Type}
+        assert array_count(symbol.name) >= array_count(name)
+        strcpy(symbol.name, name)
+
+        return AstTypeDef{symbol = symbol, ast_type = self.parse_type()}
 
     def parse_name_type_value(self, expected_what_for_name: byte*) -> AstNameTypeValue:
         name = self.eat_by_kind(TokenKind.Name, True, expected_what_for_name)
@@ -1074,11 +1073,10 @@ class Parser:
             if ntv.value == NULL:
                 fail(location, "constants must have an initial value")
             result.kind = AstStatementKind.Const
-            result.const_statement = AstConstStatement{
-                symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.Const},
-                type = ntv.type,
-                value = *ntv.value,
-            }
+            symbol = GlobalSymbol{kind = GlobalSymbolKind.Const}
+            assert array_count(symbol.name) >= array_count(ntv.name)
+            strcpy(symbol.name, ntv.name)
+            result.const_statement = AstConstStatement{symbol = symbol, type = ntv.type, value = *ntv.value}
             free(ntv.value)
         elif self.tokens.is_keyword("typedef"):
             self.check_top_level("typedef statement")
@@ -1341,23 +1339,23 @@ class Parser:
                         ntv.value.location,
                         "a value cannot be given when declaring a global variable",
                     )
+                symbol = GlobalSymbol{kind = GlobalSymbolKind.GlobalVar}
+                assert array_count(symbol.name) >= array_count(ntv.name)
+                strcpy(symbol.name, ntv.name)
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.GlobalVariableDeclare,
-                    global_var_declare = AstGlobalVarDeclare{
-                        symbol = GlobalSymbol{name = ntv.name, kind = GlobalSymbolKind.GlobalVar},
-                        type = ntv.type,
-                    },
+                    global_var_declare = AstGlobalVarDeclare{symbol = symbol, type = ntv.type},
                 }
             else:
                 astsig = self.parse_function_or_method_signature(False)
+                symbol = GlobalSymbol{kind = GlobalSymbolKind.Function}
+                assert array_count(symbol.name) >= array_count(astsig.name)
+                strcpy(symbol.name, astsig.name)
                 result = AstStatement{
                     location = location,
                     kind = AstStatementKind.FunctionDeclare,
-                    function = AstFunctionOrMethod{
-                        symbol = GlobalSymbol{name = astsig.name, kind = GlobalSymbolKind.Function},
-                        ast_signature = astsig,
-                    },
+                    function = AstFunctionOrMethod{symbol = symbol, ast_signature = astsig},
                 }
             self.eat_newline()
         elif self.tokens.is_keyword("global"):
@@ -1399,14 +1397,14 @@ class Parser:
                 assert value != NULL
                 *value = self.parse_expression()
 
+            symbol = GlobalSymbol{kind = GlobalSymbolKind.GlobalVar}
+            assert array_count(symbol.name) >= array_count(varname)
+            strcpy(symbol.name, varname)
+
             result = AstStatement{
                 location = location,
                 kind = AstStatementKind.GlobalVariableDef,
-                global_var_def = AstGlobalVarDef{
-                    symbol = GlobalSymbol{name = varname, kind = GlobalSymbolKind.GlobalVar},
-                    type = type,
-                    initial_value = value,
-                },
+                global_var_def = AstGlobalVarDef{symbol = symbol, type = type, initial_value = value},
             }
             self.eat_newline()
         elif self.tokens.is_keyword("class"):
@@ -1504,10 +1502,17 @@ class Parser:
         body = self.parse_body()
         self.what_are_we_parsing = old
 
-        symbol = GlobalSymbol{name = signature.name, kind = GlobalSymbolKind.Function}
-        if strcmp(symbol.name, "main") == 0 and self.is_main_file:
-            # Implicitly public main function
-            symbol.public = True
+        symbol = GlobalSymbol{kind = GlobalSymbolKind.Method if is_method else GlobalSymbolKind.Function}
+        if is_method:
+            assert self.containing_class_name[0] != '\0'
+            # Name the symbol e.g. "List.append"
+            snprintf(symbol.name, sizeof(symbol.name), "%s.%s", self.containing_class_name, signature.name)
+        else:
+            assert array_count(symbol.name) >= array_count(signature.name)
+            strcpy(symbol.name, signature.name)
+            if self.is_main_file and strcmp(symbol.name, "main") == 0:
+                # Implicitly public main function
+                symbol.public = True
 
         return AstFunctionOrMethod{symbol = symbol, ast_signature = signature, body = body}
 
@@ -1534,19 +1539,21 @@ class Parser:
                 snprintf(msg, sizeof(msg), "at least one generic type parameter is needed, e.g. 'class %s[T]:'", name, name)
                 fail(close_bracket.location, msg)
 
-        old = self.what_are_we_parsing
+        assert self.containing_class_name[0] == '\0'
+        self.containing_class_name = name
+        old_what_are_we_parsing = self.what_are_we_parsing
         self.what_are_we_parsing = WhatAreWeParsing.ClassBody
-        body = self.parse_body()
-        self.what_are_we_parsing = old
 
-        return AstClassDef{
-            symbol = GlobalSymbol{
-                name = name,
-                kind = (GlobalSymbolKind.GenericClass if generics.len > 0 else GlobalSymbolKind.Type),
-            },
-            generic_typevar_names = generics,
-            body = body,
-        }
+        body = self.parse_body()
+
+        self.what_are_we_parsing = old_what_are_we_parsing
+        self.containing_class_name = ""
+
+        symbol = GlobalSymbol{kind = (GlobalSymbolKind.GenericClass if generics.len > 0 else GlobalSymbolKind.Type)}
+        assert array_count(symbol.name) >= array_count(name)
+        strcpy(symbol.name, name)
+
+        return AstClassDef{symbol = symbol, generic_typevar_names = generics, body = body}
 
     def parse_union(self) -> List[AstNameTypeValue]:
         union_keyword = self.eat_keyword("union", False, NULL)
@@ -1574,10 +1581,12 @@ class Parser:
         self.tokens++
 
         enum_name = self.eat_by_kind(TokenKind.Name, True, "a name for the enum")
-        result = AstEnumDef{
-            symbol = GlobalSymbol{name = enum_name.short_string, kind = GlobalSymbolKind.Type},
-            name_location = enum_name.location,
-        }
+
+        symbol = GlobalSymbol{kind = GlobalSymbolKind.Type}
+        assert array_count(symbol.name) >= array_count(enum_name.short_string)
+        strcpy(symbol.name, enum_name.short_string)
+
+        result = AstEnumDef{symbol = symbol, name_location = enum_name.location}
 
         self.parse_start_of_body()
         while self.tokens.kind != TokenKind.Dedent:

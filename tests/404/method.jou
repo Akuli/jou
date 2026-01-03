@@ -1,0 +1,6 @@
+class Foo:
+    x: int
+
+def main() -> int:
+    f = Foo{x=1}
+    f.bar()  # Error: method 'bar' not found in class Foo. The problem is ONE of the following: 1) you didn't import the file that defines class Foo, 2) the 'bar' method is private, 3) there really is no such method in class Foo. I know that this is a bad compiler error message, and I will later split this into 3 different error messages.
