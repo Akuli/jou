@@ -34,7 +34,7 @@ enum GlobalSymbolStatus:
 
 @public
 class GlobalSymbol:
-    name: byte[100]
+    name: byte[200]  # can be "SomeClass.some_method", where class and method name are max 99 bytes
     kind: GlobalSymbolKind
     status: GlobalSymbolStatus
     public: bool  # Is it decorated with @public?
