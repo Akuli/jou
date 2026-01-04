@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - name: "Install apt packages"
         run: |
-          PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind"
+          PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev"
           sudo apt install -y $PACKAGES || (sudo apt update && sudo apt install -y $PACKAGES)
       - run: LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }} make
       - name: "Test compiler with valgrind"
