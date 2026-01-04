@@ -43,13 +43,14 @@ config.jou: Makefile.posix
 	echo '' >> config.jou
 	echo '@public' >> config.jou
 	echo 'const LLVM_HAS_X86: bool = $(shell $(LLVM_CONFIG) --targets-built | grep -q X86 && echo True || echo False)' >> config.jou
+# LLVM seems to be misconfigured on Raspberry Pi OS so that it compiles to ARMv7 by default even if the CPU is ARMv6 (e.g. RasPi 1).
 	echo '' >> config.jou
 	echo '@public' >> config.jou
-	echo 'const JOU_TARGET: byte* = ""' >> config.jou
+	echo 'const JOU_TARGET: byte* = "$(shell $(LLVM_CONFIG) --host-target | { { uname -mp | grep -q armv6; } && sed -e "s/^arm-/armv6-/"; })"' >> config.jou
 
 
 jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou
-	env LLVM_CONFIG=$(LLVM_CONFIG) CFLAGS=$(CFLAGS) ./bootstrap.sh
+	env LLVM_CONFIG=$(LLVM_CONFIG) ./bootstrap.sh
 
 jou: jou_bootstrap config.jou $(wildcard compiler/*.jou compiler/*/*.jou)
 	./jou_bootstrap -o jou compiler/main.jou

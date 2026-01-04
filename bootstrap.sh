@@ -18,13 +18,13 @@ set -e -o pipefail
 # just before the original compiler written in C was deleted.
 numbered_commits=(
     026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d  # <--- "./windows_setup.sh --small" starts from here! (release 2025-12-23-0400)
-    027_8a54e3b7a39531ce89bd13974cd2ecaf3f38aa08  # <--- bootstrap_transpiler.py starts here!
+    027_8ee500e8901ae8ad819e4cce5ed79cccaf2925a0  # <--- bootstrap_transpiler.py starts here!
     028_3f878188ab2f5784514bb0c19057bee37c98bd60  # accept @public decorator on methods
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=027_8a54e3b7a39531ce89bd13974cd2ecaf3f38aa08
+bootstrap_transpiler_numbered_commit=027_8ee500e8901ae8ad819e4cce5ed79cccaf2925a0
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
@@ -120,13 +120,6 @@ function transpile_with_python_and_compile() {
     (
         cd $folder
 
-        if [[ "$OS" =~ Windows ]]; then
-            # An if statement inside a function should get evaluated at compile time, but it doesn't
-            echo "Patching Jou code to assume aarch64 support exists..."
-            grep -q LLVM_HAS_AARCH64 compiler/target.jou  # fail if there's nothing to replace
-            sed -i s/LLVM_HAS_AARCH64/True/g compiler/target.jou
-        fi
-
         # Compiler uses utf8_encode_char() to detect bad characters in Jou code.
         # Let's make it return something that is not in the code so it finds no bad characters.
         #
@@ -139,25 +132,6 @@ def utf8_encode_char(u: uint32) -> byte*:
     return "jgdspoisajdgpoiasjdgoiasjdpoigdsa"
 ' > stdlib/utf8.jou
 
-        if [[ "$(uname -mp)" =~ arm ]]; then
-            echo "Patching support for ARM..."
-            sed -i -e s/X86/ARM/ compiler/target.jou compiler/llvm.jou
-            grep -q ARMTarget compiler/llvm.jou
-        fi
-
-        if [[ "$(uname -mp)" =~ armv6 ]]; then
-            target=$($LLVM_CONFIG --host-target)
-            if [[ $target =~ ^arm- ]]; then
-                echo "Patching the correct target for ARMv6"
-                target=${target/#arm-/armv6-}
-                sed -i -e s/'if WINDOWS'/'if True'/ -e s/'x86_64-pc-windows-gnu'/$target/ compiler/target.jou
-                grep -q "$target" compiler/target.jou
-                sed -i -e /JOU_TARGET/s/'""'/'"'$target'"'/ ../../../config.jou
-                # In theory, config.jou should be editable by the user so let's not check whether it includes $target.
-                : "${CFLAGS:=--target=$target}"
-            fi
-        fi
-
         echo "Converting Jou code to C..."
         local n
         n=$(getconf _NPROCESSORS_ONLN)
@@ -165,6 +139,7 @@ def utf8_encode_char(u: uint32) -> byte*:
 
         echo "Compiling C code... ($n parallel processes)"
         local i
+        target=$(grep JOU_TARGET config.jou | awk -F '"' '{ if ($2) print "-target " $2}' || true)
         for i in $(seq 1 $n); do
             # TODO: -w silences all warnings. We might not want that in the future.
             #
@@ -179,7 +154,7 @@ def utf8_encode_char(u: uint32) -> byte*:
             #       UPDATE: We hit the Windows stack limit again... and I just
             #       bumped it to 16M instead of the default 1M. Maybe some day I
             #       will clean this up :)
-            $clang -w -O2 $CFLAGS -c compiler.c -o compiler$i.o -DSPLIT$i &
+            $clang -w -O2 $target -c compiler.c -o compiler$i.o -DSPLIT$i &
         done
 
         # Unlike a plain "wait", this loop doesn't ignore failures inside individual jobs.
