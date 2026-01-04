@@ -160,7 +160,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [decide, test]
-    if: always()
+    if: always()   # Run even if some VMs failed (that's the whole point)
     permissions:
       issues: write
     steps:
