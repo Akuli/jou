@@ -107,7 +107,7 @@ jobs:
           echo "ARCH: ${{ matrix.arch }}"
           echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
       - name: Fail randomly
-        run: exit $((RANDOM % 3))
+        run: exit $((RANDOM % 2))
       - name: Debug
         run: echo "${{ matrix.os }} ${{ matrix.arch }}"
       - name: Produce success message
