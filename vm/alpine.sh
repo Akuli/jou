@@ -9,7 +9,7 @@ fi
 arch=$1
 case $arch in
     x86)
-        qemu=kvm
+        qemu=kvmmmmmmm
         sha=4c6c76a7669c1ec55c6a7e9805b387abdd9bc5df308fd0e4a9c6e6ac028bc1cc
         disk_name_inside_vm=sda
         ;;
