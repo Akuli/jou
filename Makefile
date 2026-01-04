@@ -1,1 +1,1 @@
-.include Makefile.posix
+.include "Makefile.posix"
