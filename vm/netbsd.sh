@@ -92,7 +92,7 @@ if ! timeout 5 ../ssh.sh echo hello; then
     # We consider the VM started when it shows login prompt on serial port.
     # At that point it has also started ssh.
     echo "Waiting for VM to boot..."
-    until echo | ../wait_for_string.sh 'login:' nc.traditional localhost 4444; do
+    until echo | ../wait_for_string.sh 'login:' ncat --no-shutdown localhost 4444; do
         sleep 1
         kill -0 $qemu_pid  # Stop if qemu dies
     done
@@ -105,7 +105,7 @@ mkdir .ssh
 chmod 700 .ssh
 echo '$(../keygen.sh)' > .ssh/authorized_keys
 echo ALL'DONE'NOW
-exit" | ../wait_for_string.sh 'ALLDONENOW' nc.traditional localhost 4444
+exit" | ../wait_for_string.sh 'ALLDONENOW' ncat --no-shutdown localhost 4444
         echo "Now ssh setup is done, let's check one last time..."
         ../ssh.sh echo hello  # Check that it works
     fi

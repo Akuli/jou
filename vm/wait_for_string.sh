@@ -9,7 +9,7 @@
 # For example, this logs in as root to serial console on localhost:4444, and
 # waits until the shell prompt appears:
 #
-#   $ echo root | ./wait_for_string.sh "root@localhost:~#" nc.traditional localhost 4444
+#   $ echo root | ./wait_for_string.sh "root@localhost:~#" ncat --no-shutdown localhost 4444
 #
 # Here is another example, which is more useful for developing this script. It
 # tells Python to print "blah" and "foobar", with 1 second delays before and

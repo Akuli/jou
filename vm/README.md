@@ -73,7 +73,7 @@ Here are some guidelines for working on the scripts:
     - `expect` would be an unnecessary dependency.
 
 Dependencies (in addition to what you need for Jou anyway):
-- All architectures and operating systems: `sudo apt install wget openssh-client netcat-traditional`
+- All architectures and operating systems: `sudo apt install wget openssh-client ncat`
 - x86: `sudo apt install qemu-system-x86`
 - aarch64: `sudo apt install qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu`
 - armv6: `sudo apt install qemu-system-arm`
