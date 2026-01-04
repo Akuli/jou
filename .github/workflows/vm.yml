@@ -99,7 +99,7 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.decide.outputs.include) }}
     outputs:
-      tempdebug-${{ matrix.arch }}: ${{ steps.collect.outputs.tempdebug }}
+      tempdebug: ${{ steps.collect.outputs.tempdebug }}
     steps:
       - name: Debug matrix entry
         run: |
