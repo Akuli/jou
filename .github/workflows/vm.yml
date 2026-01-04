@@ -106,8 +106,6 @@ jobs:
           echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
 #      - name: Fail randomly
 #        run: exit $((RANDOM % 2))
-      - name: Debug
-        run: echo "${{ matrix.os }} ${{ matrix.arch }}"
       - name: "Create a dummy file to indicate that this succeeded"
         run: touch dummyfile
       - name: "Store dummy file which indicates that this succeeded"
@@ -128,8 +126,7 @@ jobs:
       issues: write
     steps:
       - run: echo hello
-      - run: echo '${{ toJson(needs.test) }}'
-      - run: echo '${{ toJson(needs.decide) }}'
+      - run: echo '${{ needs.decide.outputs.include }}'
       - uses: actions/download-artifact@v4
       - run: ls -la
       - run: find
