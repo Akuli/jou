@@ -106,6 +106,10 @@ jobs:
           echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
       - name: Fail randomly
         run: exit $((RANDOM % 2))
+      - name: Store status
+        id: status
+        if: ${{ !cancelled() }}
+        run: echo "${{ matrix.os }} ${{ matrix.arch }} ${{ success() }} ${{ failure() }}"
 
   create-issue-on-failure:
     name: Create an issue if failed
