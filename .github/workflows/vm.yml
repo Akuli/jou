@@ -160,7 +160,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [decide, test]
-    if: always()   # Run even if some VMs failed (that's the whole point)
+    # Here always() means that we run this even if some VMs failed.
+    if: github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always()
     permissions:
       issues: write
     steps:
@@ -170,16 +171,11 @@ jobs:
       - name: "Figure out which VMs failed and create issues"
         run: |
           for vm in $(echo '${{ needs.decide.outputs.include }}' | jq -r 'map(.os + "-" + .arch)[]'); do
-            echo "Checking $vm..."
+            echo $vm
             if [ -d $vm ]; then
               echo "  ok"
             else
-              echo "  Running tests has failed. ($vm, $GITHUB_EVENT_NAME, $GITHUB_REPOSITORY)"
-              # These conditions could be placed elsewhere, but having them here means
-              # that most of this code always runs and bugs are noticed early.
-              if [ $GITHUB_EVENT_NAME != 'pull_request' ] && [ $GITHUB_REPOSITORY == 'Akuli/jou' ]; then
-                echo "  Creating issue about the failure..."
-                ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
-              fi
+              echo "  Running tests failed, creating issue..."
+              ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
             fi
           done
