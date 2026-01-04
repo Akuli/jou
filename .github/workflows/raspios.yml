@@ -1,79 +1,96 @@
-name: "Linux raspios"
+name: "VM"
 
 on:
-  # This is super slow in GitHub Actions because we need to emulate armv6 CPU.
+  # Run on pull requests. Only x86 VM runs on each pull request by default
+  # because it's much faster than others due to kvm. But this can be changed
+  # with labels.
+  pull_request:
+  # Slower VMs (they require emulating a CPU) run every night in GitHub.
   schedule:
     - cron: '0 4 * * *'
-  workflow_dispatch:  # Can also be triggered manually from github UI
-  pull_request:
-    paths:
-      - .github/workflows/raspios.yml  # Run whenever this file is modified
+  # Everything can be triggered manually: from github's UI
+  workflow_dispatch:
+    inputs:
+      alpine-x86:
+        type: boolean
+        description: "Run tests with alpine linux on x86 (fast)"
+        default: true
+      netbsd-amd64:
+        type: boolean
+        description: "Run tests with NetBSD on amd64 (fast)"
+        default: true
+      alpine-aarch64:
+        type: boolean
+        description: "Run tests with alpine linux on aarch64 (slow)"
+        default: false
+      raspios-armv6:
+        type: boolean
+        description: "Run tests with Raspberry Pi OS on armv6 (very slow)"
+        default: false
+      # If you add a VM here, please also add it to "fast" or "slow" variable below!
 
 jobs:
-  # Please keep in sync with: macos.yml, valgrind.yml, linux-aarch64.yml, raspios.yml
-  check-if-needed:
-    timeout-minutes: 1
+  decide:
     runs-on: ubuntu-latest
-    outputs:
-      needed: ${{ steps.check.outputs.run }}
+    timeout-minutes: 1
     steps:
-      - uses: actions/checkout@v4
-      - id: check
+      - run: echo hello
+      - name: Print inputs
         run: |
-          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
-            echo "Triggered manually"
-            echo "run=true" >> $GITHUB_OUTPUT
-          elif [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
-            echo "This is a fork of Jou, skipping"
-            echo "run=false" >> $GITHUB_OUTPUT
-          elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
-            echo "No recent commits, skipping"
-            echo "run=false" >> $GITHUB_OUTPUT
-          else
-            echo "run=true" >> $GITHUB_OUTPUT
-          fi
+          echo "alpine-x86 = ${{ github.event.inputs.alpine-x86 }}"
+          echo "netbsd-amd64 = ${{ github.event.inputs.netbsd-amd64 }}"
+          echo "alpine-aarch64 = ${{ github.event.inputs.alpine-aarch64 }}"
+          echo "raspios-armv6 = ${{ github.event.inputs.raspios-armv6 }}"
+      - name: Decide what runs
+        run: |
+          fast='alpine-x86 netbsd-amd64'
+          slow='alpine-aarch64 raspios-armv6'
+
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              # TODO: check labels, sometimes we want to run everything
+              echo "Pull request, let's run fast VMs"
+              printf '%s\n' $fast > what_to_run.txt
+              ;;
+            workflow_dispatch)
+              echo "Triggered manually, let's run what was requested"
+              echo '${{ toJson(github.event.inputs) }}' | jq -r '. | to_entries | map(select(.value == "true") | .key)[]' > what_to_run.txt
+              ;;
+            schedule)
+              if [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
+                echo "This is a fork of Jou, run nothing"
+                touch what_to_run.txt
+              elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+                echo "No recent commits, run nothing"
+                touch what_to_run.txt
+              else
+                echo "Scheduled run, run everything"
+                printf '%s\n' $fast $slow > what_to_run.txt
+              fi
+              ;;
+            *)
+              echo "Unknown event name: $GITHUB_EVENT_NAME"
+              exit 1
+              ;;
+          esac
+
+          cat -n what_to_run.txt
+          jq -Rsc '. | split("\n") | map(select(. != "") | split("-") | {os: .[0], arch: .[1]})' < what_to_run.txt > what_to_run.json
+          cat what_to_run.json
+
+          echo "include=$(cat what_to_run.json)" >> "$GITHUB_OUTPUT"
 
   test:
-    needs: [check-if-needed]
-    if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
-    timeout-minutes: 120  # Bootstrapping and running all the tests in qemu VM is REALLY slow.
+    needs: decide
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.decide.outputs.include) }}
+  
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-      - run: sudo apt update && sudo apt -y install --no-install-recommends qemu-system-arm netcat-traditional
-      - uses: actions/cache@v5
-        with:
-          path: |
-            vm/raspios-armv6
-            vm/key
-            vm/key.pub
-          key: raspios-armv6-${{ hashFiles('.github/workflows/raspios.yml', 'vm/raspios.sh', 'vm/download.sh') }}
-      - run: vm/raspios.sh armv6
-      - run: vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
-      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
-      - run: vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
-      - run: vm/ssh.sh cd jou '&&' mv jou2 jou
-      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
-      - name: Shut down VM
+      - name: Debug matrix entry
         run: |
-          ! vm/ssh.sh /sbin/poweroff  # ssh should fail here
-          # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
-          # Instead linux kernel panics because init is exiting. Let's wait for that.
-          vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc localhost 2222
-          kill -INT $(cat vm/raspios-armv6/pid.txt)
-          rm vm/raspios-armv6/pid.txt
-
-  # Please keep in sync with valgrind.yml and macos.yml
-  create-issue-on-failure:
-    name: Create an issue if failed
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [check-if-needed, test]
-    if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
-    permissions:
-      issues: write
-    steps:
-      - uses: actions/checkout@v4
-      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux armv6 failed"
+          echo "OS:   ${{ matrix.os }}"
+          echo "ARCH: ${{ matrix.arch }}"
+          echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
