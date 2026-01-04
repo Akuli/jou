@@ -25,7 +25,7 @@ while [ $# != 0 ]; do
             ;;
         *)
             echo "\
-Usage: $0 [--small] [--offline-mingw64 path/to/file.zip]
+Usage: $0 [--small] [--offline-zip path/to/file.zip]
 
     --small
         Use this if you have slow internet. See CONTRIBUTING.md for a detailed
