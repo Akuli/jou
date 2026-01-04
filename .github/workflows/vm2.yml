@@ -1,10 +1,10 @@
-name: "VM"
+name: "VM2 temp debug"
 
 on:
   # Run on pull requests. Only x86 VM runs on each pull request by default
   # because it's much faster than others due to kvm. But this can be changed
   # with labels.
-  #pull_request:  # TODO: enable this
+  pull_request:
   # Slower VMs (they require emulating a CPU) run every night in GitHub.
   schedule:
     - cron: '0 4 * * *'
@@ -132,19 +132,19 @@ jobs:
       - run: vm/ssh.sh cd jou '&&' mv jou2 jou
       - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
 
-      - name: "Shut down VM"
-        run: |
-          ! vm/ssh.sh /sbin/poweroff  # should fail with "unexpected" disconnected
-          if [ "${{ matrix.os }}-${{ matrix.arch }}" == "raspios-armv6" ]; then
-            # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
-            # Instead linux kernel panics because init is exiting. Let's wait for that.
-            vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc.traditional localhost 2222
-            kill -INT $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt)
-          else
-            echo "Waiting for VM to shut down..."
-            while kill -0 $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt); do sleep 1; done
-          fi
-          rm -v vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt
+#      - name: "Shut down VM"
+#        run: |
+#          ! vm/ssh.sh /sbin/poweroff  # should fail with "unexpected" disconnected
+#          if [ "${{ matrix.os }}-${{ matrix.arch }}" == "raspios-armv6" ]; then
+#            # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
+#            # Instead linux kernel panics because init is exiting. Let's wait for that.
+#            vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc.traditional localhost 2222
+#            kill -INT $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt)
+#          else
+#            echo "Waiting for VM to shut down..."
+#            while kill -0 $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt); do sleep 1; done
+#          fi
+#          rm -v vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt
 
       - name: "Create a dummy file which indicates that this succeeded"
         run: touch dummyfile
@@ -172,7 +172,10 @@ jobs:
           for vm in $(echo '${{ needs.decide.outputs.include }}' | jq -r 'map(.os + "-" + .arch)[]'); do
             echo "Checking $vm"
             if ! [ -d $vm ]; then
-              echo "Running tests on $vm failed, let's create issue"
-              #./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
+              echo "Running tests failed: $vm, $GITHUB_EVENT_NAME, $GITHUB_REPOSITORY"
+              if [ $GITHUB_EVENT_NAME != 'pull_request' ] && [ $GITHUB_REPOSITORY == 'Akuli/jou' ]; then
+                echo "Creating issue about the failure..."
+                ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
+              fi
             fi
           done
