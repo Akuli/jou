@@ -18,13 +18,13 @@ set -e -o pipefail
 # just before the original compiler written in C was deleted.
 numbered_commits=(
     026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d  # <--- "./windows_setup.sh --small" starts from here! (release 2025-12-23-0400)
-    027_8ee500e8901ae8ad819e4cce5ed79cccaf2925a0  # <--- bootstrap_transpiler.py starts here!
-    028_3f878188ab2f5784514bb0c19057bee37c98bd60  # accept @public decorator on methods
+    027_3f878188ab2f5784514bb0c19057bee37c98bd60  # accept @public decorator on methods
+    028_cb88ac4b437db34545d1249c93ff61605ae59644  # <--- bootstrap_transpiler.py starts here!
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=027_8ee500e8901ae8ad819e4cce5ed79cccaf2925a0
+bootstrap_transpiler_numbered_commit=028_cb88ac4b437db34545d1249c93ff61605ae59644
 
 if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
     echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
