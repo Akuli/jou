@@ -52,10 +52,6 @@ def update_jou_compiler() -> None:
         confirm("Download and install the latest version of Jou from GitHub releases?")
         if system("powershell -ExecutionPolicy bypass -File update.ps1") != 0:
             fail_update()
-    elif NETBSD:
-        confirm("Run \"git pull && gmake\"?")
-        if system("git pull && gmake") != 0:
-            fail_update()
     else:
         confirm("Run \"git pull && make\"?")
         if system("git pull && make") != 0:

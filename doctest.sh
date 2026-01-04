@@ -21,9 +21,6 @@ if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
     mingw32-make
     jou="$PWD/jou.exe"
-elif [[ "$OS" =~ NetBSD ]]; then
-    gmake
-    jou="$PWD/jou"
 else
     make
     jou="$PWD/jou"
