@@ -104,7 +104,7 @@ jobs:
           - os: BruhWatOS
             arch: armv7
     outputs:
-      tempdebug: ${{ steps.collect.outputs.tempdebug }}
+      tempdebug-${{ matrix.arch }}: ${{ steps.collect.outputs.tempdebug }}
     steps:
       - name: Debug matrix entry
         run: |
