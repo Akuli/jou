@@ -4,7 +4,7 @@ on:
   # Run on pull requests. Only x86 VM runs on each pull request by default
   # because it's much faster than others due to kvm. But this can be changed
   # with labels.
-  #pull_request:  # TODO: enable this
+  pull_request:
   # Slower VMs (they require emulating a CPU) run every night in GitHub.
   schedule:
     - cron: '0 4 * * *'
@@ -170,9 +170,12 @@ jobs:
       - name: "Figure out which VMs failed and create issues"
         run: |
           for vm in $(echo '${{ needs.decide.outputs.include }}' | jq -r 'map(.os + "-" + .arch)[]'); do
-            echo "Checking $vm"
+            echo "Checking $vm..."
             if ! [ -d $vm ]; then
-              echo "Running tests on $vm failed, let's create issue"
-              #./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
+              echo "  Running tests has failed. ($vm, $GITHUB_EVENT_NAME, $GITHUB_REPOSITORY)"
+              if [ $GITHUB_EVENT_NAME != 'pull_request' ] && [ $GITHUB_REPOSITORY == 'Akuli/jou' ]; then
+                echo "  Creating issue about the failure..."
+                ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
+              fi
             fi
           done
