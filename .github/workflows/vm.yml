@@ -119,7 +119,7 @@ jobs:
         uses: actions/download-artifact@v4
       - name: "Figure out which VMs failed"
         run: |
-          for vm in $('${{ needs.decide.outputs.include }}' | jq -r 'map(.os + "-" + .arch)[]'); do
+          for vm in $(echo '${{ needs.decide.outputs.include }}' | jq -r 'map(.os + "-" + .arch)[]'); do
             echo "Checking $vm"
             if ! [ -d $vm ]; then
               echo "Running tests on $vm failed, let's create issue"
