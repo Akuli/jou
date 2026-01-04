@@ -106,8 +106,8 @@ jobs:
           echo "OS:   ${{ matrix.os }}"
           echo "ARCH: ${{ matrix.arch }}"
           echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
-      - name: Fail randomly
-        run: exit $((RANDOM % 2))
+#      - name: Fail randomly
+#        run: exit $((RANDOM % 2))
       - name: Debug
         run: echo "${{ matrix.os }} ${{ matrix.arch }}"
       - name: Produce success message
@@ -126,6 +126,6 @@ jobs:
       issues: write
     steps:
       - run: echo hello
-      - run: echo '${{ toJson(needs.test.outputs.tempdebug) }}'
+      - run: echo '${{ toJson(needs.test) }}'
 #      - uses: actions/checkout@v4
 #      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux armv6 failed"
