@@ -450,6 +450,8 @@ class AstExpression:
             case AstExpressionKind.As:
                 self.as_.free()
                 free(self.as_)
+            case AstExpressionKind.EnumCount:
+                self.enumcount.free()
             case _:
                 if self.get_arity() != 0:
                     for i = 0; i < self.get_arity(); i++:
@@ -561,7 +563,6 @@ class AstEnumCount:
         self.enum_type_ast.print(True)
         printf("\n")
 
-    @public  # TODO: remove this, you will get warning saying that this is never used
     def free(self) -> None:
         self.enum_type_ast.free()
 
@@ -842,8 +843,10 @@ class AstStatement:
     @public
     def free(self) -> None:
         match self.kind:
-            case AstStatementKind.ExpressionStatement | AstStatementKind.Link:
+            case AstStatementKind.ExpressionStatement:
                 self.expression.free()
+            case AstStatementKind.Link:
+                self.link_statement.free()
             case AstStatementKind.Assert:
                 self.assertion.free()
             case AstStatementKind.Return:
@@ -1321,7 +1324,6 @@ class AstLink:
     def print(self) -> None:
         printf("link \"%s\" (resolves to \"%s\")\n", self.specified_flags, self.resolved_flags)
 
-    @public  # TODO: remove this, you will get warning saying that this is never used
     def free(self) -> None:
         free(self.specified_flags)
         free(self.resolved_flags)
