@@ -109,18 +109,18 @@ jobs:
       - name: Debug
         run: echo "${{ matrix.os }} ${{ matrix.arch }}"
       - name: "Create a dummy file to indicate that this succeeded"
-        run: echo ${{ matrix.os }}-${{ matrix.arch }} > ok.txt
+        run: touch dummyfile
       - name: "Store dummy file which indicates that this succeeded"
         uses: actions/upload-artifact@v4
         with:
-          name: ok-${{ matrix.os }}-${{ matrix.arch }}
-          path: ok.txt
+          name: ${{ matrix.os }}-${{ matrix.arch }}
+          path: dummyfile
 
   create-issue-on-failure:
     name: Create an issue if failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: test
+    needs: [decide, test]
     #if: github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
     #if: github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
     if: github.repository == 'Akuli/jou' && always()
@@ -129,9 +129,10 @@ jobs:
     steps:
       - run: echo hello
       - run: echo '${{ toJson(needs.test) }}'
+      - run: echo '${{ toJson(needs.decide) }}'
       - uses: actions/download-artifact@v4
       - run: ls -la
       - run: find
-      - run: head *
+      - run: head */*
 #      - uses: actions/checkout@v4
 #      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux armv6 failed"
