@@ -17,7 +17,10 @@ jobs:
       - run: sudo apt update && sudo apt -y install qemu-system-x86 netcat-traditional
       - uses: actions/cache@v5
         with:
-          path: vm/netbsd-amd64
+          path: |
+            vm/netbsd-amd64
+            vm/key
+            vm/key.pub
           key: netbsd-${{ hashFiles('.github/workflows/netbsd.yml', 'vm/netbsd.sh', 'vm/download.sh') }}
       - run: vm/netbsd.sh amd64
       - run: vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache

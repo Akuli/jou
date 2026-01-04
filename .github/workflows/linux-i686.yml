@@ -17,7 +17,10 @@ jobs:
       - run: sudo apt update && sudo apt -y install --no-install-recommends qemu-system-x86 netcat-traditional
       - uses: actions/cache@v5
         with:
-          path: vm/alpine-x86
+          path: |
+            vm/alpine-x86
+            vm/key
+            vm/key.pub
           key: alpine-x86-${{ hashFiles('.github/workflows/alpine.yml', 'vm/alpine.sh', 'vm/download.sh') }}
       - run: vm/alpine.sh x86
       - run: vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
