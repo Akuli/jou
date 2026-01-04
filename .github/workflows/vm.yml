@@ -97,7 +97,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.decide.outputs.include) }}
+#        include: ${{ fromJson(needs.decide.outputs.include) }}
+        include:
+          - os: BruhWatOS
+            arch: armv6
+          - os: BruhWatOS
+            arch: armv7
     outputs:
       tempdebug: ${{ steps.collect.outputs.tempdebug }}
     steps:
