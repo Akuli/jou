@@ -121,7 +121,8 @@ jobs:
     timeout-minutes: 5
     needs: test
     #if: github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
-    if: github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
+    #if: github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
+    if: github.repository == 'Akuli/jou' && always()
     permissions:
       issues: write
     steps:
