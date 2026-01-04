@@ -114,9 +114,6 @@ write key.pub /root/.ssh/authorized_keys
 set_inode_field /root/.ssh/authorized_keys mode 0100600' | /sbin/debugfs -w partition.img
     rm key.pub
 
-#    echo 'Disabling annoying "ssh may not work" warning message when using ssh...'
-#    echo 'rm /etc/ssh/sshd_config.d/rename_user.conf' | /sbin/debugfs -w partition.img
-
     echo "Adding 1GB swap file..."
     # I tried filling the file initially with zero bytes, but the zeros got
     # special-cased somewhere:

@@ -58,7 +58,7 @@ jobs:
       - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
       - name: Shut down VM
         run: |
-          ! vm/raspios.sh armv6 /sbin/poweroff  # ssh should fail here
+          ! vm/ssh.sh /sbin/poweroff  # ssh should fail here
           # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
           # Instead linux kernel panics because init is exiting. Let's wait for that.
           vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc localhost 2222
