@@ -22,8 +22,8 @@ Here are some guidelines for working on the scripts:
   system, create a VM, set up the operating system in the VM, install packages
   and copy Jou into the VM. Once the script has completed, ssh should be
   available on port 2222 of localhost.
-- Use `keygen.sh` to generate the ssh key. This way all VMs will use the same
-  key, and scripts like `ssh.sh` will always work the same.
+- Use [`keygen.sh`](./keygen.sh) to generate the ssh key. This way all VMs will
+  use the same key, and scripts like [`ssh.sh`](./ssh.sh) will always work.
 - The command-line usage of each script should be similar to `./netbsd.sh amd64`:
   just one argument that is the CPU architecture. If the script supports just
   one architecture, it should fail with an error if anything else is specified.
