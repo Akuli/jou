@@ -80,17 +80,17 @@ jobs:
 
           echo "include=$(cat what_to_run.json)" >> "$GITHUB_OUTPUT"
 
-test:
-  needs: decide
-  runs-on: ubuntu-latest
-  strategy:
-    fail-fast: false
-    matrix:
-      include: ${{ fromJson(needs.decide.outputs.include) }}
-
-  steps:
-    - name: Debug matrix entry
-      run: |
-        echo "OS:   ${{ matrix.os }}"
-        echo "ARCH: ${{ matrix.arch }}"
-        echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
+  test:
+    needs: decide
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.decide.outputs.include) }}
+  
+    steps:
+      - name: Debug matrix entry
+        run: |
+          echo "OS:   ${{ matrix.os }}"
+          echo "ARCH: ${{ matrix.arch }}"
+          echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
