@@ -32,11 +32,13 @@ mkdir -vp "$(dirname "$0")/netbsd-$arch"
 cd "$(dirname "$0")/netbsd-$arch"
 
 # Download NetBSD
-if ! [ -f NetBSD-10.1-$arch-live.img ]; then
+if ! [ -f disk.img ]; then
     ../download.sh https://cdn.netbsd.org/pub/NetBSD/images/10.1/NetBSD-10.1-$arch-live.img.gz $sha256
 
     echo "Extracting..."
     gunzip NetBSD-10.1-$arch-live.img.gz
+    mv NetBSD-10.1-$arch-live.img disk.img
+    trap 'rm -v disk.img' EXIT  # Avoid leaving behind a broken disk image
 
     echo "Enabling getty on serial port..."
     # Modify file content of /etc/ttys directly in the image.
@@ -53,7 +55,8 @@ if ! [ -f NetBSD-10.1-$arch-live.img ]; then
     # When NetBSD boots, it detects that the disk has been resized, adjusts its
     # partitions to use the whole disk, and automatically reboots.
     echo "Resizing disk..."
-    truncate -s 4G NetBSD-10.1-$arch-live.img
+    truncate -s 4G disk.img
+    trap - EXIT  # Don't delete disk.img when we exit
 fi
 
 if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
@@ -71,7 +74,7 @@ else
     $qemu \
         -m 1G \
         -smp $(nproc) \
-        -drive file=NetBSD-10.1-$arch-live.img,format=raw \
+        -drive file=disk.img,format=raw \
         -nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
         -serial tcp:localhost:4444,server=on,wait=off \
         &

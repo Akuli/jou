@@ -5,13 +5,12 @@
 
 set -e -o pipefail
 
-if [ $# -lt 2 ]; then
-    echo "Usage: $0 <arch> <command inside VM>"
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <architecture>"
     exit 1
 fi
 
 arch=$1
-shift
 case $arch in
     armv6)
         qemu=qemu-system-arm
@@ -32,12 +31,6 @@ fi
 mkdir -vp "$(dirname "$0")/raspios-$arch"
 cd "$(dirname "$0")/raspios-$arch"
 
-if ! [ -f key ] || ! [ -f key.pub ]; then
-    echo "Creating ssh key..."
-    (yes || true) | ssh-keygen -t ed25519 -f key -N ''
-    rm -vf my_known_hosts
-fi
-
 if ! [ -f disk.img ]; then
     # Running armv6 on qemu is complicated, and AI will probably explain it
     # better than me. But basically, qemu doesn't emulate all the required
@@ -55,6 +48,7 @@ if ! [ -f disk.img ]; then
     echo "Extracting disk image..."
     xz -d 2025-12-04-raspios-trixie-armhf-lite.img.xz
     mv -v 2025-12-04-raspios-trixie-armhf-lite.img disk.img
+    trap 'rm -v disk.img' EXIT  # Avoid leaving behind a broken disk image
 
     # We separate the main partition into a file for two reasons:
     #   - adding files to it (we could mount it, but then we need sudo)
@@ -87,13 +81,15 @@ if ! [ -f disk.img ]; then
     # Step 3
     /sbin/resize2fs partition.img
 
-    echo "Adding ssh key to home folder of the 'pi' user..."
+    echo "Adding ssh key..."
     # The user 'pi' used to have a default password 'raspberry', but that is no
     # longer true. Instead the password is disabled, so you cannot log in.
     #
     # The official thing to do is to add a userconf.txt file. But if we're
     # going to add a file, we might as well add the ssh key directly, since we
     # want to use ssh anyway.
+    #
+    # We set up ssh as root user to be consistent with other VMs.
     #
     # The mode specified in debugfs is not only permission bits but also the
     # inode type:
@@ -107,34 +103,19 @@ if ! [ -f disk.img ]; then
     # "interesting" results...
     #
     #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $ sudo mount partition.img /mnt/
-    #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $ ls -la /mnt/home/pi
-    #    ls: cannot access '/mnt/home/pi/.ssh': Structure needs cleaning
-    #    total 20
-    #    drwx------ 3 akuli akuli 4096 Dec  4 16:41 .
-    #    drwxr-xr-x 3 root  root  4096 Dec  4 16:41 ..
-    #    -rw-r--r-- 1 akuli akuli  220 Dec  4 16:41 .bash_logout
-    #    -rw-r--r-- 1 akuli akuli 3523 Dec  4 16:41 .bashrc
-    #    -rw-r--r-- 1 akuli akuli  807 Dec  4 16:41 .profile
-    #    d????????? ? ?     ?        ?            ? .ssh
+    #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $ sudo ls -l /mnt/root/.ssh
+    #    ls: cannot access '/mnt/root/.ssh/authorized_keys': Structure needs cleaning
+    #    total 0
+    #    -????????? ? ? ? ?            ? authorized_keys
     #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $
-    #
-    # (File owner appears as "akuli" because on this system, user ID of my
-    # "akuli" user is 1000, and user ID of the "pi" user is also 1000.)
+    ../keygen.sh > key.pub
     echo '
-cd /home/pi
-mkdir .ssh
-write key.pub .ssh/authorized_keys
+write key.pub /root/.ssh/authorized_keys
+set_inode_field /root/.ssh/authorized_keys mode 0100600' | /sbin/debugfs -w partition.img
+    rm key.pub
 
-set_inode_field .ssh mode 040700
-set_inode_field .ssh uid 1000
-set_inode_field .ssh gid 1000
-
-set_inode_field .ssh/authorized_keys mode 0100600
-set_inode_field .ssh/authorized_keys uid 1000
-set_inode_field .ssh/authorized_keys gid 1000' | /sbin/debugfs -w partition.img
-
-    echo 'Disabling annoying "ssh may not work" warning message when using ssh...'
-    echo 'rm /etc/ssh/sshd_config.d/rename_user.conf' | /sbin/debugfs -w partition.img
+#    echo 'Disabling annoying "ssh may not work" warning message when using ssh...'
+#    echo 'rm /etc/ssh/sshd_config.d/rename_user.conf' | /sbin/debugfs -w partition.img
 
     echo "Adding 1GB swap file..."
     # I tried filling the file initially with zero bytes, but the zeros got
@@ -148,10 +129,7 @@ set_inode_field .ssh/authorized_keys gid 1000' | /sbin/debugfs -w partition.img
     echo '
 write swapfile /swapfile
 set_inode_field /swapfile mode 0100600
-set_inode_field /swapfile uid 0
-set_inode_field /swapfile gid 0
-dump /etc/fstab fstab
-' | /sbin/debugfs -w partition.img
+dump /etc/fstab fstab' | /sbin/debugfs -w partition.img
     echo '/swapfile none swap sw 0 0' >> fstab
     echo '
 rm /etc/fstab
@@ -162,6 +140,7 @@ write fstab /etc/fstab' | /sbin/debugfs -w partition.img
     echo "Writing main partition back to disk image..."
     dd if=partition.img of=disk.img bs=512 seek=$offset conv=notrunc
     rm partition.img
+    trap - EXIT  # Don't delete disk.img when we exit
 fi
 
 if [ -f pid.txt ] && kill -0 "$(cat pid.txt)"; then
@@ -211,71 +190,69 @@ else
     done
 fi
 
-ssh="ssh pi@localhost -o StrictHostKeyChecking=no -o UserKnownHostsFile=my_known_hosts -i key -p 2222"
-
 echo "Waiting for VM to boot..."
-until $ssh echo hello; do
+until ../ssh.sh echo hello; do
     sleep 1
     kill -0 $qemu_pid  # Stop if qemu dies
 done
 
-echo "Checking if repo needs to be copied over..."
-if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
-    echo "Mounting shared folder if not already mounted..."
-    $ssh 'mount | grep shared_folder || (mkdir -vp shared_folder && sudo mount -t 9p share shared_folder)'
+echo "Mounting shared folder if not already mounted..."
+../ssh.sh 'mount | grep shared_folder || (mkdir -vp shared_folder && mount -t 9p share shared_folder)'
 
-    echo "Checking if packages are installed..."
-    packages='git llvm-19-dev clang-19 make'
-    if ! $ssh which git; then
-        # Internet inside the VM is really slow for some reason, so even
-        # "sudo apt update" takes a very long time (about 8 minutes).
-        #
-        # To work around this, we ask apt in the VM what files it would like
-        # to download, put them to the right places through our shared folder,
-        # and then run "sudo apt update".
-        echo "Downloading 'apt update' files into shared folder..."
-        rm -rf shared_folder/apt_update  # Prevents a bunch of corner cases we don't care about
-        mkdir -vp shared_folder/apt_update
-        $ssh apt-get update --print-uris | tr -d "'" | while read -r url filename ignore_the_rest; do
-            echo "$url"
-            (
-                cd shared_folder/apt_update
-                if wget -q -O "$filename" "$url"; then
-                    if [[ "$url" == *.xz ]]; then
-                        # File is xz compressed
-                        mv "$filename" "$filename.xz"
-                        xz -d "$filename.xz"
-                    fi
-                    echo "--> ok"
-                else
-                    # Some of the URLs return 404, seems to be intentional
-                    rm -vf "$filename"
-                    echo "--> not working but probably doesn't matter"
+echo "Checking if packages are installed..."
+packages='git llvm-19-dev clang-19 make'
+if ! ../ssh.sh which git; then
+    # Internet inside the VM is really slow for some reason, so even
+    # "apt update" takes a very long time (about 8 minutes).
+    #
+    # To work around this, we ask apt in the VM what files it would like
+    # to download, put them to the right places through our shared folder,
+    # and then run "apt update".
+    echo "Downloading 'apt update' files into shared folder..."
+    rm -rf shared_folder/apt_update  # Prevents a bunch of corner cases we don't care about
+    mkdir -vp shared_folder/apt_update
+    ../ssh.sh apt-get update --print-uris | tr -d "'" | while read -r url filename ignore_the_rest; do
+        echo "$url"
+        (
+            cd shared_folder/apt_update
+            if wget -q -O "$filename" "$url"; then
+                if [[ "$url" == *.xz ]]; then
+                    # File is xz compressed
+                    mv "$filename" "$filename.xz"
+                    xz -d "$filename.xz"
                 fi
-            )
-        done
+                echo "--> ok"
+            else
+                # Some of the URLs return 404, seems to be intentional
+                rm -vf "$filename"
+                echo "--> not working but probably doesn't matter"
+            fi
+        )
+    done
 
-        echo "Doing 'apt update' with files from shared folder..."
-        $ssh "sudo cp -v shared_folder/apt_update/* /var/lib/apt/lists/ && sudo apt update"
+    echo "Doing 'apt update' with files from shared folder..."
+    ../ssh.sh "cp -v shared_folder/apt_update/* /var/lib/apt/lists/ && apt update"
 
-        # Download the packages on host and transfer them to the VM using a
-        # shared folder.
-        echo "Downloading packages into shared folder..."
-        mkdir -vp shared_folder/apt_install
-        $ssh apt-get install --print-uris -y $packages | grep "^'http" | tr -d "'" | while read -r url filename ignore_the_rest; do
-            echo "  $filename"
-            wget -q --continue -O "shared_folder/apt_install/$filename" "$url"
-        done
+    # Download the packages on host and transfer them to the VM using a
+    # shared folder.
+    echo "Downloading packages into shared folder..."
+    mkdir -vp shared_folder/apt_install
+    ../ssh.sh apt-get install --print-uris -y $packages | grep "^'http" | tr -d "'" | while read -r url filename ignore_the_rest; do
+        echo "  $filename"
+        wget -q --continue -O "shared_folder/apt_install/$filename" "$url"
+    done
 
-        echo "Installing packages from shared folder..."
-        $ssh "sudo cp -v shared_folder/apt_install/*.deb /var/cache/apt/archives/ && sudo apt install -y $packages"
-    fi
+    echo "Installing packages from shared folder..."
+    ../ssh.sh "cp -v shared_folder/apt_install/*.deb /var/cache/apt/archives/ && apt install -y $packages"
+fi
 
+echo "Checking if repo needs to be copied over..."
+if [ "$(../ssh.sh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
     echo "Exporting git repository to shared folder..."
     git bundle create -q shared_folder/jou.bundle --all
 
     echo "Checking out git repository in VM..."
-    $ssh "
+    ../ssh.sh "
     set -e
     [ -d jou ] || git init jou
     cd jou
@@ -283,6 +260,3 @@ if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)"
     git checkout -f $(git rev-parse HEAD)  # The rev-parse runs on host, not inside VM
     "
 fi
-
-echo "Running command in VM's jou folder: $@"
-$ssh cd jou '&&' "$@"

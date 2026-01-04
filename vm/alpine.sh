@@ -19,7 +19,7 @@ case $arch in
         disk_name_inside_vm=vdb
         ;;
     *)
-        echo "$0: Unsupported architecture '$arch' (must be x86)"
+        echo "$0: Unsupported architecture '$arch' (must be x86 or aarch64)"
         exit 2
 esac
 
@@ -124,10 +124,8 @@ until ../ssh.sh echo hello; do
     kill -0 $qemu_pid  # Stop if qemu dies
 done
 
-echo "Checking if repo needs to be copied over..."
-if [ "$($ssh 'cd jou && git rev-parse HEAD' || true)" != "$(git rev-parse HEAD)" ]; then
-    echo "Installing packages (if not already installed)..."
-    $ssh 'which git || apk add bash clang llvm-dev make git grep xz-static'
+echo "Installing packages (if not already installed)..."
+../ssh.sh 'which git || apk add bash clang llvm-dev make git grep xz-static'
 
 echo "Checking if repo needs to be copied over..."
 if [ "$(../ssh.sh 'cd jou && git rev-parse HEAD' || true)" == "$(git rev-parse HEAD)" ]; then
