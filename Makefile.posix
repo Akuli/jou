@@ -1,8 +1,12 @@
 # Linux has llvm-config-xx in PATH, where xx is version number
 # On macos, brew installs LLVM to a weird place in /usr/local/
 # On NetBSD, llvm-config is unversioned.
-LLVM_CONFIG ?= $(shell \
-	command -v llvm-config-20 \
+# On any platform, it can be set as environment variable or make parameter.
+#
+# TODO: Move LLVM 21 to the top when officially supported
+LLVM_CONFIG != \
+    command -v "$(LLVM_CONFIG)" \
+	|| command -v llvm-config-20 \
 	|| command -v /usr/local/opt/llvm@20/bin/llvm-config \
 	|| command -v /opt/homebrew/opt/llvm@20/bin/llvm-config \
 	|| command -v llvm-config-19 \
@@ -24,7 +28,6 @@ LLVM_CONFIG ?= $(shell \
 	|| command -v llvm-config-21 \
 	|| command -v /usr/local/opt/llvm@21/bin/llvm-config \
 	|| command -v /opt/homebrew/opt/llvm@21/bin/llvm-config \
-	) # TODO: Move LLVM 21 to the top when officially supported
 
 all: jou
 
