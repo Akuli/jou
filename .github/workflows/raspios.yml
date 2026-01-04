@@ -33,6 +33,8 @@ jobs:
   decide:
     runs-on: ubuntu-latest
     timeout-minutes: 1
+    outputs:
+      include: ${{ steps.decide.outputs.include }}
     steps:
       - run: echo hello
       - name: Print inputs
@@ -42,6 +44,7 @@ jobs:
           echo "alpine-aarch64 = ${{ github.event.inputs.alpine-aarch64 }}"
           echo "raspios-armv6 = ${{ github.event.inputs.raspios-armv6 }}"
       - name: Decide what runs
+        id: decide
         run: |
           fast='alpine-x86 netbsd-amd64'
           slow='alpine-aarch64 raspios-armv6'
