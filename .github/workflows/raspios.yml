@@ -85,6 +85,7 @@ jobs:
 
   test:
     needs: decide
+    if: needs.decide.outputs.include != '[]'  # GitHub Actions is funny :)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
