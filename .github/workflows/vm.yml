@@ -74,8 +74,8 @@ jobs:
                 echo "No recent commits, run nothing"
                 touch what_to_run.txt
               else
-                echo "Scheduled run, run everything"
-                printf '%s\n' $fast $slow > what_to_run.txt
+                echo "Scheduled run, run only slow VMs because they don't run on every pull request"
+                printf '%s\n' $slow > what_to_run.txt
               fi
               ;;
             *)
@@ -104,3 +104,18 @@ jobs:
           echo "OS:   ${{ matrix.os }}"
           echo "ARCH: ${{ matrix.arch }}"
           echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
+      - name: Fail randomly
+        run: exit $((RANDOM % 2))
+
+  create-issue-on-failure:
+    name: Create an issue if failed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: test
+    if: github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
+    permissions:
+      issues: write
+    steps:
+      - run: echo hello
+#      - uses: actions/checkout@v4
+#      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux armv6 failed"
