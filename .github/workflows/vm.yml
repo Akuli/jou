@@ -98,6 +98,8 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.decide.outputs.include) }}
+    outputs:
+      tempdebug: ${{ steps.collect.outputs.tempdebug }}
     steps:
       - name: Debug matrix entry
         run: |
@@ -105,11 +107,13 @@ jobs:
           echo "ARCH: ${{ matrix.arch }}"
           echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
       - name: Fail randomly
-        run: exit $((RANDOM % 2))
-      - name: Store status
-        id: status
-        if: ${{ !cancelled() }}
-        run: echo "${{ matrix.os }} ${{ matrix.arch }} ${{ success() }} ${{ failure() }}"
+        run: exit $((RANDOM % 3))
+      - name: Debug
+        run: echo "${{ matrix.os }} ${{ matrix.arch }}"
+      - name: Produce success message
+        id: collect
+        run: |
+          echo "tempdebug=$RANDOM" >> $GITHUB_OUTPUT
 
   create-issue-on-failure:
     name: Create an issue if failed
@@ -122,5 +126,6 @@ jobs:
       issues: write
     steps:
       - run: echo hello
+      - run: echo '${{ toJson(needs.test.outputs.tempdebug) }}'
 #      - uses: actions/checkout@v4
 #      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux armv6 failed"
