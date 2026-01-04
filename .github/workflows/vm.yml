@@ -36,13 +36,6 @@ jobs:
     outputs:
       include: ${{ steps.decide.outputs.include }}
     steps:
-      - run: echo hello
-      - name: Print inputs
-        run: |
-          echo "alpine-x86 = ${{ github.event.inputs.alpine-x86 }}"
-          echo "netbsd-amd64 = ${{ github.event.inputs.netbsd-amd64 }}"
-          echo "alpine-aarch64 = ${{ github.event.inputs.alpine-aarch64 }}"
-          echo "raspios-armv6 = ${{ github.event.inputs.raspios-armv6 }}"
       - name: Decide what runs
         id: decide
         run: |
@@ -51,7 +44,6 @@ jobs:
 
           case "$GITHUB_EVENT_NAME" in
             pull_request)
-              # TODO: check labels, sometimes we want to run everything
               echo "Pull request"
               label='run tests on all platforms'
               if cat "$GITHUB_EVENT_PATH" | jq -r '.pull_request.labels[].name' | grep --color=always -i -x "$label"; then
@@ -87,7 +79,6 @@ jobs:
           cat -n what_to_run.txt
           jq -Rsc '. | split("\n") | map(select(. != "") | split("-") | {os: .[0], arch: .[1]})' < what_to_run.txt > what_to_run.json
           cat what_to_run.json
-
           echo "include=$(cat what_to_run.json)" >> "$GITHUB_OUTPUT"
 
   test:
@@ -104,8 +95,8 @@ jobs:
           echo "OS:   ${{ matrix.os }}"
           echo "ARCH: ${{ matrix.arch }}"
           echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
-#      - name: Fail randomly
-#        run: exit $((RANDOM % 2))
+      - name: "Fail randomly TEMP DEBUG"
+        run: exit $((RANDOM % 2))
       - name: "Create a dummy file to indicate that this succeeded"
         run: touch dummyfile
       - name: "Store dummy file which indicates that this succeeded"
@@ -114,22 +105,24 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}
           path: dummyfile
 
-  create-issue-on-failure:
-    name: Create an issue if failed
+  create-failure-issues:
+    name: Create issues when a VM fails
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [decide, test]
     #if: github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
-    #if: github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
-    if: github.repository == 'Akuli/jou' && always()
+    if: github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
     permissions:
       issues: write
     steps:
-      - run: echo hello
-      - run: echo '${{ needs.decide.outputs.include }}'
-      - uses: actions/download-artifact@v4
-      - run: ls -la
-      - run: find
-      - run: head */*
-#      - uses: actions/checkout@v4
-#      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux armv6 failed"
+      - name: "Download the dummy files that indicate which VMs succeeded"
+        uses: actions/download-artifact@v4
+      - name: "Figure out which VMs failed"
+        run: |
+          for vm in $('${{ needs.decide.outputs.include }}' | jq -r 'map(.os + "-" + .arch)[]'); do
+            echo "Checking $vm"
+            if ! [ -d $vm ]; then
+              echo "Running tests on $vm failed, let's create issue"
+              #./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
+            fi
+          done
