@@ -47,15 +47,15 @@ jobs:
         with:
           path: vm/raspios-armv6
           key: raspios-armv6-${{ hashFiles('.github/workflows/raspios.yml', 'vm/raspios.sh', 'vm/download.sh') }}
-      - run: vm/raspios.sh armv6 echo hello
-      - run: vm/raspios.sh armv6 git clean -ffdx -e tmp/bootstrap_cache
-      - run: vm/raspios.sh armv6 ./runtests.sh --verbose
-      - run: vm/raspios.sh armv6 ./jou -o jou2 compiler/main.jou
-      - run: vm/raspios.sh armv6 mv jou2 jou
-      - run: vm/raspios.sh armv6 ./runtests.sh --verbose
+      - run: vm/raspios.sh armv6
+      - run: vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+      - run: vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
+      - run: vm/ssh.sh cd jou '&&' mv jou2 jou
+      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
       - name: Shut down VM
         run: |
-          ! vm/raspios.sh armv6 sudo /sbin/poweroff  # ssh should fail here
+          ! vm/raspios.sh armv6 /sbin/poweroff  # ssh should fail here
           # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
           # Instead linux kernel panics because init is exiting. Let's wait for that.
           vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc localhost 2222

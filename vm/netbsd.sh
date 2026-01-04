@@ -36,6 +36,7 @@ if ! [ -f disk.img ]; then
     ../download.sh https://cdn.netbsd.org/pub/NetBSD/images/10.1/NetBSD-10.1-$arch-live.img.gz $sha256
 
     echo "Extracting..."
+    rm -vf NetBSD-10.1-$arch-live.img  # If this exists, gzip asks whether to overwrite
     gunzip NetBSD-10.1-$arch-live.img.gz
     mv NetBSD-10.1-$arch-live.img disk.img
     trap 'rm -v disk.img' EXIT  # Avoid leaving behind a broken disk image
@@ -44,11 +45,11 @@ if ! [ -f disk.img ]; then
     # Modify file content of /etc/ttys directly in the image.
     # This is a bit hacky.
     # Must not change length of file, otherwise offsets get messed up!
-    offset=$(grep --text --byte-offset 'tty00."/usr/libexec/getty std.9600".unknown off secure' NetBSD-10.1-amd64-live.img | cut -d: -f1)
+    offset=$(grep --text --byte-offset 'tty00."/usr/libexec/getty std.9600".unknown off secure' disk.img | cut -d: -f1)
     echo "  Start of line in config file is at $offset"
-    (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=$offset count=1000 status=none || true) | head -1  # show the line of text
-    printf "on " | dd of=NetBSD-10.1-amd64-live.img bs=1 seek=$((offset+44)) conv=notrunc status=none
-    (dd if=NetBSD-10.1-amd64-live.img bs=1 skip=$offset count=1000 status=none || true) | head -1  # show the line of text
+    (dd if=disk.img bs=1 skip=$offset count=1000 status=none || true) | head -1  # show the line of text
+    printf "on " | dd of=disk.img bs=1 seek=$((offset+44)) conv=notrunc status=none
+    (dd if=disk.img bs=1 skip=$offset count=1000 status=none || true) | head -1  # show the line of text
 
     # Make disk image large enough for LLVM and other tools.
     #
@@ -99,7 +100,12 @@ if ! timeout 5 ../ssh.sh echo hello; then
     if ! timeout 5 ../ssh.sh echo hello; then
         echo "ssh doesn't work. Let's set it up using serial port."
         # Log in as root and set up ssh key
-        printf 'root\nmkdir .ssh\nchmod 700 .ssh\necho "%s" > .ssh/authorized_keys\necho ALL"DONE"NOW\nexit\n' "$(cat key.pub)" | ../wait_for_string.sh 'ALLDONENOW' nc.traditional localhost 4444
+        echo "root
+mkdir .ssh
+chmod 700 .ssh
+echo '$(../keygen.sh)' > .ssh/authorized_keys
+echo ALL'DONE'NOW
+exit" | ../wait_for_string.sh 'ALLDONENOW' nc.traditional localhost 4444
         echo "Now ssh setup is done, let's check one last time..."
         ../ssh.sh echo hello  # Check that it works
     fi
