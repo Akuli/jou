@@ -97,9 +97,9 @@ jobs:
           echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
       - name: "Fail randomly TEMP DEBUG"
         run: exit $((RANDOM % 2))
-      - name: "Create a dummy file to indicate that this succeeded"
+      - name: "Create a dummy file which indicates that this succeeded"
         run: touch dummyfile
-      - name: "Store dummy file which indicates that this succeeded"
+      - name: "Store dummy file to indicate that this succeeded"
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}
@@ -110,14 +110,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [decide, test]
-    #if: github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
-    if: github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
+    if: github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.test.result == 'failure'
     permissions:
       issues: write
     steps:
       - name: "Download the dummy files that indicate which VMs succeeded"
         uses: actions/download-artifact@v4
-      - name: "Figure out which VMs failed"
+      - name: "Figure out which VMs failed and create issues"
         run: |
           for vm in $(echo '${{ needs.decide.outputs.include }}' | jq -r 'map(.os + "-" + .arch)[]'); do
             echo "Checking $vm"
