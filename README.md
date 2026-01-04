@@ -192,7 +192,7 @@ $ LLVM_CONFIG=llvm-config-15 make
 
 1. Install the dependencies:
     ```
-    # pkgin install bash clang git gmake
+    # pkgin install bash clang git
     ```
     This should get you also a Python package as a dependency.
     Any reasonably new version of Python will work with Jou.
@@ -201,7 +201,7 @@ $ LLVM_CONFIG=llvm-config-15 make
     ```
     $ git clone https://github.com/Akuli/jou
     $ cd jou
-    $ gmake
+    $ make
     ```
 3. Run the hello world program to make sure that Jou works:
     ```
