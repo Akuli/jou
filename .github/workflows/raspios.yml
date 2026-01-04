@@ -52,8 +52,15 @@ jobs:
           case "$GITHUB_EVENT_NAME" in
             pull_request)
               # TODO: check labels, sometimes we want to run everything
-              echo "Pull request, let's run fast VMs"
-              printf '%s\n' $fast > what_to_run.txt
+              echo "Pull request"
+              label='run tests on all platforms'
+              if cat "$GITHUB_EVENT_PATH" | jq -r '.pull_request.labels[].name' | grep --color=always -i -x "$label"; then
+                echo "Found the '$label' label, running all VMs"
+                printf '%s\n' $fast $slow > what_to_run.txt
+              else
+                echo "Let's run only the fast VMs (no '$label' label)"
+                printf '%s\n' $fast > what_to_run.txt
+              fi
               ;;
             workflow_dispatch)
               echo "Triggered manually, let's run what was requested"
@@ -91,7 +98,6 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.decide.outputs.include) }}
-  
     steps:
       - name: Debug matrix entry
         run: |
