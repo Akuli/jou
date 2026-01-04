@@ -36,7 +36,7 @@ jobs:
     outputs:
       include: ${{ steps.decide.outputs.include }}
     steps:
-      - name: Decide what runs
+      - name: "Decide which VMs run"
         id: decide
         run: |
           fast='alpine-x86 netbsd-amd64'
@@ -85,20 +85,76 @@ jobs:
     needs: decide
     if: needs.decide.outputs.include != '[]'  # GitHub Actions is funny :)
     runs-on: ubuntu-latest
+    timeout-minutes: 120  # Raspberry Pi OS VM is really really slow. TODO: Can this depend on matrix?
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.decide.outputs.include) }}
     steps:
-      - name: Debug matrix entry
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+
+      - name: "Install dependencies with apt"
         run: |
-          echo "OS:   ${{ matrix.os }}"
-          echo "ARCH: ${{ matrix.arch }}"
-          echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
-      - name: "Fail randomly TEMP DEBUG"
-        run: exit $((RANDOM % 2))
+          sudo apt update
+          case ${{ matrix.arch }} in
+            aarch64)
+              sudo apt install -y --no-install-recommends qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu
+              ;;
+            x86 | amd64)
+              sudo apt install -y --no-install-recommends qemu-system-x86
+              ;;
+            armv6)
+              sudo apt install -y --no-install-recommends qemu-system-arm
+              ;;
+            *)
+              echo "Don't know what to install"
+              exit 1
+              ;;
+          esac
+
+      - name: "Cache VM"
+        uses: actions/cache@v5
+        with:
+          path: |
+            vm/${{ matrix.os }}-${{ matrix.arch }}
+            vm/key
+            vm/key.pub
+          key: ${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('.github/workflows/vm.yml', 'vm/${{ matrix.os }}.sh', 'vm/download.sh') }}
+
+      - name: "Create and start VM"
+        run: vm/${{ matrix.os }}.sh ${{ matrix.arch }}
+
+      - run: vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+      - run: vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
+      - run: vm/ssh.sh cd jou '&&' mv jou2 jou
+      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+
+      - name: "Shut down VM"
+        run: |
+          ! vm/ssh.sh /sbin/poweroff  # should fail with "unexpected" disconnected
+          if [ "${{ matrix.os }}-${{ matrix.arch }}" == "raspios-armv6" ]; then
+            # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
+            # Instead linux kernel panics because init is exiting. Let's wait for that.
+            vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc localhost 2222
+            kill -INT $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt)
+          else
+            echo "Waiting for VM to shut down..."
+            while kill -0 $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt); do sleep 1; done
+          fi
+          rm -v vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt
+
+      - name: "Shut down VM (generic version)"
+        run: |
+          ! vm/ssh.sh /sbin/poweroff  # should fail with "unexpected" disconnected
+          while kill -0 $(cat vm/alpine-aarch64/pid.txt); do sleep 1; done
+          rm vm/alpine-aarch64/pid.txt
+
       - name: "Create a dummy file which indicates that this succeeded"
         run: touch dummyfile
+
       - name: "Store dummy file to indicate that this succeeded"
         uses: actions/upload-artifact@v4
         with:
@@ -106,7 +162,7 @@ jobs:
           path: dummyfile
 
   create-failure-issues:
-    name: Create issues when a VM fails
+    name: "Create issues when a VM fails"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [decide, test]
@@ -116,6 +172,7 @@ jobs:
     steps:
       - name: "Download the dummy files that indicate which VMs succeeded"
         uses: actions/download-artifact@v4
+
       - name: "Figure out which VMs failed and create issues"
         run: |
           for vm in $(echo '${{ needs.decide.outputs.include }}' | jq -r 'map(.os + "-" + .arch)[]'); do
