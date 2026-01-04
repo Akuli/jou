@@ -1,0 +1,96 @@
+name: "VM"
+
+on:
+  # Run on pull requests. Only x86 VM runs on each pull request by default
+  # because it's much faster than others due to kvm. But this can be changed
+  # with labels.
+  pull_request:
+  # Slower VMs (they require emulating a CPU) run every night in GitHub.
+  schedule:
+    - cron: '0 4 * * *'
+  # Everything can be triggered manually: from github's UI
+  workflow_dispatch:
+    inputs:
+      alpine-x86:
+        type: boolean
+        description: "Run tests with alpine linux on x86 (fast)"
+        default: true
+      netbsd-amd64:
+        type: boolean
+        description: "Run tests with NetBSD on amd64 (fast)"
+        default: true
+      alpine-aarch64:
+        type: boolean
+        description: "Run tests with alpine linux on aarch64 (slow)"
+        default: false
+      raspios-armv6:
+        type: boolean
+        description: "Run tests with Raspberry Pi OS on armv6 (very slow)"
+        default: false
+      # If you add a VM here, please also add it to "fast" or "slow" variable below!
+
+jobs:
+  decide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: echo hello
+      - name: Print inputs
+        run: |
+          echo "alpine-x86 = ${{ github.event.inputs.alpine-x86 }}"
+          echo "netbsd-amd64 = ${{ github.event.inputs.netbsd-amd64 }}"
+          echo "alpine-aarch64 = ${{ github.event.inputs.alpine-aarch64 }}"
+          echo "raspios-armv6 = ${{ github.event.inputs.raspios-armv6 }}"
+      - name: Decide what runs
+        run: |
+          fast='alpine-x86 netbsd-amd64'
+          slow='alpine-aarch64 raspios-armv6'
+
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              # TODO: check labels, sometimes we want to run everything
+              echo "Pull request, let's run fast VMs"
+              printf '%s\n' $fast > what_to_run.txt
+              ;;
+            workflow_dispatch)
+              echo "Triggered manually, let's run what was requested"
+              echo '${{ toJson(github.event.inputs) }}' | jq -r '. | to_entries | map(select(.value == "true") | .key)[]' > what_to_run.txt
+              ;;
+            schedule)
+              if [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
+                echo "This is a fork of Jou, run nothing"
+                touch what_to_run.txt
+              elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+                echo "No recent commits, run nothing"
+                touch what_to_run.txt
+              else
+                echo "Scheduled run, run everything"
+                printf '%s\n' $fast $slow > what_to_run.txt
+              fi
+              ;;
+            *)
+              echo "Unknown event name: $GITHUB_EVENT_NAME"
+              exit 1
+              ;;
+          esac
+
+          cat -n what_to_run.txt
+          jq -Rsc '. | split("\n") | map(select(. != "") | split("-") | {os: .[0], arch: .[1]})' < what_to_run.txt > what_to_run.json
+          cat what_to_run.json
+
+          echo "include=$(cat what_to_run.json)" >> "$GITHUB_OUTPUT"
+
+test:
+  needs: decide
+  runs-on: ubuntu-latest
+  strategy:
+    fail-fast: false
+    matrix:
+      include: ${{ fromJson(needs.decide.outputs.include) }}
+
+  steps:
+    - name: Debug matrix entry
+      run: |
+        echo "OS:   ${{ matrix.os }}"
+        echo "ARCH: ${{ matrix.arch }}"
+        echo "Combined: ${{ matrix.os }}-${{ matrix.arch }}"
