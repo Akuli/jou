@@ -98,8 +98,6 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.decide.outputs.include) }}
-    outputs:
-      tempdebug: ${{ steps.collect.outputs.tempdebug }}
     steps:
       - name: Debug matrix entry
         run: |
@@ -110,10 +108,13 @@ jobs:
 #        run: exit $((RANDOM % 2))
       - name: Debug
         run: echo "${{ matrix.os }} ${{ matrix.arch }}"
-      - name: Produce success message
-        id: collect
-        run: |
-          echo "tempdebug=$RANDOM" >> $GITHUB_OUTPUT
+      - name: "Create a dummy file to indicate that this succeeded"
+        run: echo ${{ matrix.os }}-${{ matrix.arch }} > ok.txt
+      - name: "Store dummy file which indicates that this succeeded"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ok-${{ matrix.os }}-${{ matrix.arch }}
+          path: ok.txt
 
   create-issue-on-failure:
     name: Create an issue if failed
@@ -128,5 +129,9 @@ jobs:
     steps:
       - run: echo hello
       - run: echo '${{ toJson(needs.test) }}'
+      - uses: actions/download-artifact@v4
+      - run: ls -la
+      - run: find
+      - run: head *
 #      - uses: actions/checkout@v4
 #      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on linux armv6 failed"
