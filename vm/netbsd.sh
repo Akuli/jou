@@ -131,7 +131,7 @@ fi
 echo "Checking if packages are installed..."
 if ! ../ssh.sh which git; then
     echo "Installing packages..."
-    ../ssh.sh "PATH=\"/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:\$PATH\" && PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/$arch/10.1/All && export PATH PKG_PATH && pkg_add pkgin && pkgin -y install clang gmake diffutils git bash"
+    ../ssh.sh "PATH=\"/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:\$PATH\" && PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/$arch/10.1/All && export PATH PKG_PATH && pkg_add pkgin && pkgin -y install clang diffutils git bash"
 fi
 
 echo "Checking if repo needs to be copied over..."

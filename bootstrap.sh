@@ -39,11 +39,7 @@ if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     make="mingw32-make"
     exe_suffix=".exe"
 else
-    if [[ "$OS" =~ NetBSD ]]; then
-        make="gmake"
-    else
-        make="make"
-    fi
+    make="make"
     exe_suffix=""
 fi
 
