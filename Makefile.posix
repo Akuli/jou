@@ -53,7 +53,7 @@ config.jou: Makefile.posix
 # LLVM seems to be misconfigured on Raspberry Pi OS so that it compiles to ARMv7 by default even if the CPU is ARMv6 (e.g. RasPi 1).
 	echo '' >> config.jou
 	echo '@public' >> config.jou
-	printf 'const JOU_TARGET: byte* = "%s"\n' "`$(LLVM_CONFIG) --host-target | { { uname -mp | grep -q armv6; } && sed -e 's/^arm-/armv6-/'; })`" >> config.jou
+	printf 'const JOU_TARGET: byte* = "%s"\n' "`$(LLVM_CONFIG) --host-target | { { uname -mp | grep -q armv6; } && sed -e 's/^arm-/armv6-/'; }`" >> config.jou
 
 
 jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou

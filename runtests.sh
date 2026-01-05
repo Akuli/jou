@@ -107,7 +107,7 @@ if [ $run_make = yes ]; then
         source activate
         mingw32-make $jouexe
     else
-        make $jouexe
+        make $(basename $jouexe)
     fi
 fi
 
