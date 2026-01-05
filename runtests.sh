@@ -105,9 +105,9 @@ echo "<pointersize> in expected output will be replaced with $pointersize."
 if [ $run_make = yes ]; then
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
         source activate
-        mingw32-make $jouexe
+        mingw32-make jou.exe
     else
-        make $(basename $jouexe)
+        make jou
     fi
 fi
 
