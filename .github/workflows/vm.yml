@@ -100,13 +100,13 @@ jobs:
           sudo apt update
           case ${{ matrix.arch }} in
             aarch64)
-              sudo apt install -y --no-install-recommends netcat-traditional qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu
+              sudo apt install -y --no-install-recommends ncat qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu
               ;;
             x86 | amd64)
-              sudo apt install -y --no-install-recommends netcat-traditional qemu-system-x86
+              sudo apt install -y --no-install-recommends ncat qemu-system-x86
               ;;
             armv6)
-              sudo apt install -y --no-install-recommends netcat-traditional qemu-system-arm
+              sudo apt install -y --no-install-recommends ncat qemu-system-arm
               ;;
             *)
               echo "Don't know what to install"
@@ -138,7 +138,7 @@ jobs:
           if [ "${{ matrix.os }}-${{ matrix.arch }}" == "raspios-armv6" ]; then
             # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
             # Instead linux kernel panics because init is exiting. Let's wait for that.
-            vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc.traditional localhost 2222
+            vm/wait_for_string.sh 'not syncing: Attempted to kill init' ncat --no-shutdown localhost 2222
             kill -INT $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt)
           else
             echo "Waiting for VM to shut down..."

@@ -60,10 +60,12 @@ Here are some guidelines for working on the scripts:
 - Use `set -e -o pipefail`. If this gets in your way, use `|| true` only in the
   places that need it. This way failures are not silenced except where you
   expect to get failures.
-- Use `nc.traditional` instead of `nc`. There are several different versions of
-  netcat, and they are similar but incompatible in subtle ways. For example,
-  `echo | nc ...` doesn't work as expected with `ncat`, because `ncat` closes
-  the connection when it gets EOF on stdin.
+- Use `ncat` instead of `nc`. The `nc` command can be any of several different
+  netcat implementations: it may be same as `ncat`, or something else. The
+  different implementations are similar but incompatible in subtle ways. For
+  example, when `nc` gets EOF on stdin, some `nc` implementations (like `ncat`)
+  close the connection while others keep it open. I chose to use `ncat` because
+  it is available with the same name in most linux distros.
 - Use the [`wait_for_string.sh`](./wait_for_string.sh) script instead of the
   `expect` program, for two reasons:
     - Jou developers already need to know at least 4 programming languages, and
@@ -71,7 +73,7 @@ Here are some guidelines for working on the scripts:
     - `expect` would be an unnecessary dependency.
 
 Dependencies (in addition to what you need for Jou anyway):
-- All architectures and operating systems: `sudo apt install wget openssh-client netcat-traditional`
+- All architectures and operating systems: `sudo apt install wget openssh-client ncat`
 - x86: `sudo apt install qemu-system-x86`
 - aarch64: `sudo apt install qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu`
 - armv6: `sudo apt install qemu-system-arm`
