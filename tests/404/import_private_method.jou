@@ -3,4 +3,4 @@ import "./imported/privates.jou"
 def foo() -> None:
     p = PublicClass{}
     # TODO: ideally error message would say that it exists but is private
-    p.private_method()  # Error: method 'private_method' not found in class PublicClass. The problem is ONE of the following: 1) you didn't import the file that defines class PublicClass, 2) the 'private_method' method is private, 3) there really is no such method in class PublicClass. I know that this is a bad compiler error message, and I will later split this into 3 different error messages.
+    p.private_method()  # Error: method 'private_method' of class PublicClass is private (try adding @public)
