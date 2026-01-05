@@ -629,6 +629,49 @@ def nth(n: int) -> byte[100]:
     return result
 
 
+def fail_with_method_not_found(
+    state: State*,
+    location: Location,
+    self_class: Type*,
+    method_name: byte*,
+) -> noreturn:
+    assert self_class.kind == TypeKind.Class
+    class_ast = self_class.classdata.definition
+    assert class_ast != NULL
+    assert class_ast.kind == AstStatementKind.Class
+
+    msg: byte[500]
+
+    # Is the method in the class definition?
+    for stmt = class_ast.classdef.body.ptr; stmt < class_ast.classdef.body.end(); stmt++:
+        if (
+            stmt.kind == AstStatementKind.MethodDef
+            and strcmp(stmt.method.ast_signature.name, method_name) == 0
+            and strcmp(stmt.location.path, state.jou_file.path) != 0
+        ):
+            # Method exists
+            if stmt.symbol().public:
+                # TODO: generate something that can be copy/pasted to write an import statement?
+                snprintf(
+                    msg, sizeof(msg),
+                    "to use the '%s' method of class %s, you need to import the file that defines it (%s)",
+                    method_name,
+                    self_class.name,
+                    stmt.location.path,
+                )
+            else:
+                snprintf(
+                    msg, sizeof(msg),
+                    "method '%s' of class %s is private (maybe add @public to it?)",
+                    method_name,
+                    self_class.name,
+                )
+            fail(location, msg)
+
+    snprintf(msg, sizeof(msg), "class %s has no method named '%s'", self_class.name, method_name)
+    fail(location, msg)
+
+
 # This is for code that looks like obj.member(). It could be a method call or a
 # function pointer call, because `obj` may have a field whose type is funcptr.
 #
@@ -684,21 +727,7 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
 
     field = self_class.find_class_field(member_name)
     if field == NULL:
-        # TODO: better error messages!!!!!
-        big_msg: byte* = NULL
-        asprintf(
-            &big_msg,
-            "method '%s' not found in class %s. The problem is ONE of the following: 1) you didn't import the file that defines class %.*s, 2) the '%s' method is private, 3) there really is no such method in class %.*s. I know that this is a bad compiler error message, and I will later split this into 3 different error messages.",
-            member_name,
-            self_class.name,
-            strcspn(self_class.name, "[") as int,  # List[int] --> List
-            self_class.name,
-            member_name,
-            strcspn(self_class.name, "[") as int,  # List[int] --> List
-            self_class.name,
-        )
-        assert big_msg != NULL
-        fail(func_location, big_msg)
+        fail_with_method_not_found(state, func_location, self_class, member_name)
 
     # It is a function pointer call where the function is in a class field.
     # It looks like obj.field().

@@ -125,6 +125,7 @@ def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
             stmt.symbol().signature = typecheck_signature(jou_file, &stmt.method, self_class)
         case AstStatementKind.Class:
             t = create_empty_class(stmt.symbol().name)
+            t.classdata.definition = stmt
             if stmt.classdef.is_generic():
                 for nameptr = stmt.classdef.generic_typevar_names.ptr; nameptr < stmt.classdef.generic_typevar_names.end(); nameptr++:
                     t.classdata.generic_params.append(create_typevar(*nameptr))
