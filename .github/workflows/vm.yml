@@ -1,0 +1,183 @@
+name: "VM"
+
+on:
+  # Run on pull requests. Only x86 VM runs on each pull request by default
+  # because it's much faster than others due to kvm. But this can be changed
+  # with labels.
+  pull_request:
+  # Slower VMs (they require emulating a CPU) run every night in GitHub.
+  schedule:
+    - cron: '0 4 * * *'
+  # Everything can be triggered manually: from github's UI
+  workflow_dispatch:
+    inputs:
+      alpine-x86:
+        type: boolean
+        description: "Run tests with alpine linux on x86 (fast)"
+        default: true
+      netbsd-amd64:
+        type: boolean
+        description: "Run tests with NetBSD on amd64 (fast)"
+        default: true
+      alpine-aarch64:
+        type: boolean
+        description: "Run tests with alpine linux on aarch64 (slow)"
+        default: false
+      raspios-armv6:
+        type: boolean
+        description: "Run tests with Raspberry Pi OS on armv6 (very slow)"
+        default: false
+      # If you add a VM here, please also add it to "fast" or "slow" variable below!
+
+jobs:
+  decide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      include: ${{ steps.decide.outputs.include }}
+    steps:
+      - name: "Decide which VMs run"
+        id: decide
+        run: |
+          fast='alpine-x86 netbsd-amd64'
+          slow='alpine-aarch64 raspios-armv6'
+
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              echo "Pull request"
+              label='run tests on all platforms'
+              if cat "$GITHUB_EVENT_PATH" | jq -r '.pull_request.labels[].name' | grep --color=always -i -x "$label"; then
+                echo "Found the '$label' label, running all VMs"
+                printf '%s\n' $fast $slow > what_to_run.txt
+              else
+                echo "Let's run only the fast VMs (no '$label' label)"
+                printf '%s\n' $fast > what_to_run.txt
+              fi
+              ;;
+            workflow_dispatch)
+              echo "Triggered manually, let's run what was requested"
+              echo '${{ toJson(github.event.inputs) }}' | jq -r '. | to_entries | map(select(.value == "true") | .key)[]' > what_to_run.txt
+              ;;
+            schedule)
+              if [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
+                echo "This is a fork of Jou, run nothing"
+                touch what_to_run.txt
+              elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+                echo "No recent commits, run nothing"
+                touch what_to_run.txt
+              else
+                echo "Scheduled run, run only slow VMs because they don't run on every pull request"
+                printf '%s\n' $slow > what_to_run.txt
+              fi
+              ;;
+            *)
+              echo "Unknown event name: $GITHUB_EVENT_NAME"
+              exit 1
+              ;;
+          esac
+
+          cat -n what_to_run.txt
+          jq -Rsc '. | split("\n") | map(select(. != "") | split("-") | {os: .[0], arch: .[1]})' < what_to_run.txt > what_to_run.json
+          cat what_to_run.json
+          echo "include=$(cat what_to_run.json)" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: decide
+    if: needs.decide.outputs.include != '[]'  # GitHub Actions is funny :)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # Raspberry Pi OS VM is really really slow. TODO: Can this depend on matrix?
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.decide.outputs.include) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+
+      - name: "Install dependencies with apt"
+        run: |
+          sudo apt update
+          case ${{ matrix.arch }} in
+            aarch64)
+              sudo apt install -y --no-install-recommends netcat-traditional qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu
+              ;;
+            x86 | amd64)
+              sudo apt install -y --no-install-recommends netcat-traditional qemu-system-x86
+              ;;
+            armv6)
+              sudo apt install -y --no-install-recommends netcat-traditional qemu-system-arm
+              ;;
+            *)
+              echo "Don't know what to install"
+              exit 1
+              ;;
+          esac
+
+      - name: "Cache VM"
+        uses: actions/cache@v5
+        with:
+          path: |
+            vm/${{ matrix.os }}-${{ matrix.arch }}
+            vm/key
+            vm/key.pub
+          key: ${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('.github/workflows/vm.yml', 'vm/${{ matrix.os }}.sh', 'vm/download.sh') }}
+
+      - name: "Create and start VM"
+        run: vm/${{ matrix.os }}.sh ${{ matrix.arch }}
+
+      - run: vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
+      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+      - run: vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
+      - run: vm/ssh.sh cd jou '&&' mv jou2 jou
+      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+
+      - name: "Shut down VM"
+        run: |
+          ! vm/ssh.sh /sbin/poweroff  # should fail with "unexpected" disconnected
+          if [ "${{ matrix.os }}-${{ matrix.arch }}" == "raspios-armv6" ]; then
+            # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
+            # Instead linux kernel panics because init is exiting. Let's wait for that.
+            vm/wait_for_string.sh 'not syncing: Attempted to kill init' nc.traditional localhost 2222
+            kill -INT $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt)
+          else
+            echo "Waiting for VM to shut down..."
+            while kill -0 $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt); do sleep 1; done
+          fi
+          rm -v vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt
+
+      - name: "Create a dummy file which indicates that this succeeded"
+        run: touch dummyfile
+
+      - name: "Store dummy file to indicate that this succeeded"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}
+          path: dummyfile
+
+  create-failure-issues:
+    name: "Create issues when a VM fails"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [decide, test]
+    # Here always() means that we run this even if some VMs failed.
+    if: github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always()
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v4  # needed to get create_issue.sh
+
+      - name: "Download the dummy files that indicate which VMs succeeded"
+        uses: actions/download-artifact@v4  # Downloads all artifacts
+
+      - name: "Figure out which VMs failed and create issues"
+        run: |
+          for vm in $(echo '${{ needs.decide.outputs.include }}' | jq -r 'map(.os + "-" + .arch)[]'); do
+            echo $vm
+            if [ -d $vm ]; then
+              echo "  ok"
+            else
+              echo "  Running tests failed, creating issue..."
+              ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
+            fi
+          done
