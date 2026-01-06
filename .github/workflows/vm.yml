@@ -131,6 +131,7 @@ jobs:
       - run: vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
       - run: vm/ssh.sh cd jou '&&' mv jou2 jou
       - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+      - run: vm/ssh.sh cd jou '&&' ./doctest.sh
 
       - name: "Shut down VM"
         run: |
