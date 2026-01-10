@@ -16,7 +16,7 @@ jobs:
     outputs:
       needed: ${{ steps.check.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: check
         run: |
           if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
@@ -71,7 +71,7 @@ jobs:
           - { llvm-version: 20, opt-level: '-O2' }
           - { llvm-version: 20, opt-level: '-O3' }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - run: brew install bash diffutils llvm@${{ matrix.params.llvm-version }}
@@ -95,5 +95,5 @@ jobs:
     permissions:
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on MacOS failed"

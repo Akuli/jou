@@ -11,14 +11,14 @@ jobs:
     timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: shellcheck --color=always --shell=bash --exclude=SC2086,SC2059,SC2046,SC2235,SC2002,SC2206,SC2068,SC2207,SC2013 *.sh activate
 
   codespell:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: sudo apt install -y codespell || (sudo apt update && sudo apt install -y codespell)
       - run: codespell --enable-colors -L ot,bu,hel,fom,olt $(git ls-files)
 
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: |
           if git grep -E '```(python3|py$|py3)' '*.md'; then
             echo 'Error: Jou code in markdown files must be marked with ```python'
@@ -38,7 +38,7 @@ jobs:
     timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: wget https://github.com/editorconfig-checker/editorconfig-checker/releases/download/v3.2.0/ec-linux-amd64.tar.gz
       - name: Verify checksum
         run: |
@@ -53,7 +53,7 @@ jobs:
     timeout-minutes: 2
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -70,7 +70,7 @@ jobs:
     timeout-minutes: 2
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch the whole Git history, used for release description
       - run: ./release.sh --github-token "${{ secrets.GITHUB_TOKEN }}" --dry-run
