@@ -18,7 +18,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10  # may need to bootstrap
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       # Do not use --small because it relies on a previously built zip
@@ -134,7 +134,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20  # may need to bootstrap
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - run: ./windows_setup.sh --small
@@ -159,7 +159,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: repo
       - uses: actions/download-artifact@v4

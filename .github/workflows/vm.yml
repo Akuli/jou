@@ -36,6 +36,7 @@ jobs:
     outputs:
       include: ${{ steps.decide.outputs.include }}
     steps:
+      - uses: actions/checkout@v6
       - name: "Decide which VMs run"
         id: decide
         run: |
@@ -91,7 +92,7 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.decide.outputs.include) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
 
@@ -166,7 +167,7 @@ jobs:
     permissions:
       issues: write
     steps:
-      - uses: actions/checkout@v4  # needed to get create_issue.sh
+      - uses: actions/checkout@v6  # needed to get create_issue.sh
 
       - name: "Download the dummy files that indicate which VMs succeeded"
         uses: actions/download-artifact@v4  # Downloads all artifacts
