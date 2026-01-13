@@ -1,0 +1,109 @@
+# Modes:
+#   "skip"               don't run test, show
+#   "skip_silently"      don't even consider running the test
+#   "run"                run the code, don't capture output
+#   "ignore_output"      run the test, capture stdout, do nothing with it
+#   "ignore_all_output"  run the test, capture stdout and stderr, do nothing with them
+#   "check_output"       run the test, capture stdout, compare to "Output:" comments
+#   "check_all_output"   run the test, capture stdout and stderr, compare to "Output:" and "Error:" comments
+#
+# There is no default mode, you need to set it yourself because conventions
+# vary a lot among projects.
+
+
+# ------------------------------------------------------------------
+# -------- Documentation tests (doctests) in markdown files --------
+# ------------------------------------------------------------------
+
+[files."**/*.md"]
+mode = {default = "check_all_output", no_expected_output = "skip_silently", valgrind = "skip"}
+
+
+# ------------------------------------
+# -------- examples directory --------
+# ------------------------------------
+
+[files."examples/*.jou"]
+mode = "check_all_output"
+
+[files."examples/aoc*/day*/part*.jou"]
+mode = "check_all_output"
+cd_to_file_directory = true  # needed for open("sampleinput.txt", "r") to work
+
+# This program doesn't interact nicely with automated tests at all.
+[files."examples/memory_leak.jou"]
+mode = "skip"
+
+
+# ---------------------------------
+# -------- tests directory --------
+# ---------------------------------
+
+[files."tests/*/*.jou"]
+mode = {default = "check_all_output", valgrind = "skip"}
+exit_code_should_be = 1
+
+# These don't inherit exit code from above. Last matching [files."..."] is used.
+[files."tests/should_succeed/*.jou"]
+mode = "check_all_output"
+[files."tests/should_succeed/double_dotdot_import/*/*.jou"]
+mode = "check_all_output"
+
+# This test links with LLVM, and somehow just linking with LLVM leaks memory
+# when the program starts, even if it is never called.
+[files."tests/should_succeed/compiler_unit_tests.jou"]
+mode = {default = "check_all_output", valgrind = "skip"}
+
+# Idea:
+# warning: section [files."tests/should_sucede/*.jou"] on line 123 did not apply to any files
+
+# Crashing tests are a bit special. They should fail, and output varies by platform.
+[files."tests/crash/*.jou"]
+mode = {default = "skip", O0 = "ignore_all_output"}
+exit_code_should_be = "nonzero"
+
+
+# ----------------------------------------------------
+# -------- availability of libraries handling --------
+# ----------------------------------------------------
+
+[library_availability]
+liblzma_dynamic = false
+liblzma_static = false
+liblzma_copied = false  # Test copies liblzma.a to temporary directory
+
+[linux.library_availability]
+# Test if pkg-config knows where liblzma dynamically linked library is, or if
+# it's directly in /usr/lib. In either case the linker will find it.
+liblzma_dynamic = {run = """( pkg-config --exists liblzma || (set -- /usr/lib/liblzma.so* && [ -f "$1" ]) ) > /dev/null"""}
+liblzma_static = {run = "[ -f `pkg-config --variable=libdir liblzma 2>/dev/null`/liblzma.a ]"}
+liblzma_copied = {run = """
+# If liblzma.a exists, we also copy it to temporary folder.
+# If it doesn't exist, the copying fails and that tells the test runner to skip.
+mkdir -p tmp/tests
+libdir="`pkg-config --variable=libdir liblzma 2>/dev/null || echo /usr/lib`"
+cp "$libdir/liblzma.a" tmp/tests/
+"""}
+
+
+# ---------------------------------
+# -------- output handling --------
+# ---------------------------------
+
+[expected_output.substitute]
+"<joudir>" = {absolute_path = "."}
+"<jouexe>" = "./jou"
+"<intnative>" = "int64"
+"<pointersize>" = "8"
+[windows.expected_output.substitute]
+"<jouexe>" = "jou.exe"
+[32bit.expected_output.substitute]
+"<intnative>" = "int"
+"<pointersize>" = "4"
+
+# On MacOS, silence a linker warning that appears whenever linking
+# with LLVM. I don't know what causes the warning.
+#
+# See: https://github.com/Akuli/jou/issues/1005
+[[macos.actual_output.remove_lines]]
+contains = "ld: warning: reexported library with install name"
