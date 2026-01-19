@@ -403,7 +403,7 @@ def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind
 
         case _:
             # A calculation that may overflow, e.g. + - * /
-            # Choose the bigger size of inputs. Result is signed if either input value is.
+            # Choose the bigger size of inputs. Result is unsigned if either input value is.
             bigger_size = max(ltype.size_in_bits, rtype.size_in_bits)
             if lhs_signed or rhs_signed:
                 if ltype.size_in_bits == rtype.size_in_bits:
