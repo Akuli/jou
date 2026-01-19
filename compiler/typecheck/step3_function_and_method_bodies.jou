@@ -495,6 +495,18 @@ def check_binop(
         cast_type = bool_type()
     if got_integers:
         cast_type = cast_type_of_integer_binop(ltype, rtype, op)
+        if cast_type == NULL:
+            # Both operands should be cast to whatever is the bigger size
+            size = max(ltype.size_in_bits, rtype.size_in_bits)
+            if ltype.kind == TypeKind.SignedInteger:
+                do_implicit_cast(fom, lhs, int_type(size), Location{}, NULL)
+            if ltype.kind == TypeKind.UnsignedInteger:
+                do_implicit_cast(fom, lhs, uint_type(size), Location{}, NULL)
+            if rtype.kind == TypeKind.SignedInteger:
+                do_implicit_cast(fom, rhs, int_type(size), Location{}, NULL)
+            if rtype.kind == TypeKind.UnsignedInteger:
+                do_implicit_cast(fom, rhs, uint_type(size), Location{}, NULL)
+            return int_type(size)
     if got_numbers and not got_integers:
         if ltype == double_type() or rtype == double_type():
             cast_type = double_type()
