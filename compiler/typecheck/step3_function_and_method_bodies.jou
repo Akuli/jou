@@ -409,6 +409,8 @@ def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind
                 if ltype.size_in_bits == rtype.size_in_bits:
                     return uint_type(bigger_size)
                 return int_type(bigger_size)
+            else:
+                return uint_type(bigger_size)
 
 
 def check_binop(
