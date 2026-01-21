@@ -225,7 +225,7 @@ function should_skip()
 
     # If liblzma is not readily available, skip tests that use it.
     if [[ $joufile =~ link_with_liblzma_dynamic ]]; then
-        if ! (pkg-config --exists liblzma 2>/dev/null || compgen -G /usr/lib/liblzma.so* >/dev/null); then
+        if ! (pkg-config --exists liblzma 2>/dev/null || [ -e /usr/lib/liblzma.so ]); then
             return 0
         fi
     fi
