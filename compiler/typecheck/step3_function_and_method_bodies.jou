@@ -401,19 +401,40 @@ def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind
                 return int_type(2 * bigger_size)
             return uint_type(bigger_size)
 
-        case (
-            AstExpressionKind.Add
-            | AstExpressionKind.Sub
-            | AstExpressionKind.Mul
-            | AstExpressionKind.Div
-            | AstExpressionKind.Mod
-        ):
+        case AstExpressionKind.Add | AstExpressionKind.Sub | AstExpressionKind.Mul:
             # Choose the bigger size of inputs. Result is signed if either input value is.
             bigger_size = max(ltype.size_in_bits, rtype.size_in_bits)
             if lhs_signed or rhs_signed:
                 return int_type(bigger_size)
             else:
                 return uint_type(bigger_size)
+
+        case AstExpressionKind.Div | AstExpressionKind.Mod:
+            if (not can_cast_implicitly(ltype, rtype)) and (not can_cast_implicitly(rtype, ltype)):
+                # One of the types is signed, the other is unsigned, and the
+                # signed type is not big enough to just convert the unsigned
+                # type to signed. For example, uint32 divided by int32, or
+                # uint64 divided by int32.
+                #
+                # In these 
+                (
+                    lhs.size_in_bits >= rhs.size_in_bits
+                    and (not lhs_signed)
+                    and rhs_signed
+                ) or (
+                    lhs.size_in_bits <= rhs.size_in_bits
+                    and lhs_signed
+                    and (not rhs_signed)
+                )
+            ):
+                # One type is signed, the other type is unsigned, and the
+                # unsigned type is not small enough to be converted into the
+                lhs.size_in_bits != rhs.size_in_bits
+                and (
+                lhs_signed
+                and not rhs_signed
+                (lhs_signed and not rhs_signed) or (rhs_signed and not lhs_signed):
+                
 
         case _:
             assert False
