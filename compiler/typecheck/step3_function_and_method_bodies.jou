@@ -401,40 +401,13 @@ def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind
                 return int_type(2 * bigger_size)
             return uint_type(bigger_size)
 
-        case AstExpressionKind.Add | AstExpressionKind.Sub | AstExpressionKind.Mul:
+        case AstExpressionKind.Add | AstExpressionKind.Sub | AstExpressionKind.Mul | AstExpressionKind.Div | AstExpressionKind.Mod:
             # Choose the bigger size of inputs. Result is signed if either input value is.
             bigger_size = max(ltype.size_in_bits, rtype.size_in_bits)
             if lhs_signed or rhs_signed:
                 return int_type(bigger_size)
             else:
                 return uint_type(bigger_size)
-
-        case AstExpressionKind.Div | AstExpressionKind.Mod:
-            if (not can_cast_implicitly(ltype, rtype)) and (not can_cast_implicitly(rtype, ltype)):
-                # One of the types is signed, the other is unsigned, and the
-                # signed type is not big enough to just convert the unsigned
-                # type to signed. For example, uint32 divided by int32, or
-                # uint64 divided by int32.
-                #
-                # In these 
-                (
-                    lhs.size_in_bits >= rhs.size_in_bits
-                    and (not lhs_signed)
-                    and rhs_signed
-                ) or (
-                    lhs.size_in_bits <= rhs.size_in_bits
-                    and lhs_signed
-                    and (not rhs_signed)
-                )
-            ):
-                # One type is signed, the other type is unsigned, and the
-                # unsigned type is not small enough to be converted into the
-                lhs.size_in_bits != rhs.size_in_bits
-                and (
-                lhs_signed
-                and not rhs_signed
-                (lhs_signed and not rhs_signed) or (rhs_signed and not lhs_signed):
-                
 
         case _:
             assert False
@@ -525,16 +498,13 @@ def check_binop(
     if got_integers:
         cast_type = cast_type_of_integer_binop(ltype, rtype, op)
         if cast_type == NULL:
-            # Both operands should be cast to whatever is the bigger size
+            # Both operands should be cast to whatever is the bigger size, but
+            # let's keep them unsigned or signed appropriately.
             size = max(ltype.size_in_bits, rtype.size_in_bits)
-            if ltype.kind == TypeKind.SignedInteger:
-                do_implicit_cast(fom, lhs, int_type(size), Location{}, NULL)
-            if ltype.kind == TypeKind.UnsignedInteger:
-                do_implicit_cast(fom, lhs, uint_type(size), Location{}, NULL)
-            if rtype.kind == TypeKind.SignedInteger:
-                do_implicit_cast(fom, rhs, int_type(size), Location{}, NULL)
-            if rtype.kind == TypeKind.UnsignedInteger:
-                do_implicit_cast(fom, rhs, uint_type(size), Location{}, NULL)
+            new_lhs_type = int_type(size) if ltype.kind == TypeKind.SignedInteger else uint_type(size)
+            new_rhs_type = int_type(size) if rtype.kind == TypeKind.SignedInteger else uint_type(size)
+            do_implicit_cast(fom, lhs, new_lhs_type, Location{}, NULL)
+            do_implicit_cast(fom, rhs, new_rhs_type, Location{}, NULL)
             return int_type(size)
     if got_numbers and not got_integers:
         if ltype == double_type() or rtype == double_type():
