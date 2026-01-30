@@ -51,6 +51,35 @@ def convert_array_length_given_as_type_to_an_expression(type: AstType*) -> AstEx
             fail(type.location, "invalid array length")
 
 
+def fail_with_type_not_found(location: Location, name: byte*) -> noreturn:
+    match name with strcmp:
+        case "i8":
+            suggest = "int8"
+        case "i16":
+            suggest = "int16"
+        case "i32":
+            suggest = "int"
+        case "i64":
+            suggest = "int64"
+        case "u8" | "char":
+            suggest = "byte"
+        case "u16":
+            suggest = "uint16"
+        case "u32":
+            suggest = "uint32"
+        case "u64":
+            suggest = "uint64"
+        case _:
+            suggest = NULL
+
+    msg: byte[300]
+    if suggest == NULL:
+        snprintf(msg, sizeof(msg), "there is no type named '%s'", name)
+    else:
+        snprintf(msg, sizeof(msg), "there is no type named '%s', use '%s' instead", name, suggest)
+    fail(location, msg)
+
+
 # This is called when we cannot find a generic class Foo when doing Foo[Bar].
 # The most common reason is that it is actually an array type, not a generic:
 #
@@ -71,13 +100,10 @@ def handle_bad_generic(jou_file: JouFile*, generic: AstGenericType*, location: L
             # User could be attempting generic or array, we don't know. Let's
             # make an error message that is perfectly correct for both arrays
             # and generics.
-            if strcmp(name, "char") == 0:
-                msg = "there is no type named 'char', use 'byte' instead"
-            else:
-                snprintf(msg, sizeof(msg), "there is no type named '%s'", name)
+            fail_with_type_not_found(location, name)
         else:
             snprintf(msg, sizeof(msg), "there is no generic class named '%s'", name)
-        fail(location, msg)
+            fail(location, msg)
 
     if generic.param_types.len != 1:
         # TODO: make sure this is still tested
@@ -138,10 +164,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             # At this point we will show an error for sure.
             generic = find_and_typecheck_generic_class(jou_file, asttype.name)
             if generic == NULL:
-                if strcmp(asttype.name, "char") == 0:
-                    msg = "there is no type named 'char', use 'byte' instead"
-                else:
-                    snprintf(msg, sizeof(msg), "there is no type named '%s'", asttype.name)
+                fail_with_type_not_found(asttype.location, asttype.name)
             else:
                 # Suggest int for all params of the generic class, e.g. List[int]
                 assert generic.classdata.is_generic()
@@ -155,7 +178,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
                     "%s is a generic class, use e.g. %s[%s] instead of just %s",
                     generic.name, asttype.name, ints, asttype.name,
                 )
-            fail(asttype.location, msg)
+                fail(asttype.location, msg)
 
         case AstTypeKind.Pointer:
             if asttype.value_type.is_void():
