@@ -22,6 +22,8 @@ def get_special_constant(name: byte*) -> Constant*:
         # called for the first time, initialize special constants
         global_compiler_state.special_constants = [
             SpecialConstant{name = "WINDOWS", constant = Constant{kind = ConstantKind.Bool, boolean = WINDOWS}},
+            # TODO: Set the value of LINUX constant properly
+            SpecialConstant{name = "LINUX", constant = Constant{kind = ConstantKind.Bool, boolean = (not WINDOWS and not MACOS and not NETBSD)}},
             SpecialConstant{name = "MACOS", constant = Constant{kind = ConstantKind.Bool, boolean = MACOS}},
             SpecialConstant{name = "NETBSD", constant = Constant{kind = ConstantKind.Bool, boolean = NETBSD}},
             SpecialConstant{name = "IS_32BIT", constant = Constant{kind = ConstantKind.Bool, boolean = IS_32BIT}},
