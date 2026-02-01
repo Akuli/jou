@@ -2,36 +2,41 @@
 # The function name varies by platform.
 if WINDOWS:
     declare _errno() -> int*
+elif LINUX:
+    declare __errno_location() -> int*
 elif MACOS:
     declare __error() -> int*
 elif NETBSD:
     declare __errno() -> int*
 else:
-    declare __errno_location() -> int*
+    assert False
 
 
 @public
 def set_errno(value: int) -> None:
     if WINDOWS:
         *_errno() = value
+    elif LINUX:
+        *__errno_location() = value
     elif MACOS:
         *__error() = value
     elif NETBSD:
         *__errno() = value
     else:
-        *__errno_location() = value
-
+        assert False
 
 @public
 def get_errno() -> int:
     if WINDOWS:
         return *_errno()
+    elif LINUX:
+        return *__errno_location()
     elif MACOS:
         return *__error()
     elif NETBSD:
         return *__errno()
     else:
-        return *__errno_location()
+        assert False
 
 
 # Convert an error code into a string. Do not modify or free() the returned string.

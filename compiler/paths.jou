@@ -78,9 +78,10 @@ else:
     #    }
     if NETBSD:
         const DIRENT_NAME_OFFSET: int = 13
-    else:
-        # Assume linux
+    elif LINUX:
         const DIRENT_NAME_OFFSET: int = 19
+    else:
+        assert False
 
     if NETBSD:
         # On NetBSD, "opendir" and "readdir" are legacy functions.

@@ -66,6 +66,10 @@ class FILE:
 #
 if WINDOWS:
     declare __acrt_iob_func(index: int) -> FILE*
+elif LINUX:
+    declare global stdin: FILE*
+    declare global stdout: FILE*
+    declare global stderr: FILE*
 elif MACOS:
     declare global __stdinp: FILE*
     declare global __stdoutp: FILE*
@@ -76,33 +80,35 @@ elif NETBSD:
     else:
         declare global __sF: byte[152][3]  # sizeof(FILE) == 152
 else:
-    declare global stdin: FILE*
-    declare global stdout: FILE*
-    declare global stderr: FILE*
+    assert False
 
 # Returns stdin, the special file for reading keyboard input from terminal.
 @public
 def get_stdin() -> FILE*:
     if WINDOWS:
         return __acrt_iob_func(0)
+    elif LINUX:
+        return stdin
     elif MACOS:
         return __stdinp
     elif NETBSD:
         return &__sF[0] as FILE*
     else:
-        return stdin
+        assert False
 
 # Returns stdout, the special file for printing to terminal.
 @public
 def get_stdout() -> FILE*:
     if WINDOWS:
         return __acrt_iob_func(1)
+    elif LINUX:
+        return stdout
     elif MACOS:
         return __stdoutp
     elif NETBSD:
         return &__sF[1] as FILE*
     else:
-        return stdout
+        assert False
 
 # Returns stderr, the special file for showing error and warning messages.
 #
@@ -115,12 +121,14 @@ def get_stdout() -> FILE*:
 def get_stderr() -> FILE*:
     if WINDOWS:
         return __acrt_iob_func(2)
+    elif LINUX:
+        return stderr
     elif MACOS:
         return __stderrp
     elif NETBSD:
         return &__sF[2] as FILE*
     else:
-        return stderr
+        assert False
 
 # Open/close a file for reading or writing. Mode can be e.g. "r", "w",
 # "a", "rb", "wb" or "ab". The meanings of these modes are as in many
