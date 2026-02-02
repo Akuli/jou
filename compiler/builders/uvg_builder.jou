@@ -26,6 +26,7 @@ class UBuilder:
     uvg: Uvg
     current_block: UvgBlock*
     location: Location
+    return_value_id: int
 
     @public
     def should_functions_marked_with_inline_be_inlined(self) -> bool:
@@ -38,6 +39,10 @@ class UBuilder:
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.uvg.signature = sig
         self.current_block = self.uvg.add_block()
+        if sig.return_type != NULL:
+            self.return_value_id = self.uvg.stack_alloc("return")
+        else:
+            self.return_value_id = -1
 
     @public
     def end_function(self) -> None:
@@ -78,10 +83,7 @@ class UBuilder:
 
     @public
     def stack_alloc(self, t: Type*, varname: byte*) -> int:
-        if varname != NULL:
-            # Currently the UVG does not support multiple variables with the same name.
-            assert not self.uvg.has_local_var(varname)
-        return self.uvg.get_local_var_ptr(varname)
+        return self.uvg.stack_alloc(varname)
 
     @public
     def set_ptr(self, ptr: int, value: int) -> None:
@@ -306,10 +308,12 @@ class UBuilder:
     @public
     def ret(self, value: int*) -> None:
         if value != NULL:
-            self.set(self.uvg.get_local_var_ptr("return"))
+            assert self.return_value_id != -1
+            self.set(self.return_value_id)
 
-        if self.uvg.signature.return_type != NULL:
-            self.use(self.uvg.get_local_var_ptr("return"))
+        if self.return_value_id != -1:
+            # The function returns a value
+            self.use(self.return_value_id)
 
         assert self.current_block != NULL
         assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet

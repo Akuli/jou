@@ -147,22 +147,9 @@ class Uvg:
         self.blocks.append(b)
         return b
 
+    # Returns an ID that represents a pointer to the memory on stack, not its value
     @public
-    def has_local_var(self, varname: byte*) -> bool:
-        assert varname != NULL
-        for v = self.varnames.ptr; v < self.varnames.end(); v++:
-            if strcmp(*v, varname) == 0:
-                return True
-        return False
-
-    @public
-    def get_local_var_ptr(self, varname: byte*) -> int:
-        if varname != NULL:
-            for i = 0; i < self.varnames.len; i++:
-                if strcmp(self.varnames.ptr[i], varname) == 0:
-                    # Reuse existing
-                    return i
-
+    def stack_alloc(self, varname: byte*) -> int:
         actual_varname: byte[100]
         if varname == NULL:
             sprintf(actual_varname, "$%zd", self.varnames.len)
