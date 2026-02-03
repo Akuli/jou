@@ -88,10 +88,7 @@ def handle_missing_return_statement(uvg: Uvg*, ins: UvgInstruction*) -> None:
     n = 0
     for b = 0; b < uvg.blocks.len; b++:
         for b_ins = uvg.blocks.ptr[b].instructions.ptr; b_ins < uvg.blocks.ptr[b].instructions.end(); b_ins++:
-            if (
-                b_ins.kind == UvgInstructionKind.Set
-                and b_ins.var == ins.var
-            ):
+            if b_ins.kind == UvgInstructionKind.Set and b_ins.var == ins.var:
                 n++
 
     if ins.inlining_signature == NULL:
