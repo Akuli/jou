@@ -1,0 +1,34 @@
+import "stdlib/io.jou"
+
+@inline
+def surely_undefined_annotation() -> None:
+    x: byte*
+    puts(x)
+
+@inline
+def nested() -> None:
+    surely_undefined_annotation()
+
+@inline
+def surely_undefined_annotation_ret() -> byte*:
+    y: byte*
+    return y
+
+
+@public  # avoid unused function warning, can't actually run this function
+def caller() -> None:
+    # Calls each function twice to make sure that error message is repeated too.
+    # That might not work if compiler e.g. analyzes the inlined function just once.
+
+    surely_undefined_annotation()  # Warning: the value of 'x' inside inlined function 'surely_undefined_annotation' is undefined
+    surely_undefined_annotation()  # Warning: the value of 'x' inside inlined function 'surely_undefined_annotation' is undefined
+
+    nested()  # Warning: the value of 'x' inside inlined function 'surely_undefined_annotation' is undefined
+    nested()  # Warning: the value of 'x' inside inlined function 'surely_undefined_annotation' is undefined
+
+    surely_undefined_annotation_ret()  # Warning: the value of 'y' inside inlined function 'surely_undefined_annotation_ret' is undefined
+    surely_undefined_annotation_ret()  # Warning: the value of 'y' inside inlined function 'surely_undefined_annotation_ret' is undefined
+
+
+def main() -> int:
+    return 0

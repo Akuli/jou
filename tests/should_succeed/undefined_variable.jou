@@ -1,22 +1,30 @@
 import "stdlib/io.jou"
 
+# In this file, @public is used to avoid unused function warnings when a
+# function cannot actually be called.
+
 def maybe_undefined(n: int) -> None:
     for i = 0; i < n; i++:
         message = "Hi"
     puts(message)  # Warning: the value of 'message' may be undefined
 
-@public  # avoid unused function warning, can't actually run this function
+@public
 def surely_undefined_loop() -> None:
     while False:
         message = "Hi"  # Warning: this code will never run
     puts(message)  # Warning: the value of 'message' is undefined
 
-@public  # avoid unused function warning, can't actually run this function
+@public
 def surely_undefined_annotation() -> None:
     x: byte*
     puts(x)  # Warning: the value of 'x' is undefined
 
-@public  # avoid unused function warning, can't actually run this function
+@public
+def surely_undefined_annotation_ret() -> byte*:
+    y: byte*
+    return y  # Warning: the value of 'y' is undefined
+
+@public
 def surely_undefined_assignments() -> None:
     a: int
     b = &a
