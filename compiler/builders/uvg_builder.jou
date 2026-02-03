@@ -26,6 +26,7 @@ class UBuilder:
     uvg: Uvg
     current_block: UvgBlock*
     location: Location
+    inlining_signature: Signature*
     return_value_id: int
 
     @public
@@ -51,8 +52,13 @@ class UBuilder:
         self.location = Location{}
 
     @public
-    def set_location(self, location: Location) -> None:
-        self.location = location
+    def set_location(self, location: Location, inlining_signature: Signature*) -> None:
+        self.inlining_signature = inlining_signature
+
+        # When inlining, do not store the location so that the locations in UVG
+        # point at the place where inlined function is being called.
+        if inlining_signature == NULL:
+            self.location = location
 
     def add_instruction(self, ins: UvgInstruction) -> None:
         assert ins.var >= 0
@@ -60,6 +66,7 @@ class UBuilder:
         assert self.location.path != NULL
         assert self.location.lineno != 0
         ins.location = self.location
+        ins.inlining_signature = self.inlining_signature
 
         b = self.current_block
         assert b != NULL

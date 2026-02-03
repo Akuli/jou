@@ -18,6 +18,7 @@ enum UvgInstructionKind:
 @public
 class UvgInstruction:
     location: Location
+    inlining_signature: Signature*  # which @inline function this came from, if from inlining
     kind: UvgInstructionKind
     var: int  # not used for UvgInstructionKind.Statement
 
@@ -133,13 +134,18 @@ class Uvg:
 
                 match ins.kind:
                     case UvgInstructionKind.Use:
-                        printf("use %s\n", displaynames[ins.var])
+                        printf("use %s", displaynames[ins.var])
                     case UvgInstructionKind.Set:
-                        printf("set %s\n", displaynames[ins.var])
+                        printf("set %s", displaynames[ins.var])
                     case UvgInstructionKind.DontAnalyze:
-                        printf("don't analyze %s\n", displaynames[ins.var])
+                        printf("don't analyze %s", displaynames[ins.var])
                     case UvgInstructionKind.Statement:
-                        printf("statement\n")
+                        printf("statement")
+
+                if ins.inlining_signature != NULL:
+                    printf("; this came from inlining '%s'", ins.inlining_signature.name)
+
+                printf("\n")
 
             printf("    ")
             match b.terminator.kind:

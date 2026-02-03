@@ -74,12 +74,14 @@ class AnyBuilder:
         if self.hbuilder != NULL:
             self.hbuilder.begin_statement_in_a_body()
 
+    # If inlining_signature is not NULL, it means that the given location is
+    # inside an @inline function that is being called.
     @public
-    def set_location(self, location: Location) -> None:
+    def set_location(self, location: Location, inlining_signature: Signature*) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.set_location(location)
         if self.ubuilder != NULL:
-            self.ubuilder.set_location(location)
+            self.ubuilder.set_location(location, inlining_signature)
         if self.hbuilder != NULL:
             self.hbuilder.set_location(location)
 

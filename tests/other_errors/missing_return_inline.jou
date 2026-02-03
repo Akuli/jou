@@ -1,0 +1,12 @@
+@inline
+def foo() -> int:
+    a: int
+    return a
+
+@public  # avoid unused function warning, can't actually run this function
+def caller() -> None:
+    # Doing this many times should give warnings on separate lines here, not
+    # all on the same "return a" line, so it's possible to actually track down
+    # what call causes these.
+    foo()  # Warning: inline function 'foo' uses an undefined value
+    foo()  # Warning: inline function 'foo' uses an undefined value

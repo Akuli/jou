@@ -23,8 +23,12 @@ class Loop:
 
 
 class InliningInfo:
+    # Which function or method are we inlining?
+    signature: Signature*
+
     return_jumps_to: AnyBuilderBlock
     return_value_ptr: AnyBuilderValue
+
     # The following define how to remap types.
     # For example, T in code could become int in LLVM.
     typemap_from: Type**
@@ -62,7 +66,7 @@ class AstToBuilder:
         # If no reasonable location is available (e.g. implicit return at end of function),
         # continue using the previous location for now.
         if location.path != NULL and location.lineno != 0:
-            self.builder.set_location(location)
+            self.builder.set_location(location, NULL if self.inlining_info == NULL else self.inlining_info.signature)
         return old
 
     def begin_function(self, signature: Signature*, locals: List[LocalVariable], location: Location, public: bool) -> None:
@@ -110,7 +114,7 @@ class AstToBuilder:
         assert self.builder.should_functions_marked_with_inline_be_inlined()
         ast = sig.ast_to_inline
 
-        info = InliningInfo{return_jumps_to = self.builder.add_block()}
+        info = InliningInfo{signature = sig, return_jumps_to = self.builder.add_block()}
         if sig.return_type != NULL:
             info.return_value_ptr = self.builder.stack_alloc(self.map_type(sig.return_type), NULL)
 
