@@ -111,7 +111,6 @@ class AstToBuilder:
 
     def inline(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
         assert sig.ast_to_inline != NULL
-        assert self.builder.should_functions_marked_with_inline_be_inlined()
         ast = sig.ast_to_inline
 
         info = InliningInfo{signature = sig, return_jumps_to = self.builder.add_block()}
@@ -175,11 +174,7 @@ class AstToBuilder:
             funcptr_type = sig.to_funcptr_type()
         assert funcptr_type.kind == TypeKind.FuncPtr
 
-        inline = (
-            sig != NULL
-            and sig.ast_to_inline != NULL
-            and self.builder.should_functions_marked_with_inline_be_inlined()
-        )
+        inline = sig != NULL and sig.ast_to_inline != NULL
         if call.function != NULL and not inline:
             # Calling function pointer. Evaluate the function pointer first, before arguments.
             # TODO: test
@@ -811,7 +806,7 @@ class AstToBuilder:
 
 @public
 def feed_ast_to_builder(fom: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: AnyBuilder*) -> None:
-    if fom.inline and builder.should_functions_marked_with_inline_be_inlined():
+    if fom.inline:
         # Calls to this function will be inlined. Pretend the function doesn't exist.
         return
 

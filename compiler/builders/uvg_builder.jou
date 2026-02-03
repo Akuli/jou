@@ -30,13 +30,6 @@ class UBuilder:
     return_value_id: int
 
     @public
-    def should_functions_marked_with_inline_be_inlined(self) -> bool:
-        # Inlining can create two variables with the same name. This confuses UVGs.
-        #
-        # We also don't want to show warnings coming from inlined code.
-        return True
-
-    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.uvg.signature = sig
         self.current_block = self.uvg.add_block()
