@@ -1,12 +1,27 @@
 @inline
-def foo() -> int:
-    a: int
-    return a
+def foo(n: int) -> int:
+    if n > 10:
+        return 123
+
+@inline
+def nested(n: int) -> int:
+    return foo(n)
+
+@inline
+def baz() -> int:
+    a = 123
 
 @public  # avoid unused function warning, can't actually run this function
-def caller() -> None:
-    # Doing this many times should give warnings on separate lines here, not
-    # all on the same "return a" line, so it's possible to actually track down
-    # what call causes these.
-    foo()  # Warning: inline function 'foo' uses an undefined value
-    foo()  # Warning: inline function 'foo' uses an undefined value
+def caller(n: int) -> None:
+    foo(n)  # Warning: inlined function 'foo' doesn't seem to return a value in all cases
+    foo(n)  # Warning: inlined function 'foo' doesn't seem to return a value in all cases
+
+    nested(n)  # Warning: inlined function 'foo' doesn't seem to return a value in all cases
+    nested(n)  # Warning: inlined function 'foo' doesn't seem to return a value in all cases
+
+    # Just one error here, because compiler stops at first error
+    baz()  # Error: inlined function 'baz' must return a value, because it is defined with '-> int'
+    baz()
+
+def main() -> int:
+    return 0

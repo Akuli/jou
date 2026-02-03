@@ -116,7 +116,7 @@ class AstToBuilder:
 
         info = InliningInfo{signature = sig, return_jumps_to = self.builder.add_block()}
         if sig.return_type != NULL:
-            info.return_value_ptr = self.builder.stack_alloc(self.map_type(sig.return_type), NULL)
+            info.return_value_ptr = self.builder.stack_alloc(self.map_type(sig.return_type), "return")
 
         if sig.get_self_class() != NULL and sig.get_self_class().classdata.is_generic():
             # When inlining a generic method List[int].append(), map T to int

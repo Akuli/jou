@@ -81,53 +81,81 @@ def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: uint8**, block:
     return statuses
 
 
-def handle_missing_return_statement(uvg: Uvg*, location: Location) -> None:
-    # Check if there is a "return" statement that user wrote.
+def handle_missing_return_statement(uvg: Uvg*, ins: UvgInstruction*) -> None:
+    # Check if there is a "return" statement that user wrote. Because this is
+    # only for functions that are supposed to return a value, such a return
+    # statement always sets the return value, even if it's an inlined function.
     n = 0
     for b = 0; b < uvg.blocks.len; b++:
-        if uvg.blocks.ptr[b].terminator.kind == UvgTerminatorKind.Return:
-            n++
-
-    # There is always automatically generated "return" statement at the end of the function.
-    assert n >= 1
+        for b_ins = uvg.blocks.ptr[b].instructions.ptr; b_ins < uvg.blocks.ptr[b].instructions.end(); b_ins++:
+            if (
+                b_ins.kind == UvgInstructionKind.Set
+                and b_ins.var == ins.var
+            ):
+                n++
 
     msg: byte[500]
-    if n == 1:
+    if n == 0:
         # There are no return statements. Tell user to add them and why they are needed.
-        # TODO: make this aware of inlining!
-        snprintf(
-            msg, sizeof(msg),
-            "%s '%s' must return a value, because it is defined with '-> %s'",
-            uvg.signature.function_or_method(),
-            uvg.signature.name,
-            uvg.signature.return_type.name,
-        )
-        fail(location, msg)
+        if ins.inlining_signature != NULL:
+            snprintf(
+                msg,
+                sizeof(msg),
+                "inlined %s '%s' must return a value, because it is defined with '-> %s'",
+                ins.inlining_signature.function_or_method(),
+                ins.inlining_signature.name,
+                ins.inlining_signature.return_type.name,
+            )
+        else:
+            snprintf(
+                msg,
+                sizeof(msg),
+                "%s '%s' must return a value, because it is defined with '-> %s'",
+                uvg.signature.function_or_method(),
+                uvg.signature.name,
+                uvg.signature.return_type.name,
+            )
+        fail(ins.location, msg)
     else:
         # There are some return statements but they don't cover all cases.
-        # TODO: make this aware of inlining!
-        snprintf(
-            msg, sizeof(msg),
-            "%s '%s' doesn't seem to return a value in all cases",
-            uvg.signature.function_or_method(),
-            uvg.signature.name,
-        )
-        show_warning(location, msg)
+        if ins.inlining_signature != NULL:
+            snprintf(
+                msg,
+                sizeof(msg),
+                "inlined %s '%s' doesn't seem to return a value in all cases",
+                ins.inlining_signature.function_or_method(),
+                ins.inlining_signature.name,
+            )
+        else:
+            snprintf(
+                msg,
+                sizeof(msg),
+                "%s '%s' doesn't seem to return a value in all cases",
+                uvg.signature.function_or_method(),
+                uvg.signature.name,
+            )
+        show_warning(ins.location, msg)
 
 
 def show_undefined_variable_warning(ins: UvgInstruction*, varname: byte*, sure: bool) -> None:
-    msg: byte[500]
-
-    if ins.inlining_signature == NULL:
-        if sure:
-            snprintf(msg, sizeof(msg), "the value of '%s' is undefined", varname)
-        else:
-            snprintf(msg, sizeof(msg), "the value of '%s' may be undefined", varname)
+    if sure:
+        what_we_say = "is undefined"
     else:
-        if sure:
-            snprintf(msg, sizeof(msg), "the value of '%s' inside inlined %s '%s' is undefined", varname, ins.inlining_signature.function_or_method(), ins.inlining_signature.name)
-        else:
-            snprintf(msg, sizeof(msg), "the value of '%s' inside inlined %s '%s' may be undefined", varname, ins.inlining_signature.function_or_method(), ins.inlining_signature.name)
+        what_we_say = "may be undefined"
+
+    msg: byte[500]
+    if ins.inlining_signature == NULL:
+        snprintf(msg, sizeof(msg), "the value of '%s' %s", varname, what_we_say)
+    else:
+        snprintf(
+            msg,
+            sizeof(msg),
+            "the value of '%s' inside inlined %s '%s' %s",
+            varname,
+            ins.inlining_signature.function_or_method(),
+            ins.inlining_signature.name,
+            what_we_say,
+        )
 
     show_warning(ins.location, msg)
 
@@ -139,16 +167,16 @@ def update_statuses_based_on_instructions(uvg: Uvg*, statuses: uint8*, block: Uv
                 if statuses[ins.var] != DONT_ANALYZE:
                     statuses[ins.var] = DEFINED
             case UvgInstructionKind.Use:
-                if warn and uvg.varnames.ptr[ins.var][0] != '$':
+                if warn and strcmp(uvg.varnames.ptr[ins.var], "$anonymous") != 0:
                     match statuses[ins.var]:
                         case UNDEFINED:
                             if strcmp(uvg.varnames.ptr[ins.var], "return") == 0:
-                                handle_missing_return_statement(uvg, ins.location)
+                                handle_missing_return_statement(uvg, ins)
                             else:
                                 show_undefined_variable_warning(ins, uvg.varnames.ptr[ins.var], True)
                         case POSSIBLY_UNDEFINED:
                             if strcmp(uvg.varnames.ptr[ins.var], "return") == 0:
-                                handle_missing_return_statement(uvg, ins.location)
+                                handle_missing_return_statement(uvg, ins)
                             else:
                                 show_undefined_variable_warning(ins, uvg.varnames.ptr[ins.var], False)
             case UvgInstructionKind.Statement:
