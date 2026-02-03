@@ -94,46 +94,36 @@ def handle_missing_return_statement(uvg: Uvg*, ins: UvgInstruction*) -> None:
             ):
                 n++
 
+    if ins.inlining_signature == NULL:
+        sig = uvg.signature
+        prefix = ""
+    else:
+        sig = ins.inlining_signature
+        prefix = "inlined "
+
     msg: byte[500]
     if n == 0:
         # There are no return statements. Tell user to add them and why they are needed.
-        if ins.inlining_signature != NULL:
-            snprintf(
-                msg,
-                sizeof(msg),
-                "inlined %s '%s' must return a value, because it is defined with '-> %s'",
-                ins.inlining_signature.function_or_method(),
-                ins.inlining_signature.name,
-                ins.inlining_signature.return_type.name,
-            )
-        else:
-            snprintf(
-                msg,
-                sizeof(msg),
-                "%s '%s' must return a value, because it is defined with '-> %s'",
-                uvg.signature.function_or_method(),
-                uvg.signature.name,
-                uvg.signature.return_type.name,
-            )
+        snprintf(
+            msg,
+            sizeof(msg),
+            "%s%s '%s' must return a value, because it is defined with '-> %s'",
+            prefix,
+            sig.function_or_method(),
+            sig.name,
+            sig.return_type.name,
+        )
         fail(ins.location, msg)
     else:
         # There are some return statements but they don't cover all cases.
-        if ins.inlining_signature != NULL:
-            snprintf(
-                msg,
-                sizeof(msg),
-                "inlined %s '%s' doesn't seem to return a value in all cases",
-                ins.inlining_signature.function_or_method(),
-                ins.inlining_signature.name,
-            )
-        else:
-            snprintf(
-                msg,
-                sizeof(msg),
-                "%s '%s' doesn't seem to return a value in all cases",
-                uvg.signature.function_or_method(),
-                uvg.signature.name,
-            )
+        snprintf(
+            msg,
+            sizeof(msg),
+            "%s%s '%s' doesn't seem to return a value in all cases",
+            prefix,
+            sig.function_or_method(),
+            sig.name,
+        )
         show_warning(ins.location, msg)
 
 
