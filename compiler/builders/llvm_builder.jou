@@ -28,7 +28,6 @@ import "../ast.jou"
 import "../global_symbols.jou"
 import "../errors_and_warnings.jou"
 import "../llvm.jou"
-import "../constants.jou"
 import "../state.jou"
 import "../types.jou"
 import "./any_builder.jou"
@@ -582,33 +581,6 @@ class LBuilder:
         llvm_array = LLVMConstArray(type_to_llvm(self.state, item_type), llvm_items, len as uint32)
         free(llvm_items)
         return LBuilderValue{type = item_type.array_type(len), llvm_value = llvm_array}
-
-    # Helper method to convert a Constant to an LLVM value
-    def constant_to_llvm_value(self, c: Constant*) -> LLVMValue*:
-        match c.kind:
-            case ConstantKind.Integer:
-                return LLVMConstInt(
-                    type_to_llvm(self.state, c.get_type()),
-                    c.integer.value,
-                    (c.get_type().kind == TypeKind.SignedInteger) as int
-                )
-            case ConstantKind.PointerString:
-                # Create a string constant
-                llvm_string_array = LLVMConstStringInContext(self.state.llvm_context, c.pointer_string, strlen(c.pointer_string) as uint32, False as int)
-                # Add a global for this string
-                llvm_string = LLVMAddGlobal(self.llvm_module, LLVMTypeOf(llvm_string_array), "string_literal")
-                LLVMSetLinkage(llvm_string, LLVMLinkage.Private)
-                LLVMSetInitializer(llvm_string, llvm_string_array)
-                return llvm_string
-            case ConstantKind.Bool:
-                return LLVMConstInt(LLVMInt1TypeInContext(self.state.llvm_context), c.boolean as int64, False as int)
-            case ConstantKind.Float | ConstantKind.Double:
-                return LLVMConstRealOfString(type_to_llvm(self.state, c.get_type()), c.float_or_double_text)
-            case ConstantKind.Null:
-                return LLVMConstNull(type_to_llvm(self.state, c.get_type()))
-            case _:
-                # For other types, we'd need more handling
-                assert False
 
     # string as '\0' terminated pointer
     @public
