@@ -225,43 +225,35 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                     return False
 
         case AstExpressionKind.Array:
-            # Evaluate each element of the array
-            if expr.array.len == 0:
-                # Empty arrays are not supported in Jou
-                return False
+            if type_hint != NULL and type_hint.kind == TypeKind.Array:
+                item_type_hint = type_hint.array.item_type
+            else:
+                item_type_hint = NULL
 
-            # Evaluate first element to determine element type
-            first_element: Constant
-            if not evaluate_constant_expression(jou_file, &expr.array.ptr[0], &first_element, type_hint):
-                return False
+            assert expr.array.len > 0
 
-            element_type = first_element.get_type()
-            
-            # Create the array constant with all elements
-            result.array_elements = List[Constant]{}
-            result.kind = ConstantKind.Array
-
-            # Add the first element
-            result.array_elements.append(first_element)
-
-            # Evaluate remaining elements
-            for i = 1; i < expr.array.len; i++:
-                element: Constant
-                if not evaluate_constant_expression(jou_file, &expr.array.ptr[i], &element, element_type):
-                    result.free()
+            items = List[Constant]{}
+            for item_ast = expr.array.ptr; item_ast < expr.array.end(); item_ast++:
+                item: Constant
+                if not evaluate_constant_expression(jou_file, item_ast, &item, item_type_hint):
+                    for p = items.ptr; p < items.end(); p++:
+                        p.free()
+                    free(items.ptr)
                     return False
 
-                if element.get_type() != element_type:
+                if items.len > 0 and item.get_type() != items.ptr[0].get_type():
                     snprintf(
-                        msg, sizeof(msg),
-                        "compile-time arrays of mixed types are not supported (got %s and %s), please create an issue at https://github.com/Akuli/jou",
-                        element_type.name,
-                        element.get_type().name
+                        msg,
+                        sizeof(msg),
+                        "array items have different types (%s, %s)",
+                        items.ptr[0].get_type().name,
+                        item.get_type().name
                     )
                     fail(expr.location, msg)
 
-                result.array_elements.append(element)
+                items.append(item)
 
+            *result = Constant{kind = ConstantKind.Array, array_elements = items}
             return True
 
         case _:
