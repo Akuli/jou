@@ -28,6 +28,7 @@ import "../ast.jou"
 import "../global_symbols.jou"
 import "../errors_and_warnings.jou"
 import "../llvm.jou"
+import "../constants.jou"
 import "../state.jou"
 import "../types.jou"
 import "./any_builder.jou"
@@ -568,6 +569,55 @@ class LBuilder:
         llvm_array = LLVMConstStringInContext(self.state.llvm_context, bytes.ptr, bytes.len as uint32, True as int)
         assert bytes.len <= INT32_MAX
         return LBuilderValue{type = uint_type(8).array_type(bytes.len as int), llvm_value = llvm_array}
+
+    @public
+    def array(self, element_type: Type*, elements: Constant*) -> LBuilderValue:
+        assert element_type != NULL
+        assert elements.kind == ConstantKind.Array
+
+        # Create LLVM values for each element
+        elements_llvm_ptr = malloc(elements.array_elements.len * 8)  # 8 bytes per pointer on 64-bit
+        elements_llvm = elements_llvm_ptr as LLVMValue**
+
+        for i = 0; i < elements.array_elements.len; i++:
+            # Build LLVM value for each element
+            elem_constant = &elements.array_elements.ptr[i]
+            elem_llvm_value = self.constant_to_llvm_value(elem_constant)
+            elements_llvm[i] = elem_llvm_value
+
+        array_type = element_type.array_type(elements.array_elements.len as int)
+        element_llvm_type = type_to_llvm(self.state, element_type)
+        llvm_array = LLVMConstArray(element_llvm_type, elements_llvm, elements.array_elements.len as uint32)
+        free(elements_llvm_ptr)
+
+        return LBuilderValue{type = array_type, llvm_value = llvm_array}
+
+    # Helper method to convert a Constant to an LLVM value
+    def constant_to_llvm_value(self, c: Constant*) -> LLVMValue*:
+        match c.kind:
+            case ConstantKind.Integer:
+                return LLVMConstInt(
+                    type_to_llvm(self.state, c.get_type()),
+                    c.integer.value,
+                    (c.get_type().kind == TypeKind.SignedInteger) as int
+                )
+            case ConstantKind.PointerString:
+                # Create a string constant
+                llvm_string_array = LLVMConstStringInContext(self.state.llvm_context, c.pointer_string, strlen(c.pointer_string) as uint32, False as int)
+                # Add a global for this string
+                llvm_string = LLVMAddGlobal(self.llvm_module, LLVMTypeOf(llvm_string_array), "string_literal")
+                LLVMSetLinkage(llvm_string, LLVMLinkage.Private)
+                LLVMSetInitializer(llvm_string, llvm_string_array)
+                return llvm_string
+            case ConstantKind.Bool:
+                return LLVMConstInt(LLVMInt1TypeInContext(self.state.llvm_context), c.boolean as int64, False as int)
+            case ConstantKind.Float | ConstantKind.Double:
+                return LLVMConstRealOfString(type_to_llvm(self.state, c.get_type()), c.float_or_double_text)
+            case ConstantKind.Null:
+                return LLVMConstNull(type_to_llvm(self.state, c.get_type()))
+            case _:
+                # For other types, we'd need more handling
+                assert False
 
     # string as '\0' terminated pointer
     @public

@@ -32,6 +32,7 @@ enum ConstantKind:
     PointerString
     ArrayOfBytes
     Bool
+    Array   # Array of constants (e.g., [1, 2, 3] evaluates to this)
 
 class IntegerConstant:
     size_in_bits: int
@@ -52,6 +53,9 @@ class Constant:
         float_or_double_text: byte[100]  # convenient because LLVM wants a string anyway
         boolean: bool
         enum_member: EnumMemberConstant
+        array_elements: List[Constant]  # for ConstantKind.Array
+    # For array constants: points to the element type (only used when kind == Array or (kind == ArrayOfBytes and array_element_type != NULL))
+    array_element_type: Type*
 
     @public
     def print(self) -> None:
@@ -91,6 +95,13 @@ class Constant:
                 printf("pointer string ")
                 print_string(self.pointer_string)
                 printf("\n")
+            case ConstantKind.Array:
+                printf("array of %d elements [", self.array_elements.len)
+                for i = 0; i < self.array_elements.len; i++:
+                    if i > 0:
+                        printf(", ")
+                    self.array_elements.ptr[i].print()
+                printf("]\n")
 
     @public
     def free(self) -> None:
@@ -99,6 +110,10 @@ class Constant:
                 free(self.array_of_bytes.ptr)
             case ConstantKind.PointerString:
                 free(self.pointer_string)
+            case ConstantKind.Array:
+                for i = 0; i < self.array_elements.len; i++:
+                    self.array_elements.ptr[i].free()
+                free(self.array_elements.ptr)
             case _:
                 pass
 
@@ -111,6 +126,11 @@ class Constant:
                 self.array_of_bytes.extend(old)
             case ConstantKind.PointerString:
                 self.pointer_string = strdup(self.pointer_string)
+            case ConstantKind.Array:
+                new_array = List[Constant]{}
+                for i = 0; i < self.array_elements.len; i++:
+                    new_array.append(self.array_elements.ptr[i].copy())
+                self.array_elements = new_array
             case _:
                 pass
         return self
@@ -130,7 +150,13 @@ class Constant:
                 return bool_type()
             case ConstantKind.ArrayOfBytes:
                 assert self.array_of_bytes.len <= INT32_MAX
-                return uint_type(8).array_type(self.array_of_bytes.len as int)
+                if self.array_element_type != NULL:
+                    # This is an array of some element type, not just bytes
+                    element_size_bytes = self.array_element_type.size_in_bits / 8
+                    return self.array_element_type.array_type(self.array_of_bytes.len / element_size_bytes as int)
+                else:
+                    # This is a byte array
+                    return uint_type(8).array_type(self.array_of_bytes.len as int)
             case ConstantKind.PointerString:
                 return uint_type(8).pointer_type()
             case ConstantKind.Integer:
@@ -138,6 +164,9 @@ class Constant:
                     return int_type(self.integer.size_in_bits)
                 else:
                     return uint_type(self.integer.size_in_bits)
+            case ConstantKind.Array:
+                assert self.array_element_type != NULL
+                return self.array_element_type.array_type(self.array_elements.len as int)
 
 
 @public

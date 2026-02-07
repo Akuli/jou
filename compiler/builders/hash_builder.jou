@@ -10,6 +10,7 @@ import "stdlib/list.jou"
 import "stdlib/limits.jou"
 
 import "../ast.jou"
+import "../constants.jou"
 import "../global_symbols.jou"
 import "../errors_and_warnings.jou"
 import "../hash.jou"
@@ -222,6 +223,22 @@ class HBuilder:
         self.hash.add_int(bytes.len as int)
         self.hash.add_bytes(bytes.ptr, bytes.len)
         return self.new_value(uint_type(8).array_type(bytes.len as int))
+
+    @public
+    def array(self, element_type: Type*, elements: Constant*) -> HBuilderValue:
+        self.hash.add_string("array")
+        self.hash.add_int(elements.array_elements.len as int)
+        # Hash each element
+        for i = 0; i < elements.array_elements.len; i++:
+            elem = &elements.array_elements.ptr[i]
+            match elem.kind:
+                case ConstantKind.Integer:
+                    self.hash.add_string("integer")
+                    self.hash.add_int64(elem.integer.value)
+                case _:
+                    pass
+        array_type = element_type.array_type(elements.array_elements.len as int)
+        return self.new_value(array_type)
 
     # string as '\0' terminated pointer
     @public

@@ -5,6 +5,7 @@ import "stdlib/list.jou"
 import "../uvg_analyze.jou"
 import "../state.jou"
 import "../ast.jou"
+import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
 import "../uvg.jou"
@@ -130,6 +131,10 @@ class UBuilder:
 
     @public
     def array_of_bytes(self, bytes: List[byte]) -> int:
+        return ANONYMOUS_VALUE_ID
+
+    @public
+    def array(self, element_type: Type*, elements: Constant*) -> int:
         return ANONYMOUS_VALUE_ID
 
     @public

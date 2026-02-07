@@ -379,6 +379,8 @@ class AstToBuilder:
 
     def build_constant(self, constant: Constant*) -> AnyBuilderValue:
         match constant.kind:
+            case ConstantKind.Array:
+                return self.builder.array(constant.array_element_type, constant)
             case ConstantKind.ArrayOfBytes:
                 return self.builder.array_of_bytes(constant.array_of_bytes)
             case ConstantKind.PointerString:

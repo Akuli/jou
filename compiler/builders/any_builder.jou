@@ -13,6 +13,7 @@ import "../llvm.jou"
 import "../types.jou"
 import "../uvg.jou"
 import "../ast.jou"
+import "../constants.jou"
 import "./llvm_builder.jou"
 import "./uvg_builder.jou"
 import "./hash_builder.jou"
@@ -243,6 +244,17 @@ class AnyBuilder:
             result.uvalue = self.ubuilder.array_of_bytes(bytes)
         if self.hbuilder != NULL:
             result.hvalue = self.hbuilder.array_of_bytes(bytes)
+        return result
+
+    @public
+    def array(self, element_type: Type*, elements: Constant*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+        if self.lbuilder != NULL:
+            result.lvalue = self.lbuilder.array(element_type, elements)
+        if self.ubuilder != NULL:
+            result.uvalue = self.ubuilder.array(element_type, elements)
+        if self.hbuilder != NULL:
+            result.hvalue = self.hbuilder.array(element_type, elements)
         return result
 
     # string as '\0' terminated pointer

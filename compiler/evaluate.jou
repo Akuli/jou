@@ -224,6 +224,49 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                 case _:
                     return False
 
+        case AstExpressionKind.Array:
+            # Evaluate each element of the array
+            if expr.array.len == 0:
+                # Empty arrays are not supported in Jou
+                return False
+
+            # Evaluate first element to determine element type
+            first_element: Constant
+            if not evaluate_constant_expression(jou_file, &expr.array.ptr[0], &first_element, type_hint):
+                return False
+
+            element_type = first_element.get_type()
+            
+            # Create the array constant with all elements
+            result.array_elements = List[Constant]{}
+            result.array_element_type = element_type
+            result.kind = ConstantKind.Array
+
+            # Add the first element
+            result.array_elements.append(first_element)
+
+            # Evaluate remaining elements
+            for i = 1; i < expr.array.len; i++:
+                element: Constant
+                if not evaluate_constant_expression(jou_file, &expr.array.ptr[i], &element, element_type):
+                    result.free()
+                    return False
+
+                if element.get_type() != element_type:
+                    snprintf(
+                        msg, sizeof(msg),
+                        "arrays of mixed types are not implemented yet (line %d has %s, line %d has %s), please create an issue at https://github.com/Akuli/jou",
+                        expr.array.ptr[0].location.lineno,
+                        element_type.name,
+                        expr.array.ptr[i].location.lineno,
+                        element.get_type().name
+                    )
+                    fail(expr.location, msg)
+
+                result.array_elements.append(element)
+
+            return True
+
         case _:
             return False
 

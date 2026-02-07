@@ -4,6 +4,10 @@ global x: int
 global y: int = 100
 global z = 200
 
+# Test global array initialization at compile time (issue #1222)
+global int_array = [10, 20, 30]
+global string_array = ["hello", "world"]
+
 def increment_all() -> None:
     x++
     y++
@@ -15,5 +19,11 @@ def main() -> int:
     printf("%d %d %d\n", x, y, z)  # Output: 1 101 201
     increment_all()
     printf("%d %d %d\n", x, y, z)  # Output: 2 102 202
+
+    # Test integer array
+    printf("%d %d %d\n", int_array[0], int_array[1], int_array[2])  # Output: 10 20 30
+
+    # Test string array
+    printf("%s %s\n", string_array[0], string_array[1])  # Output: hello world
 
     return 0
