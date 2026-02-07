@@ -133,6 +133,12 @@ class UBuilder:
         return ANONYMOUS_VALUE_ID
 
     @public
+    def array(self, len: int, items: int*, item_type: Type*) -> int:
+        for i = 0; i < len; i++:
+            self.use(items[i])
+        return ANONYMOUS_VALUE_ID
+
+    @public
     def pointer_string(self, s: byte*) -> int:
         return ANONYMOUS_VALUE_ID
 

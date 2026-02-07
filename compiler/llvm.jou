@@ -359,6 +359,8 @@ declare LLVMConstRealOfString(RealTy: LLVMType*, Text: byte*) -> LLVMValue*
 @public
 declare LLVMConstStringInContext(C: LLVMContext*, Str: byte*, Length: uint32, DontNullTerminate: int) -> LLVMValue*
 @public
+declare LLVMConstArray2(ElementTy: LLVMType*, ConstantVals: LLVMValue**, Length: uint64) -> LLVMValue*
+@public
 declare LLVMSizeOf(Ty: LLVMType*) -> LLVMValue*
 @public
 declare LLVMSetLinkage(Global: LLVMValue*, Linkage: LLVMLinkage) -> None

@@ -30,8 +30,13 @@ enum ConstantKind:
     Float
     Double
     PointerString
-    ArrayOfBytes
     Bool
+    # ArrayOfBytes is a special case of Array for arrays of bytes. It is
+    # needed for performance. For example, if a huge file is embedded with
+    # embed_file(), we don't want to construct one Constant object for each
+    # byte of the file.
+    ArrayOfBytes
+    Array
 
 class IntegerConstant:
     size_in_bits: int
@@ -52,6 +57,7 @@ class Constant:
         float_or_double_text: byte[100]  # convenient because LLVM wants a string anyway
         boolean: bool
         enum_member: EnumMemberConstant
+        array_elements: List[Constant]
 
     @public
     def print(self) -> None:
@@ -91,6 +97,11 @@ class Constant:
                 printf("pointer string ")
                 print_string(self.pointer_string)
                 printf("\n")
+            case ConstantKind.Array:
+                # Ideally we would print the elements, but each constant would
+                # print a newline at the end, and I'm not sure if something
+                # relies on this thing outputting just one line.
+                printf("array of %zd elements\n", self.array_elements.len)
 
     @public
     def free(self) -> None:
@@ -99,6 +110,10 @@ class Constant:
                 free(self.array_of_bytes.ptr)
             case ConstantKind.PointerString:
                 free(self.pointer_string)
+            case ConstantKind.Array:
+                for elem = self.array_elements.ptr; elem < self.array_elements.end(); elem++:
+                    elem.free()
+                free(self.array_elements.ptr)
             case _:
                 pass
 
@@ -111,6 +126,11 @@ class Constant:
                 self.array_of_bytes.extend(old)
             case ConstantKind.PointerString:
                 self.pointer_string = strdup(self.pointer_string)
+            case ConstantKind.Array:
+                new_array = List[Constant]{}
+                for i = 0; i < self.array_elements.len; i++:
+                    new_array.append(self.array_elements.ptr[i].copy())
+                self.array_elements = new_array
             case _:
                 pass
         return self
@@ -138,6 +158,10 @@ class Constant:
                     return int_type(self.integer.size_in_bits)
                 else:
                     return uint_type(self.integer.size_in_bits)
+            case ConstantKind.Array:
+                # Empty arrays are not allowed, and all array elements are of the same type.
+                assert self.array_elements.len > 0
+                return self.array_elements.ptr[0].get_type().array_type(self.array_elements.len as int)
 
 
 @public
