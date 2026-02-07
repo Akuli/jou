@@ -94,12 +94,10 @@ class Constant:
                 print_string(self.pointer_string)
                 printf("\n")
             case ConstantKind.Array:
-                printf("array of %d elements [", self.array_elements.len)
-                for i = 0; i < self.array_elements.len; i++:
-                    if i > 0:
-                        printf(", ")
-                    self.array_elements.ptr[i].print()
-                printf("]\n")
+                # Ideally we would print the elements, but each constant would
+                # print a newline at the end, and I'm not sure if something
+                # relies on this thing outputting just one line.
+                printf("array of %d elements\n")
 
     @public
     def free(self) -> None:
