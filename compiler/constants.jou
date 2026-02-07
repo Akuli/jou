@@ -111,8 +111,8 @@ class Constant:
             case ConstantKind.PointerString:
                 free(self.pointer_string)
             case ConstantKind.Array:
-                for i = 0; i < self.array_elements.len; i++:
-                    self.array_elements.ptr[i].free()
+                for elem = self.array_elements.ptr; elem < self.array_elements.end(); elem++:
+                    elem.free()
                 free(self.array_elements.ptr)
             case _:
                 pass
