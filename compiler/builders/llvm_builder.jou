@@ -578,7 +578,7 @@ class LBuilder:
             assert items[i].type == item_type
             llvm_items[i] = items[i].llvm_value
 
-        llvm_array = LLVMConstArray(type_to_llvm(self.state, item_type), llvm_items, len as uint32)
+        llvm_array = LLVMConstArray2(type_to_llvm(self.state, item_type), llvm_items, len as uint64)
         free(llvm_items)
         return LBuilderValue{type = item_type.array_type(len), llvm_value = llvm_array}
 
