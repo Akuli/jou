@@ -254,10 +254,8 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                 if element.get_type() != element_type:
                     snprintf(
                         msg, sizeof(msg),
-                        "arrays of mixed types are not implemented yet (line %d has %s, line %d has %s), please create an issue at https://github.com/Akuli/jou",
-                        expr.array.ptr[0].location.lineno,
+                        "compile-time arrays of mixed types are not supported (got %s and %s), please create an issue at https://github.com/Akuli/jou",
                         element_type.name,
-                        expr.array.ptr[i].location.lineno,
                         element.get_type().name
                     )
                     fail(expr.location, msg)
