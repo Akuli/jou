@@ -381,8 +381,11 @@ class AstToBuilder:
         match constant.kind:
             case ConstantKind.Array:
                 assert constant.array_elements.len > 0
-                # TODO: should probably pass just the List[Constant]
-                return self.builder.array(constant.get_type().array.item_type, constant)
+                items: AnyBuilderValue* = malloc(sizeof(items[0]) * constant.array_elements.len)
+                assert items != NULL
+                for i = 0; i < constant.array_elements.len; i++:
+                    items[i] = self.build_constant(&constant.array_elements.ptr[i])
+                return self.builder.array(constant.array_elements.len as int, items, constant.array_elements.ptr[0].get_type())
             case ConstantKind.ArrayOfBytes:
                 return self.builder.array_of_bytes(constant.array_of_bytes)
             case ConstantKind.PointerString:

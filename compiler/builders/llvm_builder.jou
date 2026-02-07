@@ -571,26 +571,17 @@ class LBuilder:
         return LBuilderValue{type = uint_type(8).array_type(bytes.len as int), llvm_value = llvm_array}
 
     @public
-    def array(self, element_type: Type*, elements: Constant*) -> LBuilderValue:
-        assert element_type != NULL
-        assert elements.kind == ConstantKind.Array
+    def array(self, len: int, items: LBuilderValue*, item_type: Type*) -> LBuilderValue:
+        llvm_items: LLVMValue** = malloc(sizeof(llvm_items[0]) * len)
+        assert llvm_items != NULL
 
-        # Create LLVM values for each element
-        elements_llvm_ptr = malloc(elements.array_elements.len * 8)  # 8 bytes per pointer on 64-bit
-        elements_llvm = elements_llvm_ptr as LLVMValue**
+        for i = 0; i < len; i++:
+            assert items[i].type == item_type
+            llvm_items[i] = items[i].llvm_value
 
-        for i = 0; i < elements.array_elements.len; i++:
-            # Build LLVM value for each element
-            elem_constant = &elements.array_elements.ptr[i]
-            elem_llvm_value = self.constant_to_llvm_value(elem_constant)
-            elements_llvm[i] = elem_llvm_value
-
-        array_type = element_type.array_type(elements.array_elements.len as int)
-        element_llvm_type = type_to_llvm(self.state, element_type)
-        llvm_array = LLVMConstArray(element_llvm_type, elements_llvm, elements.array_elements.len as uint32)
-        free(elements_llvm_ptr)
-
-        return LBuilderValue{type = array_type, llvm_value = llvm_array}
+        llvm_array = LLVMConstArray(type_to_llvm(self.state, item_type), llvm_items, len as uint32)
+        free(llvm_items)
+        return LBuilderValue{type = item_type.array_type(len), llvm_value = llvm_array}
 
     # Helper method to convert a Constant to an LLVM value
     def constant_to_llvm_value(self, c: Constant*) -> LLVMValue*:

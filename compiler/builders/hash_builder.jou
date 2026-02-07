@@ -225,20 +225,12 @@ class HBuilder:
         return self.new_value(uint_type(8).array_type(bytes.len as int))
 
     @public
-    def array(self, element_type: Type*, elements: Constant*) -> HBuilderValue:
+    def array(self, len: int, items: HBuilderValue*, item_type: Type*) -> HBuilderValue:
         self.hash.add_string("array")
-        self.hash.add_int(elements.array_elements.len as int)
-        # Hash each element
-        for i = 0; i < elements.array_elements.len; i++:
-            elem = &elements.array_elements.ptr[i]
-            match elem.kind:
-                case ConstantKind.Integer:
-                    self.hash.add_string("integer")
-                    self.hash.add_int64(elem.integer.value)
-                case _:
-                    pass
-        array_type = element_type.array_type(elements.array_elements.len as int)
-        return self.new_value(array_type)
+        for i = 0; i < len; i++:
+            assert items[i].type == item_type
+            self.hash.add_int64(items[i].id)
+        return self.new_value(item_type.array_type(len))
 
     # string as '\0' terminated pointer
     @public

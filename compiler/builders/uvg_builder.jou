@@ -134,7 +134,9 @@ class UBuilder:
         return ANONYMOUS_VALUE_ID
 
     @public
-    def array(self, element_type: Type*, elements: Constant*) -> int:
+    def array(self, len: int, items: int*, item_type: Type*) -> int:
+        for i = 0; i < len; i++:
+            self.use(items[i])
         return ANONYMOUS_VALUE_ID
 
     @public
