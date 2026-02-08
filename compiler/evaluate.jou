@@ -224,6 +224,38 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                 case _:
                     return False
 
+        case AstExpressionKind.Array:
+            if type_hint != NULL and type_hint.kind == TypeKind.Array:
+                item_type_hint = type_hint.array.item_type
+            else:
+                item_type_hint = NULL
+
+            assert expr.array.len > 0
+
+            items = List[Constant]{}
+            for item_ast = expr.array.ptr; item_ast < expr.array.end(); item_ast++:
+                item: Constant
+                if not evaluate_constant_expression(jou_file, item_ast, &item, item_type_hint):
+                    for p = items.ptr; p < items.end(); p++:
+                        p.free()
+                    free(items.ptr)
+                    return False
+
+                if items.len > 0 and item.get_type() != items.ptr[0].get_type():
+                    snprintf(
+                        msg,
+                        sizeof(msg),
+                        "array items have different types (%s, %s)",
+                        items.ptr[0].get_type().name,
+                        item.get_type().name
+                    )
+                    fail(expr.location, msg)
+
+                items.append(item)
+
+            *result = Constant{kind = ConstantKind.Array, array_elements = items}
+            return True
+
         case _:
             return False
 

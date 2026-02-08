@@ -4,10 +4,19 @@ global x: int
 global y: int = 100
 global z = 200
 
+global int_array = [10, 20, 30]
+#global int16_array: int16 = [40, 50, 60]  # TODO: doesn't work
+global string_array = ["hello", "world"]
+#global arraystring_array: byte[10][2] = ["hello", "world"]  # TODO: doesn't work
+
 def increment_all() -> None:
     x++
     y++
     z++
+#    int16_array[0]++  # TODO
+    int_array[0]++
+    string_array[1]++
+    #arraystring_array[1][2]++  # TODO
 
 def main() -> int:
     printf("%d %d %d\n", x, y, z)  # Output: 0 100 200
@@ -15,5 +24,10 @@ def main() -> int:
     printf("%d %d %d\n", x, y, z)  # Output: 1 101 201
     increment_all()
     printf("%d %d %d\n", x, y, z)  # Output: 2 102 202
+
+    printf("%d %d %d\n", int_array[0], int_array[1], int_array[2])  # Output: 12 20 30
+    #printf("%d %d %d\n", int16_array[0], int16_array[1], int16_array[2])  # TODO
+    printf("%s %s\n", string_array[0], string_array[1])  # Output: hello rld
+    #printf("%s %s\n", arraystring_array[0], arraystring_array[1])  # TODO
 
     return 0

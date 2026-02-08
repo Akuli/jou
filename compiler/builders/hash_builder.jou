@@ -219,6 +219,14 @@ class HBuilder:
         self.hash.add_bytes(bytes.ptr, bytes.len)
         return self.new_value(uint_type(8).array_type(bytes.len as int))
 
+    @public
+    def array(self, len: int, items: HBuilderValue*, item_type: Type*) -> HBuilderValue:
+        self.hash.add_string("array")
+        for i = 0; i < len; i++:
+            assert items[i].type == item_type
+            self.hash.add_int64(items[i].id)
+        return self.new_value(item_type.array_type(len))
+
     # string as '\0' terminated pointer
     @public
     def pointer_string(self, s: byte*) -> HBuilderValue:
