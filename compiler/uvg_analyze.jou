@@ -81,21 +81,24 @@ def build_statuses_at_start_of_block(uvg: Uvg*, statuses_at_end: uint8**, block:
     return statuses
 
 
-def handle_missing_return_statement(uvg: Uvg*, ins: UvgInstruction*) -> None:
+def handle_missing_return_statement(uvg: Uvg*, use_of_the_special_return_variable: UvgInstruction*) -> None:
     # Check if there is a "return" statement that user wrote. Because this is
     # only for functions that are supposed to return a value, such a return
     # statement always sets the return value, even if it's an inlined function.
     n = 0
     for b = 0; b < uvg.blocks.len; b++:
         for b_ins = uvg.blocks.ptr[b].instructions.ptr; b_ins < uvg.blocks.ptr[b].instructions.end(); b_ins++:
-            if b_ins.kind == UvgInstructionKind.Set and b_ins.var == ins.var:
+            if (
+                b_ins.kind == UvgInstructionKind.Set
+                and b_ins.var == use_of_the_special_return_variable.var
+            ):
                 n++
 
-    if ins.inlining_signature == NULL:
+    if use_of_the_special_return_variable.inlining_signature == NULL:
         sig = uvg.signature
         prefix = ""
     else:
-        sig = ins.inlining_signature
+        sig = use_of_the_special_return_variable.inlining_signature
         prefix = "inlined "
 
     msg: byte[500]
@@ -110,7 +113,7 @@ def handle_missing_return_statement(uvg: Uvg*, ins: UvgInstruction*) -> None:
             sig.name,
             sig.return_type.name,
         )
-        fail(ins.location, msg)
+        fail(use_of_the_special_return_variable.location, msg)
     else:
         # There are some return statements but they don't cover all cases.
         snprintf(
@@ -121,7 +124,7 @@ def handle_missing_return_statement(uvg: Uvg*, ins: UvgInstruction*) -> None:
             sig.function_or_method(),
             sig.name,
         )
-        show_warning(ins.location, msg)
+        show_warning(use_of_the_special_return_variable.location, msg)
 
 
 def show_undefined_variable_warning(ins: UvgInstruction*, varname: byte*, sure: bool) -> None:
