@@ -358,6 +358,9 @@ declare LLVMConstInt(IntTy: LLVMType*, N: int64, SignExtend: int) -> LLVMValue*
 declare LLVMConstRealOfString(RealTy: LLVMType*, Text: byte*) -> LLVMValue*
 @public
 declare LLVMConstStringInContext(C: LLVMContext*, Str: byte*, Length: uint32, DontNullTerminate: int) -> LLVMValue*
+# TODO: Use LLVMConstArray2 (new in LLVM 17) when we no longer support LLVM 16 and older
+@public
+declare LLVMConstArray(ElementTy: LLVMType*, ConstantVals: LLVMValue**, Length: uint32) -> LLVMValue*
 @public
 declare LLVMSizeOf(Ty: LLVMType*) -> LLVMValue*
 @public

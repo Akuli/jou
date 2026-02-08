@@ -569,6 +569,19 @@ class LBuilder:
         assert bytes.len <= INT32_MAX
         return LBuilderValue{type = uint_type(8).array_type(bytes.len as int), llvm_value = llvm_array}
 
+    @public
+    def array(self, len: int, items: LBuilderValue*, item_type: Type*) -> LBuilderValue:
+        llvm_items: LLVMValue** = malloc(sizeof(llvm_items[0]) * len)
+        assert llvm_items != NULL
+
+        for i = 0; i < len; i++:
+            assert items[i].type == item_type
+            llvm_items[i] = items[i].llvm_value
+
+        llvm_array = LLVMConstArray(type_to_llvm(self.state, item_type), llvm_items, len as uint32)
+        free(llvm_items)
+        return LBuilderValue{type = item_type.array_type(len), llvm_value = llvm_array}
+
     # string as '\0' terminated pointer
     @public
     def pointer_string(self, s: byte*) -> LBuilderValue:

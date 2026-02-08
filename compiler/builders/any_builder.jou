@@ -7,6 +7,7 @@
 
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
+import "stdlib/mem.jou"
 
 import "../errors_and_warnings.jou"
 import "../llvm.jou"
@@ -243,6 +244,36 @@ class AnyBuilder:
             result.uvalue = self.ubuilder.array_of_bytes(bytes)
         if self.hbuilder != NULL:
             result.hvalue = self.hbuilder.array_of_bytes(bytes)
+        return result
+
+    @public
+    def array(self, len: int, items: AnyBuilderValue*, item_type: Type*) -> AnyBuilderValue:
+        result = AnyBuilderValue{}
+
+        if self.lbuilder != NULL:
+            lvalues: LBuilderValue* = malloc(sizeof(lvalues[0]) * len)
+            assert lvalues != NULL
+            for i = 0; i < len; i++:
+                lvalues[i] = items[i].lvalue
+            result.lvalue = self.lbuilder.array(len, lvalues, item_type)
+            free(lvalues)
+
+        if self.ubuilder != NULL:
+            uvalues: int* = malloc(sizeof(uvalues[0]) * len)
+            assert uvalues != NULL
+            for i = 0; i < len; i++:
+                uvalues[i] = items[i].uvalue
+            result.uvalue = self.ubuilder.array(len, uvalues, item_type)
+            free(uvalues)
+
+        if self.hbuilder != NULL:
+            hvalues: HBuilderValue* = malloc(sizeof(hvalues[0]) * len)
+            assert hvalues != NULL
+            for i = 0; i < len; i++:
+                hvalues[i] = items[i].hvalue
+            result.hvalue = self.hbuilder.array(len, hvalues, item_type)
+            free(hvalues)
+
         return result
 
     # string as '\0' terminated pointer
