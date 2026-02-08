@@ -26,18 +26,17 @@ class UBuilder:
     uvg: Uvg
     current_block: UvgBlock*
     location: Location
-
-    @public
-    def should_functions_marked_with_inline_be_inlined(self) -> bool:
-        # Inlining can create two variables with the same name. This confuses UVGs.
-        #
-        # We also don't want to show warnings coming from inlined code.
-        return False
+    inlining_signature: Signature*
+    return_value_id: int
 
     @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.uvg.signature = sig
         self.current_block = self.uvg.add_block()
+        if sig.return_type != NULL:
+            self.return_value_id = self.uvg.stack_alloc("return")
+        else:
+            self.return_value_id = -1
 
     @public
     def end_function(self) -> None:
@@ -46,8 +45,13 @@ class UBuilder:
         self.location = Location{}
 
     @public
-    def set_location(self, location: Location) -> None:
-        self.location = location
+    def set_location(self, location: Location, inlining_signature: Signature*) -> None:
+        self.inlining_signature = inlining_signature
+
+        # When inlining, do not store the location so that the locations in UVG
+        # point at the place where inlined function is being called.
+        if inlining_signature == NULL:
+            self.location = location
 
     def add_instruction(self, ins: UvgInstruction) -> None:
         assert ins.var >= 0
@@ -55,6 +59,7 @@ class UBuilder:
         assert self.location.path != NULL
         assert self.location.lineno != 0
         ins.location = self.location
+        ins.inlining_signature = self.inlining_signature
 
         b = self.current_block
         assert b != NULL
@@ -78,10 +83,7 @@ class UBuilder:
 
     @public
     def stack_alloc(self, t: Type*, varname: byte*) -> int:
-        if varname != NULL:
-            # Currently the UVG does not support multiple variables with the same name.
-            assert not self.uvg.has_local_var(varname)
-        return self.uvg.get_local_var_ptr(varname)
+        return self.uvg.stack_alloc(varname)
 
     @public
     def set_ptr(self, ptr: int, value: int) -> None:
@@ -312,10 +314,12 @@ class UBuilder:
     @public
     def ret(self, value: int*) -> None:
         if value != NULL:
-            self.set(self.uvg.get_local_var_ptr("return"))
+            assert self.return_value_id != -1
+            self.set(self.return_value_id)
 
-        if self.uvg.signature.return_type != NULL:
-            self.use(self.uvg.get_local_var_ptr("return"))
+        if self.return_value_id != -1:
+            # The function returns a value
+            self.use(self.return_value_id)
 
         assert self.current_block != NULL
         assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
@@ -331,19 +335,23 @@ def build_and_analyze_uvgs(jou_file: JouFile*, print: bool) -> None:
         match stmt.kind:
             case AstStatementKind.FunctionDef:
                 feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
-                if print:
-                    builder.uvg.print()
-                uvg_analyze(&builder.uvg)
-                builder.uvg.free()
+                if builder.uvg.signature != NULL:
+                    # Not inline function, we actually produced UVG
+                    if print:
+                        builder.uvg.print()
+                    uvg_analyze(&builder.uvg)
+                    builder.uvg.free()
                 memset(&builder.uvg, 0, sizeof(builder.uvg))
             case AstStatementKind.Class:
                 for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
                     if inner.kind == AstStatementKind.MethodDef:
                         feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, &builder_wrapper)
-                        if print:
-                            builder.uvg.print()
-                        uvg_analyze(&builder.uvg)
-                        builder.uvg.free()
+                        if builder.uvg.signature != NULL:
+                            # Not inline function, we actually produced UVG
+                            if print:
+                                builder.uvg.print()
+                            uvg_analyze(&builder.uvg)
+                            builder.uvg.free()
                         memset(&builder.uvg, 0, sizeof(builder.uvg))
             case _:
                 pass

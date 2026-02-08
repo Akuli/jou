@@ -18,6 +18,7 @@ enum UvgInstructionKind:
 @public
 class UvgInstruction:
     location: Location
+    inlining_signature: Signature*  # which @inline function this came from, if from inlining
     kind: UvgInstructionKind
     var: int  # not used for UvgInstructionKind.Statement
 
@@ -93,6 +94,26 @@ class Uvg:
         printf("===== UVG for %s =====\n", sigstr)
         free(sigstr)
 
+        # Figure out displayable names for variables. Start with their stored names.
+        displaynames: byte[200]* = malloc(sizeof(displaynames[0]) * self.varnames.len)
+        assert displaynames != NULL
+        for i = 0; i < self.varnames.len; i++:
+            assert array_count(displaynames[i]) == 2 * array_count(self.varnames.ptr[i])
+            strcpy(displaynames[i], self.varnames.ptr[i])
+
+        # Add (1), (2) etc to duplicate names. Slow O(n^2) loops but doesn't matter.
+        for i = 0; i < self.varnames.len; i++:
+            count_before = 0
+            count_total = 0
+            for k = 0; k < self.varnames.len; k++:
+                if strcmp(self.varnames.ptr[i], self.varnames.ptr[k]) == 0:
+                    count_total++
+                    if k < i:
+                        count_before++
+            assert count_before < count_total  # at least the current occurrence is not before
+            if count_total != 1:
+                sprintf(&displaynames[i][strlen(displaynames[i])], " (%d)", count_before + 1)
+
         assert self.blocks.len > 0
 
         for i = 0; i < self.blocks.len; i++:
@@ -113,13 +134,18 @@ class Uvg:
 
                 match ins.kind:
                     case UvgInstructionKind.Use:
-                        printf("use %s\n", self.varnames.ptr[ins.var])
+                        printf("use %s", displaynames[ins.var])
                     case UvgInstructionKind.Set:
-                        printf("set %s\n", self.varnames.ptr[ins.var])
+                        printf("set %s", displaynames[ins.var])
                     case UvgInstructionKind.DontAnalyze:
-                        printf("don't analyze %s\n", self.varnames.ptr[ins.var])
+                        printf("don't analyze %s", displaynames[ins.var])
                     case UvgInstructionKind.Statement:
-                        printf("statement\n")
+                        printf("statement")
+
+                if ins.inlining_signature != NULL:
+                    printf("; this came from inlining '%s'", ins.inlining_signature.name)
+
+                printf("\n")
 
             printf("    ")
             match b.terminator.kind:
@@ -138,6 +164,7 @@ class Uvg:
                 case UvgTerminatorKind.NotSet:
                     printf("(terminator not set)\n")
         printf("\n")
+        free(displaynames)
 
     @public
     def add_block(self) -> UvgBlock*:
@@ -147,26 +174,11 @@ class Uvg:
         self.blocks.append(b)
         return b
 
+    # Returns an ID that represents a pointer to the memory on stack, not its value
     @public
-    def has_local_var(self, varname: byte*) -> bool:
-        assert varname != NULL
-        for v = self.varnames.ptr; v < self.varnames.end(); v++:
-            if strcmp(*v, varname) == 0:
-                return True
-        return False
-
-    @public
-    def get_local_var_ptr(self, varname: byte*) -> int:
+    def stack_alloc(self, varname: byte*) -> int:
+        actual_varname: byte[100] = "$anonymous"
         if varname != NULL:
-            for i = 0; i < self.varnames.len; i++:
-                if strcmp(self.varnames.ptr[i], varname) == 0:
-                    # Reuse existing
-                    return i
-
-        actual_varname: byte[100]
-        if varname == NULL:
-            sprintf(actual_varname, "$%zd", self.varnames.len)
-        else:
             assert strlen(varname) < sizeof(actual_varname)
             strcpy(actual_varname, varname)
 

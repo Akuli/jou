@@ -84,10 +84,6 @@ class HBuilder:
     id_counter: int64
 
     @public
-    def should_functions_marked_with_inline_be_inlined(self) -> bool:
-        return True  # same as LLVM builder
-
-    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.hash.add_string("begin func")
         hash_signature(&self.hash, sig)

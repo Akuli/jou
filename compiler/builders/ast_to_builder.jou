@@ -23,8 +23,12 @@ class Loop:
 
 
 class InliningInfo:
+    # Which function or method are we inlining?
+    signature: Signature*
+
     return_jumps_to: AnyBuilderBlock
     return_value_ptr: AnyBuilderValue
+
     # The following define how to remap types.
     # For example, T in code could become int in LLVM.
     typemap_from: Type**
@@ -62,7 +66,7 @@ class AstToBuilder:
         # If no reasonable location is available (e.g. implicit return at end of function),
         # continue using the previous location for now.
         if location.path != NULL and location.lineno != 0:
-            self.builder.set_location(location)
+            self.builder.set_location(location, NULL if self.inlining_info == NULL else self.inlining_info.signature)
         return old
 
     def begin_function(self, signature: Signature*, locals: List[LocalVariable], location: Location, public: bool) -> None:
@@ -107,12 +111,11 @@ class AstToBuilder:
 
     def inline(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
         assert sig.ast_to_inline != NULL
-        assert self.builder.should_functions_marked_with_inline_be_inlined()
         ast = sig.ast_to_inline
 
-        info = InliningInfo{return_jumps_to = self.builder.add_block()}
+        info = InliningInfo{signature = sig, return_jumps_to = self.builder.add_block()}
         if sig.return_type != NULL:
-            info.return_value_ptr = self.builder.stack_alloc(self.map_type(sig.return_type), NULL)
+            info.return_value_ptr = self.builder.stack_alloc(self.map_type(sig.return_type), "return")
 
         if sig.get_self_class() != NULL and sig.get_self_class().classdata.is_generic():
             # When inlining a generic method List[int].append(), map T to int
@@ -171,11 +174,7 @@ class AstToBuilder:
             funcptr_type = sig.to_funcptr_type()
         assert funcptr_type.kind == TypeKind.FuncPtr
 
-        inline = (
-            sig != NULL
-            and sig.ast_to_inline != NULL
-            and self.builder.should_functions_marked_with_inline_be_inlined()
-        )
+        inline = sig != NULL and sig.ast_to_inline != NULL
         if call.function != NULL and not inline:
             # Calling function pointer. Evaluate the function pointer first, before arguments.
             # TODO: test
@@ -816,7 +815,7 @@ class AstToBuilder:
 
 @public
 def feed_ast_to_builder(fom: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: AnyBuilder*) -> None:
-    if fom.inline and builder.should_functions_marked_with_inline_be_inlined():
+    if fom.inline:
         # Calls to this function will be inlined. Pretend the function doesn't exist.
         return
 

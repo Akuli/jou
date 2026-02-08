@@ -41,14 +41,6 @@ class AnyBuilder:
     hbuilder: HBuilder*
 
     @public
-    def should_functions_marked_with_inline_be_inlined(self) -> bool:
-        return (
-            (self.lbuilder != NULL and self.lbuilder.should_functions_marked_with_inline_be_inlined())
-            or (self.ubuilder != NULL and self.ubuilder.should_functions_marked_with_inline_be_inlined())
-            or (self.hbuilder != NULL and self.hbuilder.should_functions_marked_with_inline_be_inlined())
-        )
-
-    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.begin_function(sig, public)
@@ -75,12 +67,14 @@ class AnyBuilder:
         if self.hbuilder != NULL:
             self.hbuilder.begin_statement_in_a_body()
 
+    # If inlining_signature is not NULL, it means that the given location is
+    # inside an @inline function that is being called.
     @public
-    def set_location(self, location: Location) -> None:
+    def set_location(self, location: Location, inlining_signature: Signature*) -> None:
         if self.lbuilder != NULL:
             self.lbuilder.set_location(location)
         if self.ubuilder != NULL:
-            self.ubuilder.set_location(location)
+            self.ubuilder.set_location(location, inlining_signature)
         if self.hbuilder != NULL:
             self.hbuilder.set_location(location)
 
