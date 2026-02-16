@@ -119,34 +119,34 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            vm/${{ matrix.os }}-${{ matrix.arch }}
-            vm/key
-            vm/key.pub
-          key: ${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('.github/workflows/vm.yml', 'vm/${{ matrix.os }}.sh', 'vm/download.sh') }}
+            tests/vm/${{ matrix.os }}-${{ matrix.arch }}
+            tests/vm/key
+            tests/vm/key.pub
+          key: ${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('.github/workflows/vm.yml', 'tests/vm/${{ matrix.os }}.sh', 'tests/vm/download.sh') }}
 
       - name: "Create and start VM"
-        run: vm/${{ matrix.os }}.sh ${{ matrix.arch }}
+        run: tests/vm/${{ matrix.os }}.sh ${{ matrix.arch }}
 
-      - run: vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
-      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
-      - run: vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
-      - run: vm/ssh.sh cd jou '&&' mv jou2 jou
-      - run: vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
-      - run: vm/ssh.sh cd jou '&&' ./doctest.sh
+      - run: tests/vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
+      - run: tests/vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+      - run: tests/vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
+      - run: tests/vm/ssh.sh cd jou '&&' mv jou2 jou
+      - run: tests/vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+      - run: tests/vm/ssh.sh cd jou '&&' ./doctest.sh
 
       - name: "Shut down VM"
         run: |
-          ! vm/ssh.sh /sbin/poweroff  # should fail with "unexpected" disconnected
+          ! tests/vm/ssh.sh /sbin/poweroff  # should fail with "unexpected" disconnected
           if [ "${{ matrix.os }}-${{ matrix.arch }}" == "raspios-armv6" ]; then
             # qemu doesn't really support armv6 shutting down (if that's a thing anyway???)
             # Instead linux kernel panics because init is exiting. Let's wait for that.
-            vm/wait_for_string.sh 'not syncing: Attempted to kill init' ncat --no-shutdown localhost 2222
-            kill -INT $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt)
+            tests/vm/wait_for_string.sh 'not syncing: Attempted to kill init' ncat --no-shutdown localhost 2222
+            kill -INT $(cat tests/vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt)
           else
             echo "Waiting for VM to shut down..."
-            while kill -0 $(cat vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt); do sleep 1; done
+            while kill -0 $(cat tests/vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt); do sleep 1; done
           fi
-          rm -v vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt
+          rm -v tests/vm/${{ matrix.os }}-${{ matrix.arch }}/pid.txt
 
       - name: "Create a dummy file which indicates that this succeeded"
         run: touch dummyfile

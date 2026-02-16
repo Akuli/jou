@@ -10,9 +10,9 @@ GitHub Actions) is a reasonably modern linux distro on x86_64.
 Example commands to get you started:
 
 ```
-$ vm/alpine.sh x86  # Create and start a VM (opens a window, close it to stop the VM)
-$ vm/ssh.sh         # Connect to VM, interactive ssh shell
-$ vm/ssh.sh ls jou  # Run command in VM
+$ tests/vm/alpine.sh x86  # Create and start a VM (opens a window, close it to stop the VM)
+$ tests/vm/ssh.sh         # Connect to VM, interactive ssh shell
+$ tests/vm/ssh.sh ls jou  # Run command in VM
 ```
 
 Here are some guidelines for working on the scripts:
@@ -50,8 +50,8 @@ Here are some guidelines for working on the scripts:
   than sha256.
 - Place the VMs into subdirectories, so that Jou developers can have multiple
   VMs at the same time without conflicts. Make sure that everything goes in the
-  subdirectory, so that a simple `rm -rf vm/name_of_subdirectory` fully deletes
-  the VM. All subdirectories are gitignored.
+  subdirectory, so that a simple `rm -rf tests/vm/name_of_subdirectory` fully
+  deletes the VM. All subdirectories are gitignored.
 - Use `cd "$(dirname "$0")"` or similar so that scripts "just work" regardless
   of current working directory. This is convenient when you work on something
   and you want to check whether something works inside a VM.
