@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
@@ -40,6 +41,33 @@ class JSONBuilder:
         sprintf(buf, "%d", n)
         self.output.extend_from_ptr(buf, strlen(buf))
 
+    def string(self, s: byte*) -> None:
+        self.add_comma_if_needed()
+        self.output.append('"')
+        for ; *s != '\0'; s++:
+            match *s:
+                case '\n':
+                    self.output.append('\\')
+                    self.output.append('n')
+                case '\t':
+                    self.output.append('\\')
+                    self.output.append('t')
+                case '"' | '\\':
+                    self.output.append('\\')
+                    self.output.append(*s)
+                case _:
+                    if is_ascii_printable(*s):
+                        self.output.append(*s)
+                    elif *s < 128:
+                        # unprintable ASCII character, do these carefully
+                        buf: byte[16]
+                        sprintf(buf, "\\u00%02x", *s)
+                        self.output.extend_from_ptr(buf, strlen(buf))
+                    else:
+                        # part of a non-ASCII character in UTF-8, output it as is
+                        self.output.append(*s)
+        self.output.append('"')
+
     def finish(self) -> byte*:
         assert self.depth == 0
         self.output.append('\0')
@@ -69,7 +97,7 @@ def main() -> int:
     jb.end()
     jb.integer(7)
     jb.array()
-    jb.integer(8)
+    jb.string("'h€llö\tworld'\n\"test\"\nC:\\Users\\myname\\whatever\n\x1b[31mred\x1b[0m")
     jb.end()
     jb.end()
     jb.end()
