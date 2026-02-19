@@ -11,7 +11,7 @@ const FLAG_OBJECT: uint8 = 0b10
 
 class JSONBuilder:
     pretty_print_indent: int  # 0 means as concise as possible (not pretty-print)
-    output: List[byte]
+    output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
 
     # Internals that you don't need to care about as a user
     stack: uint8[32]  # contains bitwise ORs of the flags
@@ -175,6 +175,7 @@ class JSONBuilder:
 
         self.output.extend_from_ptr(buf, strlen(buf))
 
+    # Return value must be free()'d
     def finish(self) -> byte*:
         assert self.depth == 0  # If this fails, you forgot to call end()
         self.output.append('\0')
