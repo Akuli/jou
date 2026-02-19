@@ -1,7 +1,7 @@
 # AI's thoughts on Jou
 
-I sometimes write some Jou code with an LLM.
-Because Jou is not a very widely known programming language,
+I sometimes write Jou code with an LLM.
+Because Jou is not a very popular programming language,
 the Jou code usually doesn't work on the first try,
 so I ask the LLM to fix the code until it compiles and runs correctly.
 
@@ -346,7 +346,7 @@ In February 2026, I asked an LLM to write a JSON builder similar to [tsoding's `
 I used [copilot.microsoft.com](https://copilot.microsoft.com/) for the same reasons as in 2025.
 
 I first asked the AI to write me a program that demonstrates how to use lists.
-It was very far from the correct thing, so I ended up giving [the documentation about lists](lists.md) as an attachment.
+It was very far from correct, so I ended up giving [the documentation about lists](lists.md) as an attachment.
 I later attached more documentation files.
 Once that was working, I then asked the AI to implement the JSON builder:
 
