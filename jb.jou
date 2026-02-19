@@ -6,15 +6,21 @@ import "stdlib/io.jou"
 
 
 const FLAG_COMMA: uint8 = 0b01
+const FLAG_OBJECT: uint8 = 0b10
 
 
 class JSONBuilder:
     output: List[byte]
     stack: uint8[32]  # contains bitwise ORs of stack flags
     depth: int
+    waiting_for_value_after_a_key: bool
 
     def add_comma_if_needed(self) -> None:
         if self.depth == 0:
+            return
+
+        if self.waiting_for_value_after_a_key:
+            self.waiting_for_value_after_a_key = False
             return
 
         assert 0 < self.depth and self.depth <= array_count(self.stack)
@@ -30,10 +36,32 @@ class JSONBuilder:
         self.stack[self.depth++] = 0
         self.output.append('[')
 
-    def end(self) -> None:
+    def object(self) -> None:
+        self.add_comma_if_needed()
+        assert self.depth < array_count(self.stack)
+        self.stack[self.depth++] = FLAG_OBJECT
+        self.output.append('{')
+
+    def key(self, key: byte*) -> None:
+        # This can only be used inside an object
         assert self.depth > 0
-        self.depth--
-        self.output.append(']')
+        assert self.stack[self.depth - 1] & FLAG_OBJECT != 0
+
+        # You cannot add multiple keys without putting values in between
+        assert not self.waiting_for_value_after_a_key
+
+        self.string(key)
+        self.output.append(':')
+        self.waiting_for_value_after_a_key = True
+
+    def end(self) -> None:
+        assert not self.waiting_for_value_after_a_key
+        assert self.depth > 0
+        flags = self.stack[--self.depth]
+        if flags & FLAG_OBJECT != 0:
+            self.output.append('}')
+        else:
+            self.output.append(']')
 
     def integer(self, n: int) -> None:
         self.add_comma_if_needed()
@@ -98,6 +126,18 @@ def main() -> int:
     jb.integer(7)
     jb.array()
     jb.string("'h€llö\tworld'\n\"test\"\nC:\\Users\\myname\\whatever\n\x1b[31mred\x1b[0m")
+    jb.end()
+    jb.end()
+    jb.object()
+    jb.key("foo")
+    jb.integer(123)
+    jb.key("empty")
+    jb.object()
+    jb.end()
+    jb.key("just_one")
+    jb.object()
+    jb.key("lol")
+    jb.integer(123)
     jb.end()
     jb.end()
     jb.end()
