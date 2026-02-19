@@ -1,0 +1,80 @@
+import "stdlib/assert.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+
+
+const FLAG_COMMA: uint8 = 0b01
+
+
+class JSONBuilder:
+    output: List[byte]
+    stack: uint8[32]  # contains bitwise ORs of stack flags
+    depth: int
+
+    def add_comma_if_needed(self) -> None:
+        if self.depth == 0:
+            return
+
+        assert 0 < self.depth and self.depth <= array_count(self.stack)
+
+        flags = &self.stack[self.depth - 1]
+        if *flags & FLAG_COMMA != 0:
+            self.output.append(',')
+        *flags |= FLAG_COMMA
+
+    def array(self) -> None:
+        self.add_comma_if_needed()
+        assert self.depth < array_count(self.stack)
+        self.stack[self.depth++] = 0
+        self.output.append('[')
+
+    def end(self) -> None:
+        assert self.depth > 0
+        self.depth--
+        self.output.append(']')
+
+    def integer(self, n: int) -> None:
+        self.add_comma_if_needed()
+        buf: byte[16]
+        sprintf(buf, "%d", n)
+        self.output.extend_from_ptr(buf, strlen(buf))
+
+    def finish(self) -> byte*:
+        assert self.depth == 0
+        self.output.append('\0')
+        result = self.output.ptr
+        self.output = List[byte]{}
+        return result
+
+
+def main() -> int:
+    jb = JSONBuilder{}
+
+    jb.array()
+    jb.integer(1)
+    jb.integer(2)
+    jb.array()
+    jb.integer(3)
+    jb.end()
+    jb.array()
+    jb.integer(4)
+    jb.integer(5)
+    jb.end()
+    jb.array()
+    jb.end()
+    jb.array()
+    jb.array()
+    jb.integer(6)
+    jb.end()
+    jb.integer(7)
+    jb.array()
+    jb.integer(8)
+    jb.end()
+    jb.end()
+    jb.end()
+
+    result = jb.finish()
+    puts(result)  # Output: [1,2,[3],[4,5],[],[[6],7,[8]]]
+
+    return 0
