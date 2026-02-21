@@ -1,0 +1,292 @@
+import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+# See json.org for the spec.
+
+# TODO: make this configurable?
+const DEPTH_LIMIT: int = 64
+
+
+# Returns NULL if json is invalid.
+#
+# Object consists of:
+#   '{'
+#   whitespace
+#   '}' or:
+#       string (the key)
+#       whitespace
+#       ':'
+#       value (including whitespace before and after)
+#       '}' or:
+#           ','
+#           whitespace
+#           string (the key) and repeat from there
+def skip_object(s: byte*, depth: int) -> byte*:
+    if s == NULL or depth >= DEPTH_LIMIT:
+        return NULL
+
+    if *s++ != '{':
+        return NULL
+
+    while is_whitespace(*s):
+        s++
+
+    if *s == '}':
+        s++
+        return s
+
+    while True:
+        s = skip_string(s)
+        if s == NULL:
+            return NULL
+
+        while is_whitespace(*s):
+            s++
+
+        if *s++ != ':':
+            return NULL
+
+        s = skip_value(s, depth + 1)
+        if s == NULL:
+            return NULL
+
+        match *s++:
+            case '}':
+                return s
+            case ',':
+                while is_whitespace(*s):
+                    s++
+            case _:
+                return NULL
+
+
+# Returns NULL if json is invalid.
+#
+# Array consists of:
+#   '['
+#   whitespace
+#   ']' or:
+#       value (including whitespace before and after)
+#       ']' or:
+#           ','
+#           value (including whitespace before and after)
+#           ']' or:
+#               ...
+def skip_array(s: byte*, depth: int) -> byte*:
+    if s == NULL or depth >= DEPTH_LIMIT:
+        return NULL
+
+    if *s++ != '[':
+        return NULL
+
+    while is_whitespace(*s):
+        s++
+
+    if *s == ']':
+        s++
+        return s
+
+    while True:
+        s = skip_value(s, depth + 1)  # skips leading and trailing whitespace
+        if s == NULL:
+            return NULL
+
+        match *s++:
+            case ',':
+                pass
+            case ']':
+                return s
+            case _:
+                return NULL
+
+
+# Returns NULL if json is invalid.
+#
+# Value consists of:
+#   whitespace
+#   string or number or object or array or true or false or null
+#   whitespace
+def skip_value(s: byte*, depth: int) -> byte*:
+    if s == NULL or depth >= DEPTH_LIMIT:
+        return NULL
+
+    while is_whitespace(*s):
+        s++
+
+    match *s:
+        case '"':
+            s = skip_string(s)
+        case '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'I' | 'N':
+            s = skip_number(s)
+        case '{':
+            # This passes the depth through as is. Containers (object, array)
+            # increment it for their subvalues.
+            s = skip_object(s, depth)
+        case '[':
+            s = skip_array(s, depth)
+        case 't':
+            s = &s[4] if starts_with(s, "true") else NULL
+        case 'f':
+            s = &s[5] if starts_with(s, "false") else NULL
+        case 'n':
+            s = &s[4] if starts_with(s, "null") else NULL
+        case _:
+            s = NULL
+    if s == NULL:
+        return NULL
+
+    while is_whitespace(*s):
+        s++
+    return s
+
+
+def skip_string(s: byte*) -> byte*:
+    if s == NULL or *s++ != '"':
+        return NULL
+    # TODO: escapes and such!!!
+    n = strcspn(s, "\"")
+    if s[n] != '"':
+        return NULL
+    return &s[n+1]
+
+
+# Returns NULL if json is invalid.
+#
+# Number consists of:
+#   'NaN' or:
+#       optional: '-'
+#       'Infinity' or:
+#           '0' or:
+#               digit 1-9
+#               digits 0-9 (zero or more)
+#           optional:
+#               '.'
+#               digits 0-9 (at least one)
+#           optional:
+#               'E' or 'e'
+#               optional: '+' or '-'
+#               digits 0-9 (at least one)
+#
+# Technically NaN and Infinity are not allowed, but they are widely used
+# extensions and e.g. Python supports them by default.
+def skip_number(s: byte*) -> byte*:
+    if s == NULL:
+        return NULL
+
+    if starts_with(s, "NaN"):
+        return &s[3]
+
+    if *s == '-':
+        s++
+
+    if starts_with(s, "Infinity"):
+        return &s[8]
+
+    if *s == '0':
+        s++
+        # No need to return NULL here. For input like "0123", this function
+        # consumes "0" and something else fails later.
+    elif is_ascii_digit(*s):
+        while is_ascii_digit(*s):
+            s++
+    else:
+        return NULL
+
+    if *s == '.':
+        s++
+        if not is_ascii_digit(*s):
+            return NULL
+        while is_ascii_digit(*s):
+            s++
+
+    if *s == 'E' or *s == 'e':
+        s++
+        if *s == '+' or *s == '-':
+            s++
+        if not is_ascii_digit(*s):
+            return NULL
+        while is_ascii_digit(*s):
+            s++
+
+    return s
+
+
+# Not to be confused with is_ascii_whitespace() which allows more!
+def is_whitespace(b: byte) -> bool:
+    return b == ' ' or b == '\t' or b == '\n' or b == '\r'
+
+
+def is_valid_json(s: byte*) -> bool:
+    s = skip_value(s, 0)
+    return s != NULL and *s == '\0'
+
+
+def main() -> int:
+    # Valid JSON
+    # TODO: test \r, \n, \f
+    assert is_valid_json("{\"foo\":\"bar\"}")
+    assert is_valid_json("123")
+    assert is_valid_json("-42")
+    assert is_valid_json("3.1415")
+    assert is_valid_json("true")
+    assert is_valid_json("false")
+    assert is_valid_json("null")
+    assert is_valid_json("\"hello\"")
+    # TODO:
+    #assert is_valid_json("\"escaped \\\"quote\\\" inside\"")
+    assert is_valid_json("[]")
+    assert is_valid_json("[1, 2, 3]")
+    assert is_valid_json("[true, null, \"x\"]")
+    assert is_valid_json("{}")
+    assert is_valid_json("{\"a\":1,\"b\":2}")
+    assert is_valid_json("{\"nested\":{\"x\":[1,2,3]}}")
+    assert is_valid_json(" { \"nested\" : [1,2,3] }")
+    assert is_valid_json("  {  \"spaced\"  :  [  1  ,  2  \t\r\n ,  3  ]  }  ")
+
+    # Technically NaN and Infinity are not allowed, but they are widely used
+    # extensions and e.g. Python supports them by default.
+    assert is_valid_json("{\"a\": Infinity}")
+    assert is_valid_json("{\"a\": -Infinity}")
+    assert is_valid_json("{\"a\": NaN}")
+
+    # Depth 64, barely allowed
+    assert is_valid_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+
+    # Invalid JSON
+    assert not is_valid_json("")
+    assert not is_valid_json(" ")
+    assert not is_valid_json("{")
+    assert not is_valid_json("}")
+    assert not is_valid_json("[")
+    assert not is_valid_json("]")
+    assert not is_valid_json("[a]")
+    assert not is_valid_json("[ö]")
+    assert not is_valid_json("[']")
+    assert not is_valid_json("['hi']")
+    assert not is_valid_json("[\"]")
+    # Depth 65
+    assert not is_valid_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+    assert not is_valid_json("[]junk")
+    assert not is_valid_json("{}junk")
+    assert not is_valid_json("{foo: \"bar\"}")       # keys must be quoted
+    assert not is_valid_json("{\"a\":}")             # missing value
+    assert not is_valid_json("{\"a\":1,}")           # trailing comma
+    assert not is_valid_json("[1,2,]")               # trailing comma
+    assert not is_valid_json("[1 2]")                # missing comma
+    assert not is_valid_json("\"unterminated string")
+    assert not is_valid_json("tru")                  # invalid literal
+    assert not is_valid_json("nulll")
+    assert not is_valid_json("00")                   # invalid number format
+    assert not is_valid_json("01")
+    assert not is_valid_json("1.")                   # invalid number format
+    assert not is_valid_json("{\"a\": infinity}")
+    assert not is_valid_json("{\"a\": InfinityLol}")
+    assert not is_valid_json("{\"a\": nan}")
+    assert not is_valid_json("{\"a\": -NaN}")
+    assert not is_valid_json("{\"a\": NaNa}")
+
+    printf("ok\n")
+    return 0
