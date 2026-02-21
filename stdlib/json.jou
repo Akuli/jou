@@ -1,0 +1,469 @@
+import "stdlib/ascii.jou"
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+
+
+# TODO: make this configurable?
+const DEPTH_LIMIT: int = 64
+
+const BUILDER_FLAG_EMPTY: uint8 = 0b01
+const BUILDER_FLAG_OBJECT: uint8 = 0b10
+
+
+@public
+class JSONBuilder:
+    pretty_print_indent: int  # 0 means as concise as possible (not pretty-print)
+    output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
+
+    # Internals that you don't need to care about as a user
+    stack: uint8[DEPTH_LIMIT]   # contains bitwise ORs of the flags
+    depth: int                  # number of items on stack
+    waiting_for_value_after_a_key: bool
+
+    def before_a_value(self) -> None:
+        if self.depth == 0:
+            # This assert fails if you try to create multiple top-level values.
+            # If you want to create multiple values, you must use array or object.
+            assert self.output.len == 0
+            return
+
+        if self.waiting_for_value_after_a_key:
+            self.waiting_for_value_after_a_key = False
+            return
+
+        assert 0 < self.depth and self.depth <= array_count(self.stack)
+        flags = &self.stack[self.depth - 1]
+
+        if *flags & BUILDER_FLAG_EMPTY == 0:
+            self.output.append(',')
+        *flags &= ~BUILDER_FLAG_EMPTY
+
+        if self.pretty_print_indent != 0:
+            self.output.append('\n')
+            n = self.pretty_print_indent * self.depth
+            while n --> 0:
+                self.output.append(' ')
+
+    @public
+    def array(self) -> None:
+        self.before_a_value()
+        assert self.depth < array_count(self.stack)
+        self.stack[self.depth++] = BUILDER_FLAG_EMPTY
+        self.output.append('[')
+
+    @public
+    def object(self) -> None:
+        self.before_a_value()
+        assert self.depth < array_count(self.stack)
+        self.stack[self.depth++] = BUILDER_FLAG_EMPTY | BUILDER_FLAG_OBJECT
+        self.output.append('{')
+
+    @public
+    def key(self, key: byte*) -> None:
+        assert key != NULL
+
+        # This can only be used inside an object
+        assert self.depth > 0
+        assert self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0
+
+        # You cannot add multiple keys without putting values in between
+        assert not self.waiting_for_value_after_a_key
+
+        self.string(key)
+        self.output.append(':')
+        if self.pretty_print_indent != 0:
+            self.output.append(' ')
+        self.waiting_for_value_after_a_key = True
+
+    @public
+    def end(self) -> None:
+        assert not self.waiting_for_value_after_a_key
+        assert self.depth > 0
+        flags = self.stack[--self.depth]
+
+        if self.pretty_print_indent != 0 and flags & BUILDER_FLAG_EMPTY == 0:
+            self.output.append('\n')
+            n = self.pretty_print_indent * self.depth
+            while n --> 0:
+                self.output.append(' ')
+
+        if flags & BUILDER_FLAG_OBJECT != 0:
+            self.output.append('}')
+        else:
+            self.output.append(']')
+
+    @public
+    def boolean(self, b: bool) -> None:
+        self.before_a_value()
+        if b:
+            self.output.extend_from_ptr("true", 4)
+        else:
+            self.output.extend_from_ptr("false", 5)
+
+    @public
+    def string(self, s: byte*) -> None:
+        if s == NULL:
+            self.null()
+            return
+
+        self.before_a_value()
+        self.output.append('"')
+
+        while *s != '\0':
+            match *s:
+                case '\n':
+                    self.output.extend_from_ptr("\\n", 2)
+                    s++
+                case '\t':
+                    self.output.extend_from_ptr("\\t", 2)
+                    s++
+                case '\r':
+                    self.output.extend_from_ptr("\\r", 2)
+                    s++
+                case '"' | '\\':
+                    self.output.append('\\')
+                    self.output.append(*s++)
+                case _:
+                    if is_ascii_printable(*s):
+                        self.output.append(*s++)
+                    elif *s < 128:
+                        # unprintable ASCII character, do these carefully
+                        buf: byte[16]
+                        sprintf(buf, "\\u00%02x", *s++)
+                        self.output.extend_from_ptr(buf, strlen(buf))
+                    elif starts_with(s, "\xe2\x80\xa8"):
+                        # Unicode character U+2028, placing it directly into JSON may cause problems
+                        self.output.extend_from_ptr("\\u2028", 6)
+                        s = &s[3]
+                    elif starts_with(s, "\xe2\x80\xa9"):
+                        # Unicode character U+2029, placing it directly into JSON may cause problems
+                        self.output.extend_from_ptr("\\u2029", 6)
+                        s = &s[3]
+                    else:
+                        # part of a non-ASCII character in UTF-8, output it as is
+                        self.output.append(*s++)
+        self.output.append('"')
+
+    @public
+    def null(self) -> None:
+        self.before_a_value()
+        self.output.extend_from_ptr("null", 4)
+
+    @public
+    def number(self, n: double) -> None:
+        self.before_a_value()
+
+        # TODO: Jou doesn't have isnan/isinf yet
+        #if isnan(x): --> emit "NaN"
+        #if isinf(x): --> emit "Infinity" or "-Infinity"
+
+        # AI says that 17 significant digits is always enough.
+        buf: byte[64]
+        snprintf(buf, sizeof(buf), "%.17g", n)
+
+        # TODO: A hack for fi_FI.UTF-8 locale which produces commas instead of
+        #       dots. Ideally we would solve this problem properly...
+        for p = &buf[0]; *p != '\0'; p++:
+            if *p == ',':
+                *p = '.'
+
+        # Handle NaN and infinities. They are technically not valid JSON, but
+        # they are often used. For example, Python's JSON module produces them
+        # by default.
+        #
+        # TODO: This is a bit hacky because Jou doesn't have isnan/isinf functions yet.
+        match buf with strcmp:
+            case "nan" | "Nan" | "NaN" | "NAN":
+                buf = "NaN"
+            case "inf" | "Inf" | "INF" | "infinity" | "Infinity" | "INFINITY":
+                buf = "Infinity"
+            case "-inf" | "-Inf" | "-INF" | "-infinity" | "-Infinity" | "-INFINITY":
+                buf = "-Infinity"
+
+        self.output.extend_from_ptr(buf, strlen(buf))
+
+    # Return value must be free()'d
+    @public
+    def finish(self) -> byte*:
+        assert self.depth == 0  # If this fails, you forgot to call end()
+        self.output.append('\0')
+        return self.output.ptr
+
+
+# Returns NULL if json is invalid.
+#
+# Object consists of:
+#   '{'
+#   whitespace
+#   '}' or:
+#       string (the key)
+#       whitespace
+#       ':'
+#       value (including whitespace before and after)
+#       '}' or:
+#           ','
+#           whitespace
+#           string (the key) and repeat from there
+def skip_object(s: byte*, depth: int) -> byte*:
+    if s == NULL or depth >= DEPTH_LIMIT:
+        return NULL
+
+    if *s++ != '{':
+        return NULL
+
+    while is_whitespace(*s):
+        s++
+
+    if *s == '}':
+        s++
+        return s
+
+    while True:
+        s = skip_string(s)
+        if s == NULL:
+            return NULL
+
+        while is_whitespace(*s):
+            s++
+
+        if *s++ != ':':
+            return NULL
+
+        s = skip_value(s, depth + 1)
+        if s == NULL:
+            return NULL
+
+        match *s++:
+            case '}':
+                return s
+            case ',':
+                while is_whitespace(*s):
+                    s++
+            case _:
+                return NULL
+
+
+# Returns NULL if json is invalid.
+#
+# Array consists of:
+#   '['
+#   whitespace
+#   ']' or:
+#       value (including whitespace before and after)
+#       ']' or:
+#           ','
+#           value (including whitespace before and after)
+#           ']' or:
+#               ...
+def skip_array(s: byte*, depth: int) -> byte*:
+    if s == NULL or depth >= DEPTH_LIMIT:
+        return NULL
+
+    if *s++ != '[':
+        return NULL
+
+    while is_whitespace(*s):
+        s++
+
+    if *s == ']':
+        s++
+        return s
+
+    while True:
+        s = skip_value(s, depth + 1)  # skips leading and trailing whitespace
+        if s == NULL:
+            return NULL
+
+        match *s++:
+            case ',':
+                pass
+            case ']':
+                return s
+            case _:
+                return NULL
+
+
+# Returns NULL if json is invalid.
+#
+# Value consists of:
+#   whitespace
+#   string or number or object or array or true or false or null
+#   whitespace
+#
+# The way how a value contains whitespace before and after it is IMO weird, but
+# that's how the JSON spec at https://www.json.org/ does it.
+def skip_value(s: byte*, depth: int) -> byte*:
+    if s == NULL or depth >= DEPTH_LIMIT:
+        return NULL
+
+    while is_whitespace(*s):
+        s++
+
+    match *s:
+        case '"':
+            s = skip_string(s)
+        case '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'I' | 'N':
+            s = skip_number(s)
+        case '{':
+            # This passes the depth through as is. Containers (object, array)
+            # increment it for their subvalues.
+            s = skip_object(s, depth)
+        case '[':
+            s = skip_array(s, depth)
+        case 't':
+            s = &s[4] if starts_with(s, "true") else NULL
+        case 'f':
+            s = &s[5] if starts_with(s, "false") else NULL
+        case 'n':
+            s = &s[4] if starts_with(s, "null") else NULL
+        case _:
+            s = NULL
+    if s == NULL:
+        return NULL
+
+    while is_whitespace(*s):
+        s++
+    return s
+
+
+def skip_string(s: byte*) -> byte*:
+    if s == NULL or *s++ != '"':
+        return NULL
+    # TODO: escapes and such!!!
+    n = strcspn(s, "\"")
+    if s[n] != '"':
+        return NULL
+    return &s[n+1]
+
+
+# Returns NULL if json is invalid.
+#
+# Number consists of:
+#   'NaN' or:
+#       optional: '-'
+#       'Infinity' or:
+#           '0' or:
+#               digit 1-9
+#               digits 0-9 (zero or more)
+#           optional:
+#               '.'
+#               digits 0-9 (at least one)
+#           optional:
+#               'E' or 'e'
+#               optional: '+' or '-'
+#               digits 0-9 (at least one)
+#
+# Technically NaN and Infinity are not allowed, but they are widely used
+# extensions and e.g. Python supports them by default.
+def skip_number(s: byte*) -> byte*:
+    if s == NULL:
+        return NULL
+
+    if starts_with(s, "NaN"):
+        return &s[3]
+
+    if *s == '-':
+        s++
+
+    if starts_with(s, "Infinity"):
+        return &s[8]
+
+    if *s == '0':
+        s++
+        # No need to return NULL here. For input like "0123", this function
+        # consumes "0" and something else fails later.
+    elif is_ascii_digit(*s):
+        while is_ascii_digit(*s):
+            s++
+    else:
+        return NULL
+
+    if *s == '.':
+        s++
+        if not is_ascii_digit(*s):
+            return NULL
+        while is_ascii_digit(*s):
+            s++
+
+    if *s == 'E' or *s == 'e':
+        s++
+        if *s == '+' or *s == '-':
+            s++
+        if not is_ascii_digit(*s):
+            return NULL
+        while is_ascii_digit(*s):
+            s++
+
+    return s
+
+
+# Not to be confused with is_ascii_whitespace() which allows more!
+def is_whitespace(b: byte) -> bool:
+    return b == ' ' or b == '\t' or b == '\n' or b == '\r'
+
+
+@public
+def is_valid_json(s: byte*) -> bool:
+    s = skip_value(s, 0)
+    return s != NULL and *s == '\0'
+
+
+def main() -> int:
+    jb = JSONBuilder{pretty_print_indent = 4}
+
+    jb.array()
+    jb.number(1)
+    jb.number(2)
+    jb.array()
+    jb.number(3)
+    jb.number(3.14159265358979)
+    jb.end()
+    jb.array()
+    jb.number(4)
+    jb.number(5)
+    jb.end()
+    jb.array()
+    jb.end()
+    jb.array()
+    jb.array()
+    jb.number(6)
+    jb.end()
+    jb.number(7)
+    jb.array()
+    jb.string("'h€llö\tworld'\n\"test\"\nC:\\Users\\myname\\whatever\n\x1b[31mred\x1b[0m\nthese\xe2\x80\xa8cause\xe2\x80\xa9problems")
+    jb.end()
+    jb.end()
+    jb.object()
+    jb.key("foo")
+    jb.number(123)
+    jb.key("empty")
+    jb.object()
+    jb.end()
+    jb.key("just_one")
+    jb.object()
+    jb.key("lol")
+    jb.number(123)
+    jb.end()
+    jb.key("funny \"key\" string")
+    jb.number(123)
+    jb.key("yes")
+    jb.boolean(True)
+    jb.key("no")
+    jb.boolean(False)
+    jb.key("first null")
+    jb.null()
+    jb.key("alternative null")
+    jb.string(NULL)
+    jb.key("invalid numba")
+    jb.number(0.0 / 0.0)
+    jb.key("very big numba")
+    jb.number(1.0 / 0.0)
+    jb.end()
+    jb.end()
+
+    result = jb.finish()
+    puts(result)
+
+    return 0
