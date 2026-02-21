@@ -3,10 +3,11 @@ import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+import "stdlib/utf8.jou"
 
 
 # TODO: make this configurable?
-const DEPTH_LIMIT: int = 64
+const MAX_DEPTH: int = 64
 
 const BUILDER_FLAG_EMPTY: uint8 = 0b01
 const BUILDER_FLAG_OBJECT: uint8 = 0b10
@@ -18,7 +19,7 @@ class JSONBuilder:
     output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
 
     # Internals that you don't need to care about as a user
-    stack: uint8[DEPTH_LIMIT]   # contains bitwise ORs of the flags
+    stack: uint8[MAX_DEPTH]   # contains bitwise ORs of the flags
     depth: int                  # number of items on stack
     waiting_for_value_after_a_key: bool
 
@@ -192,7 +193,7 @@ class JSONBuilder:
         return self.output.ptr
 
 
-# Returns NULL if json is invalid.
+# Part of JSON parsing and validating. Returns NULL if json is invalid.
 #
 # Object consists of:
 #   '{'
@@ -207,7 +208,7 @@ class JSONBuilder:
 #           whitespace
 #           string (the key) and repeat from there
 def skip_object(s: byte*, depth: int) -> byte*:
-    if s == NULL or depth >= DEPTH_LIMIT:
+    if s == NULL or depth > MAX_DEPTH:
         return NULL
 
     if *s++ != '{':
@@ -245,7 +246,7 @@ def skip_object(s: byte*, depth: int) -> byte*:
                 return NULL
 
 
-# Returns NULL if json is invalid.
+# Part of JSON parsing and validating. Returns NULL if json is invalid.
 #
 # Array consists of:
 #   '['
@@ -258,7 +259,7 @@ def skip_object(s: byte*, depth: int) -> byte*:
 #           ']' or:
 #               ...
 def skip_array(s: byte*, depth: int) -> byte*:
-    if s == NULL or depth >= DEPTH_LIMIT:
+    if s == NULL or depth > MAX_DEPTH:
         return NULL
 
     if *s++ != '[':
@@ -285,7 +286,7 @@ def skip_array(s: byte*, depth: int) -> byte*:
                 return NULL
 
 
-# Returns NULL if json is invalid.
+# Part of JSON parsing and validating. Returns NULL if json is invalid.
 #
 # Value consists of:
 #   whitespace
@@ -295,7 +296,7 @@ def skip_array(s: byte*, depth: int) -> byte*:
 # The way how a value contains whitespace before and after it is IMO weird, but
 # that's how the JSON spec at https://www.json.org/ does it.
 def skip_value(s: byte*, depth: int) -> byte*:
-    if s == NULL or depth >= DEPTH_LIMIT:
+    if s == NULL or depth > MAX_DEPTH:
         return NULL
 
     while is_whitespace(*s):
@@ -328,17 +329,43 @@ def skip_value(s: byte*, depth: int) -> byte*:
     return s
 
 
+# TODO: belongs to stdlib/ascii.jou? renamed so that name contains "ascii"?s
+def is_hex_digit(c: byte) -> bool:
+    return is_ascii_digit(c) or ('A' <= c and c <= 'F') or ('a' <= c and c <= 'f')
+
+
+# Part of JSON parsing and validating. Returns NULL if json is invalid.
 def skip_string(s: byte*) -> byte*:
     if s == NULL or *s++ != '"':
         return NULL
-    # TODO: escapes and such!!!
-    n = strcspn(s, "\"")
-    if s[n] != '"':
-        return NULL
-    return &s[n+1]
+
+    while True:
+        match *s:
+            case '\\':
+                s++
+                match *s++:
+                    case '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't':
+                        pass
+                    case 'u':
+                        # \uxxxx expects 4 hex characters
+                        for i = 0; i < 4; i++:
+                            if not is_hex_digit(*s++):
+                                return NULL
+                    case _:
+                        return NULL
+            case '"':  # end of string
+                s++
+                return s
+            case _:
+                if *s < 0x20:
+                    # Weird ASCII characters are banned
+                    return NULL
+                if utf8_decode_char(&s) <= 0:
+                    # Invalid UTF-8
+                    return NULL
 
 
-# Returns NULL if json is invalid.
+# Part of JSON parsing and validating. Returns NULL if json is invalid.
 #
 # Number consists of:
 #   'NaN' or:
