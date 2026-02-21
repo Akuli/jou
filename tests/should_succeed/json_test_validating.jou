@@ -3,7 +3,7 @@ import "stdlib/io.jou"
 import "stdlib/json.jou"
 
 
-def test_validating_objects() -> None:
+def test_objects() -> None:
     assert is_valid_json("{\"foo\": \"bar\"}")
     assert is_valid_json("{\"a\":1,\"b\":2}")
     assert is_valid_json("{}")
@@ -56,10 +56,8 @@ def test_validating_objects() -> None:
 {\"a\": 123} \
 }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}}")
 
-    puts("objects ok")  # Output: objects ok
 
-
-def test_validating_arrays() -> None:
+def test_arrays() -> None:
     assert is_valid_json("[]")
     assert is_valid_json("[\"string has bracket\", \"[\"]")
     assert is_valid_json("[\"string has bracket\", \"]\"]")
@@ -80,10 +78,19 @@ def test_validating_arrays() -> None:
     # Depth 65
     assert not is_valid_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2, 3]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
 
-    puts("arrays ok")  # Output: arrays ok
+
+def test_bools_and_null() -> None:
+    assert is_valid_json("true")
+    assert is_valid_json("false")
+    assert is_valid_json("null")
+
+    assert not is_valid_json("True")
+    assert not is_valid_json("TRUE")
+    assert not is_valid_json("fals")
+    assert not is_valid_json("nullava")
 
 
-def test_validating_strings() -> None:
+def test_strings() -> None:
     assert is_valid_json("\"\"")
     assert is_valid_json("\"hello\"")
     assert is_valid_json("\"hello 123!!!! Blah Blah: 'bleh'.\"")
@@ -103,12 +110,46 @@ def test_validating_strings() -> None:
     assert not is_valid_json("\"lack of escaping \t\"")
     assert not is_valid_json("\"backslash \\ not escaped\"")
     assert not is_valid_json("\"two-byte hex \\x4a is not allowed\"")
-    assert not is_valid_json("\"unusual ASCII character \x1b\"")
+    assert not is_valid_json("\"ASCII control character \x1b\"")
+    assert not is_valid_json("\"ASCII control character \x1f\"")
+    assert not is_valid_json("\"invalid u escape \\ujouu\"")
+    assert not is_valid_json("\"truncated u escape \\uaa\"")
     assert not is_valid_json("\"this \xc3 is invalid UTF-8 (truncated)\"")
     assert not is_valid_json("\"this \xf0\x82\x82\xac is invalid UTF-8 (overlong)\"")
 
 
-def test_validating_valid_json() -> None:
+def test_numbers() -> None:
+    assert is_valid_json("3.14")
+    assert is_valid_json("-2.5")
+    assert is_valid_json("0")
+    assert is_valid_json("-0")
+    assert is_valid_json("123123123123123123123123123123")  # not practical, but allowed
+    assert is_valid_json("1e5")
+    assert is_valid_json("-1E+5")
+    assert is_valid_json("-1.23E+4")
+    assert is_valid_json("-1.23E-4")
+    assert is_valid_json("-1.23e+4")
+    assert is_valid_json("-1.23e-4")
+    assert is_valid_json("  123 \t\r\n ")
+
+    assert not is_valid_json("+2.5")
+    assert not is_valid_json("+0")
+    assert not is_valid_json("+5")
+    assert not is_valid_json("+1.23E+4")
+    assert not is_valid_json("+1.23E-4")
+    assert not is_valid_json("+1.23e+4")
+    assert not is_valid_json("+1.23e-4")
+    assert not is_valid_json("00")
+    assert not is_valid_json("01")
+    assert not is_valid_json("1.23J4")
+    assert not is_valid_json("1e2.3")
+    assert not is_valid_json("1.2.3")
+    assert not is_valid_json("1ee2")
+    assert not is_valid_json("--1")
+    assert not is_valid_json("5k")
+
+
+def test_valid_json() -> None:
     assert is_valid_json("{\"foo\":\"bar\"}")
     assert is_valid_json("123")
     assert is_valid_json("-42")
@@ -117,8 +158,7 @@ def test_validating_valid_json() -> None:
     assert is_valid_json("false")
     assert is_valid_json("null")
     assert is_valid_json("\"hello\"")
-    # TODO: fix this!!!
-    #assert is_valid_json("\"escaped \\\"quote\\\" inside\"")
+    assert is_valid_json("\"escaped \\\"quote\\\" inside\"")
     assert is_valid_json("[]")
     assert is_valid_json("[1, 2, 3]")
     assert is_valid_json("[true, null, \"x\"]")
@@ -135,7 +175,7 @@ def test_validating_valid_json() -> None:
     assert is_valid_json("{\"a\": NaN}")
 
 
-def test_validating_invalid_json() -> None:
+def test_invalid_json() -> None:
     assert not is_valid_json("")
     assert not is_valid_json(" ")
     assert not is_valid_json("'hi'")
@@ -162,9 +202,13 @@ def test_validating_invalid_json() -> None:
 
 
 def main() -> int:
-    test_validating_objects()
-    test_validating_arrays()
-    test_validating_strings()
-    test_validating_valid_json()
-    test_validating_invalid_json()
+    test_objects()
+    test_arrays()
+    test_bools_and_null()
+    test_strings()
+    test_numbers()
+    test_valid_json()
+    test_invalid_json()
+
+    puts("ok")  # Output: ok
     return 0
