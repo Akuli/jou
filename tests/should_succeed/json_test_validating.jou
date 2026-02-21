@@ -1,11 +1,13 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/json.jou"
+import "stdlib/str.jou"
 
 
 def test_objects() -> None:
     assert is_valid_json("{\"foo\": \"bar\"}")
     assert is_valid_json("{\"a\":1,\"b\":2}")
+    assert is_valid_json("{\"a\":{}}")
     assert is_valid_json("{}")
     assert is_valid_json("{\"nested\":{\"whatever\":{}}}")
     assert is_valid_json("  {  \"white\"  :  \"space\"  ,  \"empty\"  :  { \t\r\n }  }  ")
@@ -15,6 +17,10 @@ def test_objects() -> None:
 
     assert not is_valid_json("{")
     assert not is_valid_json("}")
+    assert not is_valid_json("}{")
+    assert not is_valid_json("{}{}")
+    assert not is_valid_json("{\"a\":{}")
+    assert not is_valid_json("{}}")
     assert not is_valid_json("{\"foo\":}")
     assert not is_valid_json("{ : \"bar\"}")
     assert not is_valid_json("{,}")
@@ -66,6 +72,8 @@ def test_arrays() -> None:
 
     assert not is_valid_json("[")
     assert not is_valid_json("]")
+    assert not is_valid_json("][")
+    assert not is_valid_json("[][]")
     assert not is_valid_json("[[]")
     assert not is_valid_json("[[]]]")
     assert not is_valid_json("[a]")
@@ -132,6 +140,12 @@ def test_numbers() -> None:
     assert is_valid_json("-1.23e-4")
     assert is_valid_json("  123 \t\r\n ")
 
+    # Technically Infinity and NaN are not valid JSON, but many libraries
+    # support them to some extent so we support them too.
+    assert is_valid_json("Infinity")
+    assert is_valid_json("-Infinity")
+    assert is_valid_json("NaN")
+
     assert not is_valid_json("+2.5")
     assert not is_valid_json("+0")
     assert not is_valid_json("+5")
@@ -148,57 +162,31 @@ def test_numbers() -> None:
     assert not is_valid_json("--1")
     assert not is_valid_json("5k")
 
-
-def test_valid_json() -> None:
-    assert is_valid_json("{\"foo\":\"bar\"}")
-    assert is_valid_json("123")
-    assert is_valid_json("-42")
-    assert is_valid_json("3.1415")
-    assert is_valid_json("true")
-    assert is_valid_json("false")
-    assert is_valid_json("null")
-    assert is_valid_json("\"hello\"")
-    assert is_valid_json("\"escaped \\\"quote\\\" inside\"")
-    assert is_valid_json("[]")
-    assert is_valid_json("[1, 2, 3]")
-    assert is_valid_json("[true, null, \"x\"]")
-    assert is_valid_json("{}")
-    assert is_valid_json("{\"a\":1,\"b\":2}")
-    assert is_valid_json("{\"nested\":{\"x\":[1,2,3]}}")
-    assert is_valid_json(" { \"nested\" : [1,2,3] }")
-    assert is_valid_json("  {  \"spaced\"  :  [  1  ,  2  \t\r\n ,  3  ]  }  ")
-
-    # Technically Infinity and NaN are not valid JSON, but many libraries
-    # support them to some extent so we support them too.
-    assert is_valid_json("{\"a\": Infinity}")
-    assert is_valid_json("{\"a\": -Infinity}")
-    assert is_valid_json("{\"a\": NaN}")
+    assert not is_valid_json("infinity")
+    assert not is_valid_json("Infinityyyy")
+    assert not is_valid_json("Inf")
+    assert not is_valid_json("-infinity")
+    assert not is_valid_json("-Infinityyyy")
+    assert not is_valid_json("-Inf")
+    assert not is_valid_json("nan")
+    assert not is_valid_json("Na")
+    assert not is_valid_json("NaNa")
 
 
-def test_invalid_json() -> None:
-    assert not is_valid_json("")
-    assert not is_valid_json(" ")
-    assert not is_valid_json("'hi'")
-    assert not is_valid_json("\"")
-    assert not is_valid_json("3,1415")
-    assert not is_valid_json("[]junk")
-    assert not is_valid_json("{}junk")
-    assert not is_valid_json("{foo: \"bar\"}")       # keys must be quoted
-    assert not is_valid_json("{\"a\":}")             # missing value
-    assert not is_valid_json("{\"a\":1,}")           # trailing comma
-    assert not is_valid_json("[1,2,]")               # trailing comma
-    assert not is_valid_json("[1 2]")                # missing comma
-    assert not is_valid_json("\"unterminated string")
-    assert not is_valid_json("tru")                  # invalid literal
-    assert not is_valid_json("nulll")
-    assert not is_valid_json("00")                   # invalid number format
-    assert not is_valid_json("01")
-    assert not is_valid_json("1.")                   # invalid number format
-    assert not is_valid_json("{\"a\": infinity}")
-    assert not is_valid_json("{\"a\": InfinityLol}")
-    assert not is_valid_json("{\"a\": nan}")
-    assert not is_valid_json("{\"a\": -NaN}")
-    assert not is_valid_json("{\"a\": NaNa}")
+def test_json_from_github_api() -> None:
+    file_content: byte[10000]
+
+    f = fopen("tests/data/jou_github_release.json", "rb")
+    assert f != NULL
+    n = fread(file_content, 1, sizeof(file_content), f)
+    fclose(f)
+
+    assert n < sizeof(file_content)
+    file_content[n] = '\0'
+
+    assert is_valid_json(file_content)
+    *strrchr(file_content, '}') = ' '
+    assert not is_valid_json(file_content)
 
 
 def main() -> int:
@@ -207,8 +195,7 @@ def main() -> int:
     test_bools_and_null()
     test_strings()
     test_numbers()
-    test_valid_json()
-    test_invalid_json()
+    test_json_from_github_api()
 
     puts("ok")  # Output: ok
     return 0
