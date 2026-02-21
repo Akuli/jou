@@ -1,6 +1,5 @@
 import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
-import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/utf8.jou"
@@ -435,62 +434,3 @@ def is_whitespace(b: byte) -> bool:
 def is_valid_json(s: byte*) -> bool:
     s = skip_value(s, 0)
     return s != NULL and *s == '\0'
-
-
-def main() -> int:
-    jb = JSONBuilder{pretty_print_indent = 4}
-
-    jb.array()
-    jb.number(1)
-    jb.number(2)
-    jb.array()
-    jb.number(3)
-    jb.number(3.14159265358979)
-    jb.end()
-    jb.array()
-    jb.number(4)
-    jb.number(5)
-    jb.end()
-    jb.array()
-    jb.end()
-    jb.array()
-    jb.array()
-    jb.number(6)
-    jb.end()
-    jb.number(7)
-    jb.array()
-    jb.string("'h€llö\tworld'\n\"test\"\nC:\\Users\\myname\\whatever\n\x1b[31mred\x1b[0m\nthese\xe2\x80\xa8cause\xe2\x80\xa9problems")
-    jb.end()
-    jb.end()
-    jb.object()
-    jb.key("foo")
-    jb.number(123)
-    jb.key("empty")
-    jb.object()
-    jb.end()
-    jb.key("just_one")
-    jb.object()
-    jb.key("lol")
-    jb.number(123)
-    jb.end()
-    jb.key("funny \"key\" string")
-    jb.number(123)
-    jb.key("yes")
-    jb.boolean(True)
-    jb.key("no")
-    jb.boolean(False)
-    jb.key("first null")
-    jb.null()
-    jb.key("alternative null")
-    jb.string(NULL)
-    jb.key("invalid numba")
-    jb.number(0.0 / 0.0)
-    jb.key("very big numba")
-    jb.number(1.0 / 0.0)
-    jb.end()
-    jb.end()
-
-    result = jb.finish()
-    puts(result)
-
-    return 0
