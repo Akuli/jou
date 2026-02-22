@@ -4,7 +4,6 @@ TL;DR: Parsing JSON is not supported. Example of building JSON:
 
 ```python
 import "stdlib/json.jou"
-
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
@@ -76,20 +75,18 @@ To actually build the JSON, use the following methods, where `jb` is a `JSONBuil
 - `jb.boolean(b: bool)` adds `true` or `false` to the JSON.
 - `jb.null()` adds `null` to the JSON.
 - `jb.string(s: byte*)` adds a string to the JSON. If `s` is `NULL`, it instead adds `null` just like `jb.null()` would.
-- `jb.number(n: double)` adds a number to the JSON. See also [the section on numbers](#notes-about-numbers).
+- `jb.number(n: double)` adds a number to the JSON. See also [the section on numbers below](#notes-about-numbers).
 - `jb.array()` and `jb.end_array()` are used to build a JSON array.
     Between calling these methods, you build each item of the array.
+    See also [the section on arrays and objects below](#notes-about-arrays-and-objects).
 - `jb.object()`, `jb.end_object()` and `jb.key(key: byte*)` are used to build a JSON object.
     In JSON, an object looks like `{"key1": value1, "key2": value2}`.
     Between `jb.object()` and `jb.end_object()`,
     you must call `jb.key(some_string)` before you build each value.
+    See also [the section on arrays and objects below](#notes-about-arrays-and-objects).
 
 
-## Notes About Numbers
-
-This section documents a few surprising things and potential problems with how `json.jou` handles numbers.
-**Please create an issue on GitHub if you run into these limitations.**
-It is possible to make many of these things more configurable than they are now.
+## Notes about numbers
 
 `Infinity`, `-Infinity` and `NaN` in JSON are fully supported.
 They are not in the JSON spec, but many tools and libraries support them to some extent, so we support them too.
@@ -107,11 +104,15 @@ def main() -> int:
     jb.number(-1.0 / 0.0)
     jb.number(0.0 / 0.0)
     jb.end_array()
+
     json = jb.finish()
     puts(json)  # Output: [Infinity,-Infinity,NaN]
     free(json)
     return 0
 ```
+
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if you want to disable the support for `Infinity`, `-Infinity` and `NaN`.
 
 If you set the locale with C's `setlocale()` function, that may confuse `json.jou`.
 For example, in the Finnish language,
@@ -121,3 +122,74 @@ and then I do `jb.number(12.34)`,
 I get `12,34` in the JSON instead of the expected `12.34`.
 Some libraries (e.g. Gtk) call `setlocale()` automatically,
 and that can also cause this problem.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you run into this.
+
+
+## Notes about strings
+
+It is currently not possible to add a string containing the zero byte `\0` to JSON.
+This would be easy to implement if needed, so
+please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you need this.
+
+The `JSONBuilder.string()` method assumes that the string given to it is valid UTF-8.
+
+The `JSONBuilder.string()` method places most [non-ASCII characters](tutorial.md#characters) to the JSON as is.
+The only two exceptions are U+2028 and U+2029 (`"\xe2\x80\xa8"` and `"\xe2\x80\xa9"` in UTF-8),
+which become `\u2028` and `\u2029` in JSON.
+These characters are valid in JSON, but they sometimes cause problems
+because they are not valid in JavaScript code.
+For example:
+
+```python
+import "stdlib/json.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+def main() -> int:
+    jb = JSONBuilder{}
+    jb.object()
+    jb.key("€möji")
+    jb.string("😀")
+    jb.key("funny chars")
+    jb.string("\xe2\x80\xa8 and \xe2\x80\xa9")
+    jb.end_object()
+
+    json = jb.finish()
+    puts(json)  # Output: {"€möji":"😀","funny chars":"\u2028 and \u2029"}
+    free(json)
+    return 0
+```
+
+In JSON, the forward slash can be escaped, as in `"https:\/\/example.com"` or `"<\/script>"`.
+The JSON builder does not escape forward slashes.
+
+
+## Notes about arrays and objects
+
+In this context, an "object" means a JSON object, such as `{"a":1,"b":2}`.
+
+No more than 64 levels of nested arrays and objects are currently supported.
+
+The JSON builder uses `assert` statements to catch some common bugs:
+- calls to `.array()` and `.end_array()` must match
+- calls to `.object()` and `.end_object()` must match
+- `.key()` must be called once before each value inside an object
+- multiple values cannot be created without placing them into an array or an object
+- arrays and objects cannot be nested more than 64 levels deep
+
+For example, if you forget to call `.end_object()`,
+you might get an error message that looks something like this:
+
+```
+Assertion 'self.depth == 0' failed in file "/some/path/to/jou/stdlib/json.jou", line 192.
+```
+
+When this happens, check your `end_array()` and `end_object()` calls.
+It's very easy to get them wrong.
+
+The JSON builder does not check whether you use the same key multiple times
+in the same JSON object, as in `{"a":1,"a":2}`.
+Please don't do that.
+JSON is supposed to work consistently with many different programming languages,
+and almost all JSON parsers load JSON objects into a data structure
+that does not allow multiple values for the same key, e.g. Python's `dict`.
