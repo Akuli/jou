@@ -14,7 +14,8 @@ def is_nan(x: double) -> bool:
 
 @public
 class JSONBuilder:
-    pretty_print_indent: int  # 0 means as concise as possible (not pretty-print)
+    pretty_print: int  # 0 means as concise as possible (not pretty-print)
+    significant_digits: int
     output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
 
     # Internals that you don't need to care about as a user
@@ -23,9 +24,9 @@ class JSONBuilder:
     waiting_for_value_after_a_key: bool
 
     def new_line(self) -> None:
-        if self.pretty_print_indent != 0:
+        if self.pretty_print != 0:
             self.output.append('\n')
-            n = self.pretty_print_indent * self.depth
+            n = self.pretty_print * self.depth
             while n --> 0:
                 self.output.append(' ')
 
@@ -75,7 +76,7 @@ class JSONBuilder:
 
         self.string(key)
         self.output.append(':')
-        if self.pretty_print_indent != 0:
+        if self.pretty_print != 0:
             self.output.append(' ')
         self.waiting_for_value_after_a_key = True
 

@@ -24,7 +24,7 @@ def test_objects() -> None:
     # Output:   }
     # Output: }
     for pp = 0; pp <= 2; pp += 2:
-        jb = JSONBuilder{pretty_print_indent = pp}
+        jb = JSONBuilder{pretty_print = pp}
         jb.object()
         jb.key("one")
         jb.number(1)
@@ -77,7 +77,7 @@ def test_arrays() -> None:
     # Output:   ]
     # Output: ]
     for pp = 0; pp <= 2; pp += 2:
-        jb = JSONBuilder{pretty_print_indent = pp}
+        jb = JSONBuilder{pretty_print = pp}
         jb.array()
         jb.number(1)
         jb.number(2)
@@ -161,7 +161,7 @@ def test_numbers() -> None:
     # Output:   NaN
     # Output: ]
 
-    jb = JSONBuilder{pretty_print_indent = 2}
+    jb = JSONBuilder{pretty_print = 2}
     jb.array()
     jb.number(0)
     jb.number(1)
@@ -220,7 +220,7 @@ def test_complex_example() -> None:
     # Output:   }
     # Output: ]
 
-    jb = JSONBuilder{pretty_print_indent = 2}
+    jb = JSONBuilder{pretty_print = 2}
 
     jb.array()
     jb.number(1)
