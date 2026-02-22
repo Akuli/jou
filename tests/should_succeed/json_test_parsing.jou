@@ -299,8 +299,8 @@ def test_numbers() -> None:
             # Windows likes to say e+029 instead of e+29
             s: byte[100]
             sprintf(s, "%g", json_to_double(valid_numbers[i]))
-            if strstr(s, "e+029") != NULL:
-                strcpy(strstr(s, "e+029"), "e+29")
+            if ends_with(s, "e+029"):
+                strcpy(strrchr(s, 'e'), "e+29")
             puts(s)
         else:
             printf("%g\n", json_to_double(valid_numbers[i]))
