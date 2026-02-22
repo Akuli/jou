@@ -114,7 +114,7 @@ def main() -> int:
 ```
 
 The `.number()` method uses `snprintf()` to format the number, and that depends on the current locale.
-If you (or a library that you use, like Gtk) sets the locale with C's `setlocale()` function,
+If you (or a library in your project, e.g. Gtk) sets the locale with C's `setlocale()` function,
 that may confuse `json.jou`.
 For example, in the Finnish language, the preferred way to write a number like 12.34 is with a comma, as in 12,34.
 On my Finnish system, after a `setlocale(LC_ALL, "fi_FI.UTF-8")`,
