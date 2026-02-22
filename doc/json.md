@@ -70,12 +70,12 @@ You must `free()` the JSON string, [just like with lists](lists.md#what-does-fre
 because the builder internally uses a `List[byte]` to construct the string and then returns its `.ptr`.
 
 To actually build the JSON, use the following methods, where `jb` is a `JSONBuilder`:
-- `jb.boolean(b: bool)` adds `true` or `false` to the JSON.
 - `jb.null()` adds `null` to the JSON.
+- `jb.boolean(b: bool)` adds `true` or `false` to the JSON.
+- `jb.number(n: double)` adds a number to the JSON. See also [the notes about numbers below](#notes-about-numbers).
 - `jb.string(s: byte*)` adds a string to the JSON.
     If `s` is `NULL`, it instead adds `null` just like `jb.null()` would.
     See also [the notes about strings below](#notes-about-strings).
-- `jb.number(n: double)` adds a number to the JSON. See also [the notes about numbers below](#notes-about-numbers).
 - `jb.begin_array()` and `jb.end_array()` are used to build a JSON array.
     Between calling these methods, you build each item of the array.
     See also [the notes about arrays and objects below](#notes-about-arrays-and-objects).
