@@ -1,4 +1,4 @@
-# JSON
+# JSON Parsing
 
 This page documents parsing JSON.
 See [json-building.md](json-building.md) if you want to create a string of JSON.
@@ -59,7 +59,7 @@ def main() -> int:
 
 Unlike most other JSON libraries, Jou's JSON library does **not**
 create a new data structure in memory to represent your entire JSON and everything inside it.
-Instead, it simply navigates the JSON by passing around [pointers to the string](tutorial.md#more-about-strings).
+Instead, it simply navigates the string of JSON by passing around [pointers to the string](tutorial.md#more-about-strings).
 
 For example, let's say that you have a string of JSON that looks like `{"a": 1, "b": 2, "c": 3}`,
 and you want to get the value of `2` from it.
@@ -79,15 +79,13 @@ def main() -> int:
     if pointer_to_b == NULL:
         puts("not found")
     else:
-        puts(pointer_to_b)                              # Output: 34, "c": 56}
+        puts(pointer_to_b)                            # Output: 34, "c": 56}
         printf("%f\n", json_to_double(pointer_to_b))  # Output: 34.000000
     return 0
 ```
 
 This approach seems weird at first, but it is simpler than
-creating a recursive data structure to represent any JSON value.
-That would be needed to allow passing around values of mixed types
-in a dynamically typed language like Jou.
+creating a data structure to represent an arbitrary JSON value.
 
 The `json_get()` function correctly understands the structure of JSON.
 For example, `json_get()` never finds a key from a nested object.
@@ -169,8 +167,8 @@ def main() -> int:
     return 0
 ```
 
-The `json_is_valid(json: byte*) -> bool` function checks whether a string is valid JSON.
-You can call it before parsing:
+If this is a problem, you can check the JSON before you parse it.
+The `json_is_valid(json: byte*) -> bool` function checks whether a string is valid JSON:
 
 ```python
 import "stdlib/json.jou"
@@ -220,7 +218,7 @@ def main() -> int:
 
 Looping through an object is similar,
 but note that [the `json_get()` function](#finding-values-in-json) is often more convenient.
-In this context, an "object" means a JSON object, such as `{"a":1,"b":2}`.
+In this context, an object means a JSON object, such as `{"a":1,"b":2}`.
 - `json_object_first(json: byte*) -> byte*` finds the first key in a JSON object.
     If `json` doesn't start with a JSON object, this function returns `NULL`.
 - `json_object_next(json: byte*) -> byte*` takes a pointer to a key inside a JSON object
@@ -257,15 +255,20 @@ def main() -> int:
 
 `Infinity`, `-Infinity` and `NaN` in JSON are fully supported.
 They are not in the JSON spec, but many tools and libraries support them to some extent, so we support them too.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if you need to disable this feature for some reason.
 
 If you set the locale with C's `setlocale()` function, that may confuse `json.jou`.
 For example, in the Finnish language,
 the preferred way to write a number like 12.34 is with a comma, as in 12,34.
 So, on my Finnish system, if I call C's `setlocale()` function like `setlocale(LC_ALL, "fi_FI.UTF-8")`,
-then parsing numbers in JSON does not work.
+then attempting to parse a `12.34` in JSON produces `12.0` instead of `12.34`,
+because `json.jou` calls the C `atof()` function to parse the number,
+and `atof()` does not understand the `.34` part of the number because it's expecting `,34`.
 Some libraries (e.g. Gtk) call `setlocale()` automatically,
 and that can also cause this problem.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you run into this.
+There is a similar problem with [building JSON](json-building.md#notes-about-numbers).
 
 
 ## Notes about strings
@@ -291,7 +294,7 @@ No more than **64 levels** of nested arrays and objects are supported.
 JSON containing that much nesting is treated as invalid:
 `json_is_valid()` return False, and
 functions like `json_get()` and `json_array_next()`
-return `NULL` when they would need to move past these objects.
+return `NULL` when they would need to move past these values.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if this is a problem for you.
 It would be relatively easy to make this limit adjustable.
