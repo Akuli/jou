@@ -140,16 +140,23 @@ def test_object_iter() -> None:
         printf("%s --> %d\n", key, atoi(json_object_value(item)))
 
 
-#def test_get() -> None:
-#    json = "{\"not this\": 1, \"level1\": {\"not this either\": 2, \"level2\": {\"the thing we want\": 3, \"yet another thing we don't want\": 4}}}"
-#    p = json_get(json_get(json_get(json, "level1"), "level2"), "level3")
-#    assert p != NULL
-#    printf("%c\n", *p)  # Output: 3
-#
-#    # If anything is not found, NULL should bubble through
-#    assert json_get(json_get(json_get(json, "lol"), "level2"), "level3") == NULL
-#    assert json_get(json_get(json_get(json, "level1"), "lol"), "level3") == NULL
-#    assert json_get(json_get(json_get(json, "level1"), "level2"), "lol") == NULL
+def test_get() -> None:
+    json = "{\"not this\": 1, \"level1\": {\"not this either\": 2, \"level2\": {\"le\\u0076el3\": 3, \"yet another thing we don't want\": 4}}}"
+    assert is_valid_json(json)
+
+    # Make sure it's not finding anything it's not supposed to find
+    assert json_get(json, "level") == NULL
+    assert json_get(json, "level1") != NULL
+    assert json_get(json, "level11") == NULL
+
+    p = json_get(json_get(json_get(json, "level1"), "level2"), "level3")
+    assert p != NULL
+    printf("%c\n", *p)  # Output: 3
+
+    # If anything is not found, NULL should bubble through
+    assert json_get(json_get(json_get(json, "lol"), "level2"), "level3") == NULL
+    assert json_get(json_get(json_get(json, "level1"), "lol"), "level3") == NULL
+    assert json_get(json_get(json_get(json, "level1"), "level2"), "lol") == NULL
 
 
 def test_strings() -> None:
@@ -291,6 +298,7 @@ def main() -> int:
     test_object_validate()
     test_array_iter()
     test_object_iter()
+    test_get()
     test_bools_and_null()
     test_strings()
 #    test_numbers()

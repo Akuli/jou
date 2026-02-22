@@ -358,6 +358,21 @@ def json_object_next(s: byte*) -> byte*:
     return s if *s == '"' else NULL
 
 
+@public
+def json_get(json: byte*, key: byte*) -> byte*:
+    if json == NULL or key == NULL:
+        return NULL
+
+    end_of_key = &key[strlen(key)]
+    for item = json_object_first(json); item != NULL; item = json_object_next(item):
+        r = StringParsingResult{compare_to = key}
+        parse_string(item, &r)
+        if r.compare_to == end_of_key:
+            return json_object_value(item)
+
+    return NULL
+
+
 # Value consists of:
 #   whitespace
 #   string or number or object or array or true or false or null
@@ -419,16 +434,30 @@ def read_4_hex_digits(s: byte*) -> int:
 
 
 class StringParsingResult:
+    # Counting the total strlen of the string inside JSON
+    num_bytes_total: intnative
+
+    # Writing the string to memory given by user
     out: byte*                  # may be NULL
     out_available: int          # how many more bytes fit into out
-    num_bytes_total: intnative  # how much output would be produced if it would fit
+
+    # Comparing the string to another string without writing it anywhere
+    # (useful for finding a value equal to a given string)
+    compare_to: byte*
 
     @inline
     def add_byte(self, b: byte) -> None:
         self.num_bytes_total++
+
         if self.out != NULL and self.out_available > 0:
             *self.out++ = b
             self.out_available--
+
+        if self.compare_to != NULL:
+            if b == *self.compare_to:
+                self.compare_to++
+            else:
+                self.compare_to = NULL  # not equal
 
 
 # String in JSON consists of:
