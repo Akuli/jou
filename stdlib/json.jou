@@ -572,24 +572,26 @@ def parse_string(s: byte*, out: StringParsingResult*) -> byte*:
 # so that '\0' is always added. Size of output string is in bytes including
 # room for '\0'.
 #
+# If json is NULL, the result is an empty string.
+#
 # Return value is strlen(result string) when there is enough room to store the
 # entire result. Use string_from_json(json, NULL, 0) to figure it out without
 # writing it anywhere.
 @public
 def string_from_json(json: byte*, out: byte*, out_size: int) -> intnative:
-    if json == NULL:
-        return -1
+    if json != NULL:
+        while is_json_whitespace(*json):
+            json++
+        result = StringParsingResult{out = out, out_available = out_size - 1}
+        if parse_string(json, &result) != NULL:
+            if out_size > 0:
+                assert out <= result.out and result.out < &out[out_size]
+                *result.out = '\0'
+            return result.num_bytes_total
 
-    result = StringParsingResult{out = out, out_available = out_size - 1}
-    while is_json_whitespace(*json):
-        json++
-    if parse_string(json, &result) == NULL:
-        return -1
-
-    if out_size > 0:
-        assert out <= result.out and result.out < &out[out_size]
-        *result.out = '\0'
-    return result.num_bytes_total
+    if out != NULL and out_size >= 1:
+        *out = '\0'
+    return -1
 
 
 @public

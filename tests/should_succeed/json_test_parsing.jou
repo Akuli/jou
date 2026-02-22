@@ -221,7 +221,9 @@ def test_strings() -> None:
     ]
     for i = 0; i < array_count(invalid_strings); i++:
         assert not is_valid_json(invalid_strings[i])
+        memset(buf, 123, sizeof(buf))
         assert string_from_json(invalid_strings[i], buf, sizeof(buf)) == -1
+        assert buf[0] == '\0'  # if buf contained garbage, you won't accidentally use it
 
     # Valid JSON but not string
     assert string_from_json("[1,2,3]", buf, sizeof(buf)) == -1
@@ -379,6 +381,29 @@ def test_numbers() -> None:
     assert not is_nan(double_from_json("-Infinityyyy"))  # happily parses -Infinity
 
 
+def test_json_from_github_api() -> None:
+    file_content: byte[10000]
+
+    f = fopen("tests/data/jou_github_release.json", "rb")
+    assert f != NULL
+    n = fread(file_content, 1, sizeof(file_content), f)
+    fclose(f)
+
+    assert n < sizeof(file_content)
+    file_content[n] = '\0'
+
+    assert is_valid_json(file_content)
+    assert not is_valid_json(&file_content[1])
+
+    for asset = json_array_first(json_get(file_content, "assets")); asset != NULL; asset = json_array_next(asset):
+        uploader_name, asset_name: byte[100]
+        string_from_json(json_get(json_get(asset, "uploader"), "login"), uploader_name, sizeof(uploader_name))
+        string_from_json(json_get(asset, "name"), asset_name, sizeof(asset_name))
+
+        # Output: github-actions[bot] uploaded jou_windows_64bit_2026-02-09-0500.zip
+        printf("%s uploaded %s\n", uploader_name, asset_name)
+
+
 if LINUX:
     declare setlocale(category: int, locale: byte*) -> byte*
     const LC_ALL: int = 6
@@ -397,7 +422,7 @@ def main() -> int:
     test_bools_and_null()
     test_strings()
     test_numbers()
-#    test_json_from_github_api()
+    test_json_from_github_api()
 
     puts("ok")  # Output: ok
     return 0
