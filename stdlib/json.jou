@@ -19,7 +19,6 @@ declare atof(string: byte*) -> double
 const BUILDER_FLAG_EMPTY: uint8 = 0b01
 const BUILDER_FLAG_OBJECT: uint8 = 0b10
 
-<<<<<<< HEAD
 @public
 class JSONBuilder:
     pretty_print: int  # 0 means as concise as possible (not pretty-print)
@@ -34,27 +33,6 @@ class JSONBuilder:
         if self.pretty_print != 0:
             self.output.append('\n')
             n = self.pretty_print * self.depth
-=======
-# TODO: this belongs to math.jou
-def is_nan(x: double) -> bool:
-    return x != x
-
-
-@public
-class JSONBuilder:
-    pretty_print_indent: int  # 0 means as concise as possible (not pretty-print)
-    output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
-
-    # Internals that you don't need to care about as a user
-    stack: uint8[MAX_DEPTH]  # contains bitwise ORs of the flags
-    depth: int               # number of items on stack
-    waiting_for_value_after_a_key: bool
-
-    def new_line(self) -> None:
-        if self.pretty_print_indent != 0:
-            self.output.append('\n')
-            n = self.pretty_print_indent * self.depth
->>>>>>> json
             while n --> 0:
                 self.output.append(' ')
 
@@ -78,22 +56,14 @@ class JSONBuilder:
         self.new_line()
 
     @public
-<<<<<<< HEAD
     def begin_array(self) -> None:
-=======
-    def array(self) -> None:
->>>>>>> json
         self.before_a_value()
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY
         self.output.append('[')
 
     @public
-<<<<<<< HEAD
     def begin_object(self) -> None:
-=======
-    def object(self) -> None:
->>>>>>> json
         self.before_a_value()
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY | BUILDER_FLAG_OBJECT
@@ -112,11 +82,7 @@ class JSONBuilder:
 
         self.string(key)
         self.output.append(':')
-<<<<<<< HEAD
         if self.pretty_print != 0:
-=======
-        if self.pretty_print_indent != 0:
->>>>>>> json
             self.output.append(' ')
         self.waiting_for_value_after_a_key = True
 
@@ -209,7 +175,6 @@ class JSONBuilder:
             self.output.extend_from_ptr("NaN", 3)
             return
 
-<<<<<<< HEAD
         # 17 significant digits is enough to print any double, but it's too
         # much for some doubles. For example, with 17 significant digits, 3.14
         # becomes 3.1400000000000001.
@@ -217,17 +182,6 @@ class JSONBuilder:
         snprintf(buf, sizeof(buf), "%.16g", n)
         if atof(buf) != n:
             snprintf(buf, sizeof(buf), "%.17g", n)
-=======
-        # AI says that 17 significant digits is always enough.
-        buf: byte[64]
-        snprintf(buf, sizeof(buf), "%.17g", n)
-
-        # TODO: A hack for fi_FI.UTF-8 locale which produces commas instead of
-        #       dots. Ideally we would solve this problem properly...
-        for p = &buf[0]; *p != '\0'; p++:
-            if *p == ',':
-                *p = '.'
->>>>>>> json
 
         # TODO: better way to check if it is infinite
         if strstr(buf, "inf") != NULL or strstr(buf, "Inf") != NULL or strstr(buf, "INF") != NULL:
@@ -244,8 +198,6 @@ class JSONBuilder:
         assert self.depth == 0  # If this fails, you forgot to call end()
         self.output.append('\0')
         return self.output.ptr
-<<<<<<< HEAD
-=======
 
 
 # Array consists of:
@@ -639,64 +591,30 @@ def string_from_json(json: byte*, out: byte*, out_size: int) -> intnative:
     return -1
 
 
-@public
-def double_from_json(s: byte*) -> double:
-    if s == NULL:
-        return 0.0 / 0.0  # NaN
-    while is_json_whitespace(*s):
-        s++
-    if starts_with(s, "NaN"):
-        return 0.0 / 0.0  # NaN
-    end_of_number = skip_number(s)
-    if end_of_number == NULL:
-        return 0.0 / 0.0  # NaN
-
-    sign = 1
-    if *s == '-':
-        sign = -1
-        s++
-
-    if starts_with(s, "Infinity"):
-        return sign * (1.0 / 0.0)
-
-    # Can't use sscanf() because its behavior is locale dependent.
-    # With fi_FI.UTF-8 it interprets "3.14" as 3 because it expects "3,14"
-
-    result = 0.0
-    while is_ascii_digit(*s):
-        result *= 10
-        result += *s++ - '0'
-
-    if *s == '.':
-        s++
-        pos = 1.0
-        while is_ascii_digit(*s):
-            pos *= 0.1
-            result += pos * (*s++ - '0')
-
-    if *s == 'e' or *s == 'E':
-        s++
-        exponent_sign = 1
-        if *s == '-':
-            exponent_sign = -1
-            s++
-        elif *s == '+':
-            s++
-        exponent = 0.0
-        while is_ascii_digit(*s):
-            exponent *= 10
-            exponent += *s++ - '0'
-        result *= pow(10, exponent_sign * exponent)
-
-    if s != end_of_number:
-        return 0.0 / 0.0  # NaN
-    return sign * result
-
-
 # Part of JSON parsing and validating. Returns NULL if json is invalid.
 def skip_string(s: byte*) -> byte*:
     dummy = StringParsingResult{}
     return parse_string(s, &dummy)
+
+
+@public
+def double_from_json(s: byte*) -> double:
+    if s == NULL:
+        return 0.0 / 0.0
+
+    while is_json_whitespace(*s):
+        s++
+    if skip_number(s) == NULL:
+        return 0.0 / 0.0
+
+    if starts_with(s, "Infinity"):
+        return 1.0 / 0.0
+    if starts_with(s, "-Infinity"):
+        return -1.0 / 0.0
+    if starts_with(s, "NaN"):
+        return 0.0 / 0.0
+
+    return atof(s)
 
 
 # Part of JSON parsing and validating. Returns NULL if json is invalid.
@@ -794,4 +712,3 @@ def is_json_whitespace(b: byte) -> bool:
 def is_valid_json(s: byte*) -> bool:
     s = skip_value(s, 0)
     return s != NULL and *s == '\0'
->>>>>>> json
