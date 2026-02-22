@@ -218,7 +218,9 @@ def main() -> int:
     return 0
 ```
 
-Looping through an object is similar, but note that [the `json_get()` function](#finding-values-in-json) is often more convenient than this
+Looping through an object is similar,
+but note that [the `json_get()` function](#finding-values-in-json) is often more convenient.
+In this context, an "object" means a JSON object, such as `{"a":1,"b":2}`.
 - `json_object_first(json: byte*) -> byte*` finds the first key in a JSON object.
     If `json` doesn't start with a JSON object, this function returns `NULL`.
 - `json_object_next(json: byte*) -> byte*` takes a pointer to a key inside a JSON object
@@ -275,69 +277,21 @@ if this is a problem for you.
 
 If a JSON string contains invalid UTF-8, or `\u` escapes that form invalid UTF-16,
 it is considered as an invalid string:
-`json_is_valid()` returns `NULL` for any JSON containing such strings,
+`json_is_valid()` returns `False` for any JSON containing such strings,
 `json_to_string()` returns `NULL`, and
-functions like `json_get()` and `json_array_next()` don't move past these strings correctly.
-
-The `JSONBuilder.string()` method places most [non-ASCII characters](tutorial.md#characters) to the JSON as is.
-The only two exceptions are U+2028 and U+2029 (`"\xe2\x80\xa8"` and `"\xe2\x80\xa9"` in UTF-8),
-which become `\u2028` and `\u2029` in JSON.
-These characters are valid in JSON, but they sometimes cause problems
-because they are not valid in JavaScript code.
-For example:
-
-```python
-import "stdlib/json.jou"
-import "stdlib/io.jou"
-import "stdlib/mem.jou"
-
-def main() -> int:
-    jb = JSONBuilder{}
-    jb.begin_object()
-    jb.key("€möji")
-    jb.string("😀")
-    jb.key("funny chars")
-    jb.string("\xe2\x80\xa8 and \xe2\x80\xa9")
-    jb.end_object()
-
-    json = jb.finish()
-    puts(json)  # Output: {"€möji":"😀","funny chars":"\u2028 and \u2029"}
-    free(json)
-    return 0
-```
-
-In JSON, the forward slash can be escaped, as in `"https:\/\/example.com"` or `"<\/script>"`.
-The JSON builder does not escape forward slashes, but that would be easy to implement.
-Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
-if you need to create JSON with escaped forward slashes.
+functions like `json_get()` and `json_array_next()`
+return `NULL` when they would need to move past these strings.
 
 
 ## Notes about arrays and objects
 
 In this context, an "object" means a JSON object, such as `{"a":1,"b":2}`.
 
-No more than 64 levels of nested arrays and objects are supported.
-
-The JSON builder uses `assert` statements to catch some common bugs:
-- calls to `.begin_array()` and `.end_array()` must match
-- calls to `.begin_object()` and `.end_object()` must match
-- `.key()` must be called once before each value inside an object
-- multiple values cannot be created without placing them into an array or an object
-- arrays and objects cannot be nested more than 64 levels deep
-
-For example, if you forget to call `.end_object()`,
-you might get an error message that looks something like this:
-
-```
-Assertion 'self.depth == 0' failed in file "/some/path/to/jou/stdlib/json.jou", line 123.
-```
-
-When this happens, check your `end_array()` and `end_object()` calls.
-It's very easy to get them wrong.
-
-The JSON builder does not check whether you use the same key multiple times
-in the same JSON object, as in `{"a":1,"a":2}`.
-Please don't do that.
-JSON is supposed to work consistently with many different programming languages,
-and most JSON parsers load JSON objects into a data structure
-that does not allow multiple values for the same key, e.g. Python's `dict`.
+No more than **64 levels** of nested arrays and objects are supported.
+JSON containing that much nesting is treated as invalid:
+`json_is_valid()` return False, and
+functions like `json_get()` and `json_array_next()`
+return `NULL` when they would need to move past these objects.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if this is a problem for you.
+It would be relatively easy to make this limit adjustable.
