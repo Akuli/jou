@@ -16,7 +16,6 @@ const BUILDER_FLAG_OBJECT: uint8 = 0b10
 @public
 class JSONBuilder:
     pretty_print: int  # 0 means as concise as possible (not pretty-print)
-    significant_digits: int
     output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
 
     # Internals that you don't need to care about as a user

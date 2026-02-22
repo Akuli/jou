@@ -149,22 +149,6 @@ def test_strings() -> None:
 
 
 def test_numbers() -> None:
-    # Output: [
-    # Output:   0,
-    # Output:   1,
-    # Output:   -2,
-    # Output:   3.14,
-    # Output:   -3.14,
-    # Output:   1.0000000000000002,
-    # Output:   1.0000000000000004,
-    # Output:   -1.0000000000000002,
-    # Output:   -1.0000000000000004,
-    # Output:   9.5367431640625e-07,
-    # Output:   Infinity,
-    # Output:   -Infinity,
-    # Output:   NaN
-    # Output: ]
-
     jb = JSONBuilder{pretty_print = 2}
     jb.array()
     jb.number(0)
@@ -196,8 +180,42 @@ def test_numbers() -> None:
         p = strstr(json, "e-007")
         memmove(&p[2], &p[3], strlen(&p[3]) + 1)
 
+    # Output: [
+    # Output:   0,
+    # Output:   1,
+    # Output:   -2,
+    # Output:   3.14,
+    # Output:   -3.14,
+    # Output:   1.0000000000000002,
+    # Output:   1.0000000000000004,
+    # Output:   -1.0000000000000002,
+    # Output:   -1.0000000000000004,
+    # Output:   9.5367431640625e-07,
+    # Output:   Infinity,
+    # Output:   -Infinity,
+    # Output:   NaN
+    # Output: ]
     puts(json)
     free(json)
+
+    # Test that any int can be converted to JSON and back. This is not obvious,
+    # because the .number() method takes a double, not int.
+    #
+    # Commented out because this is VERY slow!
+    #jb = JSONBuilder{}
+    #for i = INT32_MIN; ; i++:
+    #    if i % 1000000 == 0:
+    #        printf("%d\n", i)
+    #        fflush(get_stdout())
+    #    jb.output.len = 0
+    #    jb.number(i)
+    #    s = jb.finish()
+    #    if atoi(s) != i:
+    #        printf("PROBLEM!!! %d --> %s\n", i, s)  # shouldn't get printed at all
+    #        fflush(get_stdout())
+    #
+    #    if i == INT32_MAX:
+    #        break
 
 
 def test_complex_example() -> None:

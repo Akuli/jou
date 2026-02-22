@@ -67,8 +67,6 @@ When you create a JSONBuilder, you can set the following fields:
 - `pretty_print: int` field to decide how whitespace will be added.
     If `pretty_print` is zero, the JSON will be created without any unnecessary whitespace.
     If `pretty_print` is positive, the JSON will be indented with that many spaces.
-- The `significant_digits` field affects the precision of the `.number()` method.
-    See [the section about numbers](#numbers) for details.
 
 The `.finish()` method returns [a string](tutorial.md#more-about-strings) of JSON.
 You must `free()` the JSON string, [just like with lists](lists.md#what-does-free-list-ptr-do),
@@ -78,7 +76,7 @@ To actually build the JSON, use the following methods, where `jb` is a `JSONBuil
 - `jb.boolean(b: bool)` adds `true` or `false` to the JSON.
 - `jb.null()` adds `null` to the JSON.
 - `jb.string(s: byte*)` adds a string to the JSON. If `s` is `NULL`, it instead adds `null` just like `jb.null()` would.
-- `jb.number(n: double)` adds a number to the JSON. See also `significant_digits` (documented above).
+- `jb.number(n: double)` adds a number to the JSON. See also [the section on numbers](#numbers).
 - `jb.array()` and `jb.end_array()` are used to build a JSON array.
     Between calling these methods, you build each item of the array.
 - `jb.object()`, `jb.end_object()` and `jb.key(key: byte*)` are used to build a JSON object.
@@ -115,26 +113,7 @@ def main() -> int:
     return 0
 ```
 
-The `JSONBuilder.number()` method uses 17 digits of precision.
-This is more than enough for some values, and that causes surprising results:
-
-```python
-import "stdlib/json.jou"
-import "stdlib/io.jou"
-import "stdlib/mem.jou"
-
-def main() -> int:
-    jb = JSONBuilder{}
-    jb.number(3.14)
-    json = jb.finish()
-    puts(json)  # Output: 3.1400000000000001
-    free(json)
-    return 0
-```
-
-However, 3.1400000000000001 
-
-The `.number()` method also uses `snprintf()` to format the number, and that depends on the current locale.
+The `.number()` method uses `snprintf()` to format the number, and that depends on the current locale.
 If you (or a library that you use, like Gtk) sets the locale with C's `setlocale()` function,
 that may confuse `json.jou`.
 For example, in the Finnish language, the preferred way to write a number like 12.34 is with a comma, as in 12,34.
