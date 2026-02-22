@@ -13,6 +13,10 @@ const MAX_DEPTH: int = 64
 const BUILDER_FLAG_EMPTY: uint8 = 0b01
 const BUILDER_FLAG_OBJECT: uint8 = 0b10
 
+# TODO: this belongs to math.jou
+def is_nan(x: double) -> bool:
+    return x != x
+
 
 @public
 class JSONBuilder:
@@ -166,9 +170,9 @@ class JSONBuilder:
     def number(self, n: double) -> None:
         self.before_a_value()
 
-        # TODO: Jou doesn't have isnan/isinf yet
-        #if isnan(x): --> emit "NaN"
-        #if isinf(x): --> emit "Infinity" or "-Infinity"
+        if is_nan(n):
+            self.output.extend_from_ptr("NaN", 3)
+            return
 
         # AI says that 17 significant digits is always enough.
         buf: byte[64]
@@ -180,18 +184,12 @@ class JSONBuilder:
             if *p == ',':
                 *p = '.'
 
-        # Handle NaN and infinities. They are technically not valid JSON, but
-        # they are often used. For example, Python's JSON module produces them
-        # by default.
-        #
-        # TODO: This is a bit hacky because Jou doesn't have isnan/isinf functions yet.
-        match buf with strcmp:
-            case "nan" | "Nan" | "NaN" | "NAN":
-                buf = "NaN"
-            case "inf" | "Inf" | "INF" | "infinity" | "Infinity" | "INFINITY":
-                buf = "Infinity"
-            case "-inf" | "-Inf" | "-INF" | "-infinity" | "-Infinity" | "-INFINITY":
+        # TODO: better way to check if it is infinite
+        if strstr(buf, "inf") != NULL or strstr(buf, "Inf") != NULL or strstr(buf, "INF") != NULL:
+            if buf[0] == '-':
                 buf = "-Infinity"
+            else:
+                buf = "Infinity"
 
         self.output.extend_from_ptr(buf, strlen(buf))
 
