@@ -3,6 +3,7 @@ import "stdlib/assert.jou"
 import "stdlib/intnative.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+import "stdlib/math.jou"
 import "stdlib/utf8.jou"
 
 
@@ -589,6 +590,60 @@ def string_from_json(json: byte*, out: byte*, out_size: int) -> intnative:
         assert out <= result.out and result.out < &out[out_size]
         *result.out = '\0'
     return result.num_bytes_total
+
+
+@public
+def double_from_json(s: byte*) -> double:
+    if s == NULL:
+        return 0.0 / 0.0  # NaN
+    while is_json_whitespace(*s):
+        s++
+    if starts_with(s, "NaN"):
+        return 0.0 / 0.0  # NaN
+    end_of_number = skip_number(s)
+    if end_of_number == NULL:
+        return 0.0 / 0.0  # NaN
+
+    sign = 1
+    if *s == '-':
+        sign = -1
+        s++
+
+    if starts_with(s, "Infinity"):
+        return sign * (1.0 / 0.0)
+
+    # Can't use sscanf() because its behavior is locale dependent.
+    # With fi_FI.UTF-8 it interprets "3.14" as 3 because it expects "3,14"
+
+    result = 0.0
+    while is_ascii_digit(*s):
+        result *= 10
+        result += *s++ - '0'
+
+    if *s == '.':
+        s++
+        pos = 1.0
+        while is_ascii_digit(*s):
+            pos *= 0.1
+            result += pos * (*s++ - '0')
+
+    if *s == 'e' or *s == 'E':
+        s++
+        exponent_sign = 1
+        if *s == '-':
+            exponent_sign = -1
+            s++
+        elif *s == '+':
+            s++
+        exponent = 0.0
+        while is_ascii_digit(*s):
+            exponent *= 10
+            exponent += *s++ - '0'
+        result *= pow(10, exponent_sign * exponent)
+
+    if s != end_of_number:
+        return 0.0 / 0.0  # NaN
+    return sign * result
 
 
 # Part of JSON parsing and validating. Returns NULL if json is invalid.
