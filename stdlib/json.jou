@@ -1,8 +1,8 @@
 import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
+import "stdlib/mem.jou"
 import "stdlib/str.jou"
-import "stdlib/intnative.jou"
 import "stdlib/utf8.jou"
 
 
@@ -354,9 +354,9 @@ def json_get(json: byte*, key: byte*) -> byte*:
 
     end_of_key = &key[strlen(key)]
     for item = json_object_first(json); item != NULL; item = json_object_next(item):
-        r = StringParsingResult{compare_to = key}
-        parse_string(item, &r)
-        if r.compare_to == end_of_key:
+        ctx = StringParsingContext{compare_to = key}
+        parse_string(item, &ctx)
+        if ctx.compare_to == end_of_key:
             return json_object_value(item)
 
     return NULL
@@ -422,13 +422,13 @@ def read_4_hex_digits(s: byte*) -> int:
     return result
 
 
-class StringParsingResult:
+class StringParsingContext:
     # Counting the total strlen of the string inside JSON
-    num_bytes_total: intnative
+    # TODO: need this?
+    #num_bytes_total: intnative
 
-    # Writing the string to memory given by user
-    out: byte*                  # may be NULL
-    out_available: intnative    # how many more bytes fit into out
+    # Writing the string to list, if that's what we want to do
+    out_list: List[byte]*
 
     # Comparing the string to another string without writing it anywhere
     # (useful for finding a value equal to a given string)
@@ -436,11 +436,10 @@ class StringParsingResult:
 
     @inline
     def add_byte(self, b: byte) -> None:
-        self.num_bytes_total++
+        #self.num_bytes_total++
 
-        if self.out != NULL and self.out_available > 0:
-            *self.out++ = b
-            self.out_available--
+        if self.out_list != NULL:
+            self.out_list.append(b)
 
         if self.compare_to != NULL:
             if b == *self.compare_to:
@@ -467,7 +466,7 @@ class StringParsingResult:
 #
 # Returns the JSON string s advanced just beyond the ending '"', or NULL if the
 # given JSON is invalid.
-def parse_string(s: byte*, out: StringParsingResult*) -> byte*:
+def parse_string(s: byte*, ctx: StringParsingContext*) -> byte*:
     if s == NULL or *s++ != '"':
         return NULL
 
@@ -533,7 +532,7 @@ def parse_string(s: byte*, out: StringParsingResult*) -> byte*:
                     return NULL
 
                 for i = 0; out_string[i] != '\0'; i++:
-                    out.add_byte(out_string[i])
+                    ctx.add_byte(out_string[i])
 
             case '"':  # end of string
                 s++
@@ -552,7 +551,7 @@ def parse_string(s: byte*, out: StringParsingResult*) -> byte*:
                 # A character is UTF-8 encoded in the JSON, output it as is
                 assert p < s
                 while p < s:
-                    out.add_byte(*p++)
+                    ctx.add_byte(*p++)
 
 
 # Parses a string from JSON. If it fits to the given output string, it's placed
@@ -562,29 +561,30 @@ def parse_string(s: byte*, out: StringParsingResult*) -> byte*:
 #
 # If json is NULL, the result is an empty string.
 #
-# Return value is strlen(result string) when there is enough room to store the
-# entire result. Use json_to_string(json, NULL, 0) to figure it out without
-# writing it anywhere.
+# This function parses a string from JSON and returns it as '\0' terminated UTF-8.
+# The result must be free()d.
+# If json is NULL or not a valid JSON string, returns NULL.
 @public
-def json_to_string(json: byte*, out: byte*, out_size: intnative) -> intnative:
-    if json != NULL:
-        while is_json_whitespace(*json):
-            json++
-        result = StringParsingResult{out = out, out_available = out_size - 1}
-        if parse_string(json, &result) != NULL:
-            if out_size > 0:
-                assert out <= result.out and result.out < &out[out_size]
-                *result.out = '\0'
-            return result.num_bytes_total
+def json_to_string(json: byte*) -> byte*:
+    if json == NULL:
+        return NULL
+    while is_json_whitespace(*json):
+        json++
 
-    if out != NULL and out_size >= 1:
-        *out = '\0'
-    return -1
+    result = List[byte]{}
+    ctx = StringParsingContext{out_list = &result}
+
+    if parse_string(json, &ctx) == NULL:
+        free(result.ptr)
+        return NULL
+
+    result.append('\0')
+    return result.ptr
 
 
 # Part of JSON parsing and validating. Returns NULL if json is invalid.
 def skip_string(s: byte*) -> byte*:
-    dummy = StringParsingResult{}
+    dummy = StringParsingContext{}
     return parse_string(s, &dummy)
 
 

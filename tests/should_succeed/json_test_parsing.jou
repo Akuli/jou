@@ -125,19 +125,19 @@ def test_object_iter() -> None:
         assert json_object_first(nothing_to_iterate[i]) == NULL
         assert json_object_next(nothing_to_iterate[i]) == NULL
 
-    key: byte[100]
-
     # Output: a --> 1,"b":2}
     # Output: b --> 2}
     for item = json_object_first("{\"a\":1,\"b\":2}"); item != NULL; item = json_object_next(item):
-        json_to_string(item, key, sizeof(key))
+        key = json_to_string(item)
         printf("%s --> %s\n", key, json_object_value(item))
+        free(key)
 
     # Output: one --> 1
     # Output: two --> 2
     for item = json_object_first("{ \"one\" : 1 , \"t\\u0077o\" : 2 } junk at end"); item != NULL; item = json_object_next(item):
-        json_to_string(item, key, sizeof(key))
+        key = json_to_string(item)
         printf("%s --> %d\n", key, atoi(json_object_value(item)))
+        free(key)
 
 
 def test_get() -> None:
@@ -160,8 +160,6 @@ def test_get() -> None:
 
 
 def test_strings() -> None:
-    buf: byte[100]
-
     simple_valid_strings = [
         "\"\"",                 # Output:
         "\"hello\"",            # Output: hello
@@ -174,10 +172,10 @@ def test_strings() -> None:
     ]
     for i = 0; i < array_count(simple_valid_strings); i++:
         assert json_is_valid(simple_valid_strings[i])
-        ret = json_to_string(simple_valid_strings[i], buf, sizeof(buf))
-        assert ret < sizeof(buf)
-        assert ret == strlen(buf)
-        puts(buf)
+        s = json_to_string(simple_valid_strings[i])
+        assert s != NULL
+        puts(s)
+        free(s)
 
     # These are not printed in case printing unicodes doesn't work on e.g. windows
     fancy_valid_strings = [
@@ -191,10 +189,10 @@ def test_strings() -> None:
         json = fancy_valid_strings[i][0]
         expected_value = fancy_valid_strings[i][1]
         assert json_is_valid(json)
-        ret = json_to_string(json, buf, sizeof(buf))
-        assert ret < sizeof(buf)
-        assert ret == strlen(buf)
-        assert strcmp(buf, expected_value) == 0
+        s = json_to_string(json)
+        assert s != NULL
+        assert strcmp(s, expected_value) == 0
+        free(s)
 
     invalid_strings = [
         "'hello'",
@@ -221,33 +219,12 @@ def test_strings() -> None:
     ]
     for i = 0; i < array_count(invalid_strings); i++:
         assert not json_is_valid(invalid_strings[i])
-        memset(buf, 123, sizeof(buf))
-        assert json_to_string(invalid_strings[i], buf, sizeof(buf)) == -1
-        assert buf[0] == '\0'  # if buf contained garbage, you won't accidentally use it
+        assert json_to_string(invalid_strings[i]) == NULL
 
     # Valid JSON but not string
-    assert json_to_string("[1,2,3]", buf, sizeof(buf)) == -1
-    assert json_to_string("{}", buf, sizeof(buf)) == -1
-    assert json_to_string("true", buf, sizeof(buf)) == -1
-
-    # Test truncating
-    memset(buf, 123, sizeof(buf))
-    assert json_to_string("\"hello\"", buf, 6) == 5
-    puts(buf)  # Output: hello
-    assert buf[6] == 123  # not overwritten
-
-    assert json_to_string("\"hello\"", buf, 5) == 5
-    puts(buf)  # Output: hell
-    assert json_to_string("\"hello\"", buf, 2) == 5
-    puts(buf)  # Output: h
-    assert json_to_string("\"hello\"", buf, 1) == 5
-    assert buf[0] == '\0'  # empty string now
-
-    buf[0] = 123 as byte
-    assert json_to_string("\"hello\"", buf, 0) == 5
-    assert buf[0] == 123 as byte  # not overwritten
-    assert json_to_string("\"hello\"", buf, -1) == 5
-    assert buf[0] == 123 as byte  # not overwritten
+    assert json_to_string("[1,2,3]") == NULL
+    assert json_to_string("{}") == NULL
+    assert json_to_string("true") == NULL
 
 
 def test_bools_and_null() -> None:
@@ -401,12 +378,14 @@ def test_json_from_github_api() -> None:
     assert not json_is_valid(&file_content[1])
 
     for asset = json_array_first(json_get(file_content, "assets")); asset != NULL; asset = json_array_next(asset):
-        uploader_name, asset_name: byte[100]
-        json_to_string(json_get(json_get(asset, "uploader"), "login"), uploader_name, sizeof(uploader_name))
-        json_to_string(json_get(asset, "name"), asset_name, sizeof(asset_name))
+        uploader_name = json_to_string(json_get(json_get(asset, "uploader"), "login"))
+        asset_name = json_to_string(json_get(asset, "name"))
 
         # Output: github-actions[bot] uploaded jou_windows_64bit_2026-02-09-0500.zip
         printf("%s uploaded %s\n", uploader_name, asset_name)
+
+        free(uploader_name)
+        free(asset_name)
 
 
 def main() -> int:

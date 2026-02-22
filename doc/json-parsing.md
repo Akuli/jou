@@ -8,6 +8,7 @@ TL;DR:
 ```python
 import "stdlib/json.jou"
 import "stdlib/io.jou"
+import "stdlib/mem.jou"
 
 def main() -> int:
     json = "{\"number\": 123, \"nothing\": null, \"nope\": false, \"message\": \"hello\", \"array\": [1.2, 3.4, 5.6], \"object\": {\"a\":7, \"b\":8, \"c\":9}}"
@@ -30,9 +31,9 @@ def main() -> int:
         puts("this gets printed")  # Output: this gets printed
 
     # Getting a string
-    message: byte[100]
-    json_to_string(json_get(json, "message"), message, sizeof(message))
+    message = json_to_string(json_get(json, "message"))
     puts(message)  # Output: hello
+    free(message)
 
     # Looping through an array
     # Output: 1.200000
@@ -46,9 +47,9 @@ def main() -> int:
     # Output: b --> 8.000000
     # Output: c --> 9.000000
     for j = json_object_first(json_get(json, "object")); j != NULL; j = json_object_next(j):
-        key: byte[100]
-        json_to_string(j, key, sizeof(key))
+        key = json_to_string(j)
         printf("%s --> %f\n", key, json_to_double(json_object_value(j)))
+        free(key)
 
     return 0
 ```
@@ -118,14 +119,10 @@ Once you have found the value you want, you can use these functions to parse it:
 - `json_to_double(json: byte*) -> double` gets a `double` value from a JSON number.
     If `json` doesn't start with a JSON number, this function returns NaN.
     See also [the notes about numbers below](#notes-about-numbers).
-- `json_to_string(json: byte*, out: byte*, out_size: intnative) -> intnative`
-    gets the contents of a string to `out` so that it never writes to `out[out_size]` or beyond.
-    The return value is the length of the whole string in bytes,
-    including the bytes that did not fit to `out`.
-    To handle huge strings, you can use `json_to_string(json, NULL, 0)`
-    to calculate how long the string is going to be.
-    If `json` is `NULL` or it doesn't start with a JSON string,
-    this function writes an empty string to `out` and returns `-1`.
+- `json_to_string(json: byte*) -> byte*` parses a string from JSON
+    and returns it as `\0`-terminated UTF-8 (that is, a typical Jou string).
+    If `json` doesn't start with a valid string, this function returns `NULL`.
+    If the return value is not `NULL`, it must be `free()`d when you no longer need it.
     See also [the notes about strings below](#notes-about-strings).
 
 
