@@ -13,6 +13,7 @@ def is_nan(x: double) -> bool:
     return x != x
 declare atof(string: byte*) -> double
 
+
 const BUILDER_FLAG_EMPTY: uint8 = 0b01
 const BUILDER_FLAG_OBJECT: uint8 = 0b10
 
@@ -195,6 +196,10 @@ class JSONBuilder:
         assert self.depth == 0  # If this fails, you forgot to call end()
         self.output.append('\0')
         return self.output.ptr
+
+
+def is_json_whitespace(b: byte) -> bool:
+    return b == ' ' or b == '\t' or b == '\n' or b == '\r'
 
 
 # Array consists of:
@@ -475,32 +480,33 @@ def parse_string(s: byte*, ctx: StringParsingContext*) -> byte*:
             case '\\':
                 s++
 
-                out_string: byte[5]
                 match *s++:
                     case '"':
-                        out_string = "\""
+                        ctx.add_byte('"')
                     case '\\':
-                        out_string = "\\"
+                        ctx.add_byte('\\')
                     case '/':
-                        out_string = "/"
+                        ctx.add_byte('/')
                     case 'b':
-                        out_string = "\x08"  # Jou doesn't have \b escape
+                        ctx.add_byte('\x08')  # Jou doesn't have \b escape
                     case 'f':
-                        out_string = "\x0c"  # Jou doesn't have \f escape
+                        ctx.add_byte('\x0c')  # Jou doesn't have \f escape
                     case 'n':
-                        out_string = "\n"
+                        ctx.add_byte('\n')
                     case 'r':
-                        out_string = "\r"
+                        ctx.add_byte('\r')
                     case 't':
-                        out_string = "\t"
+                        ctx.add_byte('\t')
                     case 'u':
                         # \uxxxx expects 4 hex characters
                         u1: int = read_4_hex_digits(s)
-                        # \u0000 means JSON string contains a zero byte.
-                        # TODO: test this
                         if u1 == -1:
                             return NULL
                         s = &s[4]
+
+                        if u1 == 0:
+                            ctx.add_byte('\0')
+                            continue
 
                         if 0xD800 <= u1 and u1 <= 0xDBFF:
                             # It is the first half of a surrogate pair. Let's
@@ -518,21 +524,20 @@ def parse_string(s: byte*, ctx: StringParsingContext*) -> byte*:
                                 # into a UTF-8 character.
                                 codepoint = ((u1 - 0xD800) << 10) | (u2 - 0xDC00)
                                 codepoint += 0x10000
-                                out_string = utf8_encode_char(codepoint as uint32)
                             else:
                                 return NULL
-
                         else:
-                            out_string = utf8_encode_char(u1 as uint32)
+                            codepoint = u1
+
+                        out_string = utf8_encode_char(codepoint as uint32)
+                        if out_string[0] == '\0':
+                            # error detected in utf8_encode_char()
+                            return NULL
+                        for i = 0; out_string[i] != '\0'; i++:
+                            ctx.add_byte(out_string[i])
+
                     case _:
                         return NULL
-
-                if out_string[0] == '\0':
-                    # error detected in utf8_encode_char()
-                    return NULL
-
-                for i = 0; out_string[i] != '\0'; i++:
-                    ctx.add_byte(out_string[i])
 
             case '"':  # end of string
                 s++
@@ -692,11 +697,6 @@ def json_is_null(json: byte*) -> bool:
     while is_json_whitespace(*json):
         json++
     return starts_with(json, "null")
-
-
-# Not to be confused with is_ascii_whitespace() which allows more!
-def is_json_whitespace(b: byte) -> bool:
-    return b == ' ' or b == '\t' or b == '\n' or b == '\r'
 
 
 @public

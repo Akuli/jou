@@ -55,7 +55,7 @@ def main() -> int:
 ```
 
 
-## Finding values from JSON
+## Finding values in JSON
 
 Unlike most other JSON libraries, Jou's JSON library does **not**
 create a new data structure in memory to represent your entire JSON and everything inside it.
@@ -188,12 +188,12 @@ def main() -> int:
 
 ## Looping through JSON arrays and objects
 
-If you need to loop through all items in a JSON array.
+To access the items of a JSON array, use these functions:
 - `json_array_first(json: byte*) -> byte*` finds the first item in a JSON array.
     If `json` doesn't start with a JSON array, this function returns `NULL`.
 - `json_array_next(json: byte*) -> byte*` takes a pointer to a value inside a JSON array
     and returns a pointer to the next value.
-    If `json` is `NULL`, it doesn't point at a JSON value, or it points at the last JSON value of an array,
+    If `json` doesn't point at a JSON value, or it points at the last JSON value of an array,
     this function returns `NULL`.
 
 These functions work nicely with Jou's [`for` loop syntax](loops.md#for-loop):
@@ -211,6 +211,42 @@ def main() -> int:
     for j = json_array_first(json_get(json, "numbers")); j != NULL; j = json_array_next(j):
         printf("%f\n", json_to_double(j))
 
+    # Get the third number
+    # Output: 5.600000
+    printf("%f\n", json_to_double(json_array_next(json_array_next(json_array_first(json_get(json, "numbers"))))))
+
+    return 0
+```
+
+Looping through an object is similar, but note that [the `json_get()` function](#finding-values-in-json) is often more convenient than this
+- `json_object_first(json: byte*) -> byte*` finds the first key in a JSON object.
+    If `json` doesn't start with a JSON object, this function returns `NULL`.
+- `json_object_next(json: byte*) -> byte*` takes a pointer to a key inside a JSON object
+    and returns a pointer to the next key.
+    If `json` doesn't point at a key, or it points at the last key of an object,
+    this function returns `NULL`.
+- `json_object_value(json: byte*) -> byte*` takes a pointer to a key inside a JSON object
+    and returns a pointer to the corresponding value.
+    If `json` doesn't point at a key, this function returns `NULL`.
+
+For example:
+
+```python
+import "stdlib/json.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+def main() -> int:
+    json = "{\"a\": 1, \"b\": 2, \"c\": 3}"
+
+    # Output: a --> 1.000000
+    # Output: b --> 2.000000
+    # Output: c --> 3.000000
+    for item = json_object_first(json); item != NULL; item = json_object_next(item):
+        key = json_to_string(item)
+        printf("%s --> %f\n", key, json_to_double(json_object_value(item)))
+        free(key)
+
     return 0
 ```
 
@@ -224,8 +260,7 @@ If you set the locale with C's `setlocale()` function, that may confuse `json.jo
 For example, in the Finnish language,
 the preferred way to write a number like 12.34 is with a comma, as in 12,34.
 So, on my Finnish system, if I call C's `setlocale()` function like `setlocale(LC_ALL, "fi_FI.UTF-8")`,
-then attempting to parse `12.34` in JSON produces `12.0`, not `12.34`,
-because to get `12.34` the JSON string would need to contain `12,34` with a comma.
+then parsing numbers in JSON does not work.
 Some libraries (e.g. Gtk) call `setlocale()` automatically,
 and that can also cause this problem.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you run into this.
@@ -233,12 +268,16 @@ Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if y
 
 ## Notes about strings
 
-It is currently not possible to add a string containing the zero byte `\0` to JSON.
-This would be easy to implement if needed, so
-please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you need this.
+Because [Jou strings use the zero byte to mark the end](tutorial.md#more-about-strings),
+it is currently not possible to distinguish between the JSON strings `"foo"` and `"foo\u0000bar"`.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if this is a problem for you.
 
-The string given to `JSONBuilder.string()` should be valid UTF-8.
-If it isn't, the resulting JSON will simply contain the given invalid UTF-8.
+If a JSON string contains invalid UTF-8, or `\u` escapes that form invalid UTF-16,
+it is considered as an invalid string:
+`json_is_valid()` returns `NULL` for any JSON containing such strings,
+`json_to_string()` returns `NULL`, and
+functions like `json_get()` and `json_array_next()` don't move past these strings correctly.
 
 The `JSONBuilder.string()` method places most [non-ASCII characters](tutorial.md#characters) to the JSON as is.
 The only two exceptions are U+2028 and U+2029 (`"\xe2\x80\xa8"` and `"\xe2\x80\xa9"` in UTF-8),
