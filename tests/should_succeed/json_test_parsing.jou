@@ -353,8 +353,6 @@ def test_numbers() -> None:
         "+1.23E-4",
         "+1.23e+4",
         "+1.23e-4",
-        "00",
-        "01",
         "1ee2",
         "--1",
         "infinity",
@@ -368,9 +366,17 @@ def test_numbers() -> None:
 
     for i = 0; i < array_count(invalid_numbers); i++:
         assert not is_valid_json(invalid_numbers[i])
+        if not is_nan(double_from_json(invalid_numbers[i])):
+            puts(invalid_numbers[i])
         assert is_nan(double_from_json(invalid_numbers[i]))
 
     # Sometimes double_from_json() may parse a part of an otherwise invalid number.
+    assert not is_valid_json("00")
+    assert double_from_json("00") == 0
+    assert not is_valid_json("01")
+    assert double_from_json("01") == 1
+    assert not is_valid_json("09")
+    assert double_from_json("09") == 9
     assert not is_valid_json("1.23J4")
     assert not is_nan(double_from_json("1.23J4"))  # happily parses 1.23
     assert not is_valid_json("1e2.3")
@@ -408,16 +414,7 @@ def test_json_from_github_api() -> None:
         printf("%s uploaded %s\n", uploader_name, asset_name)
 
 
-if LINUX:
-    declare setlocale(category: int, locale: byte*) -> byte*
-    const LC_ALL: int = 6
-
 def main() -> int:
-    if LINUX:
-        # See the other JSON test file for details.
-        # Locale also affects sscanf() which is annoying...
-        setlocale(LC_ALL, "fi_FI.UTF-8")
-
     test_array_validate()
     test_object_validate()
     test_array_iter()
