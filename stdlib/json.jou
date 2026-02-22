@@ -22,8 +22,8 @@ class JSONBuilder:
     output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
 
     # Internals that you don't need to care about as a user
-    stack: uint8[64]    # contains bitwise ORs of the flags
-    depth: int          # number of items on stack
+    stack: uint8[MAX_DEPTH]  # contains bitwise ORs of the flags
+    depth: int               # number of items on stack
     waiting_for_value_after_a_key: bool
 
     def new_line(self) -> None:
@@ -234,7 +234,6 @@ def skip_array(s: byte*, depth: int) -> byte*:
             case _:
                 return NULL
 
-
 @public
 def json_array_first(s: byte*) -> byte*:
     if s == NULL:
@@ -248,7 +247,6 @@ def json_array_first(s: byte*) -> byte*:
     while is_json_whitespace(*s):
         s++
     return NULL if *s == ']' or *s == '\0' else s
-
 
 @public
 def json_array_next(s: byte*) -> byte*:
@@ -310,7 +308,6 @@ def skip_object(s: byte*, depth: int) -> byte*:
             case _:
                 return NULL
 
-
 @public
 def json_object_first(s: byte*) -> byte*:
     if s == NULL:
@@ -324,7 +321,6 @@ def json_object_first(s: byte*) -> byte*:
     while is_json_whitespace(*s):
         s++
     return s if *s == '"' else NULL
-
 
 @public
 def json_object_value(s: byte*) -> byte*:
@@ -342,7 +338,6 @@ def json_object_value(s: byte*) -> byte*:
         s++
     return s
 
-
 @public
 def json_object_next(s: byte*) -> byte*:
     s = skip_value(json_object_value(s), 0)
@@ -351,7 +346,6 @@ def json_object_next(s: byte*) -> byte*:
     while is_json_whitespace(*s):
         s++
     return s if *s == '"' else NULL
-
 
 @public
 def json_get(json: byte*, key: byte*) -> byte*:
