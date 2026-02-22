@@ -2,17 +2,24 @@ import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+import "stdlib/intnative.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+import "stdlib/math.jou"
+import "stdlib/utf8.jou"
 
+
+const MAX_DEPTH: int = 64
 
 # TODO: these functions don't belong here
 def is_nan(x: double) -> bool:
     return x != x
 declare atof(string: byte*) -> double
 
-
 const BUILDER_FLAG_EMPTY: uint8 = 0b01
 const BUILDER_FLAG_OBJECT: uint8 = 0b10
 
+<<<<<<< HEAD
 @public
 class JSONBuilder:
     pretty_print: int  # 0 means as concise as possible (not pretty-print)
@@ -27,6 +34,27 @@ class JSONBuilder:
         if self.pretty_print != 0:
             self.output.append('\n')
             n = self.pretty_print * self.depth
+=======
+# TODO: this belongs to math.jou
+def is_nan(x: double) -> bool:
+    return x != x
+
+
+@public
+class JSONBuilder:
+    pretty_print_indent: int  # 0 means as concise as possible (not pretty-print)
+    output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
+
+    # Internals that you don't need to care about as a user
+    stack: uint8[MAX_DEPTH]  # contains bitwise ORs of the flags
+    depth: int               # number of items on stack
+    waiting_for_value_after_a_key: bool
+
+    def new_line(self) -> None:
+        if self.pretty_print_indent != 0:
+            self.output.append('\n')
+            n = self.pretty_print_indent * self.depth
+>>>>>>> json
             while n --> 0:
                 self.output.append(' ')
 
@@ -50,14 +78,22 @@ class JSONBuilder:
         self.new_line()
 
     @public
+<<<<<<< HEAD
     def begin_array(self) -> None:
+=======
+    def array(self) -> None:
+>>>>>>> json
         self.before_a_value()
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY
         self.output.append('[')
 
     @public
+<<<<<<< HEAD
     def begin_object(self) -> None:
+=======
+    def object(self) -> None:
+>>>>>>> json
         self.before_a_value()
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY | BUILDER_FLAG_OBJECT
@@ -76,7 +112,11 @@ class JSONBuilder:
 
         self.string(key)
         self.output.append(':')
+<<<<<<< HEAD
         if self.pretty_print != 0:
+=======
+        if self.pretty_print_indent != 0:
+>>>>>>> json
             self.output.append(' ')
         self.waiting_for_value_after_a_key = True
 
@@ -169,6 +209,7 @@ class JSONBuilder:
             self.output.extend_from_ptr("NaN", 3)
             return
 
+<<<<<<< HEAD
         # 17 significant digits is enough to print any double, but it's too
         # much for some doubles. For example, with 17 significant digits, 3.14
         # becomes 3.1400000000000001.
@@ -176,6 +217,17 @@ class JSONBuilder:
         snprintf(buf, sizeof(buf), "%.16g", n)
         if atof(buf) != n:
             snprintf(buf, sizeof(buf), "%.17g", n)
+=======
+        # AI says that 17 significant digits is always enough.
+        buf: byte[64]
+        snprintf(buf, sizeof(buf), "%.17g", n)
+
+        # TODO: A hack for fi_FI.UTF-8 locale which produces commas instead of
+        #       dots. Ideally we would solve this problem properly...
+        for p = &buf[0]; *p != '\0'; p++:
+            if *p == ',':
+                *p = '.'
+>>>>>>> json
 
         # TODO: better way to check if it is infinite
         if strstr(buf, "inf") != NULL or strstr(buf, "Inf") != NULL or strstr(buf, "INF") != NULL:
@@ -192,3 +244,554 @@ class JSONBuilder:
         assert self.depth == 0  # If this fails, you forgot to call end()
         self.output.append('\0')
         return self.output.ptr
+<<<<<<< HEAD
+=======
+
+
+# Array consists of:
+#   '['
+#   whitespace
+#   ']' or:
+#       value (including whitespace before and after)
+#       ']' or:
+#           ','
+#           value (including whitespace before and after)
+#           ']' or:
+#               ...
+def skip_array(s: byte*, depth: int) -> byte*:
+    if s == NULL or depth > MAX_DEPTH:
+        return NULL
+
+    if *s++ != '[':
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+
+    if *s == ']':
+        s++
+        return s
+
+    while True:
+        s = skip_value(s, depth + 1)  # skips leading and trailing whitespace
+        if s == NULL:
+            return NULL
+
+        match *s++:
+            case ',':
+                pass
+            case ']':
+                return s
+            case _:
+                return NULL
+
+
+@public
+def json_array_first(s: byte*) -> byte*:
+    if s == NULL:
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+    if *s++ != '[':
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+    return NULL if *s == ']' or *s == '\0' else s
+
+
+@public
+def json_array_next(s: byte*) -> byte*:
+    s = skip_value(s, 0)
+    if s == NULL or *s++ != ',':
+        return NULL
+    while is_json_whitespace(*s):
+        s++
+    return s
+
+
+# Object consists of:
+#   '{'
+#   whitespace
+#   '}' or:
+#       string (the key)
+#       whitespace
+#       ':'
+#       value (including whitespace before and after)
+#       '}' or:
+#           ','
+#           whitespace
+#           string (the key) and repeat from there
+def skip_object(s: byte*, depth: int) -> byte*:
+    if s == NULL or depth > MAX_DEPTH:
+        return NULL
+
+    if *s++ != '{':
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+
+    if *s == '}':
+        s++
+        return s
+
+    while True:
+        s = skip_string(s)
+        if s == NULL:
+            return NULL
+
+        while is_json_whitespace(*s):
+            s++
+
+        if *s++ != ':':
+            return NULL
+
+        s = skip_value(s, depth + 1)
+        if s == NULL:
+            return NULL
+
+        match *s++:
+            case '}':
+                return s
+            case ',':
+                while is_json_whitespace(*s):
+                    s++
+            case _:
+                return NULL
+
+
+@public
+def json_object_first(s: byte*) -> byte*:
+    if s == NULL:
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+    if *s++ != '{':
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+    return s if *s == '"' else NULL
+
+
+@public
+def json_object_value(s: byte*) -> byte*:
+    s = skip_string(s)
+    if s == NULL:
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+
+    if *s++ != ':':
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+    return s
+
+
+@public
+def json_object_next(s: byte*) -> byte*:
+    s = skip_value(json_object_value(s), 0)
+    if s == NULL or *s++ != ',':
+        return NULL
+    while is_json_whitespace(*s):
+        s++
+    return s if *s == '"' else NULL
+
+
+@public
+def json_get(json: byte*, key: byte*) -> byte*:
+    if json == NULL or key == NULL:
+        return NULL
+
+    end_of_key = &key[strlen(key)]
+    for item = json_object_first(json); item != NULL; item = json_object_next(item):
+        r = StringParsingResult{compare_to = key}
+        parse_string(item, &r)
+        if r.compare_to == end_of_key:
+            return json_object_value(item)
+
+    return NULL
+
+
+# Value consists of:
+#   whitespace
+#   string or number or object or array or true or false or null
+#   whitespace
+#
+# The way how a value contains whitespace before and after it is IMO weird, but
+# that's how the JSON spec at https://www.json.org/ does it.
+def skip_value(s: byte*, depth: int) -> byte*:
+    if s == NULL or depth > MAX_DEPTH:
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+
+    match *s:
+        case '"':
+            s = skip_string(s)
+        case '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'I' | 'N':
+            s = skip_number(s)
+        case '{':
+            # This passes the depth through as is. Containers (object, array)
+            # increment it for their subvalues.
+            s = skip_object(s, depth)
+        case '[':
+            s = skip_array(s, depth)
+        case 't':
+            s = &s[4] if starts_with(s, "true") else NULL
+        case 'f':
+            s = &s[5] if starts_with(s, "false") else NULL
+        case 'n':
+            s = &s[4] if starts_with(s, "null") else NULL
+        case _:
+            s = NULL
+    if s == NULL:
+        return NULL
+
+    while is_json_whitespace(*s):
+        s++
+    return s
+
+
+# This is for the \u syntax inside strings.
+def read_4_hex_digits(s: byte*) -> int:
+    result = 0
+
+    for i = 0; i < 4; i++:
+        c = s[i]
+        result <<= 4
+        if '0' <= c and c <= '9':
+            result |= c - '0'
+        elif 'A' <= c and c <= 'F':
+            result |= 10 + (c - 'A')
+        elif 'a' <= c and c <= 'f':
+            result |= 10 + (c - 'a')
+        else:
+            return -1
+
+    return result
+
+
+class StringParsingResult:
+    # Counting the total strlen of the string inside JSON
+    num_bytes_total: intnative
+
+    # Writing the string to memory given by user
+    out: byte*                  # may be NULL
+    out_available: int          # how many more bytes fit into out
+
+    # Comparing the string to another string without writing it anywhere
+    # (useful for finding a value equal to a given string)
+    compare_to: byte*
+
+    @inline
+    def add_byte(self, b: byte) -> None:
+        self.num_bytes_total++
+
+        if self.out != NULL and self.out_available > 0:
+            *self.out++ = b
+            self.out_available--
+
+        if self.compare_to != NULL:
+            if b == *self.compare_to:
+                self.compare_to++
+            else:
+                self.compare_to = NULL  # not equal
+
+
+# String in JSON consists of:
+#   '"'
+#   zero or more of any of the following:
+#       \"
+#       \\
+#       \/ (yes, forward slashes can be escaped in JSON)
+#       \b
+#       \f
+#       \n
+#       \r
+#       \t
+#       \u followed by 4 hex digits (specifies 16-bit value as in UTF-16)
+#   '"'
+#
+# This function parses a string in JSON.
+#
+# Returns the JSON string s advanced just beyond the ending '"', or NULL if the
+# given JSON is invalid.
+def parse_string(s: byte*, out: StringParsingResult*) -> byte*:
+    if s == NULL or *s++ != '"':
+        return NULL
+
+    while True:
+        match *s:
+            case '\\':
+                s++
+
+                out_string: byte[5]
+                match *s++:
+                    case '"':
+                        out_string = "\""
+                    case '\\':
+                        out_string = "\\"
+                    case '/':
+                        out_string = "/"
+                    case 'b':
+                        out_string = "\x08"  # Jou doesn't have \b escape
+                    case 'f':
+                        out_string = "\x0c"  # Jou doesn't have \f escape
+                    case 'n':
+                        out_string = "\n"
+                    case 'r':
+                        out_string = "\r"
+                    case 't':
+                        out_string = "\t"
+                    case 'u':
+                        # \uxxxx expects 4 hex characters
+                        u1: int = read_4_hex_digits(s)
+                        # \u0000 means JSON string contains a zero byte.
+                        # TODO: test this
+                        if u1 == -1:
+                            return NULL
+                        s = &s[4]
+
+                        if 0xD800 <= u1 and u1 <= 0xDBFF:
+                            # It is the first half of a surrogate pair. Let's
+                            # get the second half too.
+                            if not starts_with(s, "\\u"):
+                                return NULL
+                            s = &s[2]
+                            u2: int = read_4_hex_digits(s)
+                            if u2 == -1:
+                                return NULL
+                            s = &s[4]
+
+                            if 0xDC00 <= u2 and u2 <= 0xDCFF:
+                                # Surrogate pair is valid. Let's combine it
+                                # into a UTF-8 character.
+                                codepoint = ((u1 - 0xD800) << 10) | (u2 - 0xDC00)
+                                codepoint += 0x10000
+                                out_string = utf8_encode_char(codepoint as uint32)
+                            else:
+                                return NULL
+
+                        else:
+                            out_string = utf8_encode_char(u1 as uint32)
+                    case _:
+                        return NULL
+
+                if out_string[0] == '\0':
+                    # error detected in utf8_encode_char()
+                    return NULL
+
+                for i = 0; out_string[i] != '\0'; i++:
+                    out.add_byte(out_string[i])
+
+            case '"':  # end of string
+                s++
+                return s
+
+            case _:
+                if *s < 0x20:
+                    # Weird ASCII characters are banned
+                    return NULL
+
+                p = s
+                if utf8_decode_char(&s) <= 0:
+                    # Invalid UTF-8
+                    return NULL
+
+                # A character is UTF-8 encoded in the JSON, output it as is
+                assert p < s
+                while p < s:
+                    out.add_byte(*p++)
+
+
+# Parses a string from JSON. If it fits to the given output string, it's placed
+# there as a '\0' terminated UTF-8 string. If it doesn't fit, it gets truncated
+# so that '\0' is always added. Size of output string is in bytes including
+# room for '\0'.
+#
+# If json is NULL, the result is an empty string.
+#
+# Return value is strlen(result string) when there is enough room to store the
+# entire result. Use string_from_json(json, NULL, 0) to figure it out without
+# writing it anywhere.
+@public
+def string_from_json(json: byte*, out: byte*, out_size: int) -> intnative:
+    if json != NULL:
+        while is_json_whitespace(*json):
+            json++
+        result = StringParsingResult{out = out, out_available = out_size - 1}
+        if parse_string(json, &result) != NULL:
+            if out_size > 0:
+                assert out <= result.out and result.out < &out[out_size]
+                *result.out = '\0'
+            return result.num_bytes_total
+
+    if out != NULL and out_size >= 1:
+        *out = '\0'
+    return -1
+
+
+@public
+def double_from_json(s: byte*) -> double:
+    if s == NULL:
+        return 0.0 / 0.0  # NaN
+    while is_json_whitespace(*s):
+        s++
+    if starts_with(s, "NaN"):
+        return 0.0 / 0.0  # NaN
+    end_of_number = skip_number(s)
+    if end_of_number == NULL:
+        return 0.0 / 0.0  # NaN
+
+    sign = 1
+    if *s == '-':
+        sign = -1
+        s++
+
+    if starts_with(s, "Infinity"):
+        return sign * (1.0 / 0.0)
+
+    # Can't use sscanf() because its behavior is locale dependent.
+    # With fi_FI.UTF-8 it interprets "3.14" as 3 because it expects "3,14"
+
+    result = 0.0
+    while is_ascii_digit(*s):
+        result *= 10
+        result += *s++ - '0'
+
+    if *s == '.':
+        s++
+        pos = 1.0
+        while is_ascii_digit(*s):
+            pos *= 0.1
+            result += pos * (*s++ - '0')
+
+    if *s == 'e' or *s == 'E':
+        s++
+        exponent_sign = 1
+        if *s == '-':
+            exponent_sign = -1
+            s++
+        elif *s == '+':
+            s++
+        exponent = 0.0
+        while is_ascii_digit(*s):
+            exponent *= 10
+            exponent += *s++ - '0'
+        result *= pow(10, exponent_sign * exponent)
+
+    if s != end_of_number:
+        return 0.0 / 0.0  # NaN
+    return sign * result
+
+
+# Part of JSON parsing and validating. Returns NULL if json is invalid.
+def skip_string(s: byte*) -> byte*:
+    dummy = StringParsingResult{}
+    return parse_string(s, &dummy)
+
+
+# Part of JSON parsing and validating. Returns NULL if json is invalid.
+#
+# Number consists of:
+#   'NaN' or:
+#       optional: '-'
+#       'Infinity' or:
+#           '0' or:
+#               digit 1-9
+#               digits 0-9 (zero or more)
+#           optional:
+#               '.'
+#               digits 0-9 (at least one)
+#           optional:
+#               'E' or 'e'
+#               optional: '+' or '-'
+#               digits 0-9 (at least one)
+#
+# Technically NaN and Infinity are not allowed, but they are widely used
+# extensions and e.g. Python supports them by default.
+def skip_number(s: byte*) -> byte*:
+    if s == NULL:
+        return NULL
+
+    if starts_with(s, "NaN"):
+        return &s[3]
+
+    if *s == '-':
+        s++
+
+    if starts_with(s, "Infinity"):
+        return &s[8]
+
+    if *s == '0':
+        s++
+        # No need to return NULL here. For input like "0123", this function
+        # consumes "0" and something else fails later.
+    elif is_ascii_digit(*s):
+        while is_ascii_digit(*s):
+            s++
+    else:
+        return NULL
+
+    if *s == '.':
+        s++
+        if not is_ascii_digit(*s):
+            return NULL
+        while is_ascii_digit(*s):
+            s++
+
+    if *s == 'E' or *s == 'e':
+        s++
+        if *s == '+' or *s == '-':
+            s++
+        if not is_ascii_digit(*s):
+            return NULL
+        while is_ascii_digit(*s):
+            s++
+
+    return s
+
+
+@public
+def json_is_true(json: byte*) -> bool:
+    if json == NULL:
+        return False
+    while is_json_whitespace(*json):
+        json++
+    return starts_with(json, "true")
+
+@public
+def json_is_false(json: byte*) -> bool:
+    if json == NULL:
+        return False
+    while is_json_whitespace(*json):
+        json++
+    return starts_with(json, "false")
+
+@public
+def json_is_null(json: byte*) -> bool:
+    if json == NULL:
+        return False
+    while is_json_whitespace(*json):
+        json++
+    return starts_with(json, "null")
+
+
+# Not to be confused with is_ascii_whitespace() which allows more!
+def is_json_whitespace(b: byte) -> bool:
+    return b == ' ' or b == '\t' or b == '\n' or b == '\r'
+
+
+@public
+def is_valid_json(s: byte*) -> bool:
+    s = skip_value(s, 0)
+    return s != NULL and *s == '\0'
+>>>>>>> json
