@@ -68,7 +68,7 @@ When you create a JSONBuilder, you can set the following fields:
     If `pretty_print` is positive, the JSON will be indented with that many spaces.
 
 The `.finish()` method returns [a string](tutorial.md#more-about-strings) of JSON.
-You must `free()` the JSON string, [just like with lists](lists.md#what-does-free-list-ptr-do),
+You must `free()` the JSON string, [just like with lists](lists.md#what-does-freelistptr-do),
 because the builder internally uses a `List[byte]` to construct the string and then returns its `.ptr`.
 
 To actually build the JSON, use the following methods, where `jb` is a `JSONBuilder`:
