@@ -54,12 +54,28 @@ def main() -> int:
     return 0
 ```
 
+| Function                  | Return type       | Return value                                  |
+|---------------------------|-------------------|-----------------------------------------------|
+| `json_array_first(json)`  | `byte*` (JSON)    | pointer into `json` or NULL                   |
+| `json_array_next(json)`   | `byte*` (JSON)    | pointer into `json` or NULL                   |
+| `json_object_first(json)` | `byte*` (JSON)    | pointer into key in `json` or NULL            |
+| `json_object_next(json)`  | `byte*` (JSON)    | pointer into key in `json` or NULL            |
+| `json_object_value(json)` | `byte*` (JSON)    | pointer into value in `json` or NULL          |
+| `json_get(json, key)`     | `byte*` (JSON)    | pointer into value in `json` or NULL          |
+| `json_to_double(json)`    | `double`          | value in `json` or NaN                        |
+| `json_to_string(json)`    | `byte*`           | string from `json` or NULL, needs `free()`    |
+| `json_is_true(json)`      | `bool`            | `True` if `json` points at a JSON `true`      |
+| `json_is_false(json)`     | `bool`            | `True` if `json` points at a JSON `false`     |
+| `json_is_null(json)`      | `bool`            | `True` if `json` points at a JSON `null`      |
+| `json_is_valid(json)`     | `bool`            | `True` if `json` is valid JSON                |
+
 
 ## Finding values in JSON
 
 Unlike most other JSON libraries, Jou's JSON library does **not**
 create a new data structure in memory to represent your entire JSON and everything inside it.
-Instead, it simply navigates the string of JSON by passing around [pointers to the string](tutorial.md#more-about-strings).
+Instead, it simply navigates the string of JSON by passing around
+[pointers to the string](tutorial.md#more-about-strings).
 
 For example, let's say that you have a string of JSON that looks like `{"a": 1, "b": 2, "c": 3}`,
 and you want to get the value of `2` from it.
@@ -122,6 +138,10 @@ Once you have found the value you want, you can use these functions to parse it:
     If `json` doesn't start with a valid string, this function returns `NULL`.
     If the return value is not `NULL`, it must be `free()`d when you no longer need it.
     See also [the notes about strings below](#notes-about-strings).
+
+Note that you cannot `free()` or otherwise destroy the original JSON string
+until you have parsed the values you want,
+because destroying the original string breaks pointers like `pointer_to_b` in the above example.
 
 
 ## Error handling

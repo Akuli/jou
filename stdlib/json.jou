@@ -408,6 +408,86 @@ def skip_value(s: byte*, depth: int) -> byte*:
     return s
 
 
+# Part of JSON parsing and validating. Returns NULL if json is invalid.
+#
+# Number consists of:
+#   'NaN' or:
+#       optional: '-'
+#       'Infinity' or:
+#           '0' or:
+#               digit 1-9
+#               digits 0-9 (zero or more)
+#           optional:
+#               '.'
+#               digits 0-9 (at least one)
+#           optional:
+#               'E' or 'e'
+#               optional: '+' or '-'
+#               digits 0-9 (at least one)
+#
+# Technically NaN and Infinity are not allowed, but they are widely used
+# extensions and e.g. Python supports them by default.
+def skip_number(s: byte*) -> byte*:
+    if s == NULL:
+        return NULL
+
+    if starts_with(s, "NaN"):
+        return &s[3]
+
+    if *s == '-':
+        s++
+
+    if starts_with(s, "Infinity"):
+        return &s[8]
+
+    if *s == '0':
+        s++
+        # No need to return NULL here. For input like "0123", this function
+        # consumes "0" and something else fails later.
+    elif is_ascii_digit(*s):
+        while is_ascii_digit(*s):
+            s++
+    else:
+        return NULL
+
+    if *s == '.':
+        s++
+        if not is_ascii_digit(*s):
+            return NULL
+        while is_ascii_digit(*s):
+            s++
+
+    if *s == 'E' or *s == 'e':
+        s++
+        if *s == '+' or *s == '-':
+            s++
+        if not is_ascii_digit(*s):
+            return NULL
+        while is_ascii_digit(*s):
+            s++
+
+    return s
+
+@public
+def json_to_double(s: byte*) -> double:
+    if s == NULL:
+        return 0.0 / 0.0
+
+    while is_json_whitespace(*s):
+        s++
+    if skip_number(s) == NULL:
+        return 0.0 / 0.0
+
+    if starts_with(s, "Infinity"):
+        return 1.0 / 0.0
+    if starts_with(s, "-Infinity"):
+        return -1.0 / 0.0
+    if starts_with(s, "NaN"):
+        return 0.0 / 0.0
+
+    return atof(s)
+
+
 # This is for the \u syntax inside strings.
 def read_4_hex_digits(s: byte*) -> int:
     result = 0
@@ -425,7 +505,6 @@ def read_4_hex_digits(s: byte*) -> int:
             return -1
 
     return result
-
 
 class StringParsingContext:
     # Counting the total strlen of the string inside JSON
@@ -451,7 +530,6 @@ class StringParsingContext:
                 self.compare_to++
             else:
                 self.compare_to = NULL  # not equal
-
 
 # String in JSON consists of:
 #   '"'
@@ -558,7 +636,6 @@ def parse_string(s: byte*, ctx: StringParsingContext*) -> byte*:
                 while p < s:
                     ctx.add_byte(*p++)
 
-
 # Parses a string from JSON. If it fits to the given output string, it's placed
 # there as a '\0' terminated UTF-8 string. If it doesn't fit, it gets truncated
 # so that '\0' is always added. Size of output string is in bytes including
@@ -586,92 +663,10 @@ def json_to_string(json: byte*) -> byte*:
     result.append('\0')
     return result.ptr
 
-
 # Part of JSON parsing and validating. Returns NULL if json is invalid.
 def skip_string(s: byte*) -> byte*:
     dummy = StringParsingContext{}
     return parse_string(s, &dummy)
-
-
-@public
-def json_to_double(s: byte*) -> double:
-    if s == NULL:
-        return 0.0 / 0.0
-
-    while is_json_whitespace(*s):
-        s++
-    if skip_number(s) == NULL:
-        return 0.0 / 0.0
-
-    if starts_with(s, "Infinity"):
-        return 1.0 / 0.0
-    if starts_with(s, "-Infinity"):
-        return -1.0 / 0.0
-    if starts_with(s, "NaN"):
-        return 0.0 / 0.0
-
-    return atof(s)
-
-
-# Part of JSON parsing and validating. Returns NULL if json is invalid.
-#
-# Number consists of:
-#   'NaN' or:
-#       optional: '-'
-#       'Infinity' or:
-#           '0' or:
-#               digit 1-9
-#               digits 0-9 (zero or more)
-#           optional:
-#               '.'
-#               digits 0-9 (at least one)
-#           optional:
-#               'E' or 'e'
-#               optional: '+' or '-'
-#               digits 0-9 (at least one)
-#
-# Technically NaN and Infinity are not allowed, but they are widely used
-# extensions and e.g. Python supports them by default.
-def skip_number(s: byte*) -> byte*:
-    if s == NULL:
-        return NULL
-
-    if starts_with(s, "NaN"):
-        return &s[3]
-
-    if *s == '-':
-        s++
-
-    if starts_with(s, "Infinity"):
-        return &s[8]
-
-    if *s == '0':
-        s++
-        # No need to return NULL here. For input like "0123", this function
-        # consumes "0" and something else fails later.
-    elif is_ascii_digit(*s):
-        while is_ascii_digit(*s):
-            s++
-    else:
-        return NULL
-
-    if *s == '.':
-        s++
-        if not is_ascii_digit(*s):
-            return NULL
-        while is_ascii_digit(*s):
-            s++
-
-    if *s == 'E' or *s == 'e':
-        s++
-        if *s == '+' or *s == '-':
-            s++
-        if not is_ascii_digit(*s):
-            return NULL
-        while is_ascii_digit(*s):
-            s++
-
-    return s
 
 
 @public
