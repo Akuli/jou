@@ -50,14 +50,14 @@ class JSONBuilder:
         self.new_line()
 
     @public
-    def array(self) -> None:
+    def begin_array(self) -> None:
         self.before_a_value()
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY
         self.output.append('[')
 
     @public
-    def object(self) -> None:
+    def begin_object(self) -> None:
         self.before_a_value()
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY | BUILDER_FLAG_OBJECT

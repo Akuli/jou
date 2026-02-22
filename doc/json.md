@@ -11,13 +11,13 @@ import "stdlib/mem.jou"
 def main() -> int:
     jb = JSONBuilder{pretty_print = 2}
 
-    jb.object()  # {
+    jb.begin_object()  # {
     # "foo": 123
     jb.key("foo")
     jb.number(123)
     # "bar": ["hello", 12.34, true, null]
     jb.key("bar")
-    jb.array()  # [
+    jb.begin_array()  # [
     jb.string("hello")
     jb.number(12.34)
     jb.boolean(True)
@@ -76,12 +76,12 @@ To actually build the JSON, use the following methods, where `jb` is a `JSONBuil
 - `jb.null()` adds `null` to the JSON.
 - `jb.string(s: byte*)` adds a string to the JSON. If `s` is `NULL`, it instead adds `null` just like `jb.null()` would.
 - `jb.number(n: double)` adds a number to the JSON. See also [the section on numbers below](#notes-about-numbers).
-- `jb.array()` and `jb.end_array()` are used to build a JSON array.
+- `jb.begin_array()` and `jb.end_array()` are used to build a JSON array.
     Between calling these methods, you build each item of the array.
     See also [the section on arrays and objects below](#notes-about-arrays-and-objects).
-- `jb.object()`, `jb.end_object()` and `jb.key(key: byte*)` are used to build a JSON object.
+- `jb.begin_object()`, `jb.end_object()` and `jb.key(key: byte*)` are used to build a JSON object.
     In JSON, an object looks like `{"key1": value1, "key2": value2}`.
-    Between `jb.object()` and `jb.end_object()`,
+    Between `jb.begin_object()` and `jb.end_object()`,
     you must call `jb.key(some_string)` before you build each value.
     See also [the section on arrays and objects below](#notes-about-arrays-and-objects).
 
@@ -99,7 +99,7 @@ import "stdlib/mem.jou"
 
 def main() -> int:
     jb = JSONBuilder{}
-    jb.array()
+    jb.begin_array()
     jb.number(1.0 / 0.0)
     jb.number(-1.0 / 0.0)
     jb.number(0.0 / 0.0)
@@ -147,7 +147,7 @@ import "stdlib/mem.jou"
 
 def main() -> int:
     jb = JSONBuilder{}
-    jb.object()
+    jb.begin_object()
     jb.key("€möji")
     jb.string("😀")
     jb.key("funny chars")
@@ -171,8 +171,8 @@ In this context, an "object" means a JSON object, such as `{"a":1,"b":2}`.
 No more than 64 levels of nested arrays and objects are currently supported.
 
 The JSON builder uses `assert` statements to catch some common bugs:
-- calls to `.array()` and `.end_array()` must match
-- calls to `.object()` and `.end_object()` must match
+- calls to `.begin_array()` and `.end_array()` must match
+- calls to `.begin_object()` and `.end_object()` must match
 - `.key()` must be called once before each value inside an object
 - multiple values cannot be created without placing them into an array or an object
 - arrays and objects cannot be nested more than 64 levels deep
