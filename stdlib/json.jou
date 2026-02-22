@@ -1,0 +1,194 @@
+import "stdlib/ascii.jou"
+import "stdlib/assert.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+
+
+# TODO: these functions don't belong here
+def is_nan(x: double) -> bool:
+    return x != x
+declare atof(string: byte*) -> double
+
+
+const BUILDER_FLAG_EMPTY: uint8 = 0b01
+const BUILDER_FLAG_OBJECT: uint8 = 0b10
+
+@public
+class JSONBuilder:
+    pretty_print: int  # 0 means as concise as possible (not pretty-print)
+    output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
+
+    # Internals that you don't need to care about as a user
+    stack: uint8[64]    # contains bitwise ORs of the flags
+    depth: int          # number of items on stack
+    waiting_for_value_after_a_key: bool
+
+    def new_line(self) -> None:
+        if self.pretty_print != 0:
+            self.output.append('\n')
+            n = self.pretty_print * self.depth
+            while n --> 0:
+                self.output.append(' ')
+
+    def before_a_value(self) -> None:
+        if self.depth == 0:
+            # This assert fails if you try to create multiple top-level values.
+            # If you want to create multiple values, you must use array or object.
+            assert self.output.len == 0
+            return
+
+        if self.waiting_for_value_after_a_key:
+            self.waiting_for_value_after_a_key = False
+            return
+
+        assert 0 < self.depth and self.depth <= array_count(self.stack)
+        flags = &self.stack[self.depth - 1]
+        if *flags & BUILDER_FLAG_EMPTY == 0:
+            self.output.append(',')
+        *flags &= ~BUILDER_FLAG_EMPTY
+
+        self.new_line()
+
+    @public
+    def begin_array(self) -> None:
+        self.before_a_value()
+        assert self.depth < array_count(self.stack)
+        self.stack[self.depth++] = BUILDER_FLAG_EMPTY
+        self.output.append('[')
+
+    @public
+    def begin_object(self) -> None:
+        self.before_a_value()
+        assert self.depth < array_count(self.stack)
+        self.stack[self.depth++] = BUILDER_FLAG_EMPTY | BUILDER_FLAG_OBJECT
+        self.output.append('{')
+
+    @public
+    def key(self, key: byte*) -> None:
+        assert key != NULL
+
+        # This can only be used inside an object
+        assert self.depth > 0
+        assert self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0
+
+        # You cannot add multiple keys without putting values in between
+        assert not self.waiting_for_value_after_a_key
+
+        self.string(key)
+        self.output.append(':')
+        if self.pretty_print != 0:
+            self.output.append(' ')
+        self.waiting_for_value_after_a_key = True
+
+    @public
+    def end_array(self) -> None:
+        assert not self.waiting_for_value_after_a_key
+        assert self.depth > 0
+
+        flags = self.stack[--self.depth]
+        assert flags & BUILDER_FLAG_OBJECT == 0
+        if flags & BUILDER_FLAG_EMPTY == 0:
+            self.new_line()
+
+        self.output.append(']')
+
+    @public
+    def end_object(self) -> None:
+        assert not self.waiting_for_value_after_a_key
+        assert self.depth > 0
+
+        flags = self.stack[--self.depth]
+        assert flags & BUILDER_FLAG_OBJECT != 0
+        if flags & BUILDER_FLAG_EMPTY == 0:
+            self.new_line()
+
+        self.output.append('}')
+
+    @public
+    def boolean(self, b: bool) -> None:
+        self.before_a_value()
+        if b:
+            self.output.extend_from_ptr("true", 4)
+        else:
+            self.output.extend_from_ptr("false", 5)
+
+    @public
+    def string(self, s: byte*) -> None:
+        if s == NULL:
+            self.null()
+            return
+
+        self.before_a_value()
+        self.output.append('"')
+
+        while *s != '\0':
+            match *s:
+                case '\n':
+                    self.output.extend_from_ptr("\\n", 2)
+                    s++
+                case '\t':
+                    self.output.extend_from_ptr("\\t", 2)
+                    s++
+                case '\r':
+                    self.output.extend_from_ptr("\\r", 2)
+                    s++
+                case '"' | '\\':
+                    self.output.append('\\')
+                    self.output.append(*s++)
+                case _:
+                    if is_ascii_printable(*s):
+                        self.output.append(*s++)
+                    elif *s < 128:
+                        # unprintable ASCII character, do these carefully
+                        buf: byte[16]
+                        sprintf(buf, "\\u00%02x", *s++)
+                        self.output.extend_from_ptr(buf, strlen(buf))
+                    elif starts_with(s, "\xe2\x80\xa8"):
+                        # Unicode character U+2028, placing it directly into JSON may cause problems
+                        self.output.extend_from_ptr("\\u2028", 6)
+                        s = &s[3]
+                    elif starts_with(s, "\xe2\x80\xa9"):
+                        # Unicode character U+2029, placing it directly into JSON may cause problems
+                        self.output.extend_from_ptr("\\u2029", 6)
+                        s = &s[3]
+                    else:
+                        # part of a non-ASCII character in UTF-8, output it as is
+                        self.output.append(*s++)
+        self.output.append('"')
+
+    @public
+    def null(self) -> None:
+        self.before_a_value()
+        self.output.extend_from_ptr("null", 4)
+
+    @public
+    def number(self, n: double) -> None:
+        self.before_a_value()
+
+        if is_nan(n):
+            self.output.extend_from_ptr("NaN", 3)
+            return
+
+        # 17 significant digits is enough to print any double, but it's too
+        # much for some doubles. For example, with 17 significant digits, 3.14
+        # becomes 3.1400000000000001.
+        buf: byte[64] = ""
+        snprintf(buf, sizeof(buf), "%.16g", n)
+        if atof(buf) != n:
+            snprintf(buf, sizeof(buf), "%.17g", n)
+
+        # TODO: better way to check if it is infinite
+        if strstr(buf, "inf") != NULL or strstr(buf, "Inf") != NULL or strstr(buf, "INF") != NULL:
+            if buf[0] == '-':
+                buf = "-Infinity"
+            else:
+                buf = "Infinity"
+
+        self.output.extend_from_ptr(buf, strlen(buf))
+
+    # Return value must be free()'d
+    @public
+    def finish(self) -> byte*:
+        assert self.depth == 0  # If this fails, you forgot to call end()
+        self.output.append('\0')
+        return self.output.ptr
