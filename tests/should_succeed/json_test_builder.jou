@@ -185,6 +185,11 @@ def test_numbers() -> None:
         p = strstr(json, bad_pi)
         memmove(&p[4], &p[strlen(bad_pi)], strlen(p) - strlen(bad_pi) + 1)
 
+    # Windows likes to say e-007 instead of e-07 at the end of float
+    while WINDOWS and strstr(json, "e-007") != NULL:
+        p = &strstr(json, "e-007")[3]
+        memmove(&p[2], &p[3], strlen(&p[3]) + 1)
+
     puts(json)
     free(json)
 

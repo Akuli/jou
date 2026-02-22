@@ -325,6 +325,10 @@ def test_numbers() -> None:
             sprintf(s, "%g", double_from_json(valid_numbers[i]))
             if strstr(s, ",") != NULL:
                 *strstr(s, ",") = '.'
+            # Windows likes to say e+029 instead of e+29
+            if WINDOWS and strstr(s, "e+029") != NULL:
+                p = strstr(s, "e+029")
+                memmove(&p[2], &p[3], strlen(&p[3]) + 1)
             puts(s)
         else:
             printf("%g\n", double_from_json(valid_numbers[i]))
