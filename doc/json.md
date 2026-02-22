@@ -76,7 +76,7 @@ To actually build the JSON, use the following methods, where `jb` is a `JSONBuil
 - `jb.boolean(b: bool)` adds `true` or `false` to the JSON.
 - `jb.null()` adds `null` to the JSON.
 - `jb.string(s: byte*)` adds a string to the JSON. If `s` is `NULL`, it instead adds `null` just like `jb.null()` would.
-- `jb.number(n: double)` adds a number to the JSON. See also [the section on numbers](#numbers).
+- `jb.number(n: double)` adds a number to the JSON. See also [the section on numbers](#notes-about-numbers).
 - `jb.array()` and `jb.end_array()` are used to build a JSON array.
     Between calling these methods, you build each item of the array.
 - `jb.object()`, `jb.end_object()` and `jb.key(key: byte*)` are used to build a JSON object.
@@ -85,7 +85,7 @@ To actually build the JSON, use the following methods, where `jb` is a `JSONBuil
     you must call `jb.key(some_string)` before you build each value.
 
 
-## Numbers
+## Notes About Numbers
 
 This section documents a few surprising things and potential problems with how `json.jou` handles numbers.
 **Please create an issue on GitHub if you run into these limitations.**
@@ -113,10 +113,11 @@ def main() -> int:
     return 0
 ```
 
-The `.number()` method uses `snprintf()` to format the number, and that depends on the current locale.
-If you (or a library in your project, e.g. Gtk) sets the locale with C's `setlocale()` function,
-that may confuse `json.jou`.
-For example, in the Finnish language, the preferred way to write a number like 12.34 is with a comma, as in 12,34.
-On my Finnish system, after a `setlocale(LC_ALL, "fi_FI.UTF-8")`,
-calling `jb.number(12.34)` produces `12,34` in the JSON instead of `12.34`, which is wrong.
-Please create an issue on GitHub if you run into this problem.
+If you set the locale with C's `setlocale()` function, that may confuse `json.jou`.
+For example, in the Finnish language,
+the preferred way to write a number like 12.34 is with a comma, as in 12,34.
+So, on my Finnish system, if I call C's `setlocale()` function like `setlocale(LC_ALL, "fi_FI.UTF-8")`,
+and then I do `jb.number(12.34)`,
+I get `12,34` in the JSON instead of the expected `12.34`.
+Some libraries (e.g. Gtk) call `setlocale()` automatically,
+and that can also cause this problem.
