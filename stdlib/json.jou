@@ -4,13 +4,14 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 
-const BUILDER_FLAG_EMPTY: uint8 = 0b01
-const BUILDER_FLAG_OBJECT: uint8 = 0b10
-
-# TODO: this belongs to math.jou
+# TODO: these functions don't belong here
 def is_nan(x: double) -> bool:
     return x != x
+declare atof(string: byte*) -> double
 
+
+const BUILDER_FLAG_EMPTY: uint8 = 0b01
+const BUILDER_FLAG_OBJECT: uint8 = 0b10
 
 @public
 class JSONBuilder:
@@ -169,9 +170,13 @@ class JSONBuilder:
             self.output.extend_from_ptr("NaN", 3)
             return
 
-        # AI says that 17 significant digits is always enough.
-        buf: byte[64]
-        snprintf(buf, sizeof(buf), "%.17g", n)
+        # 17 significant digits is enough to print any double, but it's too
+        # much for some doubles. For example, with 17 significant digits, 3.14
+        # becomes 3.1400000000000001.
+        buf: byte[64] = ""
+        snprintf(buf, sizeof(buf), "%.16g", n)
+        if atof(buf) != n:
+            snprintf(buf, sizeof(buf), "%.17g", n)
 
         # TODO: better way to check if it is infinite
         if strstr(buf, "inf") != NULL or strstr(buf, "Inf") != NULL or strstr(buf, "INF") != NULL:

@@ -155,6 +155,10 @@ def test_numbers() -> None:
     # Output:   -2,
     # Output:   3.14,
     # Output:   -3.14,
+    # Output:   1.0000000000000002,
+    # Output:   1.0000000000000004,
+    # Output:   -1.0000000000000002,
+    # Output:   -1.0000000000000004,
     # Output:   9.5367431640625e-07,
     # Output:   Infinity,
     # Output:   -Infinity,
@@ -166,9 +170,17 @@ def test_numbers() -> None:
     jb.number(0)
     jb.number(1)
     jb.number(-2)
+    # 3.14 requires 16 digits of precision to be printed.
+    # With 17 digits it produces 3.1400000000000001
     jb.number(3.14)
     jb.number(-3.14)
-    # For reasonable powers of 2, floating point representations should be exact
+    # These values require 17 digits of precision to be printed.
+    # With 16 digits this gives just 1.
+    jb.number(1.0000000000000002)
+    jb.number(1.0000000000000004)
+    jb.number(-1.0000000000000002)
+    jb.number(-1.0000000000000004)
+    # Test the e notation. This should be exact because this is a power of 2.
     jb.number(pow(2, -20))
     # Technically Infinity and NaN are not valid JSON, but many libraries
     # support them to some extent so we support them too.
@@ -178,12 +190,6 @@ def test_numbers() -> None:
     jb.end_array()
 
     json = jb.finish()
-
-    # On my system, 3.14 becomes 3.1400000000000001. Let's ignore that for now.
-    bad_pi = "3.1400000000000001"
-    while strstr(json, bad_pi) != NULL:
-        p = strstr(json, bad_pi)
-        memmove(&p[4], &p[strlen(bad_pi)], strlen(p) - strlen(bad_pi) + 1)
 
     # Windows likes to say e-007 instead of e-07 at the end of float
     while WINDOWS and strstr(json, "e-007") != NULL:
