@@ -1,6 +1,9 @@
 # JSON
 
-TL;DR: Parsing JSON is not supported. Example of building JSON:
+This page documents building JSON.
+See [json-parsing.md](json-parsing.md) if you already have a string of JSON and you want to parse it.
+
+TL;DR:
 
 ```python
 import "stdlib/json.jou"

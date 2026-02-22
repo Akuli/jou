@@ -428,7 +428,7 @@ class StringParsingResult:
 
     # Writing the string to memory given by user
     out: byte*                  # may be NULL
-    out_available: int          # how many more bytes fit into out
+    out_available: intnative    # how many more bytes fit into out
 
     # Comparing the string to another string without writing it anywhere
     # (useful for finding a value equal to a given string)
@@ -563,10 +563,10 @@ def parse_string(s: byte*, out: StringParsingResult*) -> byte*:
 # If json is NULL, the result is an empty string.
 #
 # Return value is strlen(result string) when there is enough room to store the
-# entire result. Use string_from_json(json, NULL, 0) to figure it out without
+# entire result. Use json_to_string(json, NULL, 0) to figure it out without
 # writing it anywhere.
 @public
-def string_from_json(json: byte*, out: byte*, out_size: int) -> intnative:
+def json_to_string(json: byte*, out: byte*, out_size: intnative) -> intnative:
     if json != NULL:
         while is_json_whitespace(*json):
             json++
@@ -589,7 +589,7 @@ def skip_string(s: byte*) -> byte*:
 
 
 @public
-def double_from_json(s: byte*) -> double:
+def json_to_double(s: byte*) -> double:
     if s == NULL:
         return 0.0 / 0.0
 
@@ -700,6 +700,6 @@ def is_json_whitespace(b: byte) -> bool:
 
 
 @public
-def is_valid_json(s: byte*) -> bool:
+def json_is_valid(s: byte*) -> bool:
     s = skip_value(s, 0)
     return s != NULL and *s == '\0'
