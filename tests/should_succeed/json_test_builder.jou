@@ -187,7 +187,7 @@ def test_numbers() -> None:
 
     # Windows likes to say e-007 instead of e-07 at the end of float
     while WINDOWS and strstr(json, "e-007") != NULL:
-        p = &strstr(json, "e-007")[3]
+        p = strstr(json, "e-007")
         memmove(&p[2], &p[3], strlen(&p[3]) + 1)
 
     puts(json)
