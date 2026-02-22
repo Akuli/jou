@@ -7,7 +7,6 @@ import "stdlib/json.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
 
-
 def main() -> int:
     jb = JSONBuilder{pretty_print = 2}
 
@@ -60,12 +59,11 @@ free(json)
 
 You should initialize all fields of `JSONBuilder` that you don't use to zero
 by e.g. using [the `ClassName{}` syntax](classes.md#instantiating-syntax) as shown above.
-Those other fields are not documented here because you rarely need to care about them.
 
-When you create a JSONBuilder, you can set the following fields:
-- `pretty_print: int` field to decide how whitespace will be added.
-    If `pretty_print` is zero, the JSON will be created without any unnecessary whitespace.
-    If `pretty_print` is positive, the JSON will be indented with that many spaces.
+When you create a `JSONBuilder`, you can set the `pretty_print: int` field
+to decide how whitespace will be added.
+If `pretty_print` is zero, the JSON will be created without any unnecessary whitespace.
+If `pretty_print` is positive, the JSON will be indented with that many spaces.
 
 The `.finish()` method returns [a string](tutorial.md#more-about-strings) of JSON.
 You must `free()` the JSON string, [just like with lists](lists.md#what-does-freelistptr-do),
@@ -74,16 +72,18 @@ because the builder internally uses a `List[byte]` to construct the string and t
 To actually build the JSON, use the following methods, where `jb` is a `JSONBuilder`:
 - `jb.boolean(b: bool)` adds `true` or `false` to the JSON.
 - `jb.null()` adds `null` to the JSON.
-- `jb.string(s: byte*)` adds a string to the JSON. If `s` is `NULL`, it instead adds `null` just like `jb.null()` would.
-- `jb.number(n: double)` adds a number to the JSON. See also [the section on numbers below](#notes-about-numbers).
+- `jb.string(s: byte*)` adds a string to the JSON.
+    If `s` is `NULL`, it instead adds `null` just like `jb.null()` would.
+    See also [the notes about strings below](#notes-about-strings).
+- `jb.number(n: double)` adds a number to the JSON. See also [the notes about numbers below](#notes-about-numbers).
 - `jb.begin_array()` and `jb.end_array()` are used to build a JSON array.
     Between calling these methods, you build each item of the array.
-    See also [the section on arrays and objects below](#notes-about-arrays-and-objects).
+    See also [the notes about arrays and objects below](#notes-about-arrays-and-objects).
 - `jb.begin_object()`, `jb.end_object()` and `jb.key(key: byte*)` are used to build a JSON object.
     In JSON, an object looks like `{"key1": value1, "key2": value2}`.
     Between `jb.begin_object()` and `jb.end_object()`,
     you must call `jb.key(some_string)` before you build each value.
-    See also [the section on arrays and objects below](#notes-about-arrays-and-objects).
+    See also [the notes about arrays and objects below](#notes-about-arrays-and-objects).
 
 
 ## Notes about numbers
