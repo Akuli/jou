@@ -111,9 +111,6 @@ def main() -> int:
     return 0
 ```
 
-Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
-if you want to disable the support for `Infinity`, `-Infinity` and `NaN`.
-
 If you set the locale with C's `setlocale()` function, that may confuse `json.jou`.
 For example, in the Finnish language,
 the preferred way to write a number like 12.34 is with a comma, as in 12,34.
@@ -131,7 +128,8 @@ It is currently not possible to add a string containing the zero byte `\0` to JS
 This would be easy to implement if needed, so
 please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you need this.
 
-The `JSONBuilder.string()` method assumes that the string given to it is valid UTF-8.
+The string given to `JSONBuilder.string()` should be valid UTF-8.
+If it isn't, the resulting JSON will simply contain the given invalid UTF-8.
 
 The `JSONBuilder.string()` method places most [non-ASCII characters](tutorial.md#characters) to the JSON as is.
 The only two exceptions are U+2028 and U+2029 (`"\xe2\x80\xa8"` and `"\xe2\x80\xa9"` in UTF-8),
@@ -161,14 +159,16 @@ def main() -> int:
 ```
 
 In JSON, the forward slash can be escaped, as in `"https:\/\/example.com"` or `"<\/script>"`.
-The JSON builder does not escape forward slashes.
+The JSON builder does not escape forward slashes, but that would be easy to implement.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if you need to create JSON with escaped forward slashes.
 
 
 ## Notes about arrays and objects
 
 In this context, an "object" means a JSON object, such as `{"a":1,"b":2}`.
 
-No more than 64 levels of nested arrays and objects are currently supported.
+No more than 64 levels of nested arrays and objects are supported.
 
 The JSON builder uses `assert` statements to catch some common bugs:
 - calls to `.begin_array()` and `.end_array()` must match
@@ -181,7 +181,7 @@ For example, if you forget to call `.end_object()`,
 you might get an error message that looks something like this:
 
 ```
-Assertion 'self.depth == 0' failed in file "/some/path/to/jou/stdlib/json.jou", line 192.
+Assertion 'self.depth == 0' failed in file "/some/path/to/jou/stdlib/json.jou", line 123.
 ```
 
 When this happens, check your `end_array()` and `end_object()` calls.
@@ -191,5 +191,5 @@ The JSON builder does not check whether you use the same key multiple times
 in the same JSON object, as in `{"a":1,"a":2}`.
 Please don't do that.
 JSON is supposed to work consistently with many different programming languages,
-and almost all JSON parsers load JSON objects into a data structure
+and most JSON parsers load JSON objects into a data structure
 that does not allow multiple values for the same key, e.g. Python's `dict`.
