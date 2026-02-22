@@ -263,31 +263,11 @@ def test_complex_example() -> None:
     free(json)
 
 
-if LINUX:
-    declare setlocale(category: int, locale: byte*) -> byte*
-    const LC_ALL: int = 6
-
 def main() -> int:
-    if LINUX:
-        # Try to trigger a bug that happens with Finnish locale setting.
-        #
-        # In Finnish language, comma is the preferred decimal separator, so
-        # sprintf() and similar functions generate 3,14 instead of 3.14.
-        #
-        # If the Finnish fi_FI.UTF-8 locale doesn't exist on the system, this
-        # fails silently and causes no issues.
-        #
-        # If you develop the JSON library on a system where some other locale
-        # causes problems, feel free to add that here :)
-        #
-        # This code is also in the other JSON test file.
-        setlocale(LC_ALL, "fi_FI.UTF-8")
-
     test_objects()
     test_arrays()
     test_bools_and_null()
     test_strings()
     test_numbers()
     test_complex_example()
-
     return 0

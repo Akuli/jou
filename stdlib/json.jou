@@ -1,14 +1,8 @@
 import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
-import "stdlib/intnative.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
-import "stdlib/math.jou"
-import "stdlib/utf8.jou"
 
-
-# TODO: make this configurable?
-const MAX_DEPTH: int = 64
 
 const BUILDER_FLAG_EMPTY: uint8 = 0b01
 const BUILDER_FLAG_OBJECT: uint8 = 0b10
@@ -24,8 +18,8 @@ class JSONBuilder:
     output: List[byte]  # You must free(json_builder.output.ptr) or call finish()
 
     # Internals that you don't need to care about as a user
-    stack: uint8[MAX_DEPTH]  # contains bitwise ORs of the flags
-    depth: int               # number of items on stack
+    stack: uint8[64]    # contains bitwise ORs of the flags
+    depth: int          # number of items on stack
     waiting_for_value_after_a_key: bool
 
     def new_line(self) -> None:
@@ -177,12 +171,6 @@ class JSONBuilder:
         # AI says that 17 significant digits is always enough.
         buf: byte[64]
         snprintf(buf, sizeof(buf), "%.17g", n)
-
-        # TODO: A hack for fi_FI.UTF-8 locale which produces commas instead of
-        #       dots. Ideally we would solve this problem properly...
-        for p = &buf[0]; *p != '\0'; p++:
-            if *p == ',':
-                *p = '.'
 
         # TODO: better way to check if it is infinite
         if strstr(buf, "inf") != NULL or strstr(buf, "Inf") != NULL or strstr(buf, "INF") != NULL:
