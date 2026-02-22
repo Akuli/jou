@@ -1,0 +1,293 @@
+import "stdlib/io.jou"
+import "stdlib/json.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+def test_objects() -> None:
+    # Output: {"one":1,"two":2,"empty":{},"singleton":{"three":3},"nested":{"nested":{"nested":{"four":4}},"five":5}}
+    # Output: {
+    # Output:   "one": 1,
+    # Output:   "two": 2,
+    # Output:   "empty": {},
+    # Output:   "singleton": {
+    # Output:     "three": 3
+    # Output:   },
+    # Output:   "nested": {
+    # Output:     "nested": {
+    # Output:       "nested": {
+    # Output:         "four": 4
+    # Output:       }
+    # Output:     },
+    # Output:     "five": 5
+    # Output:   }
+    # Output: }
+    for pp = 0; pp <= 2; pp += 2:
+        jb = JSONBuilder{pretty_print_indent = pp}
+        jb.object()
+        jb.key("one")
+        jb.number(1)
+        jb.key("two")
+        jb.number(2)
+        jb.key("empty")
+        jb.object()
+        jb.end_object()
+        jb.key("singleton")
+        jb.object()
+        jb.key("three")
+        jb.number(3)
+        jb.end_object()
+        jb.key("nested")
+        jb.object()
+        jb.key("nested")
+        jb.object()
+        jb.key("nested")
+        jb.object()
+        jb.key("four")
+        jb.number(4)
+        jb.end_object()
+        jb.end_object()
+        jb.key("five")
+        jb.number(5)
+        jb.end_object()
+        jb.end_object()
+
+        json = jb.finish()
+        puts(json)
+        free(json)
+
+
+def test_arrays() -> None:
+    # Output: [1,2,[],[3],[[[4]],5]]
+    # Output: [
+    # Output:   1,
+    # Output:   2,
+    # Output:   [],
+    # Output:   [
+    # Output:     3
+    # Output:   ],
+    # Output:   [
+    # Output:     [
+    # Output:       [
+    # Output:         4
+    # Output:       ]
+    # Output:     ],
+    # Output:     5
+    # Output:   ]
+    # Output: ]
+    for pp = 0; pp <= 2; pp += 2:
+        jb = JSONBuilder{pretty_print_indent = pp}
+        jb.array()
+        jb.number(1)
+        jb.number(2)
+        jb.array()
+        jb.end_array()
+        jb.array()
+        jb.number(3)
+        jb.end_array()
+        jb.array()
+        jb.array()
+        jb.array()
+        jb.number(4)
+        jb.end_array()
+        jb.end_array()
+        jb.number(5)
+        jb.end_array()
+        jb.end_array()
+        json = jb.finish()
+        puts(json)
+        free(json)
+
+
+def test_bools_and_null() -> None:
+    jb = JSONBuilder{}
+    jb.object()
+    jb.key("yes")
+    jb.boolean(True)
+    jb.key("no")
+    jb.boolean(False)
+    jb.key("idk")
+    jb.null()
+    jb.end_object()
+
+    json = jb.finish()
+    puts(json)  # Output: {"yes":true,"no":false,"idk":null}
+    free(json)
+
+
+def test_strings() -> None:
+    # Escaping rules in Jou and JSON are similar, but not exactly the same.
+    # For example, JSON uses \uHHHH (H denotes a hex digit) while Jou uses \xHH.
+    strings = [
+        "jou",          # Output: "jou"
+        NULL,           # Output: null
+        "'hello'",      # Output: "'hello'"
+        "\"hello\"",    # Output: "\"hello\""
+        "hello\tworld\ntest\rthingy\x0cthing",          # Output: "hello\tworld\ntest\rthingy\u000cthing"
+        "C:\\Users\\myname\\whatever",                  # Output: "C:\\Users\\myname\\whatever"
+        "\x1b[31mred ANSI color\x1b[0m",                # Output: "\u001b[31mred ANSI color\u001b[0m"
+        "these\xe2\x80\xa8cause\xe2\x80\xa9problems",   # Output: "these\u2028cause\u2029problems"
+    ]
+
+    for i = 0; i < array_count(strings); i++:
+        jb = JSONBuilder{}
+        jb.string(strings[i])
+        json = jb.finish()
+        puts(json)
+        free(json)
+
+    # This is tested separately, because printing this could cause unicode
+    # problems on windows.
+    #
+    # TODO: does this need to be separated?
+    jb = JSONBuilder{}
+    jb.string("non-ASCII like €£💸 is valid as is")
+    json = jb.finish()
+    printf("%d\n", strcmp(json, "\"non-ASCII like €£💸 is valid as is\""))  # Output: 0
+    free(json)
+
+
+def test_numbers() -> None:
+    # Output: [
+    # Output:   0,
+    # Output:   1,
+    # Output:   -2,
+    # Output:   3.14,
+    # Output:   -3.14,
+    # Output:   9.5367431640625e-07,
+    # Output:   Infinity,
+    # Output:   -Infinity,
+    # Output:   NaN
+    # Output: ]
+
+    jb = JSONBuilder{pretty_print_indent = 2}
+    jb.array()
+    jb.number(0)
+    jb.number(1)
+    jb.number(-2)
+    jb.number(3.14)
+    jb.number(-3.14)
+    # For reasonable powers of 2, floating point representations should be exact
+    jb.number(pow(2, -20))
+    # Technically Infinity and NaN are not valid JSON, but many libraries
+    # support them to some extent so we support them too.
+    jb.number(1.0 / 0.0)    # Infinity
+    jb.number(-1.0 / 0.0)   # -Infinity
+    jb.number(0.0 / 0.0)    # NaN
+    jb.end_array()
+
+    json = jb.finish()
+
+    # On my system, 3.14 becomes 3.1400000000000001. Let's ignore that for now.
+    bad_pi = "3.1400000000000001"
+    while strstr(json, bad_pi) != NULL:
+        p = strstr(json, bad_pi)
+        memmove(&p[4], &p[strlen(bad_pi)], strlen(p) - strlen(bad_pi) + 1)
+
+    # Windows likes to say e-007 instead of e-07 at the end of float
+    while WINDOWS and strstr(json, "e-007") != NULL:
+        p = strstr(json, "e-007")
+        memmove(&p[2], &p[3], strlen(&p[3]) + 1)
+
+    puts(json)
+    free(json)
+
+
+def test_complex_example() -> None:
+    # Output: [
+    # Output:   1,
+    # Output:   2,
+    # Output:   [
+    # Output:     3
+    # Output:   ],
+    # Output:   [
+    # Output:     4,
+    # Output:     5
+    # Output:   ],
+    # Output:   {
+    # Output:     "foo": 123,
+    # Output:     "empty": {},
+    # Output:     "just_one": {
+    # Output:       "lol": 123
+    # Output:     },
+    # Output:     "funny \"key\" string": 123,
+    # Output:     "yes": true,
+    # Output:     "no": false,
+    # Output:     "first null": null,
+    # Output:     "alternative null": null,
+    # Output:     "big numba": Infinity
+    # Output:   }
+    # Output: ]
+
+    jb = JSONBuilder{pretty_print_indent = 2}
+
+    jb.array()
+    jb.number(1)
+    jb.number(2)
+    jb.array()
+    jb.number(3)
+    jb.end_array()
+    jb.array()
+    jb.number(4)
+    jb.number(5)
+    jb.end_array()
+    jb.object()
+    jb.key("foo")
+    jb.number(123)
+    jb.key("empty")
+    jb.object()
+    jb.end_object()
+    jb.key("just_one")
+    jb.object()
+    jb.key("lol")
+    jb.number(123)
+    jb.end_object()
+    jb.key("funny \"key\" string")
+    jb.number(123)
+    jb.key("yes")
+    jb.boolean(True)
+    jb.key("no")
+    jb.boolean(False)
+    jb.key("first null")
+    jb.null()
+    jb.key("alternative null")
+    jb.string(NULL)
+    jb.key("big numba")
+    jb.number(1.0 / 0.0)
+    jb.end_object()
+    jb.end_array()
+
+    json = jb.finish()
+    puts(json)
+    free(json)
+
+
+if LINUX:
+    declare setlocale(category: int, locale: byte*) -> byte*
+    const LC_ALL: int = 6
+
+def main() -> int:
+    if LINUX:
+        # Try to trigger a bug that happens with Finnish locale setting.
+        #
+        # In Finnish language, comma is the preferred decimal separator, so
+        # sprintf() and similar functions generate 3,14 instead of 3.14.
+        #
+        # If the Finnish fi_FI.UTF-8 locale doesn't exist on the system, this
+        # fails silently and causes no issues.
+        #
+        # If you develop the JSON library on a system where some other locale
+        # causes problems, feel free to add that here :)
+        #
+        # This code is also in the other JSON test file.
+        setlocale(LC_ALL, "fi_FI.UTF-8")
+
+    test_objects()
+    test_arrays()
+    test_bools_and_null()
+    test_strings()
+    test_numbers()
+    test_complex_example()
+
+    return 0
