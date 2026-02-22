@@ -318,17 +318,12 @@ def test_numbers() -> None:
 
     for i = 0; i < array_count(valid_numbers); i++:
         assert json_is_valid(valid_numbers[i])
-        if LINUX:
-            # The setlocale() below exposes bugs in json.jou, but also changes
-            # what %g prints here... annoying
+        if WINDOWS:
+            # Windows likes to say e+029 instead of e+29
             s: byte[100]
             sprintf(s, "%g", json_to_double(valid_numbers[i]))
-            if strstr(s, ",") != NULL:
-                *strstr(s, ",") = '.'
-            # Windows likes to say e+029 instead of e+29
-            if WINDOWS and strstr(s, "e+029") != NULL:
-                p = strstr(s, "e+029")
-                memmove(&p[2], &p[3], strlen(&p[3]) + 1)
+            if strstr(s, "e+029") != NULL:
+                strcpy(strstr(s, "e+029"), "e+29")
             puts(s)
         else:
             printf("%g\n", json_to_double(valid_numbers[i]))
