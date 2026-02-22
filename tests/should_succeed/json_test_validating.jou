@@ -4,128 +4,6 @@ import "stdlib/json.jou"
 import "stdlib/str.jou"
 
 
-def test_objects() -> None:
-    assert is_valid_json("{\"foo\": \"bar\"}")
-    assert is_valid_json("{\"a\":1,\"b\":2}")
-    assert is_valid_json("{\"a\":{}}")
-    assert is_valid_json("{}")
-    assert is_valid_json("{\"nested\":{\"whatever\":{}}}")
-    assert is_valid_json("  {  \"white\"  :  \"space\"  ,  \"empty\"  :  { \t\r\n }  }  ")
-    assert is_valid_json(" { } ")
-    assert is_valid_json("{\"string has brace\": \"{\"}")
-    assert is_valid_json("{\"string has brace\": \"}\"}")
-
-    assert not is_valid_json("{")
-    assert not is_valid_json("}")
-    assert not is_valid_json("}{")
-    assert not is_valid_json("{}{}")
-    assert not is_valid_json("{\"a\":{}")
-    assert not is_valid_json("{}}")
-    assert not is_valid_json("{\"foo\":}")
-    assert not is_valid_json("{ : \"bar\"}")
-    assert not is_valid_json("{,}")
-    assert not is_valid_json("{\"trailing\": \"comma\",}")
-    assert not is_valid_json("{\"trailing\": \"comma\", \"multiple\": \"items\",}")
-    assert not is_valid_json("{1}")
-    assert not is_valid_json("{1,2}")
-    assert not is_valid_json("{1: 2}")
-    assert not is_valid_json("{true: 2}")
-    assert not is_valid_json("{null: 2}")
-    assert not is_valid_json("{whatever: 2}")
-    assert not is_valid_json("{\"lol\": 1, 69: 2}")
-    assert not is_valid_json("{{}}")
-    assert not is_valid_json("{}junk")
-
-    # Depth 64, allowed but just barely
-    assert is_valid_json("\
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-123 \
-}}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}}")
-
-    # Depth 65
-    assert not is_valid_json("\
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
-{\"a\": 123} \
-}}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}}")
-
-
-def test_arrays() -> None:
-    assert is_valid_json("[]")
-    assert is_valid_json("[\"string has bracket\", \"[\"]")
-    assert is_valid_json("[\"string has bracket\", \"]\"]")
-    assert is_valid_json("[1, 2, 3]")
-    assert is_valid_json("  [ \t\r\n ]  ")
-
-    assert not is_valid_json("[")
-    assert not is_valid_json("]")
-    assert not is_valid_json("][")
-    assert not is_valid_json("[][]")
-    assert not is_valid_json("[[]")
-    assert not is_valid_json("[[]]]")
-    assert not is_valid_json("[a]")
-    assert not is_valid_json("[ö]")
-    assert not is_valid_json("[']")
-
-    # Depth 64, allowed but just barely
-    assert is_valid_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2, 3]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
-
-    # Depth 65
-    assert not is_valid_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2, 3]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
-
-
-def test_bools_and_null() -> None:
-    assert is_valid_json("true")
-    assert is_valid_json("false")
-    assert is_valid_json("null")
-
-    assert not is_valid_json("True")
-    assert not is_valid_json("TRUE")
-    assert not is_valid_json("fals")
-    assert not is_valid_json("nullava")
-
-
-def test_strings() -> None:
-    assert is_valid_json("\"\"")
-    assert is_valid_json("\"hello\"")
-    assert is_valid_json("\"hello 123!!!! Blah Blah: 'bleh'.\"")
-    assert is_valid_json("  \"hello\" \t\r\n ")
-    assert is_valid_json("\"hello \\\"world\\\" test\"")
-    assert is_valid_json("\"escapes \\t\\r\\n\\f\\b\"")
-    assert is_valid_json("\"in JSON, forward slash \\/ and backslash \\\\ can both be escaped\"")
-    assert is_valid_json("\"More symbols: +-*/`'@?!\"")
-    assert is_valid_json("\"non-ASCII like ö€£💸 is valid as is\"")
-    assert is_valid_json("\"non-ASCII can be escaped too, like this: \\u00f6\\u20ac\\u00a3\\ud83d\\udcb8\"")
-    assert is_valid_json("\"the ASCII DEL character \x7f is allowed for some reason!!!\"")
-
-    assert not is_valid_json("'hello'")
-    assert not is_valid_json("\"hello")
-    assert not is_valid_json("\"multiline \n string\"")
-    assert not is_valid_json("\"lack of escaping \r\"")
-    assert not is_valid_json("\"lack of escaping \t\"")
-    assert not is_valid_json("\"backslash \\ not escaped\"")
-    assert not is_valid_json("\"two-byte hex \\x4a is not allowed\"")
-    assert not is_valid_json("\"ASCII control character \x1b\"")
-    assert not is_valid_json("\"ASCII control character \x1f\"")
-    assert not is_valid_json("\"invalid u escape \\ujouu\"")
-    assert not is_valid_json("\"truncated u escape \\uaa\"")
-    assert not is_valid_json("\"this \xc3 is invalid UTF-8 (truncated)\"")
-    assert not is_valid_json("\"this \xf0\x82\x82\xac is invalid UTF-8 (overlong)\"")
-
-
 def test_numbers() -> None:
     assert is_valid_json("3.14")
     assert is_valid_json("-2.5")
@@ -190,10 +68,6 @@ def test_json_from_github_api() -> None:
 
 
 def main() -> int:
-    test_objects()
-    test_arrays()
-    test_bools_and_null()
-    test_strings()
     test_numbers()
     test_json_from_github_api()
 

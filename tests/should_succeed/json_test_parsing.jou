@@ -1,0 +1,285 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/json.jou"
+import "stdlib/str.jou"
+
+
+def test_array_validate() -> None:
+    assert is_valid_json("[]")
+    assert is_valid_json("[\"string has bracket\", \"[\"]")
+    assert is_valid_json("[\"string has bracket\", \"]\"]")
+    assert is_valid_json("[1, 2, 3]")
+    assert is_valid_json("  [ \t\r\n ]  ")
+
+    assert not is_valid_json("[")
+    assert not is_valid_json("]")
+    assert not is_valid_json("][")
+    assert not is_valid_json("[][]")
+    assert not is_valid_json("[[]")
+    assert not is_valid_json("[[]]]")
+    assert not is_valid_json("[a]")
+    assert not is_valid_json("[ö]")
+    assert not is_valid_json("[']")
+
+    # Depth 64, allowed but just barely
+    assert is_valid_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2, 3]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+
+    # Depth 65
+    assert not is_valid_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2, 3]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+
+
+def test_object_validate() -> None:
+    assert is_valid_json("{\"foo\": \"bar\"}")
+    assert is_valid_json("{\"a\":1,\"b\":2}")
+    assert is_valid_json("{\"a\":{}}")
+    assert is_valid_json("{}")
+    assert is_valid_json("{\"nested\":{\"whatever\":{}}}")
+    assert is_valid_json("  {  \"white\"  :  \"space\"  ,  \"empty\"  :  { \t\r\n }  }  ")
+    assert is_valid_json(" { } ")
+    assert is_valid_json("{\"string has brace\": \"{\"}")
+    assert is_valid_json("{\"string has brace\": \"}\"}")
+
+    assert not is_valid_json("{")
+    assert not is_valid_json("}")
+    assert not is_valid_json("}{")
+    assert not is_valid_json("{}{}")
+    assert not is_valid_json("{\"a\":{}")
+    assert not is_valid_json("{}}")
+    assert not is_valid_json("{\"foo\":}")
+    assert not is_valid_json("{ : \"bar\"}")
+    assert not is_valid_json("{,}")
+    assert not is_valid_json("{\"trailing\": \"comma\",}")
+    assert not is_valid_json("{\"trailing\": \"comma\", \"multiple\": \"items\",}")
+    assert not is_valid_json("{1}")
+    assert not is_valid_json("{1,2}")
+    assert not is_valid_json("{1: 2}")
+    assert not is_valid_json("{true: 2}")
+    assert not is_valid_json("{null: 2}")
+    assert not is_valid_json("{whatever: 2}")
+    assert not is_valid_json("{\"lol\": 1, 69: 2}")
+    assert not is_valid_json("{{}}")
+    assert not is_valid_json("{}junk")
+
+    # Depth 64, allowed but just barely
+    assert is_valid_json("\
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+123 \
+}}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}}")
+
+    # Depth 65
+    assert not is_valid_json("\
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
+{\"a\": 123} \
+}}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}}")
+
+
+def test_array_iter() -> None:
+    nothing_to_iterate = [NULL, "", "[", "]", "[]", "{}", "{\"a\":1}", "123", ",123", "true"]
+    for i = 0; i < array_count(nothing_to_iterate); i++:
+        assert json_array_first(nothing_to_iterate[i]) == NULL
+        assert json_array_next(nothing_to_iterate[i]) == NULL
+
+    assert json_array_first("123, 456") == NULL
+    assert json_array_next("123, 456") != NULL
+
+    assert json_array_first("[1]") != NULL
+    assert json_array_next("[1]") == NULL
+
+    # Output: 1, 2, 3]
+    # Output: 2, 3]
+    # Output: 3]
+    for j = json_array_first("[1, 2, 3]"); j != NULL; j = json_array_next(j):
+        puts(j)
+
+    # Output: 1 , 2 , 3 ] junk at end allowed
+    # Output: 2 , 3 ] junk at end allowed
+    # Output: 3 ] junk at end allowed
+    for j = json_array_first(" \t\r\n [ 1 , 2 , 3 ] junk at end allowed"); j != NULL; j = json_array_next(j):
+        puts(j)
+
+    # Output: {"a": 1}, ["b", 2], 3.14]
+    # Output: ["b", 2], 3.14]
+    # Output: 3.14]
+    for j = json_array_first("[{\"a\": 1}, [\"b\", 2], 3.14]"); j != NULL; j = json_array_next(j):
+        puts(j)
+
+
+def test_object_iter() -> None:
+    nothing_to_iterate = [NULL, "", "[", "]", "{", "}", "[]", "{}", "[1,2,3]", "123:", "123,", "true"]
+    for i = 0; i < array_count(nothing_to_iterate); i++:
+        assert json_object_first(nothing_to_iterate[i]) == NULL
+        assert json_object_next(nothing_to_iterate[i]) == NULL
+
+    key: byte[100]
+
+    # Output: a --> 1,"b":2}
+    # Output: b --> 2}
+    for item = json_object_first("{\"a\":1,\"b\":2}"); item != NULL; item = json_object_next(item):
+        string_from_json(item, key, sizeof(key))
+        printf("%s --> %s\n", key, json_object_value(item))
+
+    # Output: one --> 1
+    # Output: two --> 2
+    for item = json_object_first("{ \"one\" : 1 , \"t\\u0077o\" : 2 } junk at end"); item != NULL; item = json_object_next(item):
+        string_from_json(item, key, sizeof(key))
+        printf("%s --> %d\n", key, atoi(json_object_value(item)))
+
+
+def test_strings() -> None:
+    buf: byte[100]
+
+    simple_valid_strings = [
+        "\"\"",                 # Output:
+        "\"hello\"",            # Output: hello
+        "  \"hello\" \t\r\n ",  # Output: hello
+        "\"hello 123!!!! Blah Blah: 'bleh'.\"",     # Output: hello 123!!!! Blah Blah: 'bleh'.
+        "\"hello \\\"world\\\" test\"",             # Output: hello "world" test
+        "\"forward slash \\/ / can be escaped\"",   # Output: forward slash / / can be escaped
+        "\"backslash \\\\ must be escaped\"",       # Output: backslash \ must be escaped
+        "\"More symbols: +-*/`'@?!\\\"\"",          # Output: More symbols: +-*/`'@?!"
+    ]
+    for i = 0; i < array_count(simple_valid_strings); i++:
+        assert is_valid_json(simple_valid_strings[i])
+        assert string_from_json(simple_valid_strings[i], buf, sizeof(buf))
+        puts(buf)
+
+    # These are not printed in case printing unicodes doesn't work on e.g. windows
+    fancy_valid_strings = [
+        ["\"escapes \\t\\r\\n\\f\\b\"", "escapes \t\r\n\x0c\x08"],
+        ["\"the DEL character \x7f aka \\u007f is allowed as is!\"", "the DEL character \x7f aka \x7f is allowed as is!"],
+        ["\"non-ASCII like ö€£💸 is valid as is\"", "non-ASCII like ö€£💸 is valid as is"],
+        ["\"can be escaped too: \\u00f6\\u20ac\\u00a3\\ud83d\\udcb8\"", "can be escaped too: ö€£💸"],
+        ["\"\\u004a\\u00f6u\"", "Jöu"],
+    ]
+    for i = 0; i < array_count(fancy_valid_strings); i++:
+        json = fancy_valid_strings[i][0]
+        expected_value = fancy_valid_strings[i][1]
+        assert is_valid_json(json)
+        assert string_from_json(json, buf, sizeof(buf))
+        assert strcmp(buf, expected_value) == 0
+
+    invalid_strings = [
+        "'hello'",
+        "\"hello",
+        "\"multiline \n string\"",
+        "\"lack of escaping \r\"",
+        "\"lack of escaping \t\"",
+        "\"backslash \\ not escaped\"",
+        "\"two-byte hex \\x4a is not allowed\"",
+        "\"ASCII control character \x1b\"",
+        "\"ASCII control character \x1f\"",
+        "\"invalid u escape \\ujouu\"",
+        "\"truncated u escape \\uaa\"",
+        "\"missing second half of u-escaped surrogate pair \\ud83d",
+        "\"missing second half of u-escaped surrogate pair \\ud83d\"",
+        "\"missing second half of u-escaped surrogate pair \\ud83dlol\"",
+        "\"this \xc3 is invalid UTF-8 (truncated)\"",
+        "\"this \xf0\x82\x82\xac is invalid UTF-8 (overlong)\"",
+    ]
+    for i = 0; i < array_count(invalid_strings); i++:
+        assert not is_valid_json(invalid_strings[i])
+        assert not string_from_json(invalid_strings[i], buf, sizeof(buf))
+
+    # Valid JSON but not string
+    assert not string_from_json("[1,2,3]", buf, sizeof(buf))
+    assert not string_from_json("{}", buf, sizeof(buf))
+    assert not string_from_json("true", buf, sizeof(buf))
+
+    # Test truncating
+    memset(buf, 123, sizeof(buf))
+    assert string_from_json("\"hello\"", buf, 6)
+    puts(buf)  # Output: hello
+    assert buf[6] == 123  # not overwritten
+
+    assert string_from_json("\"hello\"", buf, 5)
+    puts(buf)  # Output: hell
+    assert string_from_json("\"hello\"", buf, 2)
+    puts(buf)  # Output: h
+    assert string_from_json("\"hello\"", buf, 1)
+    assert buf[0] == '\0'  # empty string now
+
+    buf[0] = 123 as byte
+    assert not string_from_json("\"hello\"", buf, 0)
+    assert buf[0] == 123 as byte  # not overwritten
+    assert not string_from_json("\"hello\"", buf, -1)
+    assert buf[0] == 123 as byte  # not overwritten
+
+    # Test \uXXXX syntax, which specifies UTF-16
+    #
+    # TODO: Currently the JSON parser accepts UTF-16 surrogate pairs that
+    #       represent a codepoint that could be written without surrogate
+    #       pairs. This is like overlong UTF-8.
+
+
+def test_bools_and_null() -> None:
+    assert is_valid_json("true")
+    assert is_valid_json("false")
+    assert is_valid_json("null")
+    assert not is_valid_json("True")
+    assert not is_valid_json("TRUE")
+    assert not is_valid_json("fals")
+    assert not is_valid_json("nullava")
+
+    assert json_is_true("true")
+    assert json_is_false("false")
+    assert json_is_null("null")
+
+    assert json_is_true("true,\"other\",\"stuff\"]")
+    assert json_is_false("false,\"other\",\"stuff\"]")
+    assert json_is_null("null,\"other\",\"stuff\"]")
+
+    assert json_is_true(" \t\r\n true,\"other\",\"stuff\"]")
+    assert json_is_false(" \t\r\n false,\"other\",\"stuff\"]")
+    assert json_is_null(" \t\r\n null,\"other\",\"stuff\"]")
+
+    assert not json_is_true(NULL)
+    assert not json_is_false(NULL)
+    assert not json_is_null(NULL)
+
+    assert not json_is_true("0")
+    assert not json_is_false("0")
+    assert not json_is_null("0")
+
+    assert not json_is_true("1")
+    assert not json_is_false("1")
+    assert not json_is_null("1")
+
+    assert not json_is_true("tru")
+    assert not json_is_false("fals")
+    assert not json_is_null("nul")
+
+    assert not json_is_true("false")
+    assert not json_is_true("null")
+    assert not json_is_false("true")
+    assert not json_is_false("null")
+    assert not json_is_null("true")
+    assert not json_is_null("false")
+
+
+def main() -> int:
+    test_array_validate()
+    test_object_validate()
+    test_array_iter()
+    test_object_iter()
+    test_bools_and_null()
+    test_strings()
+#    test_numbers()
+#    test_json_from_github_api()
+
+    puts("ok")  # Output: ok
+    return 0
