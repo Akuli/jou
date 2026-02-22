@@ -1,6 +1,9 @@
-# JSON
+# JSON Building
 
-TL;DR: Parsing JSON is not supported. Example of building JSON:
+This page documents building JSON.
+See [json-parsing.md](json-parsing.md) if you already have a string of JSON and you want to parse it.
+
+TL;DR:
 
 ```python
 import "stdlib/json.jou"
@@ -120,6 +123,7 @@ I get `12,34` in the JSON instead of the expected `12.34`.
 Some libraries (e.g. Gtk) call `setlocale()` automatically,
 and that can also cause this problem.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you run into this.
+There is a similar problem with [parsing JSON](json-parsing.md#notes-about-numbers).
 
 
 ## Notes about strings
