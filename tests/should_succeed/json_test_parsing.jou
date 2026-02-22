@@ -140,6 +140,18 @@ def test_object_iter() -> None:
         printf("%s --> %d\n", key, atoi(json_object_value(item)))
 
 
+#def test_get() -> None:
+#    json = "{\"not this\": 1, \"level1\": {\"not this either\": 2, \"level2\": {\"the thing we want\": 3, \"yet another thing we don't want\": 4}}}"
+#    p = json_get(json_get(json_get(json, "level1"), "level2"), "level3")
+#    assert p != NULL
+#    printf("%c\n", *p)  # Output: 3
+#
+#    # If anything is not found, NULL should bubble through
+#    assert json_get(json_get(json_get(json, "lol"), "level2"), "level3") == NULL
+#    assert json_get(json_get(json_get(json, "level1"), "lol"), "level3") == NULL
+#    assert json_get(json_get(json_get(json, "level1"), "level2"), "lol") == NULL
+
+
 def test_strings() -> None:
     buf: byte[100]
 
@@ -155,7 +167,9 @@ def test_strings() -> None:
     ]
     for i = 0; i < array_count(simple_valid_strings); i++:
         assert is_valid_json(simple_valid_strings[i])
-        assert string_from_json(simple_valid_strings[i], buf, sizeof(buf))
+        ret = string_from_json(simple_valid_strings[i], buf, sizeof(buf))
+        assert ret < sizeof(buf)
+        assert ret == strlen(buf)
         puts(buf)
 
     # These are not printed in case printing unicodes doesn't work on e.g. windows
@@ -170,7 +184,9 @@ def test_strings() -> None:
         json = fancy_valid_strings[i][0]
         expected_value = fancy_valid_strings[i][1]
         assert is_valid_json(json)
-        assert string_from_json(json, buf, sizeof(buf))
+        ret = string_from_json(json, buf, sizeof(buf))
+        assert ret < sizeof(buf)
+        assert ret == strlen(buf)
         assert strcmp(buf, expected_value) == 0
 
     invalid_strings = [
@@ -188,42 +204,41 @@ def test_strings() -> None:
         "\"missing second half of u-escaped surrogate pair \\ud83d",
         "\"missing second half of u-escaped surrogate pair \\ud83d\"",
         "\"missing second half of u-escaped surrogate pair \\ud83dlol\"",
+        # TODO: Currently the JSON parser accepts UTF-16 surrogate pairs that
+        #       represent a codepoint that could be written without surrogate
+        #       pairs. This is like overlong UTF-8 and should probably be
+        #       rejected. But this isn't security critical like invalid UTF-8,
+        #       because there are multiple ways to write the same JSON anyway.
         "\"this \xc3 is invalid UTF-8 (truncated)\"",
         "\"this \xf0\x82\x82\xac is invalid UTF-8 (overlong)\"",
     ]
     for i = 0; i < array_count(invalid_strings); i++:
         assert not is_valid_json(invalid_strings[i])
-        assert not string_from_json(invalid_strings[i], buf, sizeof(buf))
+        assert string_from_json(invalid_strings[i], buf, sizeof(buf)) == -1
 
     # Valid JSON but not string
-    assert not string_from_json("[1,2,3]", buf, sizeof(buf))
-    assert not string_from_json("{}", buf, sizeof(buf))
-    assert not string_from_json("true", buf, sizeof(buf))
+    assert string_from_json("[1,2,3]", buf, sizeof(buf)) == -1
+    assert string_from_json("{}", buf, sizeof(buf)) == -1
+    assert string_from_json("true", buf, sizeof(buf)) == -1
 
     # Test truncating
     memset(buf, 123, sizeof(buf))
-    assert string_from_json("\"hello\"", buf, 6)
+    assert string_from_json("\"hello\"", buf, 6) == 5
     puts(buf)  # Output: hello
     assert buf[6] == 123  # not overwritten
 
-    assert string_from_json("\"hello\"", buf, 5)
+    assert string_from_json("\"hello\"", buf, 5) == 5
     puts(buf)  # Output: hell
-    assert string_from_json("\"hello\"", buf, 2)
+    assert string_from_json("\"hello\"", buf, 2) == 5
     puts(buf)  # Output: h
-    assert string_from_json("\"hello\"", buf, 1)
+    assert string_from_json("\"hello\"", buf, 1) == 5
     assert buf[0] == '\0'  # empty string now
 
     buf[0] = 123 as byte
-    assert not string_from_json("\"hello\"", buf, 0)
+    assert string_from_json("\"hello\"", buf, 0) == 5
     assert buf[0] == 123 as byte  # not overwritten
-    assert not string_from_json("\"hello\"", buf, -1)
+    assert string_from_json("\"hello\"", buf, -1) == 5
     assert buf[0] == 123 as byte  # not overwritten
-
-    # Test \uXXXX syntax, which specifies UTF-16
-    #
-    # TODO: Currently the JSON parser accepts UTF-16 surrogate pairs that
-    #       represent a codepoint that could be written without surrogate
-    #       pairs. This is like overlong UTF-8.
 
 
 def test_bools_and_null() -> None:

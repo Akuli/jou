@@ -1,7 +1,7 @@
 import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
 import "stdlib/list.jou"
-import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/utf8.jou"
 
@@ -418,6 +418,19 @@ def read_4_hex_digits(s: byte*) -> int:
     return result
 
 
+class StringParsingResult:
+    out: byte*                  # may be NULL
+    out_available: int          # how many more bytes fit into out
+    num_bytes_total: intnative  # how much output would be produced if it would fit
+
+    @inline
+    def add_byte(self, b: byte) -> None:
+        self.num_bytes_total++
+        if self.out != NULL and self.out_available > 0:
+            *self.out++ = b
+            self.out_available--
+
+
 # String in JSON consists of:
 #   '"'
 #   zero or more of any of the following:
@@ -434,13 +447,9 @@ def read_4_hex_digits(s: byte*) -> int:
 #
 # This function parses a string in JSON.
 #
-#   s: JSON
-#   dest: String contents are written here, can be NULL to ignore the contents
-#   dest_max: How many bytes to write to dest, does not '\0' terminate!
-#
 # Returns the JSON string s advanced just beyond the ending '"', or NULL if the
 # given JSON is invalid.
-def parse_string(s: byte*, dest: byte*, dest_max: int) -> byte*:
+def parse_string(s: byte*, out: StringParsingResult*) -> byte*:
     if s == NULL or *s++ != '"':
         return NULL
 
@@ -506,9 +515,7 @@ def parse_string(s: byte*, dest: byte*, dest_max: int) -> byte*:
                     return NULL
 
                 for i = 0; out_string[i] != '\0'; i++:
-                    if dest != NULL and dest_max > 0:
-                        *dest++ = out_string[i]
-                        dest_max--
+                    out.add_byte(out_string[i])
 
             case '"':  # end of string
                 s++
@@ -525,25 +532,40 @@ def parse_string(s: byte*, dest: byte*, dest_max: int) -> byte*:
                     return NULL
 
                 # A character is UTF-8 encoded in the JSON, output it as is
-                while dest != NULL and dest_max > 0 and p < s:
-                    *dest++ = *p++
-                    dest_max--
+                assert p < s
+                while p < s:
+                    out.add_byte(*p++)
 
 
+# Parses a string from JSON. If it fits to the given output string, it's placed
+# there as a '\0' terminated UTF-8 string. If it doesn't fit, it gets truncated
+# so that '\0' is always added. Size of output string is in bytes including
+# room for '\0'.
+#
+# Return value is strlen(result string) when there is enough room to store the
+# entire result. Use string_from_json(json, NULL, 0) to figure it out without
+# writing it anywhere.
 @public
-def string_from_json(json: byte*, out: byte*, out_size: int) -> bool:
-    if json == NULL or out_size <= 0:
-        return False
+def string_from_json(json: byte*, out: byte*, out_size: int) -> intnative:
+    if json == NULL:
+        return -1
 
+    result = StringParsingResult{out = out, out_available = out_size - 1}
     while is_json_whitespace(*json):
         json++
-    memset(out, 0, out_size)
-    return parse_string(json, out, out_size - 1) != NULL
+    if parse_string(json, &result) == NULL:
+        return -1
+
+    if out_size > 0:
+        assert out <= result.out and result.out < &out[out_size]
+        *result.out = '\0'
+    return result.num_bytes_total
 
 
 # Part of JSON parsing and validating. Returns NULL if json is invalid.
 def skip_string(s: byte*) -> byte*:
-    return parse_string(s, NULL, 0)
+    dummy = StringParsingResult{}
+    return parse_string(s, &dummy)
 
 
 # Part of JSON parsing and validating. Returns NULL if json is invalid.
