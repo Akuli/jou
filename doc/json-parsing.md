@@ -54,20 +54,20 @@ def main() -> int:
     return 0
 ```
 
-| Function                  | Return type       | Return value                                  |
-|---------------------------|-------------------|-----------------------------------------------|
-| `json_array_first(json)`  | `byte*` (JSON)    | pointer into `json` or NULL                   |
-| `json_array_next(json)`   | `byte*` (JSON)    | pointer into `json` or NULL                   |
-| `json_object_first(json)` | `byte*` (JSON)    | pointer into key in `json` or NULL            |
-| `json_object_next(json)`  | `byte*` (JSON)    | pointer into key in `json` or NULL            |
-| `json_object_value(json)` | `byte*` (JSON)    | pointer into value in `json` or NULL          |
-| `json_get(json, key)`     | `byte*` (JSON)    | pointer into value in `json` or NULL          |
-| `json_to_double(json)`    | `double`          | value in `json` or NaN                        |
-| `json_to_string(json)`    | `byte*`           | string from `json` or NULL, needs `free()`    |
-| `json_is_true(json)`      | `bool`            | `True` if `json` points at a JSON `true`      |
-| `json_is_false(json)`     | `bool`            | `True` if `json` points at a JSON `false`     |
-| `json_is_null(json)`      | `bool`            | `True` if `json` points at a JSON `null`      |
-| `json_is_valid(json)`     | `bool`            | `True` if `json` is valid JSON                |
+| Function                  | Return type               | Return value                              |
+|---------------------------|---------------------------|-------------------------------------------|
+| `json_array_first(json)`  | `byte*` (JSON)            | pointer into `json` or NULL               |
+| `json_array_next(json)`   | `byte*` (JSON)            | pointer into `json` or NULL               |
+| `json_object_first(json)` | `byte*` (JSON)            | pointer into key in `json` or NULL        |
+| `json_object_next(json)`  | `byte*` (JSON)            | pointer into key in `json` or NULL        |
+| `json_object_value(json)` | `byte*` (JSON)            | pointer into value in `json` or NULL      |
+| `json_get(json, key)`     | `byte*` (JSON)            | pointer into value in `json` or NULL      |
+| `json_to_double(json)`    | `double`                  | value in `json` or NaN                    |
+| `json_to_string(json)`    | `byte*` (needs `free()`)  | string from `json` or NULL                |
+| `json_is_true(json)`      | `bool`                    | `True` if `json` points at a JSON `true`  |
+| `json_is_false(json)`     | `bool`                    | `True` if `json` points at a JSON `false` |
+| `json_is_null(json)`      | `bool`                    | `True` if `json` points at a JSON `null`  |
+| `json_is_valid(json)`     | `bool`                    | `True` if `json` is valid JSON            |
 
 
 ## Finding values in JSON
