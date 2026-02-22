@@ -6,63 +6,63 @@ import "stdlib/str.jou"
 
 
 def test_array_validate() -> None:
-    assert is_valid_json("[]")
-    assert is_valid_json("[\"string has bracket\", \"[\"]")
-    assert is_valid_json("[\"string has bracket\", \"]\"]")
-    assert is_valid_json("[1, 2, 3]")
-    assert is_valid_json("  [ \t\r\n ]  ")
+    assert json_is_valid("[]")
+    assert json_is_valid("[\"string has bracket\", \"[\"]")
+    assert json_is_valid("[\"string has bracket\", \"]\"]")
+    assert json_is_valid("[1, 2, 3]")
+    assert json_is_valid("  [ \t\r\n ]  ")
 
-    assert not is_valid_json("[")
-    assert not is_valid_json("]")
-    assert not is_valid_json("][")
-    assert not is_valid_json("[][]")
-    assert not is_valid_json("[[]")
-    assert not is_valid_json("[[]]]")
-    assert not is_valid_json("[a]")
-    assert not is_valid_json("[ö]")
-    assert not is_valid_json("[']")
+    assert not json_is_valid("[")
+    assert not json_is_valid("]")
+    assert not json_is_valid("][")
+    assert not json_is_valid("[][]")
+    assert not json_is_valid("[[]")
+    assert not json_is_valid("[[]]]")
+    assert not json_is_valid("[a]")
+    assert not json_is_valid("[ö]")
+    assert not json_is_valid("[']")
 
     # Depth 64, allowed but just barely
-    assert is_valid_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2, 3]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+    assert json_is_valid("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2, 3]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
 
     # Depth 65
-    assert not is_valid_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2, 3]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+    assert not json_is_valid("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2, 3]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
 
 
 def test_object_validate() -> None:
-    assert is_valid_json("{\"foo\": \"bar\"}")
-    assert is_valid_json("{\"a\":1,\"b\":2}")
-    assert is_valid_json("{\"a\":{}}")
-    assert is_valid_json("{}")
-    assert is_valid_json("{\"nested\":{\"whatever\":{}}}")
-    assert is_valid_json("  {  \"white\"  :  \"space\"  ,  \"empty\"  :  { \t\r\n }  }  ")
-    assert is_valid_json(" { } ")
-    assert is_valid_json("{\"string has brace\": \"{\"}")
-    assert is_valid_json("{\"string has brace\": \"}\"}")
+    assert json_is_valid("{\"foo\": \"bar\"}")
+    assert json_is_valid("{\"a\":1,\"b\":2}")
+    assert json_is_valid("{\"a\":{}}")
+    assert json_is_valid("{}")
+    assert json_is_valid("{\"nested\":{\"whatever\":{}}}")
+    assert json_is_valid("  {  \"white\"  :  \"space\"  ,  \"empty\"  :  { \t\r\n }  }  ")
+    assert json_is_valid(" { } ")
+    assert json_is_valid("{\"string has brace\": \"{\"}")
+    assert json_is_valid("{\"string has brace\": \"}\"}")
 
-    assert not is_valid_json("{")
-    assert not is_valid_json("}")
-    assert not is_valid_json("}{")
-    assert not is_valid_json("{}{}")
-    assert not is_valid_json("{\"a\":{}")
-    assert not is_valid_json("{}}")
-    assert not is_valid_json("{\"foo\":}")
-    assert not is_valid_json("{ : \"bar\"}")
-    assert not is_valid_json("{,}")
-    assert not is_valid_json("{\"trailing\": \"comma\",}")
-    assert not is_valid_json("{\"trailing\": \"comma\", \"multiple\": \"items\",}")
-    assert not is_valid_json("{1}")
-    assert not is_valid_json("{1,2}")
-    assert not is_valid_json("{1: 2}")
-    assert not is_valid_json("{true: 2}")
-    assert not is_valid_json("{null: 2}")
-    assert not is_valid_json("{whatever: 2}")
-    assert not is_valid_json("{\"lol\": 1, 69: 2}")
-    assert not is_valid_json("{{}}")
-    assert not is_valid_json("{}junk")
+    assert not json_is_valid("{")
+    assert not json_is_valid("}")
+    assert not json_is_valid("}{")
+    assert not json_is_valid("{}{}")
+    assert not json_is_valid("{\"a\":{}")
+    assert not json_is_valid("{}}")
+    assert not json_is_valid("{\"foo\":}")
+    assert not json_is_valid("{ : \"bar\"}")
+    assert not json_is_valid("{,}")
+    assert not json_is_valid("{\"trailing\": \"comma\",}")
+    assert not json_is_valid("{\"trailing\": \"comma\", \"multiple\": \"items\",}")
+    assert not json_is_valid("{1}")
+    assert not json_is_valid("{1,2}")
+    assert not json_is_valid("{1: 2}")
+    assert not json_is_valid("{true: 2}")
+    assert not json_is_valid("{null: 2}")
+    assert not json_is_valid("{whatever: 2}")
+    assert not json_is_valid("{\"lol\": 1, 69: 2}")
+    assert not json_is_valid("{{}}")
+    assert not json_is_valid("{}junk")
 
     # Depth 64, allowed but just barely
-    assert is_valid_json("\
+    assert json_is_valid("\
 {\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
 {\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
 {\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
@@ -75,7 +75,7 @@ def test_object_validate() -> None:
 }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}} }}}}}}}}")
 
     # Depth 65
-    assert not is_valid_json("\
+    assert not json_is_valid("\
 {\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
 {\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
 {\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\": \
@@ -130,19 +130,19 @@ def test_object_iter() -> None:
     # Output: a --> 1,"b":2}
     # Output: b --> 2}
     for item = json_object_first("{\"a\":1,\"b\":2}"); item != NULL; item = json_object_next(item):
-        string_from_json(item, key, sizeof(key))
+        json_to_string(item, key, sizeof(key))
         printf("%s --> %s\n", key, json_object_value(item))
 
     # Output: one --> 1
     # Output: two --> 2
     for item = json_object_first("{ \"one\" : 1 , \"t\\u0077o\" : 2 } junk at end"); item != NULL; item = json_object_next(item):
-        string_from_json(item, key, sizeof(key))
+        json_to_string(item, key, sizeof(key))
         printf("%s --> %d\n", key, atoi(json_object_value(item)))
 
 
 def test_get() -> None:
     json = "{\"not this\": 1, \"level1\": {\"not this either\": 2, \"level2\": {\"le\\u0076el3\": 3, \"yet another thing we don't want\": 4}}}"
-    assert is_valid_json(json)
+    assert json_is_valid(json)
 
     # Make sure it's not finding anything it's not supposed to find
     assert json_get(json, "level") == NULL
@@ -173,8 +173,8 @@ def test_strings() -> None:
         "\"More symbols: +-*/`'@?!\\\"\"",          # Output: More symbols: +-*/`'@?!"
     ]
     for i = 0; i < array_count(simple_valid_strings); i++:
-        assert is_valid_json(simple_valid_strings[i])
-        ret = string_from_json(simple_valid_strings[i], buf, sizeof(buf))
+        assert json_is_valid(simple_valid_strings[i])
+        ret = json_to_string(simple_valid_strings[i], buf, sizeof(buf))
         assert ret < sizeof(buf)
         assert ret == strlen(buf)
         puts(buf)
@@ -190,8 +190,8 @@ def test_strings() -> None:
     for i = 0; i < array_count(fancy_valid_strings); i++:
         json = fancy_valid_strings[i][0]
         expected_value = fancy_valid_strings[i][1]
-        assert is_valid_json(json)
-        ret = string_from_json(json, buf, sizeof(buf))
+        assert json_is_valid(json)
+        ret = json_to_string(json, buf, sizeof(buf))
         assert ret < sizeof(buf)
         assert ret == strlen(buf)
         assert strcmp(buf, expected_value) == 0
@@ -220,44 +220,44 @@ def test_strings() -> None:
         "\"this \xf0\x82\x82\xac is invalid UTF-8 (overlong)\"",
     ]
     for i = 0; i < array_count(invalid_strings); i++:
-        assert not is_valid_json(invalid_strings[i])
+        assert not json_is_valid(invalid_strings[i])
         memset(buf, 123, sizeof(buf))
-        assert string_from_json(invalid_strings[i], buf, sizeof(buf)) == -1
+        assert json_to_string(invalid_strings[i], buf, sizeof(buf)) == -1
         assert buf[0] == '\0'  # if buf contained garbage, you won't accidentally use it
 
     # Valid JSON but not string
-    assert string_from_json("[1,2,3]", buf, sizeof(buf)) == -1
-    assert string_from_json("{}", buf, sizeof(buf)) == -1
-    assert string_from_json("true", buf, sizeof(buf)) == -1
+    assert json_to_string("[1,2,3]", buf, sizeof(buf)) == -1
+    assert json_to_string("{}", buf, sizeof(buf)) == -1
+    assert json_to_string("true", buf, sizeof(buf)) == -1
 
     # Test truncating
     memset(buf, 123, sizeof(buf))
-    assert string_from_json("\"hello\"", buf, 6) == 5
+    assert json_to_string("\"hello\"", buf, 6) == 5
     puts(buf)  # Output: hello
     assert buf[6] == 123  # not overwritten
 
-    assert string_from_json("\"hello\"", buf, 5) == 5
+    assert json_to_string("\"hello\"", buf, 5) == 5
     puts(buf)  # Output: hell
-    assert string_from_json("\"hello\"", buf, 2) == 5
+    assert json_to_string("\"hello\"", buf, 2) == 5
     puts(buf)  # Output: h
-    assert string_from_json("\"hello\"", buf, 1) == 5
+    assert json_to_string("\"hello\"", buf, 1) == 5
     assert buf[0] == '\0'  # empty string now
 
     buf[0] = 123 as byte
-    assert string_from_json("\"hello\"", buf, 0) == 5
+    assert json_to_string("\"hello\"", buf, 0) == 5
     assert buf[0] == 123 as byte  # not overwritten
-    assert string_from_json("\"hello\"", buf, -1) == 5
+    assert json_to_string("\"hello\"", buf, -1) == 5
     assert buf[0] == 123 as byte  # not overwritten
 
 
 def test_bools_and_null() -> None:
-    assert is_valid_json("true")
-    assert is_valid_json("false")
-    assert is_valid_json("null")
-    assert not is_valid_json("True")
-    assert not is_valid_json("TRUE")
-    assert not is_valid_json("fals")
-    assert not is_valid_json("nullava")
+    assert json_is_valid("true")
+    assert json_is_valid("false")
+    assert json_is_valid("null")
+    assert not json_is_valid("True")
+    assert not json_is_valid("TRUE")
+    assert not json_is_valid("fals")
+    assert not json_is_valid("nullava")
 
     assert json_is_true("true")
     assert json_is_false("false")
@@ -317,12 +317,12 @@ def test_numbers() -> None:
     ]
 
     for i = 0; i < array_count(valid_numbers); i++:
-        assert is_valid_json(valid_numbers[i])
+        assert json_is_valid(valid_numbers[i])
         if LINUX:
             # The setlocale() below exposes bugs in json.jou, but also changes
             # what %g prints here... annoying
             s: byte[100]
-            sprintf(s, "%g", double_from_json(valid_numbers[i]))
+            sprintf(s, "%g", json_to_double(valid_numbers[i]))
             if strstr(s, ",") != NULL:
                 *strstr(s, ",") = '.'
             # Windows likes to say e+029 instead of e+29
@@ -331,18 +331,18 @@ def test_numbers() -> None:
                 memmove(&p[2], &p[3], strlen(&p[3]) + 1)
             puts(s)
         else:
-            printf("%g\n", double_from_json(valid_numbers[i]))
+            printf("%g\n", json_to_double(valid_numbers[i]))
 
     # Technically Infinity and NaN are not valid JSON, but many libraries
     # support them to some extent so we support them too.
-    assert is_valid_json("Infinity")
-    assert is_valid_json("-Infinity")
-    assert is_valid_json("NaN")
+    assert json_is_valid("Infinity")
+    assert json_is_valid("-Infinity")
+    assert json_is_valid("NaN")
 
-    inf = double_from_json("Infinity")
+    inf = json_to_double("Infinity")
     assert inf == inf * 0.1
-    assert double_from_json("-Infinity") == -inf
-    assert is_nan(double_from_json("NaN"))
+    assert json_to_double("-Infinity") == -inf
+    assert is_nan(json_to_double("NaN"))
 
     invalid_numbers = [
         NULL,
@@ -365,30 +365,30 @@ def test_numbers() -> None:
     ]
 
     for i = 0; i < array_count(invalid_numbers); i++:
-        assert not is_valid_json(invalid_numbers[i])
-        if not is_nan(double_from_json(invalid_numbers[i])):
+        assert not json_is_valid(invalid_numbers[i])
+        if not is_nan(json_to_double(invalid_numbers[i])):
             puts(invalid_numbers[i])
-        assert is_nan(double_from_json(invalid_numbers[i]))
+        assert is_nan(json_to_double(invalid_numbers[i]))
 
-    # Sometimes double_from_json() may parse a part of an otherwise invalid number.
-    assert not is_valid_json("00")
-    assert double_from_json("00") == 0
-    assert not is_valid_json("01")
-    assert double_from_json("01") == 1
-    assert not is_valid_json("09")
-    assert double_from_json("09") == 9
-    assert not is_valid_json("1.23J4")
-    assert double_from_json("1.23J4") == 1.23
-    assert not is_valid_json("1e2.3")
-    assert double_from_json("1e2.3") == 1e2
-    assert not is_valid_json("1.2.3")
-    assert double_from_json("1.2.3") == 1.2
-    assert not is_valid_json("5k")
-    assert double_from_json("5k") == 5
-    assert not is_valid_json("Infinityyyy")
-    assert double_from_json("Infinityyyy") == 1.0 / 0.0
-    assert not is_valid_json("-Infinityyyy")
-    assert double_from_json("-Infinityyyy") == -1.0 / 0.0
+    # Sometimes json_to_double() may parse a part of an otherwise invalid number.
+    assert not json_is_valid("00")
+    assert json_to_double("00") == 0
+    assert not json_is_valid("01")
+    assert json_to_double("01") == 1
+    assert not json_is_valid("09")
+    assert json_to_double("09") == 9
+    assert not json_is_valid("1.23J4")
+    assert json_to_double("1.23J4") == 1.23
+    assert not json_is_valid("1e2.3")
+    assert json_to_double("1e2.3") == 1e2
+    assert not json_is_valid("1.2.3")
+    assert json_to_double("1.2.3") == 1.2
+    assert not json_is_valid("5k")
+    assert json_to_double("5k") == 5
+    assert not json_is_valid("Infinityyyy")
+    assert json_to_double("Infinityyyy") == 1.0 / 0.0
+    assert not json_is_valid("-Infinityyyy")
+    assert json_to_double("-Infinityyyy") == -1.0 / 0.0
 
 
 def test_json_from_github_api() -> None:
@@ -402,13 +402,13 @@ def test_json_from_github_api() -> None:
     assert n < sizeof(file_content)
     file_content[n] = '\0'
 
-    assert is_valid_json(file_content)
-    assert not is_valid_json(&file_content[1])
+    assert json_is_valid(file_content)
+    assert not json_is_valid(&file_content[1])
 
     for asset = json_array_first(json_get(file_content, "assets")); asset != NULL; asset = json_array_next(asset):
         uploader_name, asset_name: byte[100]
-        string_from_json(json_get(json_get(asset, "uploader"), "login"), uploader_name, sizeof(uploader_name))
-        string_from_json(json_get(asset, "name"), asset_name, sizeof(asset_name))
+        json_to_string(json_get(json_get(asset, "uploader"), "login"), uploader_name, sizeof(uploader_name))
+        json_to_string(json_get(asset, "name"), asset_name, sizeof(asset_name))
 
         # Output: github-actions[bot] uploaded jou_windows_64bit_2026-02-09-0500.zip
         printf("%s uploaded %s\n", uploader_name, asset_name)
