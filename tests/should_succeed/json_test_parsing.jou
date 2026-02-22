@@ -378,17 +378,17 @@ def test_numbers() -> None:
     assert not is_valid_json("09")
     assert double_from_json("09") == 9
     assert not is_valid_json("1.23J4")
-    assert not is_nan(double_from_json("1.23J4"))  # happily parses 1.23
+    assert double_from_json("1.23J4") == 1.23
     assert not is_valid_json("1e2.3")
-    assert not is_nan(double_from_json("1e2.3"))  # happily parses 1e2
+    assert double_from_json("1e2.3") == 1e2
     assert not is_valid_json("1.2.3")
-    assert not is_nan(double_from_json("1.2.3"))  # happily parses 1.2
+    assert double_from_json("1.2.3") == 1.2
     assert not is_valid_json("5k")
-    assert not is_nan(double_from_json("5k"))  # happily parses 5
+    assert double_from_json("5k") == 5
     assert not is_valid_json("Infinityyyy")
-    assert not is_nan(double_from_json("Infinityyyy"))  # happily parses Infinity
+    assert double_from_json("Infinityyyy") == 1.0 / 0.0
     assert not is_valid_json("-Infinityyyy")
-    assert not is_nan(double_from_json("-Infinityyyy"))  # happily parses -Infinity
+    assert double_from_json("-Infinityyyy") == -1.0 / 0.0
 
 
 def test_json_from_github_api() -> None:
