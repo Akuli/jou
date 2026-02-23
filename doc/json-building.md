@@ -17,6 +17,8 @@ def main() -> int:
     # "foo": 123
     jb.key("foo")
     jb.number(123)
+    # "chained": 456
+    jb.key("chained").number(456)
     # "bar": ["hello", 12.34, true, null]
     jb.key("bar")
     jb.begin_array()  # [
@@ -31,6 +33,7 @@ def main() -> int:
 
     # Output: {
     # Output:   "foo": 123,
+    # Output:   "chained": 456,
     # Output:   "bar": [
     # Output:     "hello",
     # Output:     12.34,
@@ -86,6 +89,8 @@ To actually build the JSON, use the following methods, where `jb` is a `JSONBuil
     In JSON, an object looks like `{"key1": value1, "key2": value2}`.
     Between `jb.begin_object()` and `jb.end_object()`,
     you must call `jb.key(some_string)` before you build each value.
+    For convenient chaining, `jb.key()` returns `jb` itself as a `JSONBuilder*`,
+    so you can do e.g. `jb.key("foo").string("bar")` to emit `"foo": "bar"`.
     See also [the notes about arrays and objects below](#notes-about-arrays-and-objects).
 
 
