@@ -357,7 +357,6 @@ def json_get(json: byte*, key: byte*) -> byte*:
     if json == NULL or key == NULL:
         return NULL
 
-    end_of_key = &key[strlen(key)]
     for item = json_object_first(json); item != NULL; item = json_object_next(item):
         if json_equals_string(item, key):
             return json_object_value(item)
