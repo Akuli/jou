@@ -33,6 +33,7 @@ def main() -> int:
 
     # Output: {
     # Output:   "foo": 123,
+    # Output:   "chained": 456,
     # Output:   "bar": [
     # Output:     "hello",
     # Output:     12.34,
