@@ -171,8 +171,7 @@ def test_strings() -> None:
         "\"More symbols: +-*/`'@?!\\\"\"",          # Output: More symbols: +-*/`'@?!"
     ]
     for i = 0; i < array_count(simple_valid_strings); i++:
-        json = simple_valid_strings[i]
-        assert json_is_valid(json)
+        assert json_is_valid(simple_valid_strings[i])
         s = json_to_string(simple_valid_strings[i])
         assert s != NULL
         puts(s)
