@@ -231,6 +231,7 @@ def test_strings() -> None:
     # Make sure that json_equals_string() doesn't accept anything it's not supposed to accept
     assert json_equals_string("\"foo\"", "foo")
     assert not json_equals_string("\"foo\"", "fo")
+    assert not json_equals_string("\"foo\"", "Foo")
     assert not json_equals_string("\"foo\"", "goo")
     assert not json_equals_string("\"foo\"", "fooo")
     assert not json_equals_string("\"foo\"", NULL)
