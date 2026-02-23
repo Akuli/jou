@@ -35,6 +35,10 @@ def main() -> int:
     puts(message)  # Output: hello
     free(message)
 
+    # Comparing a string in JSON directly with a Jou string
+    if json_equals_string(json_get(json, "message"), "hello"):
+        puts("it's hello")  # Output: it's hello
+
     # Looping through an array
     # Output: 1.200000
     # Output: 3.400000
@@ -54,20 +58,21 @@ def main() -> int:
     return 0
 ```
 
-| Function                  | Return type               | Return value                              |
-|---------------------------|---------------------------|-------------------------------------------|
-| `json_array_first(json)`  | `byte*` (JSON)            | pointer into `json` or NULL               |
-| `json_array_next(json)`   | `byte*` (JSON)            | pointer into `json` or NULL               |
-| `json_object_first(json)` | `byte*` (JSON)            | pointer into key in `json` or NULL        |
-| `json_object_next(json)`  | `byte*` (JSON)            | pointer into key in `json` or NULL        |
-| `json_object_value(json)` | `byte*` (JSON)            | pointer into value in `json` or NULL      |
-| `json_get(json, key)`     | `byte*` (JSON)            | pointer into value in `json` or NULL      |
-| `json_to_double(json)`    | `double`                  | value in `json` or NaN                    |
-| `json_to_string(json)`    | `byte*` (needs `free()`)  | string from `json` or NULL                |
-| `json_is_true(json)`      | `bool`                    | `True` if `json` points at a JSON `true`  |
-| `json_is_false(json)`     | `bool`                    | `True` if `json` points at a JSON `false` |
-| `json_is_null(json)`      | `bool`                    | `True` if `json` points at a JSON `null`  |
-| `json_is_valid(json)`     | `bool`                    | `True` if `json` is valid JSON            |
+| Function                      | Return type               | Return value                                      |
+|-------------------------------|---------------------------|---------------------------------------------------|
+| `json_array_first(json)`      | `byte*` (JSON)            | pointer into `json` or NULL                       |
+| `json_array_next(json)`       | `byte*` (JSON)            | pointer into `json` or NULL                       |
+| `json_object_first(json)`     | `byte*` (JSON)            | pointer into key in `json` or NULL                |
+| `json_object_next(json)`      | `byte*` (JSON)            | pointer into key in `json` or NULL                |
+| `json_object_value(json)`     | `byte*` (JSON)            | pointer into value in `json` or NULL              |
+| `json_get(json, key)`         | `byte*` (JSON)            | pointer into value in `json` or NULL              |
+| `json_to_double(json)`        | `double`                  | value in `json` or NaN                            |
+| `json_to_string(json)`        | `byte*` (needs `free()`)  | string from `json` or NULL                        |
+| `json_equals_string(json, s)` | `bool`                    | `True` if `json` points at `s` as a JSON string   |
+| `json_is_true(json)`          | `bool`                    | `True` if `json` points at a JSON `true`          |
+| `json_is_false(json)`         | `bool`                    | `True` if `json` points at a JSON `false`         |
+| `json_is_null(json)`          | `bool`                    | `True` if `json` points at a JSON `null`          |
+| `json_is_valid(json)`         | `bool`                    | `True` if `json` is valid JSON                    |
 
 
 ## Finding values in JSON
@@ -137,6 +142,13 @@ Once you have found the value you want, you can use these functions to parse it:
     and returns it as `\0`-terminated UTF-8 (that is, a typical Jou string).
     If `json` doesn't start with a valid string, this function returns `NULL`.
     If the return value is not `NULL`, it must be `free()`d when you no longer need it.
+    See also [the notes about strings below](#notes-about-strings).
+- `json_equals_string(json: byte*, s: byte*) -> bool` checks
+    whether `json` points at a JSON representation of a string `s`.
+    For example, `json_equals_string("\"hello\"", "hello")` returns `True`.
+    This is similar to using `json_to_string()` together with `strcmp()`,
+    but this handles corner cases like `json` or `s` being `NULL`
+    and does not allocate memory for a temporary string that would need to be freed.
     See also [the notes about strings below](#notes-about-strings).
 
 Note that you cannot `free()` or otherwise destroy the original JSON string

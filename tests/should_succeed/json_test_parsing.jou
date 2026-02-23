@@ -234,6 +234,9 @@ def test_strings() -> None:
     assert not json_equals_string("\"foo\"", "fo")
     assert not json_equals_string("\"foo\"", "goo")
     assert not json_equals_string("\"foo\"", "fooo")
+    assert not json_equals_string("\"foo\"", NULL)
+    assert not json_equals_string(NULL, "foo")
+    assert not json_equals_string("foo", "\"foo\"")
 
 
 def test_bools_and_null() -> None:
@@ -376,6 +379,9 @@ def test_json_from_github_api() -> None:
     file_content: byte[10000]
 
     f = fopen("tests/data/jou_github_release.json", "rb")
+    if f == NULL:
+        # Running test file from its directory, not project root
+        f = fopen("../data/jou_github_release.json", "rb")
     assert f != NULL
     n = fread(file_content, 1, sizeof(file_content), f)
     fclose(f)
