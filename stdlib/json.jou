@@ -41,6 +41,14 @@ class JSONBuilder:
             assert self.output.len == 0
             return
 
+        # If we're inside an object and not waiting for a value after a key,
+        # it's an error to put another value here. Otherwise you end up with
+        # something like `{\"foo\":1,2}` which is not valid JSON.
+        if self.depth > 0 and self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0:
+            # We must be waiting for a value after a key; otherwise the user
+            # attempted to insert a value without specifying a key.
+            assert self.waiting_for_value_after_a_key
+
         if self.waiting_for_value_after_a_key:
             self.waiting_for_value_after_a_key = False
             return
