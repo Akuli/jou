@@ -68,7 +68,7 @@ class JSONBuilder:
         self.output.append('{')
 
     @public
-    def key(self, key: byte*) -> None:
+    def key(self, key: byte*) -> JSONBuilder*:
         assert key != NULL
 
         # This can only be used inside an object
@@ -83,6 +83,8 @@ class JSONBuilder:
         if self.pretty_print != 0:
             self.output.append(' ')
         self.waiting_for_value_after_a_key = True
+
+        return self  # for convenient chaining
 
     @public
     def end_array(self) -> None:
