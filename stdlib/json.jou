@@ -25,7 +25,14 @@ class JSONBuilder:
     # Internals that you don't need to care about as a user
     stack: uint8[MAX_DEPTH]  # contains bitwise ORs of the flags
     depth: int               # number of items on stack
-    waiting_for_value_after_a_key: bool
+    key_added: bool
+
+    def add_comma_if_needed(self) -> None:
+        assert 0 < self.depth and self.depth <= array_count(self.stack)
+        flags = &self.stack[self.depth - 1]
+        if *flags & BUILDER_FLAG_EMPTY == 0:
+            self.output.append(',')
+        *flags &= ~BUILDER_FLAG_EMPTY
 
     def new_line(self) -> None:
         if self.pretty_print != 0:
@@ -41,17 +48,15 @@ class JSONBuilder:
             assert self.output.len == 0
             return
 
-        if self.waiting_for_value_after_a_key:
-            self.waiting_for_value_after_a_key = False
-            return
+        if self.depth > 0 and self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0:
+            # We are inside an object. Do not allow values without a key.
+            assert self.key_added
 
-        assert 0 < self.depth and self.depth <= array_count(self.stack)
-        flags = &self.stack[self.depth - 1]
-        if *flags & BUILDER_FLAG_EMPTY == 0:
-            self.output.append(',')
-        *flags &= ~BUILDER_FLAG_EMPTY
-
-        self.new_line()
+        if self.key_added:
+            self.key_added = False
+        else:
+            self.add_comma_if_needed()
+            self.new_line()
 
     @public
     def begin_array(self) -> None:
@@ -76,19 +81,22 @@ class JSONBuilder:
         assert self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0
 
         # You cannot add multiple keys without putting values in between
-        assert not self.waiting_for_value_after_a_key
+        assert not self.key_added
 
-        self.string(key)
+        self.add_comma_if_needed()
+        self.new_line()
+        self.add_string_to_output(key)
         self.output.append(':')
         if self.pretty_print != 0:
             self.output.append(' ')
-        self.waiting_for_value_after_a_key = True
+
+        self.key_added = True
 
         return self  # for convenient chaining
 
     @public
     def end_array(self) -> None:
-        assert not self.waiting_for_value_after_a_key
+        assert not self.key_added
         assert self.depth > 0
 
         flags = self.stack[--self.depth]
@@ -100,7 +108,7 @@ class JSONBuilder:
 
     @public
     def end_object(self) -> None:
-        assert not self.waiting_for_value_after_a_key
+        assert not self.key_added
         assert self.depth > 0
 
         flags = self.stack[--self.depth]
@@ -122,11 +130,13 @@ class JSONBuilder:
     def string(self, s: byte*) -> None:
         if s == NULL:
             self.null()
-            return
+        else:
+            self.before_a_value()
+            self.add_string_to_output(s)
 
-        self.before_a_value()
+    # This method is used for .string() and .key() methods.
+    def add_string_to_output(self, s: byte*) -> None:
         self.output.append('"')
-
         while *s != '\0':
             match *s:
                 case '\n':
