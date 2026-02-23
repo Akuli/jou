@@ -209,11 +209,6 @@ def test_strings() -> None:
         "\"missing second half of u-escaped surrogate pair \\ud83d",
         "\"missing second half of u-escaped surrogate pair \\ud83d\"",
         "\"missing second half of u-escaped surrogate pair \\ud83dlol\"",
-        # TODO: Currently the JSON parser accepts UTF-16 surrogate pairs that
-        #       represent a codepoint that could be written without surrogate
-        #       pairs. This is like overlong UTF-8 and should probably be
-        #       rejected. But this isn't security critical like invalid UTF-8,
-        #       because there are multiple ways to write the same JSON anyway.
         "\"this \xc3 is invalid UTF-8 (truncated)\"",
         "\"this \xf0\x82\x82\xac is invalid UTF-8 (overlong)\"",
     ]
