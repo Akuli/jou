@@ -27,6 +27,13 @@ class JSONBuilder:
     depth: int               # number of items on stack
     key_added: bool
 
+    def add_comma_if_needed(self) -> None:
+        assert 0 < self.depth and self.depth <= array_count(self.stack)
+        flags = &self.stack[self.depth - 1]
+        if *flags & BUILDER_FLAG_EMPTY == 0:
+            self.output.append(',')
+        *flags &= ~BUILDER_FLAG_EMPTY
+
     def new_line(self) -> None:
         if self.pretty_print != 0:
             self.output.append('\n')
@@ -34,39 +41,32 @@ class JSONBuilder:
             while n --> 0:
                 self.output.append(' ')
 
-    def before_a_value(self, is_key: bool) -> None:
+    def before_a_value(self) -> None:
         if self.depth == 0:
             # This assert fails if you try to create multiple top-level values.
             # If you want to create multiple values, you must use array or object.
             assert self.output.len == 0
             return
 
-        if self.depth > 0 and self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0 and not is_key:
+        if self.depth > 0 and self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0:
             # We are inside an object. Do not allow values without a key.
             assert self.key_added
 
         if self.key_added:
             self.key_added = False
-            return
-
-        assert 0 < self.depth and self.depth <= array_count(self.stack)
-        flags = &self.stack[self.depth - 1]
-        if *flags & BUILDER_FLAG_EMPTY == 0:
-            self.output.append(',')
-        *flags &= ~BUILDER_FLAG_EMPTY
-
-        self.new_line()
+        else:
+            self.new_line()
 
     @public
     def begin_array(self) -> None:
-        self.before_a_value(False)
+        self.before_a_value()
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY
         self.output.append('[')
 
     @public
     def begin_object(self) -> None:
-        self.before_a_value(False)
+        self.before_a_value()
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY | BUILDER_FLAG_OBJECT
         self.output.append('{')
@@ -82,11 +82,13 @@ class JSONBuilder:
         # You cannot add multiple keys without putting values in between
         assert not self.key_added
 
-        self.before_a_value(True)
-        self.actually_output_a_string(key)
+        self.add_comma_if_needed()
+        self.new_line()
+        self.add_string_to_output(key)
         self.output.append(':')
         if self.pretty_print != 0:
             self.output.append(' ')
+
         self.key_added = True
 
     @public
@@ -115,7 +117,7 @@ class JSONBuilder:
 
     @public
     def boolean(self, b: bool) -> None:
-        self.before_a_value(False)
+        self.before_a_value()
         if b:
             self.output.extend_from_ptr("true", 4)
         else:
@@ -126,11 +128,11 @@ class JSONBuilder:
         if s == NULL:
             self.null()
         else:
-            self.before_a_value(False)
-            self.actually_output_a_string(s)
+            self.before_a_value()
+            self.add_string_to_output(s)
 
     # This method is used for .string() and .key() methods.
-    def actually_output_a_string(self, s: byte*) -> None:
+    def add_string_to_output(self, s: byte*) -> None:
         self.output.append('"')
         while *s != '\0':
             match *s:
@@ -169,12 +171,12 @@ class JSONBuilder:
 
     @public
     def null(self) -> None:
-        self.before_a_value(False)
+        self.before_a_value()
         self.output.extend_from_ptr("null", 4)
 
     @public
     def number(self, n: double) -> None:
-        self.before_a_value(False)
+        self.before_a_value()
 
         if is_nan(n):
             self.output.extend_from_ptr("NaN", 3)
