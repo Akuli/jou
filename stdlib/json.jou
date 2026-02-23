@@ -357,13 +357,9 @@ def json_get(json: byte*, key: byte*) -> byte*:
     if json == NULL or key == NULL:
         return NULL
 
-    end_of_key = &key[strlen(key)]
     for item = json_object_first(json); item != NULL; item = json_object_next(item):
-        ctx = StringParsingContext{compare_to = key}
-        parse_string(item, &ctx)
-        if ctx.compare_to == end_of_key:
+        if json_equals_string(item, key):
             return json_object_value(item)
-
     return NULL
 
 
@@ -662,6 +658,18 @@ def json_to_string(json: byte*) -> byte*:
 
     result.append('\0')
     return result.ptr
+
+# Checks if JSON points at a JSON string with the same content as s.
+@public
+def json_equals_string(json: byte*, s: byte*) -> bool:
+    if json == NULL or s == NULL:
+        return False
+    while is_json_whitespace(*json):
+        json++
+
+    ctx = StringParsingContext{compare_to = s}
+    parse_string(json, &ctx)
+    return ctx.compare_to != NULL and *ctx.compare_to == '\0'
 
 # Part of JSON parsing and validating. Returns NULL if json is invalid.
 def skip_string(s: byte*) -> byte*:
