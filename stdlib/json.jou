@@ -34,20 +34,16 @@ class JSONBuilder:
             while n --> 0:
                 self.output.append(' ')
 
-    def before_a_value(self) -> None:
+    def before_a_value(self, is_key: bool) -> None:
         if self.depth == 0:
             # This assert fails if you try to create multiple top-level values.
             # If you want to create multiple values, you must use array or object.
             assert self.output.len == 0
             return
 
-        # If we're inside an object and not waiting for a value after a key,
-        # it's an error to put another value here. Otherwise you end up with
-        # something like `{\"foo\":1,2}` which is not valid JSON.
         if self.depth > 0 and self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0:
-            # We must be waiting for a value after a key; otherwise the user
-            # attempted to insert a value without specifying a key.
-            assert self.waiting_for_value_after_a_key
+            # We are inside an object. Do not allow values without a key.
+            assert is_key or self.waiting_for_value_after_a_key
 
         if self.waiting_for_value_after_a_key:
             self.waiting_for_value_after_a_key = False
@@ -63,14 +59,14 @@ class JSONBuilder:
 
     @public
     def begin_array(self) -> None:
-        self.before_a_value()
+        self.before_a_value(False)
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY
         self.output.append('[')
 
     @public
     def begin_object(self) -> None:
-        self.before_a_value()
+        self.before_a_value(False)
         assert self.depth < array_count(self.stack)
         self.stack[self.depth++] = BUILDER_FLAG_EMPTY | BUILDER_FLAG_OBJECT
         self.output.append('{')
@@ -86,7 +82,8 @@ class JSONBuilder:
         # You cannot add multiple keys without putting values in between
         assert not self.waiting_for_value_after_a_key
 
-        self.string(key)
+        self.before_a_value(True)
+        self.actually_output_a_string(key)
         self.output.append(':')
         if self.pretty_print != 0:
             self.output.append(' ')
@@ -118,7 +115,7 @@ class JSONBuilder:
 
     @public
     def boolean(self, b: bool) -> None:
-        self.before_a_value()
+        self.before_a_value(False)
         if b:
             self.output.extend_from_ptr("true", 4)
         else:
@@ -128,11 +125,13 @@ class JSONBuilder:
     def string(self, s: byte*) -> None:
         if s == NULL:
             self.null()
-            return
+        else:
+            self.before_a_value(False)
+            self.actually_output_a_string(s)
 
-        self.before_a_value()
+    # This method is used for .string() and .key() methods.
+    def actually_output_a_string(self, s: byte*) -> None:
         self.output.append('"')
-
         while *s != '\0':
             match *s:
                 case '\n':
@@ -170,12 +169,12 @@ class JSONBuilder:
 
     @public
     def null(self) -> None:
-        self.before_a_value()
+        self.before_a_value(False)
         self.output.extend_from_ptr("null", 4)
 
     @public
     def number(self, n: double) -> None:
-        self.before_a_value()
+        self.before_a_value(False)
 
         if is_nan(n):
             self.output.extend_from_ptr("NaN", 3)
