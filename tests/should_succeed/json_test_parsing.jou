@@ -171,10 +171,12 @@ def test_strings() -> None:
         "\"More symbols: +-*/`'@?!\\\"\"",          # Output: More symbols: +-*/`'@?!"
     ]
     for i = 0; i < array_count(simple_valid_strings); i++:
-        assert json_is_valid(simple_valid_strings[i])
+        json = simple_valid_strings[i]
+        assert json_is_valid(json)
         s = json_to_string(simple_valid_strings[i])
         assert s != NULL
         puts(s)
+        assert json_equals_string(simple_valid_strings[i], s)
         free(s)
 
     # These are not printed in case printing unicodes doesn't work on e.g. windows
@@ -189,6 +191,7 @@ def test_strings() -> None:
         json = fancy_valid_strings[i][0]
         expected_value = fancy_valid_strings[i][1]
         assert json_is_valid(json)
+        assert json_equals_string(json, expected_value)
         s = json_to_string(json)
         assert s != NULL
         assert strcmp(s, expected_value) == 0
@@ -225,6 +228,12 @@ def test_strings() -> None:
     assert json_to_string("[1,2,3]") == NULL
     assert json_to_string("{}") == NULL
     assert json_to_string("true") == NULL
+
+    # Make sure that json_equals_string() doesn't accept anything it's not supposed to accept
+    assert json_equals_string("\"foo\"", "foo")
+    assert not json_equals_string("\"foo\"", "fo")
+    assert not json_equals_string("\"foo\"", "goo")
+    assert not json_equals_string("\"foo\"", "fooo")
 
 
 def test_bools_and_null() -> None:
