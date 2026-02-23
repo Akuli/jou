@@ -25,7 +25,7 @@ class JSONBuilder:
     # Internals that you don't need to care about as a user
     stack: uint8[MAX_DEPTH]  # contains bitwise ORs of the flags
     depth: int               # number of items on stack
-    waiting_for_value_after_a_key: bool
+    key_added: bool
 
     def new_line(self) -> None:
         if self.pretty_print != 0:
@@ -41,12 +41,12 @@ class JSONBuilder:
             assert self.output.len == 0
             return
 
-        if self.depth > 0 and self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0:
+        if self.depth > 0 and self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0 and not is_key:
             # We are inside an object. Do not allow values without a key.
-            assert is_key or self.waiting_for_value_after_a_key
+            assert self.key_added
 
-        if self.waiting_for_value_after_a_key:
-            self.waiting_for_value_after_a_key = False
+        if self.key_added:
+            self.key_added = False
             return
 
         assert 0 < self.depth and self.depth <= array_count(self.stack)
@@ -80,18 +80,18 @@ class JSONBuilder:
         assert self.stack[self.depth - 1] & BUILDER_FLAG_OBJECT != 0
 
         # You cannot add multiple keys without putting values in between
-        assert not self.waiting_for_value_after_a_key
+        assert not self.key_added
 
         self.before_a_value(True)
         self.actually_output_a_string(key)
         self.output.append(':')
         if self.pretty_print != 0:
             self.output.append(' ')
-        self.waiting_for_value_after_a_key = True
+        self.key_added = True
 
     @public
     def end_array(self) -> None:
-        assert not self.waiting_for_value_after_a_key
+        assert not self.key_added
         assert self.depth > 0
 
         flags = self.stack[--self.depth]
@@ -103,7 +103,7 @@ class JSONBuilder:
 
     @public
     def end_object(self) -> None:
-        assert not self.waiting_for_value_after_a_key
+        assert not self.key_added
         assert self.depth > 0
 
         flags = self.stack[--self.depth]
