@@ -48,8 +48,6 @@ I would recommend Jou for:
 - People who find C programming fun but like Python's syntax
 - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
 
-See also [AI's thoughts on Jou](doc/ai-thoughts.md).
-
 
 ## Design goals and non-goals
 
