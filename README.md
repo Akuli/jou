@@ -53,7 +53,18 @@ See also [AI's thoughts on Jou](doc/ai-thoughts.md).
 
 ## Design goals and non-goals
 
-Jou eliminates some surprising things in C. For example:
+I will try my best to **keep Jou simple**,
+and not turn it into yet another big language that doesn't feel like C,
+such as C++, Zig, Rust, and many others.
+For example, the recommended way to print things will be C's `printf()` function,
+as explained in [the Jou tutorial](./doc/tutorial.md#cs-standard-library-libc).
+This also means that I reject many feature requests.
+
+Jou is not intended to be memory safe, because it would make Jou more difficult to use.
+See [Jou's UB documentation](./doc/ub.md) for more discussion,
+including [thoughts on Rust](./doc/ub.md#rusts-approach-to-ub).
+
+Jou also eliminates some surprising things in C. For example:
 - In C, `char` may or may not be signed, depending on your OS,
     but Jou's `byte` data type is always unsigned.
 - In C, `negative % positive` is negative or zero,
@@ -66,17 +77,6 @@ Jou eliminates some surprising things in C. For example:
 - Jou has Windows support that doesn't suck.
     You simply download and extract a zip, and add it to `PATH`.
     (See instructions below.)
-
-I will try my best to **keep Jou simple**,
-and not turn it into yet another big language that doesn't feel like C,
-such as C++, Zig, Rust, and many others.
-For example, the recommended way to print things will be C's `printf()` function,
-as explained in [the Jou tutorial](./doc/tutorial.md#cs-standard-library-libc).
-This also means that I reject many feature requests.
-
-Jou is not intended to be memory safe, because it would make Jou more difficult to use.
-See [Jou's UB documentation](./doc/ub.md) for more discussion,
-including [thoughts on Rust](./doc/ub.md#rusts-approach-to-ub).
 
 
 ## Setup
