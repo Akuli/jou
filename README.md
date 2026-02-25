@@ -37,18 +37,17 @@ def main() -> int:
 See the [examples](./examples/) and [tests](./tests/) directories for more example programs
 or read [the Jou tutorial](./doc/tutorial.md).
 
-For now, Jou is great for writing small programs that don't have a lot of dependencies.
+For now, Jou is great for writing programs that don't have a lot of dependencies.
 Here are things I have written in Jou:
+- A klondike solitaire card game with curses UI: https://github.com/Akuli/curses-klondike/
+- Blue light filter: https://github.com/Akuli/himmeli
 - [Advent of Code 2023](https://adventofcode.com/2023/): [examples/aoc2023](./examples/aoc2023/)
 - [Advent of Code 2024](https://adventofcode.com/2024/): [examples/aoc2024](./examples/aoc2024/)
 - [Advent of Code 2025](https://adventofcode.com/2025/): [examples/aoc2025](./examples/aoc2025/)
-- A klondike solitaire card game with curses UI: https://github.com/Akuli/curses-klondike/
 
 I would recommend Jou for:
 - People who find C programming fun but like Python's syntax
 - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
-
-See also [AI's thoughts on Jou](doc/ai-thoughts.md).
 
 
 ## Design goals and non-goals
