@@ -41,6 +41,7 @@ For now, Jou is great for writing programs that don't have a lot of dependencies
 Here are things I have written in Jou:
 - A klondike solitaire card game with curses UI: https://github.com/Akuli/curses-klondike/
 - Blue light filter: https://github.com/Akuli/himmeli
+- The Jou compiler (see [bootstrapping](#bootstrapping) below)
 - [Advent of Code 2023](https://adventofcode.com/2023/): [examples/aoc2023](./examples/aoc2023/)
 - [Advent of Code 2024](https://adventofcode.com/2024/): [examples/aoc2024](./examples/aoc2024/)
 - [Advent of Code 2025](https://adventofcode.com/2025/): [examples/aoc2025](./examples/aoc2025/)
