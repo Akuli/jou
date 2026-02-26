@@ -1,0 +1,22 @@
+import "stdlib/assert.jou"
+
+def main() -> int:
+    foo = 2
+    bar = 2
+
+    assert foo == bar
+    assert (foo == bar)  # Warning: parentheses around assertion are unnecessary
+    assert(foo == bar)  # Warning: parentheses around assertion are unnecessary
+
+    assert foo == bar or foo == bar
+    assert (foo == bar) or (foo == bar)
+    assert ((foo == bar) or (foo == bar))  # Warning: parentheses around assertion are unnecessary
+    assert (
+        (foo == bar)
+        or (foo == bar)
+    )
+
+    assert foo * (bar + foo) == 8
+    assert (foo * (bar + foo) == 8)  # Warning: parentheses around assertion are unnecessary
+
+    return 0
