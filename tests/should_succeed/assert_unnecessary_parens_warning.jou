@@ -1,0 +1,16 @@
+import "stdlib/assert.jou"
+
+def main() -> int:
+    foo = 1
+    bar = 1
+
+    # Should generate warning for parentheses around assert condition
+    assert(foo == bar)  # Warning: parentheses around assert statement condition are unnecessary
+
+    # Should be no warning for this
+    assert foo == bar or foo == bar
+
+    # Should handle nested parentheses
+    assert(2 * (1 + 3) == 8)  # Warning: parentheses around assert statement condition are unnecessary
+
+    return 0
