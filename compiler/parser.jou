@@ -1050,7 +1050,7 @@ class Parser:
                     fail(assert_keyword.location, "'assert' cannot be placed inside a class unless it is inside a method")
             result.kind = AstStatementKind.Assert
             start = self.tokens
-            result.assertion.condition = self.parse_expression_with_unnecessary_parens_warning("assert statement condition")
+            result.assertion.condition = self.parse_expression_with_unnecessary_parens_warning("assertion")
             end = self.tokens
             result.assertion.condition_str = get_assertion_code_as_string(start, end)
         elif self.tokens.is_keyword("pass"):
