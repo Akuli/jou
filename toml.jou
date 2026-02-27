@@ -1,0 +1,230 @@
+# TOML spec: https://toml.io/en/v1.1.0
+
+import "stdlib/ascii.jou"
+import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+import "stdlib/str.jou"
+
+
+## TODO: Return an error instead of exiting the program!!!
+#def fail(msg: byte*) -> None:
+#    fprintf(get_stderr(), "TOML: %s\n", msg)
+#    exit(1)
+#
+#
+
+
+class TOMLKeyAndValue:
+    key: byte*
+    value: TOMLValue
+
+
+enum TOMLValueKind:
+    String
+    Table
+
+class TOMLValue:
+    kind: TOMLValueKind
+    union:
+        string: byte*
+        table: List[TOMLKeyAndValue]
+
+
+class TOMLParser:
+    ptr: byte*
+    target_table: List[TOMLKeyAndValue]*
+    error: byte[1024]
+
+    def fail(self) -> None:
+        printf("Parser Error at: %s\n", self.ptr)
+        assert False  # TODO: propagate errors out with return values, not like this
+
+    # Names of many methods are according to this:
+    # https://github.com/toml-lang/toml/blob/bcbbd1c1f03473ffe97b8bf26a0fc945efe2b4a1/toml.abnf
+
+    def toml(self) -> None:
+        self.expression()
+        while *self.ptr == '\n':
+            self.ptr++
+            self.expression()
+        if *self.ptr != '\0':
+            self.fail()
+
+    def expression(self) -> None:
+        self.ws()
+        match *self.ptr:
+            case '[':
+                self.table()
+                self.ws()
+                if *self.ptr == '#':
+                    self.comment()
+            case '\n' | '\0':
+                pass
+            case '#':
+                self.comment()
+            case _:
+                self.keyval()
+                self.ws()
+                if *self.ptr == '#':
+                    self.comment()
+
+    def ws(self) -> None:
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+    def newline(self) -> None:
+        if *self.ptr == '\r':
+            self.ptr++
+        if *self.ptr != '\n':
+            self.fail()
+        self.ptr++
+
+    def comment(self) -> None:
+        assert *self.ptr == '#'
+        while *self.ptr != '\0' and *self.ptr != '\n':
+            b = *self.ptr
+            if not (b >= 128 or b == '\t' or (32 <= b and b <= 126)):
+                self.fail()
+            self.ptr++
+
+    def keyval(self) -> None:
+        old_target_table = self.target_table
+        self.key()
+        self.ws()
+        if *self.ptr != '=':
+            self.fail()
+        self.ptr++
+        self.ws()
+        self.val()
+        self.target_table = old_target_table
+
+    # Not exactly right according to the spec, because this ends with a call to
+    # .ws() but a key shouldn't include trailing whitespace. We'll see if that
+    # matters, maybe not...
+    def key(self) -> None:
+        self.simple_key()
+        self.ws()
+        while *self.ptr == '.':
+            self.ptr++
+            self.ws()
+            self.simple_key()
+            self.ws()
+
+    def simple_key(self) -> None:
+        key: byte*
+        match *self.ptr:
+            case '"':
+                key = self.basic_string()
+            case '\'':
+                key = self.literal_string()
+            case _:
+                n = 0
+                while (
+                    is_ascii_letter(self.ptr[n])
+                    or is_ascii_digit(self.ptr[n])
+                    or self.ptr[n] == '-'
+                    or self.ptr[n] == '_'
+                ):
+                    n++
+                if n == 0:
+                    self.fail()
+                key = NULL
+                asprintf(&key, "%.*s", n, self.ptr)
+                assert key != NULL
+                self.ptr = &self.ptr[n]
+
+        # Does this key already exists?
+        for p = self.target_table.ptr; p < self.target_table.end(); p++:
+            if strcmp(p.key, key) == 0:
+                # Yes, let's go there
+                free(key)
+                if p.value.kind != TOMLValueKind.Table:
+                    self.fail()
+                self.target_table = &p.value.table
+                return
+
+        # Nope --> create new
+        self.target_table.append(TOMLKeyAndValue{key = key})
+        self.target_table = &self.target_table.end()[-1].value.table
+
+    def val(self) -> TOMLValue:
+        match *self.ptr:
+            case '"':
+                if starts_with(self.ptr, "\"\"\""):
+                    s = self.ml_basic_string()
+                else:
+                    s = self.basic_string()
+                assert s != NULL
+                return TOMLValue{kind = TOMLValueKind.String, string = s}
+            case '\'':
+                if starts_with(self.ptr, "'''"):
+                    s = self.ml_literal_string()
+                else:
+                    s = self.literal_string()
+                assert s != NULL
+                return TOMLValue{kind = TOMLValueKind.String, string = s}
+            case _:
+                # TODO: support other types of values
+                assert False
+
+    def basic_string(self) -> byte*:
+        assert *self.ptr == '"'
+        self.ptr++
+
+        result = List[byte]{}
+        while True:
+            match self.ptr:
+                case '\\':
+                    result.append(self.escape())
+                
+
+        basic-char = basic-unescaped / escaped
+        basic-unescaped = wschar / %x21 / %x23-5B / %x5D-7E / non-ascii
+        escaped = escape escape-seq-char
+
+        escape = %x5C                   ; \
+        escape-seq-char =  %x22         ; "    quotation mark  U+0022
+        escape-seq-char =/ %x5C         ; \    reverse solidus U+005C
+        escape-seq-char =/ %x62         ; b    backspace       U+0008
+        escape-seq-char =/ %x65         ; e    escape          U+001B
+        escape-seq-char =/ %x66         ; f    form feed       U+000C
+        escape-seq-char =/ %x6E         ; n    line feed       U+000A
+        escape-seq-char =/ %x72         ; r    carriage return U+000D
+        escape-seq-char =/ %x74         ; t    tab             U+0009
+        escape-seq-char =/ %x78 2HEXDIG ; xHH                  U+00HH
+        escape-seq-char =/ %x75 4HEXDIG ; uHHHH                U+HHHH
+        escape-seq-char =/ %x55 8HEXDIG ; UHHHHHHHH            U+HHHHHHHH
+
+        assert False  # TODO
+
+    def ml_basic_string(self) -> byte*:
+        assert False  # TODO
+
+    def literal_string(self) -> byte*:
+        assert False  # TODO
+
+    def ml_literal_string(self) -> byte*:
+        assert False  # TODO
+
+    def table(self) -> None:
+        assert False  # TODO
+
+
+def main() -> int:
+    result = List[TOMLKeyAndValue]{}
+    parser = TOMLParser{
+        ptr = "# This is a full-line comment\nkey = \"value\"  # This is a comment at the end of a line\nanother = \"# This is not a comment\"",
+        target_table = &result,
+    }
+    parser.toml()
+
+#    skip_comment(&self)
+#    assert *self.ptr == '\n'
+#    self.ptr++
+#    puts(self.ptr)
+
+    return 0
