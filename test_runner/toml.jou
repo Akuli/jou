@@ -1,8 +1,10 @@
 # TOML spec: https://toml.io/en/v1.1.0
 
 import "stdlib/ascii.jou"
+import "stdlib/process.jou"
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/limits.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
@@ -14,36 +16,60 @@ class TOMLKeyVal:
 
 
 enum TOMLValueKind:
-    Table  # first, so this is the default with zero-init
+    Unset  # must be first, so initializes to this
+    Table
     String
+    Boolean
+    Integer
 
 class TOMLValue:
     kind: TOMLValueKind
     union:
         table: List[TOMLKeyVal]
         string: byte*
+        boolean: bool
+        integer: int64
 
     def free(self) -> None:
         match self.kind:
             case TOMLValueKind.String:
                 free(self.string)
-
             case TOMLValueKind.Table:
                 for i = 0; i < self.table.len; i++:
                     kv = self.table.ptr[i]
                     free(kv.key)
                     kv.value.free()  # recursive call
                 free(self.table.ptr)
+            case TOMLValueKind.Boolean | TOMLValueKind.Integer | TOMLValueKind.Unset:
+                pass
+
+def digit_value(b: byte) -> int:
+    if '0' <= b and b <= '9':
+        return b - '0'
+    if 'A' <= b and b <= 'F':
+        return b - 'A'
+    if 'a' <= b and b <= 'f':
+        return b - 'a'
+    return -1
 
 
 class TOMLParser:
+    filename: byte*
+    file_content_start: byte*
     ptr: byte*
     target: TOMLValue*
     error: byte[1024]
 
-    def fail(self) -> noreturn:
-        printf("Parser Error at: %s\n", self.ptr)
-        assert False  # TODO: propagate errors out with return values, not like this
+    def fail(self, message: byte*) -> noreturn:
+        # Work out line number
+        assert self.ptr >= self.file_content_start
+        lineno = 1
+        for p = self.ptr; p < self.file_content_start; p++:
+            if *p == '\n':
+                lineno++
+
+        fprintf(get_stderr(), "invalid TOML syntax in file \"%s\", line %d: %s\n", message)
+        exit(1)
 
     # Names of many methods are according to this:
     # https://github.com/toml-lang/toml/blob/bcbbd1c1f03473ffe97b8bf26a0fc945efe2b4a1/toml.abnf
@@ -54,7 +80,7 @@ class TOMLParser:
             self.ptr++
             self.expression()
         if *self.ptr != '\0':
-            self.fail()
+            self.fail("junk at end of line")
 
     def expression(self) -> None:
         self.ws()
@@ -90,7 +116,7 @@ class TOMLParser:
         while *self.ptr != '\0' and *self.ptr != '\n':
             b = *self.ptr
             if not (b >= 128 or b == '\t' or (32 <= b and b <= 126)):
-                self.fail()
+                self.fail("invalid character in comment")
             self.ptr++
 
     def keyval(self) -> None:
@@ -98,7 +124,7 @@ class TOMLParser:
         self.key()
         self.ws()
         if *self.ptr != '=':
-            self.fail()
+            self.fail("there should be '=' after a key")
         self.ptr++
         self.ws()
         self.val()
@@ -133,14 +159,13 @@ class TOMLParser:
                 ):
                     n++
                 if n == 0:
-                    self.fail()
+                    self.fail("failed to parse the key in 'key = value' syntax")
                 key = NULL
                 asprintf(&key, "%.*s", n, self.ptr)
                 assert key != NULL
                 self.ptr = &self.ptr[n]
 
-        if self.target.kind != TOMLValueKind.Table:
-            self.fail()
+        assert self.target.kind == TOMLValueKind.Table
 
         # Does this key already exists?
         for p = self.target.table.ptr; p < self.target.table.end(); p++:
@@ -151,10 +176,17 @@ class TOMLParser:
                 return
 
         # Key not found --> create new table
-        self.target.table.append(TOMLKeyVal{key = key})
+        self.target.table.append(TOMLKeyVal{
+            key = key,
+            value = TOMLValue{kind = TOMLValueKind.Table},
+        })
         self.target = &self.target.table.end()[-1].value
 
     def val(self) -> None:
+        # TODO: why is this needed?
+        self.target.free()
+        *self.target = TOMLValue{}
+
         match *self.ptr:
             case '"':
                 if starts_with(self.ptr, "\"\"\""):
@@ -170,9 +202,85 @@ class TOMLParser:
                     s = self.literal_string()
                 assert s != NULL
                 *self.target = TOMLValue{kind = TOMLValueKind.String, string = s}
+            case 't':
+                if not starts_with(self.ptr, "true"):
+                    self.fail("failed to parse value")
+                *self.target = TOMLValue{kind = TOMLValueKind.Boolean, boolean = True}
+                self.ptr = &self.ptr[4]
+            case '+' | '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
+                n = self.integer()
+                *self.target = TOMLValue{kind = TOMLValueKind.Integer, integer = n}
             case _:
+                puts(self.ptr)
                 # TODO: support other types of values
                 assert False
+
+    def unsigned_integer_in_base(self, base: int) -> uint64:
+        first_digit_value = digit_value(*self.ptr)
+        if first_digit_value != -1 and first_digit_value < base:
+            result: uint64 = first_digit_value as uint64
+            self.ptr++
+            while True:
+                if *self.ptr == '_':
+                    self.ptr++
+                    continue
+                v = digit_value(*self.ptr)
+                if v == -1:
+                    return result
+                if v >= base:
+                    break  # show error message
+                # Don't allow 01, 001 etc
+                if base == 10 and first_digit_value == 0:
+                    self.fail("integer starts with an unnecessary zero")
+                new_result = result*(base as uint64) + (v as uint64)
+                if new_result/base != result:
+                    # it overflowed
+                    return UINT64_MAX
+                result = new_result
+                self.ptr++
+
+        match base:
+            case 2:
+                self.fail("invalid binary number")
+            case 8:
+                self.fail("invalid octal number")
+            case 10:
+                self.fail("invalid number")
+            case 16:
+                self.fail("invalid hexadecimal number")
+            case _:
+                assert False
+
+    def integer(self) -> int64:
+        sign = 1
+        if starts_with(self.ptr, "0b"):
+            base = 2
+        elif starts_with(self.ptr, "0o"):
+            base = 8
+        elif starts_with(self.ptr, "0x"):
+            base = 16
+        else:
+            base = 10
+            # Only base 10 numbers can be negative in TOML!
+            if *self.ptr == '-':
+                sign = -1
+            if *self.ptr == '+' or *self.ptr == '-':
+                self.ptr++
+
+        if base != 10:
+            self.ptr = &self.ptr[2]
+
+        u = self.unsigned_integer_in_base(base)
+
+        # Special casing to make sure the most negative int64 value works.
+        # Its absolute value doesn't fit in int64.
+        # TODO: this needed?
+        if sign == -1 and u == (INT64_MAX as uint64) + 1:
+            return INT64_MIN
+
+        if u > INT64_MAX:
+            self.fail("integer doesn't fit in a Jou int64")
+        return sign*(u as int64)
 
     def basic_string(self) -> byte*:
         assert *self.ptr == '"'
@@ -202,7 +310,7 @@ class TOMLParser:
             or *self.ptr >= 128  # TODO: reject invalid UTF-8
         ):
             return *self.ptr++
-        self.fail()
+        self.fail("bad character inside string")
 
     def escaped(self) -> byte:
         assert *self.ptr == '\\'
@@ -232,7 +340,7 @@ class TOMLParser:
             case 'U':
                 assert False  # TODO: \UHHHHHHHH hex escape
             case _:
-                self.fail()
+                self.fail("bad backslash escape in string")
 
     def ml_basic_string(self) -> byte*:
         assert False  # TODO
@@ -255,7 +363,7 @@ class TOMLParser:
             or *self.ptr >= 128  # TODO: reject invalid UTF-8
         ):
             return *self.ptr++
-        self.fail()
+        self.fail("bad character inside string")
 
     def ml_literal_string(self) -> byte*:
         assert False  # TODO
@@ -266,6 +374,8 @@ class TOMLParser:
 
 def print_toml_value(value: TOMLValue, depth: int) -> None:
     match value.kind:
+        case TOMLValueKind.Unset:
+            puts("UNSET")
         case TOMLValueKind.Table:
             printf("table:\n")
             for i = 0; i < value.table.len; i++:
@@ -273,9 +383,12 @@ def print_toml_value(value: TOMLValue, depth: int) -> None:
                 printf("%*s", 2*(depth + 1), "")
                 printf("%s = ", kv.key)
                 print_toml_value(kv.value, depth + 1)
-
         case TOMLValueKind.String:
             printf("string: %s\n", value.string)
+        case TOMLValueKind.Boolean:
+            puts("boolean: true" if value.boolean else "boolean: false")
+        case TOMLValueKind.Integer:
+            printf("integer: %lld\n", value.integer)
 
 
 def main() -> int:
@@ -284,14 +397,21 @@ def main() -> int:
         "# This is a full-line comment\nkey = \"value\"  # This is a comment at the end of a line\nanother = \"# This is not a comment\"",
         "key = \"value\"",
         #"key = # INVALID",  # should fail
-        #"first = \"Tom\" last = \"Preston-Werner\" # INVALID"  # should fail
+        #"first = \"Tom\" last = \"Preston-Werner\" # INVALID",  # should fail
         "key = \"value\"\nbare_key = \"value\"\nbare-key = \"value\"\n1234 = \"value\"\n",
         "\"127.0.0.1\" = \"value\"\n\"character encoding\" = \"value\"\n\"ʎǝʞ\" = \"value\"\n'key2' = \"value\"\n'quoted \"value\"' = \"value\"",
+        "name = \"Orange\"\nphysical.color = \"orange\"\nphysical.shape = \"round\"\nsite.\"google.com\" = true\n",
+        "fruit.name = \"banana\"       # this is best practice\nfruit. color = \"yellow\"     # same as fruit.color\nfruit . flavor = \"banana\"   # same as fruit.flavor\n",
+        # TODO: should be invalid!
+        "# DO NOT DO THIS\nname = \"Tom\"\nname = \"Pradyun\"",
+        # TODO: should be invalid!
+        "# THIS WILL NOT WORK\nspelling = \"favorite\"\n\"spelling\" = \"favourite\"\n",
+        "# This makes the key \"fruit\" into a table.\nfruit.apple.smooth = true\n\n# So then you can add to the table \"fruit\" like so:\nfruit.orange = 2",
     ]
 
     for i = 0; i < array_count(examples); i++:
         printf("============================== examples[%d] ==============================\n", i)
-        result = TOMLValue{}
+        result = TOMLValue{kind = TOMLValueKind.Table}
         parser = TOMLParser{ptr = examples[i], target = &result}
         parser.toml()
         assert result.kind == TOMLValueKind.Table
