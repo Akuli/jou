@@ -1,18 +1,41 @@
 # TOML spec: https://toml.io/en/v1.1.0
 
 import "stdlib/ascii.jou"
-import "stdlib/process.jou"
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/json.jou"
 import "stdlib/limits.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
+import "stdlib/process.jou"
 import "stdlib/str.jou"
+
+
+def joutest_error(msg: byte*) -> noreturn:
+    fprintf(get_stderr(), "joutest error: %s\n", msg)
+    exit(1)
 
 
 class TOMLKeyVal:
     key: byte*
     value: TOMLValue
+
+class TOMLTable:
+    # TODO: hash table? or is that not needed?
+    items: List[TOMLKeyVal]
+
+    def find(self, key: byte*) -> TOMLValue*:
+        for p = self.items.ptr; p < self.items.end(); p++:
+            if strcmp(key, p.key) == 0:
+                return &p.value
+        return NULL
+
+    def free(self) -> None:
+        for i = 0; i < self.items.len; i++:
+            kv = self.items.ptr[i]
+            free(kv.key)
+            kv.value.free()  # recursive call
+        free(self.items.ptr)
 
 
 enum TOMLValueKind:
@@ -25,7 +48,7 @@ enum TOMLValueKind:
 class TOMLValue:
     kind: TOMLValueKind
     union:
-        table: List[TOMLKeyVal]
+        table: TOMLTable
         string: byte*
         boolean: bool
         integer: int64
@@ -35,11 +58,7 @@ class TOMLValue:
             case TOMLValueKind.String:
                 free(self.string)
             case TOMLValueKind.Table:
-                for i = 0; i < self.table.len; i++:
-                    kv = self.table.ptr[i]
-                    free(kv.key)
-                    kv.value.free()  # recursive call
-                free(self.table.ptr)
+                self.table.free()
             case TOMLValueKind.Boolean | TOMLValueKind.Integer | TOMLValueKind.Unset:
                 pass
 
@@ -54,11 +73,10 @@ def digit_value(b: byte) -> int:
 
 
 class TOMLParser:
-    filename: byte*
+    path: byte*
     file_content_start: byte*
     ptr: byte*
     target: TOMLValue*
-    error: byte[1024]
 
     def fail(self, message: byte*) -> noreturn:
         # Work out line number
@@ -68,8 +86,16 @@ class TOMLParser:
             if *p == '\n':
                 lineno++
 
-        fprintf(get_stderr(), "invalid TOML syntax in file \"%s\", line %d: %s\n", message)
-        exit(1)
+        message_with_location: byte[500]
+        snprintf(
+            message_with_location,
+            sizeof(message_with_location),
+            "invalid TOML syntax in file \"%s\", line %d: %s\n",
+            self.path,
+            lineno,
+            message,
+        )
+        joutest_error(message_with_location)
 
     # Names of many methods are according to this:
     # https://github.com/toml-lang/toml/blob/bcbbd1c1f03473ffe97b8bf26a0fc945efe2b4a1/toml.abnf
@@ -167,20 +193,19 @@ class TOMLParser:
 
         assert self.target.kind == TOMLValueKind.Table
 
-        # Does this key already exists?
-        for p = self.target.table.ptr; p < self.target.table.end(); p++:
-            if strcmp(p.key, key) == 0:
-                # Yes, let's go there
-                free(key)
-                self.target = &p.value
-                return
+        # Does this key already exists? If it exists, let's go there
+        found = self.target.table.find(key)
+        if found != NULL:
+            free(key)
+            self.target = found
+            return
 
         # Key not found --> create new table
-        self.target.table.append(TOMLKeyVal{
+        self.target.table.items.append(TOMLKeyVal{
             key = key,
             value = TOMLValue{kind = TOMLValueKind.Table},
         })
-        self.target = &self.target.table.end()[-1].value
+        self.target = &self.target.table.items.end()[-1].value
 
     def val(self) -> None:
         # TODO: why is this needed?
@@ -378,8 +403,8 @@ def print_toml_value(value: TOMLValue, depth: int) -> None:
             puts("UNSET")
         case TOMLValueKind.Table:
             printf("table:\n")
-            for i = 0; i < value.table.len; i++:
-                kv = value.table.ptr[i]
+            for i = 0; i < value.table.items.len; i++:
+                kv = value.table.items.ptr[i]
                 printf("%*s", 2*(depth + 1), "")
                 printf("%s = ", kv.key)
                 print_toml_value(kv.value, depth + 1)
@@ -391,32 +416,86 @@ def print_toml_value(value: TOMLValue, depth: int) -> None:
             printf("integer: %lld\n", value.integer)
 
 
+def read_file_to_string(path: byte*) -> byte*:
+    msg: byte[500]
+
+    file = fopen(path, "rb")
+    if file == NULL:
+        snprintf(msg, sizeof(msg), "reading file \"%s\" failed", path)
+        joutest_error(msg)
+
+    bytes_list = List[byte]{}
+
+    buf: byte[4096]
+    while True:
+        num_read = fread(buf, 1, sizeof buf, file)
+        if num_read == 0:
+            if ferror(file) != 0:
+                snprintf(msg, sizeof(msg), "reading file \"%s\" failed", path)
+                joutest_error(msg)
+            break
+        bytes_list.extend_from_ptr(buf, num_read)
+
+    fclose(file)
+
+    lineno = 1
+    for p = bytes_list.ptr; p < bytes_list.end(); p++:
+        match *p:
+            case '\n':
+                lineno++
+            case '\0':
+                snprintf(msg, sizeof(msg), "file \"%s\" contains a zero byte on line %d\n", path, lineno)
+                joutest_error(msg)
+
+    bytes_list.append('\0')
+    return bytes_list.ptr
+
+
+def parse_toml(path: byte*) -> TOMLTable:
+    file_content = read_file_to_string(path)
+
+    # TODO: ensure it's valid UTF-8
+
+    result_value = TOMLValue{kind = TOMLValueKind.Table}
+    parser = TOMLParser{ptr = file_content, target = &result_value}
+    parser.toml()
+    free(file_content)
+
+    assert result_value.kind == TOMLValueKind.Table
+    return result_value.table
+
+
+def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
+    match value.kind:
+        case TOMLValueKind.Unset:
+            jb.string("THIS SHOULD NEVER HAPPEN!!!!")
+        case TOMLValueKind.Table:
+            jb.begin_object()
+            for kv = value.table.items.ptr; kv < value.table.items.end(); kv++:
+                jb.key(kv.key)
+                toml_to_json(kv.value, jb)
+            jb.end_object()
+        case TOMLValueKind.String:
+            jb.begin_object()
+            jb.key("type").string("string")
+            jb.key("value").string(value.string)
+            jb.end_object()
+        case TOMLValueKind.Boolean:
+            jb.string("TODO boolean")
+        case TOMLValueKind.Integer:
+            jb.string("TODO integer")
+
+
+# For testing with the official TOML test suite and experimenting.
+# Reads TOML from stdin and prints JSON compatible with the TOML test suite.
 def main() -> int:
-    examples = [
-        # These are directly from documentation https://toml.io/en/v1.1.0
-        "# This is a full-line comment\nkey = \"value\"  # This is a comment at the end of a line\nanother = \"# This is not a comment\"",
-        "key = \"value\"",
-        #"key = # INVALID",  # should fail
-        #"first = \"Tom\" last = \"Preston-Werner\" # INVALID",  # should fail
-        "key = \"value\"\nbare_key = \"value\"\nbare-key = \"value\"\n1234 = \"value\"\n",
-        "\"127.0.0.1\" = \"value\"\n\"character encoding\" = \"value\"\n\"ʎǝʞ\" = \"value\"\n'key2' = \"value\"\n'quoted \"value\"' = \"value\"",
-        "name = \"Orange\"\nphysical.color = \"orange\"\nphysical.shape = \"round\"\nsite.\"google.com\" = true\n",
-        "fruit.name = \"banana\"       # this is best practice\nfruit. color = \"yellow\"     # same as fruit.color\nfruit . flavor = \"banana\"   # same as fruit.flavor\n",
-        # TODO: should be invalid!
-        "# DO NOT DO THIS\nname = \"Tom\"\nname = \"Pradyun\"",
-        # TODO: should be invalid!
-        "# THIS WILL NOT WORK\nspelling = \"favorite\"\n\"spelling\" = \"favourite\"\n",
-        "# This makes the key \"fruit\" into a table.\nfruit.apple.smooth = true\n\n# So then you can add to the table \"fruit\" like so:\nfruit.orange = 2",
-    ]
+    toml = parse_toml("/dev/stdin")
 
-    for i = 0; i < array_count(examples); i++:
-        printf("============================== examples[%d] ==============================\n", i)
-        result = TOMLValue{kind = TOMLValueKind.Table}
-        parser = TOMLParser{ptr = examples[i], target = &result}
-        parser.toml()
-        assert result.kind == TOMLValueKind.Table
-        print_toml_value(result, 0)
-        result.free()
-        printf("\n")
+    jb = JSONBuilder{pretty_print = 4}
+    toml_to_json(TOMLValue{kind = TOMLValueKind.Table, table = toml}, &jb)
+    toml.free()
 
+    json = jb.finish()
+    puts(json)
+    free(json)
     return 0
