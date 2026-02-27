@@ -179,7 +179,7 @@ class TOMLParser:
         self.ptr++
 
         result = List[byte]{}
-        while *self.ptr != '"':
+        while *self.ptr != '"' and *self.ptr != '\0':
             result.append(self.basic_char())
         self.ptr++
 
@@ -238,7 +238,24 @@ class TOMLParser:
         assert False  # TODO
 
     def literal_string(self) -> byte*:
-        assert False  # TODO
+        assert *self.ptr == '\''
+        self.ptr++
+        result = List[byte]{}
+        while *self.ptr != '\'':
+            result.append(self.literal_char())
+        self.ptr++
+        result.append('\0')
+        return result.ptr
+
+    def literal_char(self) -> byte:
+        if (
+            *self.ptr == '\t'
+            or (0x20 <= *self.ptr and *self.ptr <= 0x26)
+            or (0x28 <= *self.ptr and *self.ptr <= 0x7e)
+            or *self.ptr >= 128  # TODO: reject invalid UTF-8
+        ):
+            return *self.ptr++
+        self.fail()
 
     def ml_literal_string(self) -> byte*:
         assert False  # TODO
@@ -269,8 +286,7 @@ def main() -> int:
         #"key = # INVALID",  # should fail
         #"first = \"Tom\" last = \"Preston-Werner\" # INVALID"  # should fail
         "key = \"value\"\nbare_key = \"value\"\nbare-key = \"value\"\n1234 = \"value\"\n",
-        # TODO: so far so good, but this fails
-        #"\"127.0.0.1\" = \"value\"\n\"character encoding\" = \"value\"\n\"ʎǝʞ\" = \"value\"\n'key2' = \"value\"\n'quoted \"value\"' = \"value\"",
+        "\"127.0.0.1\" = \"value\"\n\"character encoding\" = \"value\"\n\"ʎǝʞ\" = \"value\"\n'key2' = \"value\"\n'quoted \"value\"' = \"value\"",
     ]
 
     for i = 0; i < array_count(examples); i++:
