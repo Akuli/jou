@@ -184,8 +184,9 @@ class TOMLParser:
             target_table = self.current_table
         else:
             # Go to a part within an already chosen key
-            assert parent_value.kind == TOMLValueKind.Unset
-            *parent_value = TOMLValue{kind = TOMLValueKind.Table}
+            # TODO: what exactly should happen here?
+            assert parent_value.kind == TOMLValueKind.Unset or parent_value.kind == TOMLValueKind.Table
+            parent_value.kind = TOMLValueKind.Table
             target_table = &parent_value.table
 
         # Does this key already exists? If it exists, value will go there
@@ -295,7 +296,7 @@ class TOMLParser:
         self.ptr++
 
         result = List[byte]{}
-        while *self.ptr != '"' and *self.ptr != '\0':
+        while *self.ptr != '"' and *self.ptr != '\0' and not self.failed:
             self.basic_char(&result)
         self.ptr++
 
@@ -303,6 +304,7 @@ class TOMLParser:
         return result.ptr
 
     def basic_char(self, out: List[byte]*) -> None:
+        assert not self.failed
         if *self.ptr == '\\':
             self.escaped(out)
         else:
@@ -410,7 +412,7 @@ class TOMLParser:
         if *self.ptr == '\n':
             self.ptr++
         result = List[byte]{}
-        while not (starts_with(self.ptr, "\"\"\"") and not starts_with(self.ptr, "\"\"\"\"")):
+        while not (starts_with(self.ptr, "\"\"\"") and not starts_with(self.ptr, "\"\"\"\"")) and not self.failed:
             if *self.ptr == '\n':
                 self.ptr++
                 result.append('\n')
@@ -435,7 +437,7 @@ class TOMLParser:
         if *self.ptr == '\n':
             self.ptr++
         result = List[byte]{}
-        while not (starts_with(self.ptr, "'''") and not starts_with(self.ptr, "''''")):
+        while not (starts_with(self.ptr, "'''") and not starts_with(self.ptr, "''''")) and not self.failed:
             if *self.ptr == '\n':
                 self.ptr++
                 result.append('\n')
@@ -453,6 +455,7 @@ class TOMLParser:
         self.ptr++
         self.ws()
 
+        self.current_table = &self.root_table
         value_ptr = self.key()
         if self.failed:
             return
@@ -469,6 +472,8 @@ class TOMLParser:
             case _:
                 self.failed = True
                 return
+
+        self.current_table = &value_ptr.table
 
         self.ws()
         if *self.ptr != ']':

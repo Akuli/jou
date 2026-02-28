@@ -32,13 +32,7 @@ tests_to_skip=(
     invalid/spec-1.0.0/string-7-0
     invalid/spec-1.0.0/table-9-0
     invalid/spec-1.0.0/table-9-1
-    invalid/string/bad-uni-esc-06
-    invalid/string/bad-uni-esc-ml-06
     invalid/string/basic-byte-escapes
-    invalid/string/basic-multiline-out-of-range-unicode-escape-01
-    invalid/string/basic-multiline-out-of-range-unicode-escape-02
-    invalid/string/basic-out-of-range-unicode-escape-01
-    invalid/string/basic-out-of-range-unicode-escape-02
     invalid/string/literal-multiline-quotes-01
     invalid/string/literal-multiline-quotes-02
     invalid/string/multiline-quotes-01
@@ -101,7 +95,6 @@ tests_to_skip=(
     valid/inline-table/multiline
     valid/inline-table/nest
     valid/inline-table/spaces
-    valid/integer/long
     valid/key/alphanum
     valid/key/dotted-03
     valid/key/dotted-04
