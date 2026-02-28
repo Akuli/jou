@@ -344,26 +344,15 @@ class TOMLParser:
             sprintf(message, "unexpected byte %#02x", *self.ptr)
         self.fail(message)
 
-    def read_escaped_char(self) -> byte[5]:
-        assert self.ptr[-1] == '\\'
-        prefix_char = *self.ptr++
-        match prefix_char:
-            case 'x':
-                num_hex_digits = 2
-            case 'u':
-                num_hex_digits = 4
-            case 'U':
-                num_hex_digits = 8
-            case _:
-                assert False
-
+    def read_escaped_char(self, prefix_char: byte, num_hex_digits: int) -> byte[5]:
         msg: byte[100]
 
         codepoint: uint32 = 0
-        for i = 0; i < num_hex_digits; i--:
+        for i = 0; i < num_hex_digits; i++:
             v = hexdigit_value(self.ptr[i])
             if v == -1:
                 snprintf(msg, sizeof(msg), "invalid \\%c escape in string", prefix_char)
+                self.fail(msg)
             codepoint <<= 4
             codepoint |= v as uint32
 
@@ -399,8 +388,14 @@ class TOMLParser:
                 out.append('\r')
             case 't':
                 out.append('\t')
-            case 'x' | 'u' | 'U':
-                s = self.read_escaped_char()
+            case 'x':
+                s = self.read_escaped_char('x', 2)
+                out.extend_from_ptr(s, strlen(s))
+            case 'u':
+                s = self.read_escaped_char('u', 4)
+                out.extend_from_ptr(s, strlen(s))
+            case 'U':
+                s = self.read_escaped_char('U', 8)
                 out.extend_from_ptr(s, strlen(s))
             case _:
                 self.fail("bad backslash escape in string")
