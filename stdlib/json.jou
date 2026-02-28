@@ -138,7 +138,7 @@ class JSONBuilder:
 
     @public
     def string(self, s: byte*) -> None:
-        self.string_with_len(s, strlen(s))
+        self.string_with_len(s, 0 if s == NULL else strlen(s))
 
     # This method is used for .string() and .key() methods.
     def add_string_to_output(self, s: byte*, len: intnative) -> None:
