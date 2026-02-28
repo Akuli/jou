@@ -247,8 +247,9 @@ class TOMLParser:
                 self.array()
             case _:
                 # TODO: support other types of values
-                fprintf(get_stderr(), "unknown value %.*s\n", strcspn(self.ptr,"\n") as int, self.ptr)
-                assert False
+                msg: byte[100]
+                snprintf(msg, sizeof(msg), "unknown value: %.*s", strcspn(self.ptr,"\n") as int, self.ptr)
+                self.fail(msg)
 
     def unsigned_integer_in_base(self, base: int) -> uint64:
         first_digit_value = hexdigit_value(*self.ptr)
@@ -484,6 +485,7 @@ class TOMLParser:
         assert starts_with(self.ptr, "[")
         self.ptr++
         self.ws()
+        self.target = &self.root
         self.key()
         self.ws()
         if *self.ptr != ']':
@@ -512,6 +514,7 @@ class TOMLParser:
             if *self.ptr != ',':
                 self.fail("invalid array")
             self.ptr++
+            self.ws_comment_newline()
 
         assert *self.ptr == ']'
         self.ptr++
