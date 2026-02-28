@@ -2,13 +2,19 @@ import "stdlib/io.jou"
 import "stdlib/process.jou"
 
 
+@public
+global jou_assert_fail_handler: funcptr(byte*, byte*, int) -> None
+
+
 # This function is called when `assert False` runs.
 @public
 def _jou_assert_fail(assertion: byte*, path: byte*, lineno: int) -> noreturn:
-    # When stdout is redirected to same place as stderr, make sure that normal
-    # printf()s show up before our assertion error.
-    fflush(get_stdout())
-    fflush(get_stderr())
+    if jou_assert_fail_handler != NULL:
+        jou_assert_fail_handler(assertion, path, lineno)
 
+    # Default assert failure handling. Flushing stdout ensures that if stdout
+    # and stderr are redirected to the same place, normal output shows up
+    # before the error message.
+    fflush(get_stdout())
     fprintf(get_stderr(), "Assertion '%s' failed in file \"%s\", line %d.\n", assertion, path, lineno)
     exit(1)

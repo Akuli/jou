@@ -72,6 +72,7 @@ so the same `%f` works for both floating-point types.
 |-------------------------------|-------------------------------|-------------------------------|---------------------------------------------------|
 | `T[n]` where `T` is any type  | `[1, 2, 3]` (type `int[3]`)   | `n` times the size of `T`     | Array of `n` elements (`n` known at compile time) |
 | `T*` where `T` is any type    | `"hello"` (type `byte*`)      | 4 or 8 bytes (32 or 64 bits)  | Pointer to `T`                                    |
+| `funcptr(...) -> ...`         | `funcptr(int) -> int`         | 4 or 8 bytes (32 or 64 bits)  | Not documented yet :(                             |
 | `void*`                       | `NULL`                        | 4 or 8 bytes (32 or 64 bits)  | Pointer to anything                               |
 
 See [pointers in the Jou tutorial](tutorial.md#pointers) if you are not already familiar with pointers.
