@@ -12,31 +12,13 @@ import "stdlib/str.jou"
 import "stdlib/utf8.jou"
 
 
-def joutest_error(msg: byte*) -> noreturn:
-    fprintf(get_stderr(), "joutest error: %s\n", msg)
-    exit(1)
-
-
 class TOMLKeyVal:
     key: byte*
     value: TOMLValue
 
-class TOMLTable:
-    # TODO: hash table? or is that not needed?
-    items: List[TOMLKeyVal]
-
-    def find(self, key: byte*) -> TOMLValue*:
-        for p = self.items.ptr; p < self.items.end(); p++:
-            if strcmp(key, p.key) == 0:
-                return &p.value
-        return NULL
-
     def free(self) -> None:
-        for i = 0; i < self.items.len; i++:
-            kv = self.items.ptr[i]
-            free(kv.key)
-            kv.value.free()
-        free(self.items.ptr)
+        free(self.key)
+        self.value.free()
 
 
 enum TOMLValueKind:
@@ -50,7 +32,7 @@ enum TOMLValueKind:
 class TOMLValue:
     kind: TOMLValueKind
     union:
-        table: TOMLTable
+        table: List[TOMLKeyVal]
         array: List[TOMLValue]
         string: byte*
         boolean: bool
@@ -59,10 +41,12 @@ class TOMLValue:
     def free(self) -> None:
         match self.kind:
             case TOMLValueKind.Table:
-                self.table.free()
+                for kv = self.table.ptr; kv < self.table.end(); kv++:
+                    kv.free()
+                free(self.table.ptr)
             case TOMLValueKind.Array:
-                for i = 0; i < self.array.len; i++:
-                    self.array.ptr[i].free()
+                for p = self.array.ptr; p < self.array.end(); p++:
+                    p.free()
                 free(self.array.ptr)
             case TOMLValueKind.String:
                 free(self.string)
@@ -79,104 +63,99 @@ def hexdigit_value(b: byte) -> int:
     return -1
 
 
+class TOMLParseResult:
+    parsed: List[TOMLKeyVal]
+    failed: bool
+    error_lineno: int
+
+    def free(self) -> None:
+        for kv = self.parsed.ptr; kv < self.parsed.end(); kv++:
+            kv.free()
+        free(self.parsed.ptr)
+        self.parsed = List[TOMLKeyVal]{}
+
+
+def looks_like_end_of_line(s: byte*) -> bool:
+    while *s == ' ' or *s == '\t':
+        s++
+    return *s == '\n' or *s == '\0' or *s == '#'  # allow comments at end of line
+
+
 class TOMLParser:
-    path: byte*
-    file_content_start: byte*
+    failed: bool
     ptr: byte*
-    target: TOMLValue*
-    root: TOMLValue
-
-    def fail(self, message: byte*) -> noreturn:
-        fprintf(get_stderr(), "%s", self.ptr)
-        # Work out line number
-        assert self.ptr >= self.file_content_start
-        lineno = 1
-        for p = self.file_content_start; p < self.ptr; p++:
-            if *p == '\n':
-                lineno++
-
-        message_with_location: byte[500]
-        snprintf(
-            message_with_location,
-            sizeof(message_with_location),
-            "invalid TOML syntax in file \"%s\", line %d%s%s\n",
-            self.path,
-            lineno,
-            "" if message == NULL else ": ",
-            "" if message == NULL else message,
-        )
-        joutest_error(message_with_location)
+    root_table: List[TOMLKeyVal]
+    current_table: List[TOMLKeyVal]*
 
     # Names of many methods are according to this:
     # https://github.com/toml-lang/toml/blob/bcbbd1c1f03473ffe97b8bf26a0fc945efe2b4a1/toml.abnf
 
-    def toml(self) -> None:
-        self.expression()
-        while *self.ptr != '\0':
-            self.newline()
-            self.expression()
-
-    def expression(self) -> None:
-        self.ws()
-        match *self.ptr:
-            case '[':
-                self.table()
-                self.ws()
-                if *self.ptr == '#':
+    # Always advances self.ptr or fails. Called repeatedly.
+    def parse(self) -> None:
+        while (not self.failed) and *self.ptr != '\0':
+            match *self.ptr:
+                case ' ' | '\t' | '\n':
+                    self.ptr++
+                case '#':
                     self.comment()
-            case '\n' | '\0':
-                pass
-            case '#':
-                self.comment()
-            case '\0':
-                return
-            case _:
-                self.keyval()
-                self.ws()
-                if *self.ptr == '#':
-                    self.comment()
+                case '[':
+                    if starts_with(self.ptr, "[["):
+                        self.array_table()
+                    else:
+                        self.std_table()
+                    if not self.failed and not looks_like_end_of_line(self.ptr):
+                        self.failed = True
+                case _:
+                    self.keyval()
+                    if not self.failed and not looks_like_end_of_line(self.ptr):
+                        self.failed = True
 
     def ws(self) -> None:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-    def newline(self) -> None:
-        if *self.ptr != '\n':
-            self.fail(NULL)
-        self.ptr++
-
     def comment(self) -> None:
+        assert not self.failed
         assert *self.ptr == '#'
         while *self.ptr != '\0' and *self.ptr != '\n':
             b = *self.ptr
             if not (b >= 128 or b == '\t' or (32 <= b and b <= 126)):
-                self.fail("invalid character in comment")
+                self.failed = True
+                return
             self.ptr++
 
     def keyval(self) -> None:
-        old_target = self.target
-        self.key()
+        value_dest_ptr = self.key()
         self.ws()
         if *self.ptr != '=':
-            self.fail(NULL)
+            self.failed = True
+            return
         self.ptr++
         self.ws()
-        self.val()
-        self.target = old_target
+        *value_dest_ptr = self.val()
 
+    # Returns a pointer where the corresponding value should be stored.
+    #
     # Not exactly right according to the spec, because this ends with a call to
     # .ws() but a key shouldn't include trailing whitespace. We'll see if that
     # matters, maybe not...
-    def key(self) -> None:
-        self.simple_key()
+    def key(self) -> TOMLValue*:
+        value_ptr = self.simple_key(NULL)
+        if self.failed:
+            return NULL
+        assert value_ptr != NULL
         self.ws()
         while *self.ptr == '.':
             self.ptr++
             self.ws()
-            self.simple_key()
+            value_ptr = self.simple_key(value_ptr)
+            if self.failed:
+                return NULL
+            assert value_ptr != NULL
             self.ws()
+        return value_ptr
 
-    def simple_key(self) -> None:
+    def simple_key(self, parent_value: TOMLValue*) -> TOMLValue*:
         key: byte*
         match *self.ptr:
             case '"':
@@ -193,32 +172,34 @@ class TOMLParser:
                 ):
                     n++
                 if n == 0:
-                    self.fail(NULL)
+                    self.failed = True
+                    return NULL
                 key = NULL
                 asprintf(&key, "%.*s", n, self.ptr)
                 assert key != NULL
                 self.ptr = &self.ptr[n]
 
-        assert self.target.kind == TOMLValueKind.Table
+        if parent_value == NULL:
+            # The first part of the key (the foo of foo.bar.baz)
+            target_table = self.current_table
+        else:
+            # Go to a part within an already chosen key
+            assert parent_value.kind == TOMLValueKind.Unset
+            *parent_value = TOMLValue{kind = TOMLValueKind.Table}
+            target_table = &parent_value.table
 
-        # Does this key already exists? If it exists, let's go there
-        found = self.target.table.find(key)
-        if found != NULL:
-            free(key)
-            self.target = found
-            return
+        # Does this key already exists? If it exists, value will go there
+        for p = target_table.ptr; p < target_table.end(); p++:
+            if strcmp(p.key, key) == 0:
+                free(key)
+                return &p.value
 
         # Key not found --> create new table
-        self.target.table.items.append(TOMLKeyVal{
-            key = key,
-            value = TOMLValue{kind = TOMLValueKind.Table},
-        })
-        self.target = &self.target.table.items.end()[-1].value
+        target_table.append(TOMLKeyVal{key = key})
+        return &target_table.end()[-1].value
 
-    def val(self) -> None:
-        # TODO: why is this needed?
-        self.target.free()
-        *self.target = TOMLValue{}
+    def val(self) -> TOMLValue:
+        assert not self.failed
 
         match *self.ptr:
             case '"':
@@ -227,67 +208,62 @@ class TOMLParser:
                 else:
                     s = self.basic_string()
                 assert s != NULL
-                *self.target = TOMLValue{kind = TOMLValueKind.String, string = s}
+                return TOMLValue{kind = TOMLValueKind.String, string = s}
             case '\'':
                 if starts_with(self.ptr, "'''"):
                     s = self.ml_literal_string()
                 else:
                     s = self.literal_string()
                 assert s != NULL
-                *self.target = TOMLValue{kind = TOMLValueKind.String, string = s}
+                return TOMLValue{kind = TOMLValueKind.String, string = s}
             case 't':
                 if not starts_with(self.ptr, "true"):
-                    self.fail(NULL)
-                *self.target = TOMLValue{kind = TOMLValueKind.Boolean, boolean = True}
+                    self.failed = True
+                    return TOMLValue{}
                 self.ptr = &self.ptr[4]
+                return TOMLValue{kind = TOMLValueKind.Boolean, boolean = True}
             case '+' | '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
-                n = self.integer()
-                *self.target = TOMLValue{kind = TOMLValueKind.Integer, integer = n}
+                return TOMLValue{kind = TOMLValueKind.Integer, integer = self.integer()}
             case '[':
-                self.array()
+                return self.array()
             case _:
-                # TODO: support other types of values
-                msg: byte[100]
-                snprintf(msg, sizeof(msg), "unknown value: %.*s", strcspn(self.ptr,"\n") as int, self.ptr)
-                self.fail(msg)
+                self.failed = True
+                return TOMLValue{}
 
     def unsigned_integer_in_base(self, base: int) -> uint64:
         first_digit_value = hexdigit_value(*self.ptr)
-        if first_digit_value != -1 and first_digit_value < base:
-            result: uint64 = first_digit_value as uint64
-            self.ptr++
-            while True:
-                if *self.ptr == '_':
-                    self.ptr++
-                    continue
-                v = hexdigit_value(*self.ptr)
-                if v == -1:
-                    return result
-                if v >= base:
-                    break  # show error message
-                # Don't allow 01, 001 etc
-                if base == 10 and first_digit_value == 0:
-                    self.fail("integer starts with an unnecessary zero")
-                new_result = result*(base as uint64) + (v as uint64)
-                if new_result/base != result:
-                    # it overflowed
-                    return UINT64_MAX
-                result = new_result
-                self.ptr++
+        if first_digit_value == -1 or first_digit_value >= base:
+            self.failed = True
+            return 0
 
-        match base:
-            case 2:
-                self.fail("invalid binary number")
-            case 8:
-                self.fail("invalid octal number")
-            case 10:
-                self.fail("invalid number")
-            case 16:
-                self.fail("invalid hexadecimal number")
-            case _:
-                assert False
+        result: uint64 = first_digit_value as uint64
+        self.ptr++
+        while True:
+            if *self.ptr == '_':
+                self.ptr++
+                continue
+            v = hexdigit_value(*self.ptr)
+            if v == -1:
+                # TODO: ending with _ shouldn't be allowed
+                return result
+            if v >= base:
+                self.failed = True
+                return 0
+            # Don't allow 01, 001 etc
+            if base == 10 and first_digit_value == 0:
+                self.failed = True
+                return 0
+            new_result = result*(base as uint64) + (v as uint64)
+            if new_result/base != result:
+                # it overflowed
+                self.failed = True
+                return 0
+            result = new_result
+            self.ptr++
 
     def integer(self) -> int64:
+        assert not self.failed
+
         sign = 1
         if starts_with(self.ptr, "0b"):
             base = 2
@@ -307,15 +283,11 @@ class TOMLParser:
             self.ptr = &self.ptr[2]
 
         u = self.unsigned_integer_in_base(base)
-
         # Special casing to make sure the most negative int64 value works.
         # Its absolute value doesn't fit in int64.
         # TODO: this needed?
         if sign == -1 and u == (INT64_MAX as uint64) + 1:
             return INT64_MIN
-
-        if u > INT64_MAX:
-            self.fail("integer doesn't fit in a Jou int64")
         return sign*(u as int64)
 
     def basic_string(self) -> byte*:
@@ -337,6 +309,8 @@ class TOMLParser:
             out.append(self.basic_unescaped())
 
     def basic_unescaped(self) -> byte:
+        assert not self.failed
+
         if (
             *self.ptr == '\t'
             or *self.ptr == ' '
@@ -346,41 +320,37 @@ class TOMLParser:
             or *self.ptr >= 128  # TODO: reject invalid UTF-8
         ):
             return *self.ptr++
-
-        message: byte[200]
-        if is_ascii_printable(*self.ptr):
-            sprintf(message, "unexpected byte '%c' (%#02x)", *self.ptr, *self.ptr)
-        else:
-            sprintf(message, "unexpected byte %#02x", *self.ptr)
-        self.fail(message)
+        self.failed = True
+        return '\0'
 
     def read_escaped_char(self, prefix_char: byte, num_hex_digits: int) -> byte[5]:
-        msg: byte[100]
+        assert not self.failed
 
         codepoint: uint32 = 0
         for i = 0; i < num_hex_digits; i++:
             v = hexdigit_value(self.ptr[i])
             if v == -1:
-                snprintf(msg, sizeof(msg), "invalid \\%c escape in string", prefix_char)
-                self.fail(msg)
+                self.failed = True
+                return ""
             codepoint <<= 4
             codepoint |= v as uint32
 
         if codepoint == 0:
-            snprintf(msg, sizeof(msg), "zero bytes (%.*s) are not supported in strings", num_hex_digits + 2, &self.ptr[-2])
-            self.fail(msg)
+            self.failed = True
+            return ""
 
         result = utf8_encode_char(codepoint)
         if result[0] == '\0':
-            snprintf(msg, sizeof(msg), "invalid Unicode codepoint in string: %.*s", num_hex_digits + 2, &self.ptr[-2])
+            self.failed = True
+            return ""
 
         self.ptr = &self.ptr[num_hex_digits]
         return result
 
     def escaped(self, out: List[byte]*) -> None:
+        assert not self.failed
         assert *self.ptr == '\\'
         self.ptr++
-        msg: byte[100]
         match *self.ptr++:
             case '"':
                 out.append('"')
@@ -408,7 +378,7 @@ class TOMLParser:
                 s = self.read_escaped_char('U', 8)
                 out.extend_from_ptr(s, strlen(s))
             case _:
-                self.fail("bad backslash escape in string")
+                self.failed = True
 
     def literal_string(self) -> byte*:
         assert *self.ptr == '\''
@@ -416,6 +386,9 @@ class TOMLParser:
         result = List[byte]{}
         while *self.ptr != '\'':
             result.append(self.literal_char())
+            if self.failed:
+                free(result.ptr)
+                return NULL
         self.ptr++
         result.append('\0')
         return result.ptr
@@ -428,7 +401,8 @@ class TOMLParser:
             or *self.ptr >= 128  # TODO: reject invalid UTF-8
         ):
             return *self.ptr++
-        self.fail("bad character inside string")
+        self.failed = True
+        return '\0'
 
     def ml_basic_string(self) -> byte*:
         assert starts_with(self.ptr, "\"\"\"")
@@ -474,51 +448,62 @@ class TOMLParser:
         result.append('\0')
         return result.ptr
 
-    def table(self) -> None:
-        assert *self.ptr == '['
-        if starts_with(self.ptr, "[["):
-            self.array_table()
-        else:
-            self.std_table()
-
     def std_table(self) -> None:
         assert starts_with(self.ptr, "[")
         self.ptr++
         self.ws()
-        self.target = &self.root
-        self.key()
+
+        value_ptr = self.key()
+        if self.failed:
+            return
+
+        assert value_ptr != NULL
+        match value_ptr.kind:
+            case TOMLValueKind.Unset:
+                # Just created for this
+                *value_ptr = TOMLValue{kind = TOMLValueKind.Table}
+            case TOMLValueKind.Table:
+                # Add more stuff to an existing table
+                # TODO: should only be allowed for automatically created tables
+                pass
+            case _:
+                self.failed = True
+                return
+
         self.ws()
         if *self.ptr != ']':
-            self.fail("missing ]")
+            self.failed = True
+            return
         self.ptr++
 
     def array_table(self) -> None:
         assert False
 
-    def array(self) -> None:
-        array_value = self.target
-        assert array_value != NULL
-        assert array_value.kind == TOMLValueKind.Unset
-        *array_value = TOMLValue{kind = TOMLValueKind.Array}
+    def array(self) -> TOMLValue:
+        assert not self.failed
+        result = List[TOMLValue]{}
 
         assert *self.ptr == '['
         self.ptr++
         self.ws_comment_newline()
         while *self.ptr != ']':
-            array_value.array.append(TOMLValue{})
-            self.target = &array_value.array.end()[-1]
-            self.val()
+            result.append(self.val())
+            if self.failed:
+                for p = result.ptr; p < result.end(); p++:
+                    p.free()
+                free(result.ptr)
+                return TOMLValue{}
             self.ws_comment_newline()
             if *self.ptr == ']':
                 break
             if *self.ptr != ',':
-                self.fail("invalid array")
+                self.failed = True
             self.ptr++
             self.ws_comment_newline()
 
         assert *self.ptr == ']'
         self.ptr++
-        self.target = NULL
+        return TOMLValue{kind = TOMLValueKind.Array, array = result}
 
     def ws_comment_newline(self) -> None:
         while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n' or *self.ptr == '#':
@@ -539,8 +524,7 @@ def print_toml_value(value: TOMLValue, depth: int) -> None:
                 print_toml_value(*p, depth + 1)
         case TOMLValueKind.Table:
             printf("table:\n")
-            for i = 0; i < value.table.items.len; i++:
-                kv = value.table.items.ptr[i]
+            for kv = value.table.ptr; kv < value.table.end(); kv++:
                 printf("%*s", 2*(depth + 1), "")
                 printf("%s = ", kv.key)
                 print_toml_value(kv.value, depth + 1)
@@ -552,27 +536,16 @@ def print_toml_value(value: TOMLValue, depth: int) -> None:
             printf("integer: %lld\n", value.integer)
 
 
-def read_file_to_string(path: byte*) -> byte*:
-    msg: byte[500]
-
-    file = fopen(path, "rb")
-    if file == NULL:
-        snprintf(msg, sizeof(msg), "reading file \"%s\" failed", path)
-        joutest_error(msg)
-
+def read_stdin_to_string() -> byte*:
     bytes_list = List[byte]{}
 
     buf: byte[4096]
     while True:
-        num_read = fread(buf, 1, sizeof buf, file)
+        num_read = fread(buf, 1, sizeof buf, get_stdin())
         if num_read == 0:
-            if ferror(file) != 0:
-                snprintf(msg, sizeof(msg), "reading file \"%s\" failed", path)
-                joutest_error(msg)
+            assert ferror(get_stdin()) == 0
             break
         bytes_list.extend_from_ptr(buf, num_read)
-
-    fclose(file)
 
     lineno = 1
     for p = bytes_list.ptr; p < bytes_list.end(); p++:
@@ -580,8 +553,8 @@ def read_file_to_string(path: byte*) -> byte*:
             case '\n':
                 lineno++
             case '\0':
-                snprintf(msg, sizeof(msg), "file \"%s\" contains a zero byte on line %d\n", path, lineno)
-                joutest_error(msg)
+                fprintf(get_stderr(), "got zero byte from stdin, would be invalid TOML\n")
+                exit(1)
 
     bytes_list.append('\0')
     return bytes_list.ptr
@@ -597,23 +570,33 @@ def fix_newlines(s: byte*) -> None:
     *out = '\0'
 
 
-def parse_toml(path: byte*) -> TOMLTable:
-    file_content = read_file_to_string(path)
-    fix_newlines(file_content)
+def parse_toml(string: byte*) -> TOMLParseResult:
+    assert string != NULL
+    string = strdup(string)
+    assert string != NULL
+    fix_newlines(string)
+
     # TODO: ensure it's valid UTF-8
 
-    parser = TOMLParser{
-        path = path,
-        file_content_start = file_content,
-        ptr = file_content,
-        root = TOMLValue{kind = TOMLValueKind.Table},
-    }
-    parser.target = &parser.root  # the "default section"
-    parser.toml()
-    free(file_content)
+    parser = TOMLParser{ptr = string}
+    parser.current_table = &parser.root_table  # the "default section"
+    parser.parse()
 
-    assert parser.root.kind == TOMLValueKind.Table
-    return parser.root.table
+    if parser.failed:
+        for p = parser.root_table.ptr; p < parser.root_table.end(); p++:
+            p.free()
+        free(parser.root_table.ptr)
+
+        # Figure out the line number where it failed
+        result = TOMLParseResult{failed = True, error_lineno = 1}
+        while parser.ptr --> string:
+            if *parser.ptr == '\n':
+                result.error_lineno++
+    else:
+        result = TOMLParseResult{parsed = parser.root_table}
+
+    free(string)
+    return result
 
 
 # TODO: take value as pointer
@@ -628,7 +611,7 @@ def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
             jb.end_array()
         case TOMLValueKind.Table:
             jb.begin_object()
-            for kv = value.table.items.ptr; kv < value.table.items.end(); kv++:
+            for kv = value.table.ptr; kv < value.table.end(); kv++:
                 jb.key(kv.key)
                 toml_to_json(kv.value, jb)
             jb.end_object()
@@ -651,13 +634,20 @@ def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
 # For testing with the official TOML test suite and experimenting.
 # Reads TOML from stdin and prints JSON compatible with the TOML test suite.
 def main() -> int:
-    toml = parse_toml("/dev/stdin")
+    string = read_stdin_to_string()
+    result = parse_toml(string)
+    free(string)
+
+    if result.failed:
+        fprintf(get_stderr(), "TOML syntax error on line %d\n", result.error_lineno)
+        return 1
 
     jb = JSONBuilder{pretty_print = 4}
-    toml_to_json(TOMLValue{kind = TOMLValueKind.Table, table = toml}, &jb)
-    toml.free()
+    toml_to_json(TOMLValue{kind = TOMLValueKind.Table, table = result.parsed}, &jb)
+    result.free()
 
     json = jb.finish()
     puts(json)
     free(json)
+
     return 0
