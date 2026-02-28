@@ -128,14 +128,6 @@ class JSONBuilder:
             self.output.extend_from_ptr("false", 5)
 
     @public
-    def string(self, s: byte*) -> None:
-        if s == NULL:
-            self.null()
-        else:
-            self.before_a_value()
-            self.add_string_to_output(s, strlen(s))
-
-    @public
     def string_with_len(self, s: byte*, len: intnative) -> None:
         if s == NULL:
             self.null()
@@ -143,6 +135,10 @@ class JSONBuilder:
             assert len >= 0
             self.before_a_value()
             self.add_string_to_output(s, len)
+
+    @public
+    def string(self, s: byte*) -> None:
+        self.string_with_len(s, strlen(s))
 
     # This method is used for .string() and .key() methods.
     def add_string_to_output(self, s: byte*, len: intnative) -> None:
