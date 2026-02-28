@@ -86,7 +86,7 @@ but it's documented here in case you see it in a debugger or an error message.
 
 An assertion like `assert foo` is basically same as:
 
-```python3
+```python
 if not foo:
     _jou_assert_fail("foo", "filename.jou", 123)
 ```
