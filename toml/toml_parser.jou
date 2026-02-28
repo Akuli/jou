@@ -35,13 +35,14 @@ class TOMLTable:
         for i = 0; i < self.items.len; i++:
             kv = self.items.ptr[i]
             free(kv.key)
-            kv.value.free()  # recursive call
+            kv.value.free()
         free(self.items.ptr)
 
 
 enum TOMLValueKind:
     Unset  # must be first, so initializes to this
     Table
+    Array
     String
     Boolean
     Integer
@@ -50,16 +51,21 @@ class TOMLValue:
     kind: TOMLValueKind
     union:
         table: TOMLTable
+        array: List[TOMLValue]
         string: byte*
         boolean: bool
         integer: int64
 
     def free(self) -> None:
         match self.kind:
-            case TOMLValueKind.String:
-                free(self.string)
             case TOMLValueKind.Table:
                 self.table.free()
+            case TOMLValueKind.Array:
+                for i = 0; i < self.array.len; i++:
+                    self.array.ptr[i].free()
+                free(self.array.ptr)
+            case TOMLValueKind.String:
+                free(self.string)
             case TOMLValueKind.Boolean | TOMLValueKind.Integer | TOMLValueKind.Unset:
                 pass
 
@@ -78,6 +84,7 @@ class TOMLParser:
     file_content_start: byte*
     ptr: byte*
     target: TOMLValue*
+    root: TOMLValue
 
     def fail(self, message: byte*) -> noreturn:
         fprintf(get_stderr(), "%s", self.ptr)
@@ -236,9 +243,11 @@ class TOMLParser:
             case '+' | '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
                 n = self.integer()
                 *self.target = TOMLValue{kind = TOMLValueKind.Integer, integer = n}
+            case '[':
+                self.array()
             case _:
-                puts(self.ptr)
                 # TODO: support other types of values
+                fprintf(get_stderr(), "unknown value %.*s\n", strcspn(self.ptr,"\n") as int, self.ptr)
                 assert False
 
     def unsigned_integer_in_base(self, base: int) -> uint64:
@@ -465,13 +474,66 @@ class TOMLParser:
         return result.ptr
 
     def table(self) -> None:
-        assert False  # TODO
+        assert *self.ptr == '['
+        if starts_with(self.ptr, "[["):
+            self.array_table()
+        else:
+            self.std_table()
+
+    def std_table(self) -> None:
+        assert starts_with(self.ptr, "[")
+        self.ptr++
+        self.ws()
+        self.key()
+        self.ws()
+        if *self.ptr != ']':
+            self.fail("missing ]")
+        self.ptr++
+
+    def array_table(self) -> None:
+        assert False
+
+    def array(self) -> None:
+        array_value = self.target
+        assert array_value != NULL
+        assert array_value.kind == TOMLValueKind.Unset
+        *array_value = TOMLValue{kind = TOMLValueKind.Array}
+
+        assert *self.ptr == '['
+        self.ptr++
+        self.ws_comment_newline()
+        while *self.ptr != ']':
+            array_value.array.append(TOMLValue{})
+            self.target = &array_value.array.end()[-1]
+            self.val()
+            self.ws_comment_newline()
+            if *self.ptr == ']':
+                break
+            if *self.ptr != ',':
+                self.fail("invalid array")
+            self.ptr++
+
+        assert *self.ptr == ']'
+        self.ptr++
+        self.target = NULL
+
+    def ws_comment_newline(self) -> None:
+        while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n' or *self.ptr == '#':
+            if *self.ptr == '#':
+                self.comment()
+            else:
+                self.ptr++
 
 
 def print_toml_value(value: TOMLValue, depth: int) -> None:
     match value.kind:
         case TOMLValueKind.Unset:
             puts("UNSET")
+        case TOMLValueKind.Array:
+            printf("array:\n")
+            for p = value.array.ptr; p < value.array.end(); p++:
+                printf("%*s", 2*(depth + 1), "")
+                print_toml_value(*p, depth + 1)
         case TOMLValueKind.Table:
             printf("table:\n")
             for i = 0; i < value.table.items.len; i++:
@@ -543,8 +605,9 @@ def parse_toml(path: byte*) -> TOMLTable:
         path = path,
         file_content_start = file_content,
         ptr = file_content,
-        target = &result_value,
+        root = TOMLValue{kind = TOMLValueKind.Table},
     }
+    parser.target = &parser.root  # the "default section"
     parser.toml()
     free(file_content)
 
@@ -552,10 +615,16 @@ def parse_toml(path: byte*) -> TOMLTable:
     return result_value.table
 
 
+# TODO: take value as pointer
 def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
     match value.kind:
         case TOMLValueKind.Unset:
             jb.string("THIS SHOULD NEVER HAPPEN!!!!")
+        case TOMLValueKind.Array:
+            jb.begin_array()
+            for p = value.array.ptr; p < value.array.end(); p++:
+                toml_to_json(*p, jb)
+            jb.end_array()
         case TOMLValueKind.Table:
             jb.begin_object()
             for kv = value.table.items.ptr; kv < value.table.items.end(); kv++:

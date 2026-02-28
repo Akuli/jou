@@ -12,3 +12,5 @@ jou -o toml_parser toml_parser.jou
 ./toml-test-* test -decoder ./toml_parser -run "valid/string/*" \
     -skip valid/string/unicode-escape \
     -skip valid/string/quoted-unicode
+
+./toml-test-* test -decoder ./toml_parser -run "valid/multibyte"
