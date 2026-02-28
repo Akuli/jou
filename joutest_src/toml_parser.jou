@@ -388,7 +388,20 @@ class TOMLParser:
                         self.fail("invalid \\u escape in string")
                     out.extend_from_ptr(s, strlen(s))
             case 'U':
-                assert False  # TODO: \UHHHHHHHH hex escape
+                U: int[8]
+                for i = 0; i < 4; i++:
+                    U[i] = hexdigit_value(*self.ptr++)
+                    if U[i] == -1:
+                        self.fail("invalid \\U escape in string")
+                codepoint = (((U[0] as uint32) << 28) | (U[1] << 24) | (U[2] << 20) | (U[3] << 16) | (U[4] << 12) | (U[5] << 8) | (U[6] << 4) | U[7]) as uint32
+                if codepoint == 0:
+                    # TODO: does this work as intended at all?
+                    out.append(0)
+                else:
+                    s = utf8_encode_char(codepoint)
+                    if s[0] == '\0':
+                        self.fail("invalid \\U escape in string")
+                    out.extend_from_ptr(s, strlen(s))
             case _:
                 self.fail("bad backslash escape in string")
 
@@ -443,7 +456,7 @@ class TOMLParser:
         if *self.ptr == '\n':
             self.ptr++
         result = List[byte]{}
-        while not starts_with(self.ptr, "'''"):
+        while not (starts_with(self.ptr, "'''") and not starts_with(self.ptr, "''''")):
             if *self.ptr == '\n':
                 self.ptr++
                 result.append('\n')

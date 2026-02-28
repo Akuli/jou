@@ -5,5 +5,4 @@ set -e
 # this is intended only to get you started
 
 jou -o toml_parser toml_parser.jou
-./toml-test-* test -decoder ./toml_parser -run "valid/string/basic-*"
-./toml-test-* test -decoder ./toml_parser -run "valid/string/e*"
+./toml-test-* test -decoder ./toml_parser -run "valid/string/*"
