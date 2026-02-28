@@ -136,10 +136,6 @@ There is a similar problem with [parsing JSON](json-parsing.md#notes-about-numbe
 
 ## Notes about strings
 
-It is currently not possible to add a string containing the zero byte `\0` to JSON.
-This would be easy to implement if needed, so
-please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you need this.
-
 The string given to `JSONBuilder.string()` should be valid UTF-8.
 If it isn't, the resulting JSON will simply contain the given invalid UTF-8.
 
