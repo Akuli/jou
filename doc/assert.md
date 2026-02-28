@@ -2,7 +2,7 @@
 
 The `assert some_condition` statement does nothing if `some_condition` is `True`
 and crashes the program with an error message if `some_condition` is `False`.
-The condition must be a `bool`.
+The condition must be a `bool`, and it is always evaluated once.
 
 For example:
 
@@ -27,6 +27,11 @@ The compiler tells you what to do if you forget it:
 def main() -> int:
     assert 1 + 2 == 3  # Error: you must import "stdlib/assert.jou" to use the assert keyword
 ```
+
+Unlike in many other programming languages, assertions are always enabled,
+and there's no flag that disables all asserts at once.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if you want to disable all asserts in your program when compiling.
 
 
 ## The `jou_assert_fail_handler` global variable
