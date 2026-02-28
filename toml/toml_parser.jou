@@ -342,9 +342,44 @@ class TOMLParser:
             sprintf(message, "unexpected byte %#02x", *self.ptr)
         self.fail(message)
 
+    def read_escaped_char(self) -> byte[5]:
+        assert self.ptr[-1] == '\\'
+        prefix_char = *self.ptr++
+        match prefix_char:
+            case 'x':
+                num_hex_digits = 2
+            case 'u':
+                num_hex_digits = 4
+            case 'U':
+                num_hex_digits = 8
+            case _:
+                assert False
+
+        msg: byte[100]
+
+        codepoint: uint32 = 0
+        for i = 0; i < num_hex_digits; i--:
+            v = hexdigit_value(self.ptr[i])
+            if v == -1:
+                snprintf(msg, sizeof(msg), "invalid \\%c escape in string", prefix_char)
+            codepoint <<= 4
+            codepoint |= v as uint32
+
+        if codepoint == 0:
+            snprintf(msg, sizeof(msg), "zero bytes (%.*s) are not supported in strings", num_hex_digits + 2, &self.ptr[-2])
+            self.fail(msg)
+
+        result = utf8_encode_char(codepoint)
+        if result[0] == '\0':
+            snprintf(msg, sizeof(msg), "invalid Unicode codepoint in string: %.*s", num_hex_digits + 2, &self.ptr[-2])
+
+        self.ptr = &self.ptr[num_hex_digits]
+        return result
+
     def escaped(self, out: List[byte]*) -> None:
         assert *self.ptr == '\\'
         self.ptr++
+        msg: byte[100]
         match *self.ptr++:
             case '"':
                 out.append('"')
@@ -362,46 +397,9 @@ class TOMLParser:
                 out.append('\r')
             case 't':
                 out.append('\t')
-            case 'x':
-                x: int[2]
-                for i = 0; i < 2; i++:
-                    printf("feeding %c\n", *self.ptr)
-                    x[i] = hexdigit_value(*self.ptr++)
-                    printf(" --> %d\n", x[i])
-                    if x[i] == -1:
-                        self.fail("invalid \\x escape in string")
-                printf("x[0]=%d x[1]=%d\n", x[0], x[1])
-                out.append(((x[0] << 4) | x[1]) as byte)
-            case 'u':
-                u: int[4]
-                for i = 0; i < 4; i++:
-                    u[i] = hexdigit_value(*self.ptr++)
-                    if u[i] == -1:
-                        self.fail("invalid \\u escape in string")
-                codepoint = ((u[0] << 12) | (u[1] << 8) | (u[2] << 4) | u[3]) as uint32
-                if codepoint == 0:
-                    # TODO: does this work as intended at all?
-                    out.append(0)
-                else:
-                    s = utf8_encode_char(codepoint)
-                    if s[0] == '\0':
-                        self.fail("invalid \\u escape in string")
-                    out.extend_from_ptr(s, strlen(s))
-            case 'U':
-                U: int[8]
-                for i = 0; i < 4; i++:
-                    U[i] = hexdigit_value(*self.ptr++)
-                    if U[i] == -1:
-                        self.fail("invalid \\U escape in string")
-                codepoint = (((U[0] as uint32) << 28) | (U[1] << 24) | (U[2] << 20) | (U[3] << 16) | (U[4] << 12) | (U[5] << 8) | (U[6] << 4) | U[7]) as uint32
-                if codepoint == 0:
-                    # TODO: does this work as intended at all?
-                    out.append(0)
-                else:
-                    s = utf8_encode_char(codepoint)
-                    if s[0] == '\0':
-                        self.fail("invalid \\U escape in string")
-                    out.extend_from_ptr(s, strlen(s))
+            case 'x' | 'u' | 'U':
+                s = self.read_escaped_char()
+                out.extend_from_ptr(s, strlen(s))
             case _:
                 self.fail("bad backslash escape in string")
 
@@ -431,7 +429,7 @@ class TOMLParser:
         if *self.ptr == '\n':
             self.ptr++
         result = List[byte]{}
-        while not starts_with(self.ptr, "\"\"\""):
+        while not (starts_with(self.ptr, "\"\"\"") and not starts_with(self.ptr, "\"\"\"\"")):
             if *self.ptr == '\n':
                 self.ptr++
                 result.append('\n')
