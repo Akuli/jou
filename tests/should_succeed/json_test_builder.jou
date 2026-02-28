@@ -147,6 +147,17 @@ def test_strings() -> None:
     printf("%d\n", strcmp(json, "\"non-ASCII like €£💸 is valid as is\""))  # Output: 0
     free(json)
 
+    # String that contains zero bytes
+    hello0world = ['h', 'e', 'l', 'l', 'o', '\0', 'w', 'o', 'r', 'l', 'd']
+    jb = JSONBuilder{}
+    jb.begin_array()
+    jb.string_with_len(hello0world, 11)
+    jb.string_with_len("test", 5)
+    jb.end_array()
+    json = jb.finish()
+    puts(json)  # Output: ["hello\u0000world","test\u0000"]
+    free(json)
+
 
 def test_numbers() -> None:
     jb = JSONBuilder{pretty_print = 2}

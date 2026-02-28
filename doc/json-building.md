@@ -82,6 +82,9 @@ To actually build the JSON, use the following methods, where `jb` is a `JSONBuil
 - `jb.string(s: byte*)` adds a string to the JSON.
     If `s` is `NULL`, it instead adds `null` just like `jb.null()` would.
     See also [the notes about strings below](#notes-about-strings).
+- `jb.string_with_len(s: byte*, len: intnative)` is like `jb.string(s)` except that the string may contain zero bytes.
+    Instead of looking for a zero byte to figure out where the string ends,
+    the length in bytes is given as an argument.
 - `jb.begin_array()` and `jb.end_array()` are used to build a JSON array.
     Between calling these methods, you build each item of the array.
     See also [the notes about arrays and objects below](#notes-about-arrays-and-objects).

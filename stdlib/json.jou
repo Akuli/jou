@@ -1,5 +1,6 @@
 import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
@@ -85,7 +86,7 @@ class JSONBuilder:
 
         self.add_comma_if_needed()
         self.new_line()
-        self.add_string_to_output(key)
+        self.add_string_to_output(key, strlen(key))
         self.output.append(':')
         if self.pretty_print != 0:
             self.output.append(' ')
@@ -132,44 +133,54 @@ class JSONBuilder:
             self.null()
         else:
             self.before_a_value()
-            self.add_string_to_output(s)
+            self.add_string_to_output(s, strlen(s))
+
+    @public
+    def string_with_len(self, s: byte*, len: intnative) -> None:
+        if s == NULL:
+            self.null()
+        else:
+            assert len >= 0
+            self.before_a_value()
+            self.add_string_to_output(s, len)
 
     # This method is used for .string() and .key() methods.
-    def add_string_to_output(self, s: byte*) -> None:
+    def add_string_to_output(self, s: byte*, len: intnative) -> None:
         self.output.append('"')
-        while *s != '\0':
-            match *s:
+        i = 0
+        while i < len:
+            match s[i]:
                 case '\n':
                     self.output.extend_from_ptr("\\n", 2)
-                    s++
+                    i++
                 case '\t':
                     self.output.extend_from_ptr("\\t", 2)
-                    s++
+                    i++
                 case '\r':
                     self.output.extend_from_ptr("\\r", 2)
-                    s++
+                    i++
                 case '"' | '\\':
                     self.output.append('\\')
-                    self.output.append(*s++)
+                    self.output.append(s[i++])
                 case _:
-                    if is_ascii_printable(*s):
-                        self.output.append(*s++)
-                    elif *s < 128:
+                    if is_ascii_printable(s[i]):
+                        self.output.append(s[i++])
+                    elif s[i] < 128:
                         # unprintable ASCII character, do these carefully
                         buf: byte[16]
-                        sprintf(buf, "\\u00%02x", *s++)
+                        sprintf(buf, "\\u00%02x", s[i++])
                         self.output.extend_from_ptr(buf, strlen(buf))
-                    elif starts_with(s, "\xe2\x80\xa8"):
+                    elif len-i >= 3 and starts_with(&s[i], "\xe2\x80\xa8"):
                         # Unicode character U+2028, placing it directly into JSON may cause problems
                         self.output.extend_from_ptr("\\u2028", 6)
-                        s = &s[3]
-                    elif starts_with(s, "\xe2\x80\xa9"):
+                        i += 3
+                    elif len-i >= 3 and starts_with(&s[i], "\xe2\x80\xa9"):
                         # Unicode character U+2029, placing it directly into JSON may cause problems
                         self.output.extend_from_ptr("\\u2029", 6)
-                        s = &s[3]
+                        i += 3
                     else:
                         # part of a non-ASCII character in UTF-8, output it as is
-                        self.output.append(*s++)
+                        self.output.append(s[i++])
         self.output.append('"')
 
     @public
