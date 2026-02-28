@@ -121,6 +121,8 @@ class TOMLParser:
                 pass
             case '#':
                 self.comment()
+            case '\0':
+                return
             case _:
                 self.keyval()
                 self.ws()
@@ -532,6 +534,7 @@ def fix_newlines(s: byte*) -> None:
         if starts_with(s, "\r\n"):
             s++
         *out++ = *s++
+    *out = '\0'
 
 
 def parse_toml(path: byte*) -> TOMLTable:
