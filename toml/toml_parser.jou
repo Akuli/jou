@@ -597,10 +597,8 @@ def fix_newlines(s: byte*) -> None:
 def parse_toml(path: byte*) -> TOMLTable:
     file_content = read_file_to_string(path)
     fix_newlines(file_content)
-
     # TODO: ensure it's valid UTF-8
 
-    result_value = TOMLValue{kind = TOMLValueKind.Table}
     parser = TOMLParser{
         path = path,
         file_content_start = file_content,
@@ -611,8 +609,8 @@ def parse_toml(path: byte*) -> TOMLTable:
     parser.toml()
     free(file_content)
 
-    assert result_value.kind == TOMLValueKind.Table
-    return result_value.table
+    assert parser.root.kind == TOMLValueKind.Table
+    return parser.root.table
 
 
 # TODO: take value as pointer
