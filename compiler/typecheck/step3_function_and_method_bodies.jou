@@ -1247,6 +1247,12 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                                 strcat(msg, ", try get_stdout() from \"stdlib/io.jou\"")
                             case "stderr":
                                 strcat(msg, ", try get_stderr() from \"stdlib/io.jou\"")
+                            case "Null" | "null":
+                                strcat(msg, ", try NULL")
+                            case "TRUE" | "true":
+                                strcat(msg, ", try True")
+                            case "FALSE" | "false":
+                                strcat(msg, ", try False")
                         fail(expr.location, msg)
                     name = expr.varname
                     expr.kind = AstExpressionKind.GetFuncPtr
