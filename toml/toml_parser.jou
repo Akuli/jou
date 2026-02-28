@@ -640,7 +640,12 @@ def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
         case TOMLValueKind.Boolean:
             jb.string("TODO boolean")
         case TOMLValueKind.Integer:
-            jb.string("TODO integer")
+            jb.begin_object()
+            jb.key("type").string("integer")
+            s: byte[100]
+            sprintf(s, "%lld", value.integer)
+            jb.key("value").string(s)
+            jb.end_object()
 
 
 # For testing with the official TOML test suite and experimenting.
