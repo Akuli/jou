@@ -163,7 +163,7 @@ def test_strings() -> None:
     # Invalid UTF-8 is passed through as is. The check for U+2028/U+2029
     # shouldn't read beyond the end of the string even in this case.
     #
-    # Using malloc() so any problems can be found with valgrind.
+    # Using malloc() so any problems can hopefully be found with valgrind.
     s: byte* = malloc(2)
     s[0] = '\xe2'
     s[1] = '\x80'
