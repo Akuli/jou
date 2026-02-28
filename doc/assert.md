@@ -101,5 +101,5 @@ you cannot import `stdlib/assert.jou`,
 because your program would have two functions named `_jou_assert_fail()`
 and you would get a linker error.
 You would also get the same problem if you import anything else that imports `stdlib/assert.jou`.
-That's why the `jou_assert_fail_handler` variable [documented above](#the-jou_assert_fail_handler-variable) was added
+That's why the `jou_assert_fail_handler` variable [documented above](#the-jou_assert_fail_handler-global-variable) was added
 as a way to control what `_jou_assert_fail()` does.
