@@ -31,7 +31,7 @@ def main() -> int:
 Unlike in many other programming languages, assertions are always enabled,
 and there's no flag that disables all asserts at once.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
-if you want to disable all asserts in your program when compiling.
+if you need a way to disable all asserts when compiling your program.
 
 
 ## The `jou_assert_fail_handler` global variable
@@ -72,6 +72,7 @@ you can exit the program in your handler function:
 ```python
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/process.jou"
 
 def my_handler(assertion: byte*, path: byte*, lineno: int) -> None:
     printf("oopsie whoopsie\n")
