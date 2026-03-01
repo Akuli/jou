@@ -147,6 +147,33 @@ def test_strings() -> None:
     printf("%d\n", strcmp(json, "\"non-ASCII like €£💸 is valid as is\""))  # Output: 0
     free(json)
 
+    # String that contains zero bytes
+    hello0world = ['h', 'e', 'l', 'l', 'o', '\0', 'w', 'o', 'r', 'l', 'd']
+    corner_case: byte[7] = ['w', 'a', 't', '\0', '\xe2', '\x80', '\xa9']
+    jb = JSONBuilder{}
+    jb.begin_array()
+    jb.string_with_len(hello0world, 11)
+    jb.string_with_len("test", 5)
+    jb.string_with_len(corner_case, 7)
+    jb.end_array()
+    json = jb.finish()
+    puts(json)  # Output: ["hello\u0000world","test\u0000","wat\u0000\u2029"]
+    free(json)
+
+    # Invalid UTF-8 is passed through as is. The check for U+2028/U+2029
+    # shouldn't read beyond the end of the string even in this case.
+    #
+    # Using malloc() so any problems can hopefully be found with valgrind.
+    s: byte* = malloc(2)
+    s[0] = '\xe2'
+    s[1] = '\x80'
+    jb = JSONBuilder{}
+    jb.string_with_len(s, 2)
+    free(s)
+    json = jb.finish()
+    printf("%d\n", strcmp(json, "\"\xe2\x80\""))  # Output: 0
+    free(json)
+
 
 def test_numbers() -> None:
     jb = JSONBuilder{pretty_print = 2}

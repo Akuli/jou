@@ -82,6 +82,9 @@ To actually build the JSON, use the following methods, where `jb` is a `JSONBuil
 - `jb.string(s: byte*)` adds a string to the JSON.
     If `s` is `NULL`, it instead adds `null` just like `jb.null()` would.
     See also [the notes about strings below](#notes-about-strings).
+- `jb.string_with_len(s: byte*, len: intnative)` is like `jb.string(s)` except that the string may contain zero bytes.
+    Instead of looking for a zero byte to figure out where the string ends,
+    the length in bytes is given as an argument.
 - `jb.begin_array()` and `jb.end_array()` are used to build a JSON array.
     Between calling these methods, you build each item of the array.
     See also [the notes about arrays and objects below](#notes-about-arrays-and-objects).
@@ -132,10 +135,6 @@ There is a similar problem with [parsing JSON](json-parsing.md#notes-about-numbe
 
 
 ## Notes about strings
-
-It is currently not possible to add a string containing the zero byte `\0` to JSON.
-This would be easy to implement if needed, so
-please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you need this.
 
 The string given to `JSONBuilder.string()` should be valid UTF-8.
 If it isn't, the resulting JSON will simply contain the given invalid UTF-8.
