@@ -988,7 +988,34 @@ class Parser:
         return result
 
     def parse_expression_with_ternary(self) -> AstExpression:
+        # check at the beginning of the expression
+        if self.tokens.is_operator("?"):
+            q = self.tokens
+            # lookahead code:
+            p = &q[1]
+            while True:
+                if p.kind == TokenKind.Newline or p.kind == TokenKind.Dedent or p.kind == TokenKind.EndOfFile:
+                    break
+                if p.is_operator(":"):
+                    fail(q.location, "unexpected byte '?' (0x3f); Jou uses Python-style ternary expressions: foo if cond else bar")
+                p++
+            fail(q.location, "operator '?' is not supported")
+
         result = self.parse_expression_with_and_or()
+
+        # check again in case '?' appears after parsing the first subexpression
+        if self.tokens.is_operator("?"):
+            q = self.tokens
+            # lookahead code:
+            p = &q[1]
+            while True:
+                if p.kind == TokenKind.Newline or p.kind == TokenKind.Dedent or p.kind == TokenKind.EndOfFile:
+                    break
+                if p.is_operator(":"):
+                    fail(q.location, "unexpected byte '?' (0x3f); Jou uses Python-style ternary expressions: foo if cond else bar")
+                p++
+            fail(q.location, "operator '?' is not supported")
+
         if not self.tokens.is_keyword("if"):
             return result
 
