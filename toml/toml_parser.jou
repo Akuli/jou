@@ -235,6 +235,12 @@ class TOMLParser:
                     return TOMLValue{}
                 self.ptr = &self.ptr[4]
                 return TOMLValue{kind = TOMLValueKind.Boolean, boolean = True}
+            case 'f':
+                if not starts_with(self.ptr, "false"):
+                    self.failed = True
+                    return TOMLValue{}
+                self.ptr = &self.ptr[5]
+                return TOMLValue{kind = TOMLValueKind.Boolean, boolean = False}
             case '+' | '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
                 return TOMLValue{kind = TOMLValueKind.Integer, integer = self.integer()}
             case '[':
@@ -668,7 +674,10 @@ def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
             jb.key("value").string(value.string)
             jb.end_object()
         case TOMLValueKind.Boolean:
-            jb.string("TODO boolean")
+            jb.begin_object()
+            jb.key("type").string("bool")
+            jb.key("value").string("true" if value.boolean else "false")
+            jb.end_object()
         case TOMLValueKind.Integer:
             jb.begin_object()
             jb.key("type").string("integer")
