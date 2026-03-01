@@ -527,7 +527,8 @@ class Tokenizer:
                     token.kind = TokenKind.EndOfFile
                 case (
                     '=' | '<' | '>' | '!' | '.' | ',' | '(' | ')' | '[' | ']' | '{' | '}'
-                    | ';' | ':' | '+' | '-' | '*' | '/' | '&' | '%' | '|' | '^' | '~' | '?'
+                    | ';' | ':' | '+' | '-' | '*' | '/' | '&' | '%' | '|' | '^' | '~'
+                    | '?'  # not an operator in Jou, needed for error message of C-style ternary a?b:c
                 ):
                     token.kind = TokenKind.Operator
                     token.short_string = self.read_operator()

@@ -988,6 +988,8 @@ class Parser:
         return result
 
     def parse_expression_with_ternary(self) -> AstExpression:
+        result = self.parse_expression_with_and_or()
+
         # check at the beginning of the expression
         if self.tokens.is_operator("?"):
             q = self.tokens
@@ -1000,8 +1002,6 @@ class Parser:
                     fail(q.location, "unexpected byte '?' (0x3f); Jou uses Python-style ternary expressions: foo if cond else bar")
                 p++
             fail(q.location, "operator '?' is not supported")
-
-        result = self.parse_expression_with_and_or()
 
         # check again in case '?' appears after parsing the first subexpression
         if self.tokens.is_operator("?"):
@@ -1016,12 +1016,22 @@ class Parser:
                 p++
             fail(q.location, "operator '?' is not supported")
 
+        if_token = self.tokens
+        if if_token.is_operator("?"):
+            self.parse_expression_with_and_or()
+            if self.tokens.is_operator(":"):
+                fail(self.tokens.location, "in Jou, the ternary expression is 'foo if condition else bar' instead of 'condition ? foo : bar'")
+            else:
+                fail(self.tokens.location, "there is no '?' operator in Jou")
+
         if not self.tokens.is_keyword("if"):
+            # not a ternary
             return result
 
         then = result
-        if_token = self.tokens++
+        self.tokens++
         condition = self.parse_expression_with_and_or()
+        
         self.eat_keyword("else", True, "'else'")
         otherwise = self.parse_expression_with_and_or()
         parts = [then, condition, otherwise]
