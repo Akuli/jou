@@ -58,6 +58,39 @@ declare fminf(a: float, b: float) -> float
 @public
 declare fmaxf(a: float, b: float) -> float
 
+
+# A float or double is always one of:
+#   - finite (a plain old number, positive or zero or negative)
+#   - infinite (plus infinity or minus infinity)
+#   - NaN (Not a Number, basically indicates that something went wrong)
+#
+# To create infinite values, you can use e.g. 1.0/0.0 or -1.0/0.0. To create a
+# NaN, you can use 0.0/0.0.
+#
+# The following functions check which kind of number you are dealing with. They
+# work with both floats and doubles. Please create an issue on GitHub if you
+# need float-only versions of these functions for some reason.
+
+# Returns True if x a plain old finite value.
+@public
+@inline
+def isfinite(x: double) -> bool:
+    return x*0 == 0
+
+# Returns True if x is a NaN value.
+@public
+@inline
+def isnan(x: double) -> bool:
+    return x != x
+
+# Returns True if x is plus infinity or minus infinity. To distinguish these,
+# you can use "if x > 0:" or similar.
+@public
+@inline
+def isinf(x: double) -> bool:
+    return not (isfinite(x) or isnan(x))
+
+
 # Returns the absolute value of x: |x|.
 @public
 declare abs(x: int) -> int
