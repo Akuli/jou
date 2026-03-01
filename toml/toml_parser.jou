@@ -28,6 +28,7 @@ enum TOMLValueKind:
     String
     Boolean
     Integer
+    Floating
 
 class TOMLValue:
     kind: TOMLValueKind
@@ -37,6 +38,7 @@ class TOMLValue:
         string: byte*
         boolean: bool
         integer: int64
+        floating: double
 
     def free(self) -> None:
         match self.kind:
@@ -50,7 +52,7 @@ class TOMLValue:
                 free(self.array.ptr)
             case TOMLValueKind.String:
                 free(self.string)
-            case TOMLValueKind.Boolean | TOMLValueKind.Integer | TOMLValueKind.Unset:
+            case TOMLValueKind.Boolean | TOMLValueKind.Integer | TOMLValueKind.Floating | TOMLValueKind.Unset:
                 pass
 
 class TOMLParseResult:
@@ -241,6 +243,18 @@ class TOMLParser:
                     return TOMLValue{}
                 self.ptr = &self.ptr[5]
                 return TOMLValue{kind = TOMLValueKind.Boolean, boolean = False}
+            case 'i':
+                if not starts_with(self.ptr, "inf"):
+                    self.failed = True
+                    return TOMLValue{}
+                self.ptr = &self.ptr[3]
+                return TOMLValue{kind = TOMLValueKind.Floating, floating = 1.0 / 0.0}
+            case 'n':
+                if not starts_with(self.ptr, "nan"):
+                    self.failed = True
+                    return TOMLValue{}
+                self.ptr = &self.ptr[3]
+                return TOMLValue{kind = TOMLValueKind.Floating, floating = 0.0 / 0.0}
             case '+' | '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
                 return TOMLValue{kind = TOMLValueKind.Integer, integer = self.integer()}
             case '[':
@@ -420,7 +434,7 @@ class TOMLParser:
         self.ptr++
         result = List[byte]{}
         while *self.ptr != '\'':
-            result.append(self.literal_char())
+            result.append(self.literal_char(False))
             if self.failed:
                 free(result.ptr)
                 return NULL
@@ -428,7 +442,7 @@ class TOMLParser:
         result.append('\0')
         return result.ptr
 
-    def literal_char(self) -> byte:
+    def literal_char(self, multiline: bool) -> byte:
         if (
             *self.ptr == '\t'
             or (0x20 <= *self.ptr and *self.ptr <= 0x26)
@@ -437,6 +451,10 @@ class TOMLParser:
         ):
             return *self.ptr++
         self.failed = True
+        if *self.ptr == '\n':
+            sprintf(self.error_message, "missing quote%s to end the string", "s" if multiline else "")
+        else:
+            self.error_message = "invalid character in string"
         return '\0'
 
     def ml_basic_string(self) -> byte*:
@@ -478,7 +496,7 @@ class TOMLParser:
                 self.ptr++
                 result.append('\'')
             else:
-                result.append(self.literal_char())
+                result.append(self.literal_char(True))
         self.ptr = &self.ptr[3]
         result.append('\0')
         return result.ptr
@@ -550,29 +568,6 @@ class TOMLParser:
                 self.comment()
             else:
                 self.ptr++
-
-
-def print_toml_value(value: TOMLValue, depth: int) -> None:
-    match value.kind:
-        case TOMLValueKind.Unset:
-            puts("UNSET")
-        case TOMLValueKind.Array:
-            printf("array:\n")
-            for p = value.array.ptr; p < value.array.end(); p++:
-                printf("%*s", 2*(depth + 1), "")
-                print_toml_value(*p, depth + 1)
-        case TOMLValueKind.Table:
-            printf("table:\n")
-            for kv = value.table.ptr; kv < value.table.end(); kv++:
-                printf("%*s", 2*(depth + 1), "")
-                printf("%s = ", kv.key)
-                print_toml_value(kv.value, depth + 1)
-        case TOMLValueKind.String:
-            printf("string: %s\n", value.string)
-        case TOMLValueKind.Boolean:
-            puts("boolean: true" if value.boolean else "boolean: false")
-        case TOMLValueKind.Integer:
-            printf("integer: %lld\n", value.integer)
 
 
 def read_stdin_to_string() -> byte*:
@@ -652,8 +647,14 @@ def parse_toml(string: byte*) -> TOMLParseResult:
     return result
 
 
+# TODO: doesn't belong here
+def is_nan(x: double) -> bool:
+    return x != x
+
+
 # TODO: take value as pointer
 def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
+    s: byte[100]
     match value.kind:
         case TOMLValueKind.Unset:
             jb.string("THIS SHOULD NEVER HAPPEN!!!!")
@@ -681,8 +682,16 @@ def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
         case TOMLValueKind.Integer:
             jb.begin_object()
             jb.key("type").string("integer")
-            s: byte[100]
             sprintf(s, "%lld", value.integer)
+            jb.key("value").string(s)
+            jb.end_object()
+        case TOMLValueKind.Floating:
+            jb.begin_object()
+            jb.key("type").string("float")
+            if is_nan(value.floating):
+                s = "nan"
+            else:
+                sprintf(s, "%g", value.floating)
             jb.key("value").string(s)
             jb.end_object()
 

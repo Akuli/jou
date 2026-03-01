@@ -20,7 +20,6 @@ tests_to_skip=(
     valid/array/nested-inline-table
     valid/array/open-parent-table
     valid/array/table-array-string-backslash
-    valid/comment/after-literal-no-ws
     valid/comment/everywhere
     valid/comment/tricky
     valid/datetime/datetime
