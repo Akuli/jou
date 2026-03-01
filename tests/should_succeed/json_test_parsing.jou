@@ -1,5 +1,6 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/json.jou"
 import "stdlib/str.jou"
@@ -279,10 +280,6 @@ def test_bools_and_null() -> None:
     assert not json_is_null("false")
 
 
-def is_nan(d: double) -> bool:
-    return d != d
-
-
 def test_numbers() -> None:
     valid_numbers = [
         "3.14",             # Output: 3.14
@@ -321,7 +318,7 @@ def test_numbers() -> None:
     inf = json_to_double("Infinity")
     assert inf == inf * 0.1
     assert json_to_double("-Infinity") == -inf
-    assert is_nan(json_to_double("NaN"))
+    assert isnan(json_to_double("NaN"))
 
     invalid_numbers = [
         NULL,
@@ -345,9 +342,9 @@ def test_numbers() -> None:
 
     for i = 0; i < array_count(invalid_numbers); i++:
         assert not json_is_valid(invalid_numbers[i])
-        if not is_nan(json_to_double(invalid_numbers[i])):
+        if not isnan(json_to_double(invalid_numbers[i])):
             puts(invalid_numbers[i])
-        assert is_nan(json_to_double(invalid_numbers[i]))
+        assert isnan(json_to_double(invalid_numbers[i]))
 
     # Sometimes json_to_double() may parse a part of an otherwise invalid number.
     assert not json_is_valid("00")
