@@ -17,11 +17,6 @@ tests_to_skip=(
     invalid/encoding/bad-utf8-in-multiline-literal
     invalid/encoding/bad-utf8-in-string
     invalid/encoding/bad-utf8-in-string-literal
-    invalid/integer/double-us
-    invalid/integer/trailing-us
-    invalid/integer/trailing-us-bin
-    invalid/integer/trailing-us-hex
-    invalid/integer/trailing-us-oct
     invalid/key/duplicate-keys-01
     invalid/key/duplicate-keys-03
     invalid/key/duplicate-keys-04

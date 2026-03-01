@@ -53,16 +53,6 @@ class TOMLValue:
             case TOMLValueKind.Boolean | TOMLValueKind.Integer | TOMLValueKind.Unset:
                 pass
 
-def hexdigit_value(b: byte) -> int:
-    if '0' <= b and b <= '9':
-        return b - '0'
-    if 'A' <= b and b <= 'F':
-        return 10 + (b - 'A')
-    if 'a' <= b and b <= 'f':
-        return 10 + (b - 'a')
-    return -1
-
-
 class TOMLParseResult:
     parsed: List[TOMLKeyVal]
     failed: bool
@@ -74,6 +64,15 @@ class TOMLParseResult:
         free(self.parsed.ptr)
         self.parsed = List[TOMLKeyVal]{}
 
+
+def hexdigit_value(b: byte) -> int:
+    if '0' <= b and b <= '9':
+        return b - '0'
+    if 'A' <= b and b <= 'F':
+        return 10 + (b - 'A')
+    if 'a' <= b and b <= 'f':
+        return 10 + (b - 'a')
+    return -1
 
 def looks_like_end_of_line(s: byte*) -> bool:
     while *s == ' ' or *s == '\t':
@@ -119,7 +118,10 @@ class TOMLParser:
         assert *self.ptr == '#'
         while *self.ptr != '\0' and *self.ptr != '\n':
             b = *self.ptr
-            if not (b >= 128 or b == '\t' or (32 <= b and b <= 126)):
+            # Banned in comments:
+            # - ASCII DEL
+            # - ASCII control characters other than tab
+            if b == 127 or (b < 32 and b != '\t'):
                 self.failed = True
                 return
             self.ptr++
@@ -232,40 +234,48 @@ class TOMLParser:
                 return TOMLValue{}
 
     def unsigned_integer_in_base(self, base: int) -> uint64:
-        first_digit_value = hexdigit_value(*self.ptr)
-        if first_digit_value == -1 or first_digit_value >= base:
+        assert not self.failed
+        len = strspn(self.ptr, "0123456789ABCDEFabcdef_")
+
+        if (
+            # Check for various bad cases...
+            len == 0  # no number
+            or *self.ptr == '_'  # starts with underscore like 0x_123
+            or self.ptr[len-1] == '_'  # ends with underscore like 0x123_
+            or (base == 10 and len >= 2 and *self.ptr == '0')  # extra zeros like 0123
+        ):
             self.failed = True
             return 0
+        for i = 0; i+1 < len; i++:
+            if self.ptr[i] == '_' and self.ptr[i+1] == '_':
+                self.failed = True
+                return 0
 
-        result: uint64 = first_digit_value as uint64
-        self.ptr++
-        while True:
-            if *self.ptr == '_':
-                self.ptr++
+        result: uint64 = 0
+        for i = 0; i < len; i++:
+            if self.ptr[i] == '_':
                 continue
-            v = hexdigit_value(*self.ptr)
-            if v == -1:
-                # TODO: ending with _ shouldn't be allowed
-                return result
-            if v >= base:
+
+            v = hexdigit_value(self.ptr[i])
+            if v == -1 or v >= base:
                 self.failed = True
                 return 0
-            # Don't allow 01, 001 etc
-            if base == 10 and first_digit_value == 0:
-                self.failed = True
-                return 0
+
             new_result = result*(base as uint64) + (v as uint64)
             if new_result/base != result:
                 # it overflowed
                 self.failed = True
                 return 0
             result = new_result
-            self.ptr++
+
+        self.ptr = &self.ptr[len]
+        return result
 
     def integer(self) -> int64:
         assert not self.failed
 
         sign = 1
+        max_abs = INT64_MAX as uint64
         if starts_with(self.ptr, "0b"):
             base = 2
         elif starts_with(self.ptr, "0o"):
@@ -277,6 +287,7 @@ class TOMLParser:
             # Only base 10 numbers can be negative in TOML!
             if *self.ptr == '-':
                 sign = -1
+                max_abs++  # Support the most negative 64-bit integer
             if *self.ptr == '+' or *self.ptr == '-':
                 self.ptr++
 
@@ -284,11 +295,8 @@ class TOMLParser:
             self.ptr = &self.ptr[2]
 
         u = self.unsigned_integer_in_base(base)
-        # Special casing to make sure the most negative int64 value works.
-        # Its absolute value doesn't fit in int64.
-        # TODO: this needed?
-        if sign == -1 and u == (INT64_MAX as uint64) + 1:
-            return INT64_MIN
+        if u > max_abs:
+            self.failed = True
         return sign*(u as int64)
 
     def basic_string(self) -> byte*:
