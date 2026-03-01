@@ -573,6 +573,17 @@ def read_stdin_to_string() -> byte*:
     return bytes_list.ptr
 
 
+# Returns -1 if valid, line number if invalid
+def validate_utf8(string: byte*) -> int:
+    lineno = 1
+    while *string != '\0':
+        if *string == '\n':
+            lineno++
+        if utf8_decode_char(&string) == -1:
+            return lineno
+    return -1
+
+
 # Replaces \r\n with \n in-place
 def fix_newlines(s: byte*) -> None:
     out = s
@@ -585,11 +596,14 @@ def fix_newlines(s: byte*) -> None:
 
 def parse_toml(string: byte*) -> TOMLParseResult:
     assert string != NULL
+
+    utf8_error_lineno = validate_utf8(string)
+    if utf8_error_lineno != -1:
+        return TOMLParseResult{failed = True, error_lineno = utf8_error_lineno}
+
     string = strdup(string)
     assert string != NULL
     fix_newlines(string)
-
-    # TODO: ensure it's valid UTF-8
 
     parser = TOMLParser{ptr = string}
     parser.current_table = &parser.root_table  # the "default section"

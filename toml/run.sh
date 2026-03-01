@@ -11,12 +11,6 @@ tests_to_skip=(
     valid/spec-example-1-compact    # contains a date
 
     # TODO: Figure out why these fail, fix as appropriate
-    invalid/encoding/bad-codepoint
-    invalid/encoding/bad-utf8-in-comment
-    invalid/encoding/bad-utf8-in-multiline
-    invalid/encoding/bad-utf8-in-multiline-literal
-    invalid/encoding/bad-utf8-in-string
-    invalid/encoding/bad-utf8-in-string-literal
     invalid/key/duplicate-keys-01
     invalid/key/duplicate-keys-03
     invalid/key/duplicate-keys-04
