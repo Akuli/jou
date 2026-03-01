@@ -201,3 +201,8 @@ Please don't do that.
 JSON is supposed to work consistently with many different programming languages,
 and most JSON parsers load JSON objects into a data structure
 that does not allow multiple values for the same key, e.g. Python's `dict`.
+
+
+## Credits
+
+Jou's JSON builder was inspired by [tsoding's `jim` library](https://github.com/tsoding/jim).
