@@ -56,6 +56,7 @@ class TOMLValue:
 class TOMLParseResult:
     parsed: List[TOMLKeyVal]
     failed: bool
+    error_message: byte[100]
     error_lineno: int
 
     def free(self) -> None:
@@ -82,6 +83,7 @@ def looks_like_end_of_line(s: byte*) -> bool:
 
 class TOMLParser:
     failed: bool
+    error_message: byte[100]  # This remains empty if making a good error message is difficult/impossible
     ptr: byte*
     root_table: List[TOMLKeyVal]
     current_table: List[TOMLKeyVal]*
@@ -123,13 +125,18 @@ class TOMLParser:
             # - ASCII control characters other than tab
             if b == 127 or (b < 32 and b != '\t'):
                 self.failed = True
+                self.error_message = "invalid character in comment"
                 return
             self.ptr++
 
     def keyval(self) -> None:
         value_dest_ptr = self.key()
-        if value_dest_ptr == NULL or value_dest_ptr.kind != TOMLValueKind.Unset:
+        if value_dest_ptr == NULL:
+            assert self.failed
+            return
+        if value_dest_ptr.kind != TOMLValueKind.Unset:
             self.failed = True
+            self.error_message = "duplicate key"
             return
         self.ws()
         if *self.ptr != '=':
@@ -240,36 +247,39 @@ class TOMLParser:
         assert not self.failed
         len = strspn(self.ptr, "0123456789ABCDEFabcdef_")
 
-        if (
-            # Check for various bad cases...
-            len == 0  # no number
-            or *self.ptr == '_'  # starts with underscore like 0x_123
-            or self.ptr[len-1] == '_'  # ends with underscore like 0x123_
-            or (base == 10 and len >= 2 and *self.ptr == '0')  # extra zeros like 0123
-        ):
+        if len == 0:  # no number
             self.failed = True
             return 0
+
+        if *self.ptr == '_':
+            self.failed = True
+            self.error_message = "number cannot start with underscore"
+            return 0
+
+        if self.ptr[len-1] == '_':
+            self.failed = True
+            self.error_message = "number cannot end with underscore"
+            return 0
+
+        if base == 10 and len >= 2 and *self.ptr == '0':
+            self.failed = True
+            self.error_message = "unnecessary zero at the start of a number"
+
         for i = 0; i+1 < len; i++:
             if self.ptr[i] == '_' and self.ptr[i+1] == '_':
                 self.failed = True
+                self.error_message = "consecutive underscores are not allowed in numbers"
                 return 0
 
         result: uint64 = 0
         for i = 0; i < len; i++:
-            if self.ptr[i] == '_':
-                continue
-
-            v = hexdigit_value(self.ptr[i])
-            if v == -1 or v >= base:
-                self.failed = True
-                return 0
-
-            new_result = result*(base as uint64) + (v as uint64)
-            if new_result/base != result:
-                # it overflowed
-                self.failed = True
-                return 0
-            result = new_result
+            if self.ptr[i] != '_':
+                old_result = result
+                new_result = (result*base + hexdigit_value(self.ptr[i])) as uint64
+                if new_result/base != result:
+                    # it overflowed, use the same error message for all out-of-range values
+                    return UINT64_MAX
+                result = new_result
 
         self.ptr = &self.ptr[len]
         return result
@@ -300,6 +310,7 @@ class TOMLParser:
         u = self.unsigned_integer_in_base(base)
         if u > max_abs:
             self.failed = True
+            self.error_message = "integer doesn't fit to int64"
         return sign*(u as int64)
 
     def basic_string(self) -> byte*:
@@ -330,10 +341,11 @@ class TOMLParser:
             or *self.ptr == '!'
             or (*self.ptr >= 0x23 and *self.ptr <= 0x5b)
             or (*self.ptr >= 0x5d and *self.ptr <= 0x7e)
-            or *self.ptr >= 128  # TODO: reject invalid UTF-8
+            or *self.ptr >= 128
         ):
             return *self.ptr++
         self.failed = True
+        self.error_message = "invalid character in string"
         return '\0'
 
     def read_escaped_char(self, prefix_char: byte, num_hex_digits: int) -> byte[5]:
@@ -344,17 +356,20 @@ class TOMLParser:
             v = hexdigit_value(self.ptr[i])
             if v == -1:
                 self.failed = True
+                self.error_message = "invalid escape in string"
                 return ""
             codepoint <<= 4
             codepoint |= v as uint32
 
         if codepoint == 0:
             self.failed = True
+            self.error_message = "sorry, zero bytes in strings are not supported :("
             return ""
 
         result = utf8_encode_char(codepoint)
         if result[0] == '\0':
             self.failed = True
+            self.error_message = "escape in string produced an invalid Unicode character"
             return ""
 
         self.ptr = &self.ptr[num_hex_digits]
@@ -392,6 +407,7 @@ class TOMLParser:
                 out.extend_from_ptr(s, strlen(s))
             case _:
                 self.failed = True
+                self.error_message = "invalid backslash escape in string"
 
     def literal_string(self) -> byte*:
         assert *self.ptr == '\''
@@ -411,7 +427,7 @@ class TOMLParser:
             *self.ptr == '\t'
             or (0x20 <= *self.ptr and *self.ptr <= 0x26)
             or (0x28 <= *self.ptr and *self.ptr <= 0x7e)
-            or *self.ptr >= 128  # TODO: reject invalid UTF-8
+            or *self.ptr >= 128
         ):
             return *self.ptr++
         self.failed = True
@@ -482,6 +498,7 @@ class TOMLParser:
                 pass
             case _:
                 self.failed = True
+                self.error_message = "cannot redefine an existing value as a table"
                 return
 
         self.current_table = &value_ptr.table
@@ -602,7 +619,7 @@ def parse_toml(string: byte*) -> TOMLParseResult:
 
     utf8_error_lineno = validate_utf8(string)
     if utf8_error_lineno != -1:
-        return TOMLParseResult{failed = True, error_lineno = utf8_error_lineno}
+        return TOMLParseResult{failed = True, error_message = "invalid UTF-8", error_lineno = utf8_error_lineno}
 
     string = strdup(string)
     assert string != NULL
@@ -618,7 +635,7 @@ def parse_toml(string: byte*) -> TOMLParseResult:
         free(parser.root_table.ptr)
 
         # Figure out the line number where it failed
-        result = TOMLParseResult{failed = True, error_lineno = 1}
+        result = TOMLParseResult{failed = True, error_message = parser.error_message, error_lineno = 1}
         while parser.ptr --> string:
             if *parser.ptr == '\n':
                 result.error_lineno++
@@ -669,7 +686,10 @@ def main() -> int:
     free(string)
 
     if result.failed:
-        fprintf(get_stderr(), "TOML syntax error on line %d\n", result.error_lineno)
+        fprintf(get_stderr(), "TOML syntax error on line %d", result.error_lineno)
+        if result.error_message[0] != '\0':
+            fprintf(get_stderr(), ": %s", result.error_message)
+        fprintf(get_stderr(), "\n")
         return 1
 
     jb = JSONBuilder{pretty_print = 4}
