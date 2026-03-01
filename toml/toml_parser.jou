@@ -1,4 +1,5 @@
-# TOML spec: https://toml.io/en/v1.1.0
+# TOML spec (english): https://toml.io/en/v1.1.0
+# TOML spec (grammar): https://github.com/toml-lang/toml/blob/1.1.0/toml.abnf
 
 import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
@@ -39,6 +40,40 @@ class TOMLValue:
         boolean: bool
         integer: int64
         floating: double
+
+    def print_without_newline(self) -> None:
+        match self.kind:
+            case TOMLValueKind.Unset:
+                printf("<unset>")
+            case TOMLValueKind.Table:
+                printf("{")
+                for kv = self.table.ptr; kv < self.table.end(); kv++:
+                    if kv > self.table.ptr:
+                        printf(", ")
+                    printf("%s = ", kv.key)
+                    kv.value.print_without_newline()
+                printf("}")
+            case TOMLValueKind.Array:
+                printf("[")
+                for item = self.array.ptr; item < self.array.end(); item++:
+                    if item > self.array.ptr:
+                        printf(", ")
+                    item.print_without_newline()
+                printf("]")
+            case TOMLValueKind.String:
+                # Does not escape properly... but good enough for now
+                printf("\"%s\"", self.string)
+            case TOMLValueKind.Boolean:
+                printf("true" if self.boolean else "false")
+            case TOMLValueKind.Integer:
+                printf("%lld", self.integer)
+            case TOMLValueKind.Floating:
+                # May not contain all digits needed to get the same value!
+                printf("%g", self.floating)
+
+    def print(self) -> None:
+        self.print_without_newline()
+        printf("\n")
 
     def free(self) -> None:
         match self.kind:
@@ -259,6 +294,8 @@ class TOMLParser:
                 return TOMLValue{kind = TOMLValueKind.Integer, integer = self.integer()}
             case '[':
                 return self.array()
+            case '{':
+                return self.inline_table()
             case _:
                 self.failed = True
                 return TOMLValue{}
@@ -534,7 +571,27 @@ class TOMLParser:
         self.ptr++
 
     def array_table(self) -> None:
-        assert False
+        assert starts_with(self.ptr, "[[")
+        self.ptr = &self.ptr[2]
+
+        self.current_table = &self.root_table
+        value_ptr = self.key()
+        if self.failed:
+            return
+
+        if not starts_with(self.ptr, "]]"):
+            self.failed = True
+            return
+
+        assert value_ptr != NULL
+        value_ptr.print()
+        assert False  # TODO
+#
+#        assert value_ptr.kind == TOMLValueKind.Array
+#        value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
+#
+#        self.ptr++
+#        assert False
 
     def array(self) -> TOMLValue:
         assert not self.failed
@@ -551,16 +608,57 @@ class TOMLParser:
                 free(result.ptr)
                 return TOMLValue{}
             self.ws_comment_newline()
-            if *self.ptr == ']':
-                break
-            if *self.ptr != ',':
-                self.failed = True
-            self.ptr++
-            self.ws_comment_newline()
+            match *self.ptr:
+                case ']':
+                    break
+                case ',':
+                    self.ptr++
+                    self.ws_comment_newline()
+                case _:
+                    self.failed = True
+                    return TOMLValue{}
 
         assert *self.ptr == ']'
         self.ptr++
         return TOMLValue{kind = TOMLValueKind.Array, array = result}
+
+    def inline_table(self) -> TOMLValue:
+        assert *self.ptr == '{'
+        self.ptr++
+        self.ws_comment_newline()
+        result = TOMLValue{kind = TOMLValueKind.Table}
+
+        old_current_table = self.current_table
+        self.current_table = &result.table
+
+        while *self.ptr != '}' and not self.failed:
+            self.keyval()
+            if self.failed:
+                printf("keyval failed\n")
+                result.free()
+                self.current_table = old_current_table
+                return TOMLValue{}
+            self.ws_comment_newline()
+            if self.failed:
+                result.free()
+                self.current_table = old_current_table
+                return TOMLValue{}
+            match *self.ptr:
+                case '}':
+                    break
+                case ',':
+                    self.ptr++
+                    self.ws_comment_newline()
+                case _:
+                    self.failed = True
+
+        self.current_table = old_current_table
+        if self.failed:
+            result.free()
+            return TOMLValue{}
+        assert *self.ptr == '}'
+        self.ptr++
+        return result
 
     def ws_comment_newline(self) -> None:
         while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n' or *self.ptr == '#':

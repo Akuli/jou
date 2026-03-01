@@ -16,10 +16,7 @@ tests_to_skip=(
     valid/array/array-subtables
     valid/array/hetergeneous
     valid/array/mixed-int-float
-    valid/array/mixed-string-table
-    valid/array/nested-inline-table
     valid/array/open-parent-table
-    valid/array/table-array-string-backslash
     valid/comment/everywhere
     valid/comment/tricky
     valid/datetime/datetime
@@ -38,37 +35,18 @@ tests_to_skip=(
     valid/float/max-int
     valid/float/underscore
     valid/float/zero
-    valid/inline-table/array-01
-    valid/inline-table/array-02
-    valid/inline-table/array-03
-    valid/inline-table/bool
-    valid/inline-table/empty
-    valid/inline-table/end-in-bool
-    valid/inline-table/inline-table
-    valid/inline-table/key-dotted-01
-    valid/inline-table/key-dotted-02
-    valid/inline-table/key-dotted-03
     valid/inline-table/key-dotted-04
-    valid/inline-table/key-dotted-05
-    valid/inline-table/key-dotted-06
-    valid/inline-table/key-dotted-07
-    valid/inline-table/multiline
-    valid/inline-table/nest
     valid/inline-table/spaces
     valid/key/dotted-03
     valid/key/dotted-04
     valid/key/like-date
     valid/key/quoted-unicode
-    valid/key/start
     valid/spec-1.0.0/array-0
     valid/spec-1.0.0/array-of-tables-0
     valid/spec-1.0.0/array-of-tables-1
-    valid/spec-1.0.0/array-of-tables-2
     valid/spec-1.0.0/float-0
     valid/spec-1.0.0/float-1
     valid/spec-1.0.0/float-2
-    valid/spec-1.0.0/inline-table-0
-    valid/spec-1.0.0/inline-table-2
     valid/spec-1.0.0/local-date-0
     valid/spec-1.0.0/local-date-time-0
     valid/spec-1.0.0/local-time-0
