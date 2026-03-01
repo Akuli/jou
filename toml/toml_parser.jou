@@ -128,6 +128,9 @@ class TOMLParser:
 
     def keyval(self) -> None:
         value_dest_ptr = self.key()
+        if value_dest_ptr == NULL or value_dest_ptr.kind != TOMLValueKind.Unset:
+            self.failed = True
+            return
         self.ws()
         if *self.ptr != '=':
             self.failed = True

@@ -11,14 +11,6 @@ tests_to_skip=(
     valid/spec-example-1-compact    # contains a date
 
     # TODO: Figure out why these fail, fix as appropriate
-    invalid/key/duplicate-keys-01
-    invalid/key/duplicate-keys-03
-    invalid/key/duplicate-keys-04
-    invalid/key/duplicate-keys-05
-    invalid/key/duplicate-keys-06
-    invalid/key/duplicate-keys-07
-    invalid/key/duplicate-keys-08
-    invalid/spec-1.0.0/string-7-0
     invalid/spec-1.0.0/table-9-0
     invalid/spec-1.0.0/table-9-1
     invalid/string/basic-byte-escapes
@@ -30,7 +22,6 @@ tests_to_skip=(
     invalid/table/append-with-dotted-keys-01
     invalid/table/append-with-dotted-keys-02
     invalid/table/append-with-dotted-keys-04
-    invalid/table/append-with-dotted-keys-05
     invalid/table/duplicate-key-01
     invalid/table/duplicate-key-04
     invalid/table/duplicate-key-05
