@@ -18,12 +18,25 @@ def main() -> int:
     printf("%f\n", fmax(1.2, 3.4))  # Output: 3.400000
     printf("%f\n", fmaxf(1.2 as float, 3.4 as float))  # Output: 3.400000
 
-    printf("%d %d %d\n", isfinite(123), isinf(123), isnan(123))  # Output: 1 0 0
-    printf("%d %d %d\n", isfinite(-123), isinf(-123), isnan(-123))  # Output: 1 0 0
-    printf("%d %d %d\n", isfinite(1.0 / 0.0), isinf(1.0 / 0.0), isnan(1.0 / 0.0))  # Output: 0 1 0
-    printf("%d %d %d\n", isfinite(-1.0 / 0.0), isinf(-1.0 / 0.0), isnan(-1.0 / 0.0))  # Output: 0 1 0
-    printf("%d %d %d\n", isfinite(0.0 / 0.0), isinf(0.0 / 0.0), isnan(0.0 / 0.0))  # Output: 0 0 1
-    printf("%d %d %d\n", isfinite(-0.0 / 0.0), isinf(-0.0 / 0.0), isnan(-0.0 / 0.0))  # Output: 0 0 1
+    test_doubles = [123.0, -123.0, 1.0 / 0.0, -1.0 / 0.0, 0.0 / 0.0, -0.0 / 0.0]
+
+    # Output: 1 0 0
+    # Output: 1 0 0
+    # Output: 0 1 0
+    # Output: 0 1 0
+    # Output: 0 0 1
+    # Output: 0 0 1
+    for d = &test_doubles[0]; d < &test_doubles[array_count(test_doubles)]; d++:
+        printf("%d %d %d\n", isfinite(*d), isinf(*d), isnan(*d))
+
+    # Output: 1 0 0
+    # Output: 1 0 0
+    # Output: 0 1 0
+    # Output: 0 1 0
+    # Output: 0 0 1
+    # Output: 0 0 1
+    for d = &test_doubles[0]; d < &test_doubles[array_count(test_doubles)]; d++:
+        printf("%d %d %d\n", isfinite(*d as float), isinf(*d as float), isnan(*d as float))
 
     printf("%d\n", abs(-1)) # Output: 1
     # TODO: Ideally this wouldn't need "as int64"
