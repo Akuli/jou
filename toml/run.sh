@@ -82,30 +82,7 @@ tests_to_skip=(
     invalid/inline-table/overwrite-09
     invalid/inline-table/overwrite-10
     invalid/inline-table/trailing-comma
-    invalid/integer/capital-bin
-    invalid/integer/capital-hex
-    invalid/integer/capital-oct
-    invalid/integer/double-sign-nex
-    invalid/integer/double-sign-plus
     invalid/integer/double-us
-    invalid/integer/incomplete-bin
-    invalid/integer/incomplete-hex
-    invalid/integer/incomplete-oct
-    invalid/integer/invalid-bin
-    invalid/integer/invalid-hex-01
-    invalid/integer/invalid-hex-02
-    invalid/integer/invalid-hex-03
-    invalid/integer/invalid-oct
-    invalid/integer/leading-us
-    invalid/integer/leading-us-bin
-    invalid/integer/leading-us-hex
-    invalid/integer/leading-us-oct
-    invalid/integer/leading-zero-01
-    invalid/integer/leading-zero-02
-    invalid/integer/leading-zero-03
-    invalid/integer/leading-zero-sign-01
-    invalid/integer/leading-zero-sign-02
-    invalid/integer/leading-zero-sign-03
     invalid/key/after-array
     invalid/key/dotted-redefine-table-01
     invalid/key/dotted-redefine-table-02
