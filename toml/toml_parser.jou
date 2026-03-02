@@ -331,11 +331,27 @@ class TOMLParser:
                     *result = TOMLValue{kind = TOMLValueKind.Boolean, boolean = True}
                     return True
 
+            case 'T':
+                if starts_with(self.ptr, "True"):
+                    self.error = "should be true, not True"
+                    return False
+                if starts_with(self.ptr, "TRUE"):
+                    self.error = "should be true, not TRUE"
+                    return False
+
             case 'f':
                 if starts_with(self.ptr, "false"):
                     self.ptr = &self.ptr[5]
                     *result = TOMLValue{kind = TOMLValueKind.Boolean, boolean = False}
                     return True
+
+            case 'F':
+                if starts_with(self.ptr, "False"):
+                    self.error = "should be false, not False"
+                    return False
+                if starts_with(self.ptr, "FALSE"):
+                    self.error = "should be false, not FALSE"
+                    return False
 
             case (
                 '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
