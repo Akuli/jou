@@ -40,21 +40,9 @@ tests_to_skip=(
 
     # Assertion fails (valid)
     valid/array/array-subtables
-    valid/array/open-parent-table
-    valid/inline-table/key-dotted-04
-    valid/key/dotted-04
-    valid/key/like-date
-    valid/spec-1.1.0/common-51
     valid/spec-1.1.0/common-52
-    valid/table/array-empty
-    valid/table/array-empty-name
-    valid/table/array-implicit
-    valid/table/array-implicit-and-explicit-after
-    valid/table/array-many
     valid/table/array-nest
-    valid/table/array-one
     valid/table/array-table-array
-    valid/table/array-within-dotted
 
     # Assertion fails (invalid)
     invalid/array/extend-defined-aot
@@ -68,7 +56,6 @@ tests_to_skip=(
     invalid/key/after-array
     invalid/key/dotted-redefine-table-01
     invalid/key/dotted-redefine-table-02
-    invalid/key/no-eol-04
     invalid/table/append-with-dotted-keys-03
     invalid/table/append-with-dotted-keys-06
     invalid/table/append-with-dotted-keys-07

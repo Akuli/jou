@@ -79,9 +79,11 @@ class TOMLValue:
                 # May not contain all digits needed to get the same value!
                 printf("%g", self.floating)
 
-    def print(self) -> None:
-        self.print_without_newline()
-        printf("\n")
+    if False:
+        # for debugging
+        def print(self) -> None:
+            self.print_without_newline()
+            printf("\n")
 
     def free(self) -> None:
         match self.kind:
@@ -627,24 +629,38 @@ class TOMLParser:
         assert starts_with(self.ptr, "[[")
         self.ptr = &self.ptr[2]
 
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
         self.current_table = &self.root_table
         value_ptr = self.key()
         if value_ptr == NULL:
             return False
 
+        match value_ptr.kind:
+            case TOMLValueKind.Unset:
+                # Just created for this
+                *value_ptr = TOMLValue{kind = TOMLValueKind.Array}
+            case TOMLValueKind.Array:
+                pass
+            case _:
+                self.error = "cannot redefine an existing value as an array"
+                return False
+
+        assert value_ptr.kind == TOMLValueKind.Array
+        value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
+
+        self.current_table = &value_ptr.array.end()[-1].table
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
         if not starts_with(self.ptr, "]]"):
             self.error = "invalid array header"
             return False
+        self.ptr = &self.ptr[2]
 
-        assert value_ptr != NULL
-        value_ptr.print()
-        assert False  # TODO
-#
-#        assert value_ptr.kind == TOMLValueKind.Array
-#        value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
-#
-#        self.ptr++
-#        assert False
+        return True
 
     def parse_inline_array(self, result: TOMLValue*) -> bool:
         assert *self.ptr == '['
