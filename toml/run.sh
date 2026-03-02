@@ -11,14 +11,7 @@ tests_to_skip=(
     valid/array/array
     valid/spec-example-1
     valid/spec-example-1-compact
-
-    # TODO: Figure out why these fail, fix as appropriate
-    valid/array/array-subtables
-    valid/array/hetergeneous
-    valid/array/mixed-int-float
-    valid/array/open-parent-table
     valid/comment/everywhere
-    valid/comment/tricky
     valid/datetime/datetime
     valid/datetime/edge
     valid/datetime/leap-year
@@ -27,6 +20,13 @@ tests_to_skip=(
     valid/datetime/local-time
     valid/datetime/milliseconds
     valid/datetime/timezone
+
+    # TODO: Figure out why these fail, fix as appropriate
+    valid/array/array-subtables
+    valid/array/hetergeneous
+    valid/array/mixed-int-float
+    valid/array/open-parent-table
+    valid/comment/tricky
     valid/example
     valid/float/exponent
     valid/float/float
