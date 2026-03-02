@@ -148,8 +148,8 @@ def looks_like_time(s: byte*) -> bool:
 
 class TOMLParser:
     ptr: byte*
-    root_table: List[TOMLKeyVal]
-    current_table: List[TOMLKeyVal]*
+    root_table: TOMLValue
+    current_table: TOMLValue*
     error: byte*
 
     # Names of many methods are according to this:
@@ -177,7 +177,7 @@ class TOMLParser:
                             self.error = "invalid table header"
                             return False
                 case _:
-                    if not self.keyval():
+                    if not self.keyval(self.current_table):
                         return False
                     if not looks_like_end_of_line(self.ptr):
                         self.error = "invalid syntax"  # probably won't be able to do much better than this...
@@ -193,12 +193,12 @@ class TOMLParser:
             self.ptr++
         return True
 
-    def keyval(self) -> bool:
+    def keyval(self, relative_to: TOMLValue*) -> bool:
         if *self.ptr == '=':
             self.error = "missing key"
             return False
 
-        value_dest_ptr = self.key()
+        value_dest_ptr = self.key(relative_to)
         if value_dest_ptr == NULL:
             return False
 
@@ -233,8 +233,8 @@ class TOMLParser:
     # Not exactly right according to the spec, because this ends with a call to
     # .ws() but a key shouldn't include trailing whitespace. We'll see if that
     # matters, maybe not...
-    def key(self) -> TOMLValue*:
-        value_ptr = self.simple_key(NULL)
+    def key(self, relative_to: TOMLValue*) -> TOMLValue*:
+        value_ptr = self.simple_key(relative_to)
         if value_ptr == NULL:
             return NULL
 
@@ -257,6 +257,8 @@ class TOMLParser:
         return value_ptr
 
     def simple_key(self, parent_value: TOMLValue*) -> TOMLValue*:
+        assert parent_value != NULL
+
         key: byte*
         if *self.ptr == '"' or *self.ptr == '\'':
             key_len: intnative
@@ -279,34 +281,29 @@ class TOMLParser:
         if key == NULL:
             return NULL
 
-        if parent_value == NULL:
-            # The first part of the key (the foo of foo.bar.baz)
-            # TODO: this check doesn't belong here, think about it...
-            target_table = self.current_table
-        else:
-            # Go to a part within an already chosen key
-            match parent_value.kind:
-                case TOMLValueKind.Unset:
-                    # TODO: what exactly should happen here?
-                    parent_value.kind = TOMLValueKind.Table
-                    target_table = &parent_value.table
-                case TOMLValueKind.Table:
-                    # TODO: what exactly should happen here?
-                    target_table = &parent_value.table
-                case TOMLValueKind.Array:
-                    # Refer to the last element. It must be a table.
-                    if parent_value.array.len == 0:
-                        self.error = "cannot refer to last element of empty array"
-                        free(key)
-                        return NULL
-                    if parent_value.array.end()[-1].kind != TOMLValueKind.Table:
-                        self.error = "last element of array is not a table"
-                        free(key)
-                        return NULL
-                    target_table = &parent_value.array.end()[-1].table
-                case _:
-                    # TODO: think of error message
-                    assert False
+        # Go to a part within an already chosen key
+        match parent_value.kind:
+            case TOMLValueKind.Unset:
+                # TODO: what exactly should happen here?
+                parent_value.kind = TOMLValueKind.Table
+                target_table = &parent_value.table
+            case TOMLValueKind.Table:
+                # TODO: what exactly should happen here?
+                target_table = &parent_value.table
+            case TOMLValueKind.Array:
+                # Refer to the last element. It must be a table.
+                if parent_value.array.len == 0:
+                    self.error = "cannot refer to last element of empty array"
+                    free(key)
+                    return NULL
+                if parent_value.array.end()[-1].kind != TOMLValueKind.Table:
+                    self.error = "last element of array is not a table"
+                    free(key)
+                    return NULL
+                target_table = &parent_value.array.end()[-1].table
+            case _:
+                # TODO: think of error message
+                assert False
 
         # Does this key already exists? If it exists, value will go there
         for p = target_table.ptr; p < target_table.end(); p++:
@@ -613,9 +610,7 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        # TODO: I would like to just pass in the root table
-        self.current_table = &self.root_table
-        value_ptr = self.key()
+        value_ptr = self.key(&self.root_table)
         if value_ptr == NULL:
             return False
 
@@ -631,7 +626,7 @@ class TOMLParser:
                 self.error = "cannot redefine an existing value as a table"
                 return False
 
-        self.current_table = &value_ptr.table
+        self.current_table = value_ptr
 
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
@@ -650,8 +645,7 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        self.current_table = &self.root_table
-        value_ptr = self.key()
+        value_ptr = self.key(&self.root_table)
         if value_ptr == NULL:
             return False
 
@@ -668,7 +662,7 @@ class TOMLParser:
         assert value_ptr.kind == TOMLValueKind.Array
         value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
 
-        self.current_table = &value_ptr.array.end()[-1].table
+        self.current_table = &value_ptr.array.end()[-1]
 
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
@@ -727,11 +721,7 @@ class TOMLParser:
         *result = TOMLValue{kind = TOMLValueKind.Table}
 
         while *self.ptr != '}':
-            # TODO: this little dance shouldn't be needed IMO
-            old_current_table = self.current_table
-            self.current_table = &result.table
-            keyval_ok = self.keyval()
-            self.current_table = old_current_table
+            keyval_ok = self.keyval(result)
 
             if not keyval_ok:
                 result.free()
@@ -821,12 +811,12 @@ def parse_toml(string: byte*) -> TOMLParseResult:
     assert string != NULL
     fix_newlines(string)
 
-    parser = TOMLParser{ptr = string}
+    parser = TOMLParser{ptr = string, root_table = TOMLValue{kind = TOMLValueKind.Table}}
     parser.current_table = &parser.root_table  # the "default section"
 
     if parser.parse_the_whole_thing():
         free(string)
-        return TOMLParseResult{parsed = parser.root_table}
+        return TOMLParseResult{parsed = parser.root_table.table}
     else:
         # Figure out the line number where it failed
         lineno = 1
@@ -834,11 +824,8 @@ def parse_toml(string: byte*) -> TOMLParseResult:
             if *parser.ptr == '\n':
                 lineno++
 
-        for p = parser.root_table.ptr; p < parser.root_table.end(); p++:
-            p.free()
-        free(parser.root_table.ptr)
+        parser.root_table.free()
         free(string)
-
         return TOMLParseResult{failed = True, error_message = parser.error, error_lineno = lineno}
 
 
