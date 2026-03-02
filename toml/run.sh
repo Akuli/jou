@@ -18,26 +18,28 @@ tests_to_skip=(
     valid/datetime/local-time
     valid/datetime/milliseconds
     valid/datetime/timezone
+    valid/example
     valid/spec-1.0.0/local-date-0
     valid/spec-1.0.0/local-date-time-0
     valid/spec-1.0.0/local-time-0
     valid/spec-1.0.0/offset-date-time-0
     valid/spec-1.0.0/offset-date-time-1
+    valid/spec-1.0.0/table-7
     valid/spec-example-1
     valid/spec-example-1-compact
+    valid/string/quoted-unicode
+
+    # Contains zero bytes in strings, which are not supported
+    valid/key/quoted-unicode
 
     # TODO: Figure out why these fail, fix as appropriate
     valid/array/array-subtables
     valid/array/open-parent-table
-    valid/example
     valid/inline-table/key-dotted-04
     valid/key/dotted-04
     valid/key/like-date
-    valid/key/quoted-unicode
     valid/spec-1.0.0/array-of-tables-0
     valid/spec-1.0.0/array-of-tables-1
-    valid/spec-1.0.0/table-7
-    valid/string/quoted-unicode
     valid/string/unicode-escape
     valid/table/array-empty
     valid/table/array-empty-name
@@ -53,36 +55,7 @@ tests_to_skip=(
     invalid/array/extending-table
     invalid/array/tables-01
     invalid/array/tables-02
-    invalid/control/rawmulti-del
-    invalid/control/rawmulti-lf
-    invalid/control/rawmulti-null
-    invalid/control/rawmulti-us
-    invalid/control/rawstring-cr
-    invalid/control/rawstring-del
-    invalid/control/rawstring-lf
-    invalid/control/rawstring-null
-    invalid/control/rawstring-us
-    invalid/control/string-bs
-    invalid/control/string-cr
-    invalid/control/string-del
-    invalid/control/string-lf
-    invalid/control/string-null
-    invalid/control/string-us
     invalid/datetime/y10k
-    invalid/encoding/bad-codepoint
-    invalid/encoding/bad-utf8-at-end
-    invalid/encoding/bad-utf8-in-array
-    invalid/encoding/bad-utf8-in-comment
-    invalid/encoding/bad-utf8-in-multiline
-    invalid/encoding/bad-utf8-in-multiline-literal
-    invalid/encoding/bad-utf8-in-string
-    invalid/encoding/bad-utf8-in-string-literal
-    invalid/encoding/bom-not-at-start-01
-    invalid/encoding/bom-not-at-start-02
-    invalid/encoding/ideographic-space
-    invalid/encoding/utf16-bom
-    invalid/encoding/utf16-comment
-    invalid/encoding/utf16-key
     invalid/float/double-dot-01
     invalid/float/double-dot-02
     invalid/float/exp-dot-01
