@@ -172,9 +172,6 @@ def main() -> int:
     return 0
 ```
 
-The purpose of the `assert` is to ensure that the `descriptions` array stays up to date
-when new operations are added.
-
 You can also convert integers to enums,
 but note that the result might not correspond with any member of the enum.
 For example:
