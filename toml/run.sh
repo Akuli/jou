@@ -109,21 +109,7 @@ tests_to_skip=(
     invalid/key/after-array
     invalid/key/dotted-redefine-table-01
     invalid/key/dotted-redefine-table-02
-    invalid/key/no-eol-01
-    invalid/key/no-eol-02
-    invalid/key/no-eol-03
     invalid/key/no-eol-04
-    invalid/key/no-eol-05
-    invalid/key/no-eol-06
-    invalid/key/no-eol-07
-    invalid/key/only-float
-    invalid/key/only-int
-    invalid/key/only-str
-    invalid/key/open-bracket
-    invalid/key/partial-quoted
-    invalid/key/quoted-unclosed-01
-    invalid/key/quoted-unclosed-02
-    invalid/key/single-open-bracket
     invalid/key/space
     invalid/key/special-character
     invalid/key/start-bracket
