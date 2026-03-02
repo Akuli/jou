@@ -24,15 +24,15 @@ tests_to_skip=(
     valid/example
     valid/spec-example-1-compact
     valid/spec-example-1
-    valid/spec-1.1.0/common-44
+    valid/spec-1.1.0/common-27
+    valid/spec-1.1.0/common-28
+    valid/spec-1.1.0/common-29
+    valid/spec-1.1.0/common-30
+    valid/spec-1.1.0/common-31
     valid/spec-1.1.0/common-32
     valid/spec-1.1.0/common-33
     valid/spec-1.1.0/common-34
-    valid/spec-1.1.0/common-31
-    valid/spec-1.1.0/common-30
-    valid/spec-1.1.0/common-29
-    valid/spec-1.1.0/common-28
-    valid/spec-1.1.0/common-27
+    valid/spec-1.1.0/common-44
 
     # Zero byte in key. We support zero bytes in string values, but not in keys
     # given as strings.
@@ -42,25 +42,15 @@ tests_to_skip=(
     invalid/array/extend-defined-aot
     invalid/array/extending-table
     invalid/array/tables-01
-    invalid/array/tables-02
     invalid/inline-table/duplicate-key-04
-    invalid/inline-table/overwrite-04
     invalid/inline-table/overwrite-06
     invalid/inline-table/overwrite-07
-    invalid/key/after-array
     invalid/key/dotted-redefine-table-01
     invalid/key/dotted-redefine-table-02
     invalid/table/append-with-dotted-keys-03
     invalid/table/append-with-dotted-keys-06
     invalid/table/append-with-dotted-keys-07
-    invalid/table/array-implicit
-    invalid/table/duplicate-key-03
-    invalid/table/duplicate-key-06
-    invalid/table/duplicate-key-07
-    invalid/table/duplicate-key-08
     invalid/table/duplicate-key-10
-    invalid/table/overwrite-array-in-parent
-    invalid/table/overwrite-bool-with-array
     invalid/table/overwrite-with-deep-table
 
     # toml-test says: Expected an error, but no error was reported.
@@ -77,6 +67,7 @@ tests_to_skip=(
     invalid/table/duplicate-key-01
     invalid/table/duplicate-key-04
     invalid/table/duplicate-key-05
+    invalid/table/duplicate-key-08
     invalid/table/duplicate-key-09
     invalid/table/redefine-02
     invalid/table/redefine-03

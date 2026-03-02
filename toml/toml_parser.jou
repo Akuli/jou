@@ -894,9 +894,20 @@ def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
             jb.end_object()
 
 
+# Test runner expects exit status 1 for failing tests, so let's use something
+# else for failing asserts.
+def exit2_assert_handler(assertion: byte*, path: byte*, lineno: int) -> None:
+    # Do what stdlib/assert.jou does but with exit status 2 instead of 1
+    fflush(get_stdout())
+    fprintf(get_stderr(), "Assertion '%s' failed in file \"%s\", line %d.\n", assertion, path, lineno)
+    exit(2)
+
+
 # For testing with the official TOML test suite and experimenting.
 # Reads TOML from stdin and prints JSON compatible with the TOML test suite.
 def main() -> int:
+    jou_assert_fail_handler = exit2_assert_handler
+
     string = read_stdin_to_string()
     result = parse_toml(string)
     free(string)
