@@ -25,14 +25,12 @@ tests_to_skip=(
     valid/array/array-subtables
     valid/array/open-parent-table
     valid/example
-    valid/float/inf-and-nan
     valid/inline-table/key-dotted-04
     valid/key/dotted-04
     valid/key/like-date
     valid/key/quoted-unicode
     valid/spec-1.0.0/array-of-tables-0
     valid/spec-1.0.0/array-of-tables-1
-    valid/spec-1.0.0/float-2
     valid/spec-1.0.0/local-date-0
     valid/spec-1.0.0/local-date-time-0
     valid/spec-1.0.0/local-time-0

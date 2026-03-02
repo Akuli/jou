@@ -284,19 +284,11 @@ class TOMLParser:
                     *result = TOMLValue{kind = TOMLValueKind.Boolean, boolean = False}
                     return True
 
-            case 'i':
-                if starts_with(self.ptr, "inf"):
-                    self.ptr = &self.ptr[3]
-                    *result = TOMLValue{kind = TOMLValueKind.Floating, floating = 1.0 / 0.0}
-                    return True
-
-            case 'n':
-                if starts_with(self.ptr, "nan"):
-                    self.ptr = &self.ptr[3]
-                    *result = TOMLValue{kind = TOMLValueKind.Floating, floating = 0.0 / 0.0}
-                    return True
-
-            case '+' | '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
+            case (
+                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+                | '+' | '-'
+                | 'i' | 'n'  # inf and nan
+            ):
                 return self.parse_number(result)
             case '[':
                 return self.parse_inline_array(result)
@@ -331,6 +323,16 @@ class TOMLParser:
 
         if base != 10:
             self.ptr = &self.ptr[2]
+
+        if base == 10 and starts_with(self.ptr, "inf"):
+            self.ptr = &self.ptr[3]
+            *result = TOMLValue{kind = TOMLValueKind.Floating, floating = sign * (1.0 / 0.0)}
+            return True
+
+        if base == 10 and starts_with(self.ptr, "nan"):
+            self.ptr = &self.ptr[3]
+            *result = TOMLValue{kind = TOMLValueKind.Floating, floating = sign * (0.0 / 0.0)}
+            return True
 
         # We validate the matched digits below, but we can't always search for
         # A-F and a-f because floats can contain E and e.
