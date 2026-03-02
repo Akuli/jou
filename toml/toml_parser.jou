@@ -393,9 +393,12 @@ class TOMLParser:
             self.error = "multiline strings are not allowed here"
             return NULL
 
-        self.ptr = &self.ptr[3 if multiline else 1]
-        if multiline and *self.ptr == '\n':
+        self.ptr++
+        if multiline:
             self.ptr++
+            self.ptr++
+            if *self.ptr == '\n':
+                self.ptr++
 
         result = List[byte]{}
         while (
