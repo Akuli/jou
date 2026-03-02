@@ -404,7 +404,7 @@ class TOMLParser:
         while (
             *self.ptr != quote
             or (multiline and not starts_with(self.ptr, quote3))
-            or (multiline and starts_with(self.ptr, quote4))
+            or (multiline and starts_with(self.ptr, quote4))  # we should eat the first quote
         ):
             if *self.ptr == '\0' or (*self.ptr == '\n' and not multiline):
                 self.error = "missing quotes to end the string" if multiline else "missing quote to end the string"
