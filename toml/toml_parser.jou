@@ -493,7 +493,8 @@ class TOMLParser:
         assert quote == '"' or quote == '\''
 
         quote3 = [quote, quote, quote, '\0']
-        quote4 = [quote, quote, quote, quote, '\0']  # in TOML, '''foo'''' is same as "foo'"
+        quote4 = [quote, quote, quote, quote, '\0']
+        quote6 = [quote, quote, quote, quote, quote, quote, '\0']
 
         multiline = starts_with(self.ptr, quote3)
         if multiline and not allow_multiline:
@@ -510,8 +511,14 @@ class TOMLParser:
         result = List[byte]{}
         while (
             *self.ptr != quote
+            # Multiline strings are weird:
+            #   """foo""" --> 'foo'
+            #   """foo"""" --> 'foo"'
+            #   """foo""""" --> 'foo""'
+            #   """foo"""""" --> error
+            #   """foo""""""" --> error
             or (multiline and not starts_with(self.ptr, quote3))
-            or (multiline and starts_with(self.ptr, quote4))  # we should eat the first quote
+            or (multiline and starts_with(self.ptr, quote4) and not starts_with(self.ptr, quote6))
         ):
             if *self.ptr == '\0' or (*self.ptr == '\n' and not multiline):
                 self.error = "missing quotes to end the string" if multiline else "missing quote to end the string"

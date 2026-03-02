@@ -96,30 +96,6 @@ tests_to_skip=(
     invalid/string/multiline-lit-no-close-02
     invalid/string/multiline-lit-no-close-03
     invalid/string/multiline-lit-no-close-04
-    invalid/string/multiline-no-close-01
-    invalid/string/multiline-no-close-02
-    invalid/string/multiline-no-close-03
-    invalid/string/multiline-no-close-04
-    invalid/string/multiline-no-close-05
-    invalid/string/multiline-quotes-01
-    invalid/string/no-close-01
-    invalid/string/no-close-02
-    invalid/string/no-close-03
-    invalid/string/no-close-04
-    invalid/string/no-close-05
-    invalid/string/no-close-06
-    invalid/string/no-close-07
-    invalid/string/no-close-08
-    invalid/string/no-close-09
-    invalid/string/no-close-10
-    invalid/string/no-open-01
-    invalid/string/no-open-02
-    invalid/string/no-open-03
-    invalid/string/no-open-04
-    invalid/string/no-open-05
-    invalid/string/no-open-06
-    invalid/string/no-open-07
-    invalid/string/no-open-08
     invalid/string/text-after-string
     invalid/string/wrong-close
     invalid/table/append-with-dotted-keys-01
