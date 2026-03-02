@@ -38,7 +38,7 @@ tests_to_skip=(
     # given as strings.
     valid/key/quoted-unicode
 
-    # Assertion fails (invalid)
+    # Assertion fails
     invalid/array/extend-defined-aot
     invalid/array/extending-table
     invalid/array/tables-01
