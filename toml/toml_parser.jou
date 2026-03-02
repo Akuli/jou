@@ -293,7 +293,6 @@ class TOMLParser:
                 parent_value.kind = TOMLValueKind.Table
                 target_table = parent_value
             case TOMLValueKind.Table:
-                # TODO: what exactly should happen here?
                 target_table = parent_value
             case TOMLValueKind.Array:
                 # Refer to the last element. It must be a table.
@@ -311,9 +310,15 @@ class TOMLParser:
                 #    free(key)
                 #    return NULL
                 target_table = &parent_value.array.end()[-1]
-            case _:
-                # TODO: think of error message
-                assert False
+            case TOMLValueKind.String:
+                self.error = "expected a table, got a string"
+                return NULL
+            case TOMLValueKind.Boolean:
+                self.error = "expected a table, got a boolean"
+                return NULL
+            case TOMLValueKind.Integer | TOMLValueKind.Floating:
+                self.error = "expected a table, got a number"
+                return NULL
 
         assert target_table.kind == TOMLValueKind.Table
         if target_table.table_is_inline:
