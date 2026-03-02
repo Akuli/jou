@@ -471,7 +471,7 @@ class TOMLParser:
         for i = 0; i < num_hex_digits; i++:
             v = hexdigit_value(self.ptr[i])
             if v == -1:
-                self.error = "invalid escape in string"
+                self.error = "invalid backslash escape in string"
                 return False
             codepoint <<= 4
             codepoint |= v as uint32

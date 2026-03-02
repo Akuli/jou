@@ -95,17 +95,7 @@ tests_to_skip=(
     invalid/spec-1.0.0/string-7-0
     invalid/spec-1.0.0/table-9-0
     invalid/spec-1.0.0/table-9-1
-    invalid/string/bad-concat
-    invalid/string/bad-multiline
-    invalid/string/bad-slash-escape
     invalid/string/basic-byte-escapes
-    invalid/string/basic-multiline-out-of-range-unicode-escape-01
-    invalid/string/basic-multiline-out-of-range-unicode-escape-02
-    invalid/string/basic-multiline-quotes
-    invalid/string/basic-multiline-unknown-escape
-    invalid/string/basic-out-of-range-unicode-escape-01
-    invalid/string/basic-out-of-range-unicode-escape-02
-    invalid/string/basic-unknown-escape
     invalid/string/literal-multiline-quotes-01
     invalid/string/literal-multiline-quotes-02
     invalid/string/missing-quotes
