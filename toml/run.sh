@@ -67,33 +67,8 @@ tests_to_skip=(
 
     invalid/array/extend-defined-aot
     invalid/array/extending-table
-    invalid/array/no-close-table-01
-    invalid/array/no-close-table-02
-    invalid/array/no-comma-01
-    invalid/array/no-comma-02
-    invalid/array/no-comma-03
-    invalid/array/only-comma-01
-    invalid/array/only-comma-02
     invalid/array/tables-01
     invalid/array/tables-02
-    invalid/array/text-after-array-entries
-    invalid/array/text-before-array-separator
-    invalid/array/text-in-array
-    invalid/bool/almost-false
-    invalid/bool/almost-false-with-extra
-    invalid/bool/almost-true
-    invalid/bool/almost-true-with-extra
-    invalid/bool/capitalized-false
-    invalid/bool/capitalized-true
-    invalid/bool/just-f
-    invalid/bool/just-t
-    invalid/bool/mixed-case
-    invalid/bool/mixed-case-false
-    invalid/bool/mixed-case-true
-    invalid/bool/starting-same-false
-    invalid/bool/starting-same-true
-    invalid/bool/wrong-case-false
-    invalid/bool/wrong-case-true
     invalid/control/bare-cr
     invalid/control/bare-formfeed
     invalid/control/bare-null
