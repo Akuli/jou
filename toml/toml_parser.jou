@@ -923,12 +923,7 @@ def main() -> int:
     free(string)
 
     if result.failed:
-        fprintf(
-            get_stderr(),
-            "TOML syntax error on line %d: %s\n",
-            result.error_lineno,
-            "(no error message)" if result.error_message[0] == '\0' else result.error_message,
-        )
+        fprintf(get_stderr(), "error on line %d: %s\n", result.error_lineno, result.error_message)
         return 1
 
     jb = JSONBuilder{pretty_print = 4}
