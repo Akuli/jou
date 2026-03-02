@@ -54,33 +54,18 @@ tests_to_skip=(
     invalid/array/tables-01
     invalid/array/tables-02
     invalid/datetime/y10k
-    invalid/inline-table/bad-key-syntax
-    invalid/inline-table/double-comma
-    invalid/inline-table/duplicate-key-01
-    invalid/inline-table/duplicate-key-02
     invalid/inline-table/duplicate-key-03
     invalid/inline-table/duplicate-key-04
-    invalid/inline-table/empty-01
-    invalid/inline-table/empty-02
-    invalid/inline-table/empty-03
     invalid/inline-table/linebreak-01
     invalid/inline-table/linebreak-02
     invalid/inline-table/linebreak-03
     invalid/inline-table/linebreak-04
-    invalid/inline-table/no-close-01
-    invalid/inline-table/no-close-02
-    invalid/inline-table/no-comma-01
-    invalid/inline-table/no-comma-02
-    invalid/inline-table/overwrite-01
     invalid/inline-table/overwrite-02
-    invalid/inline-table/overwrite-03
     invalid/inline-table/overwrite-04
     invalid/inline-table/overwrite-05
     invalid/inline-table/overwrite-06
     invalid/inline-table/overwrite-07
     invalid/inline-table/overwrite-08
-    invalid/inline-table/overwrite-09
-    invalid/inline-table/overwrite-10
     invalid/inline-table/trailing-comma
     invalid/integer/double-us
     invalid/key/after-array
