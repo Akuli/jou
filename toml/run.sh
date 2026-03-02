@@ -95,34 +95,9 @@ tests_to_skip=(
     invalid/spec-1.0.0/string-7-0
     invalid/spec-1.0.0/table-9-0
     invalid/spec-1.0.0/table-9-1
-    invalid/string/bad-byte-escape
     invalid/string/bad-concat
-    invalid/string/bad-escape-01
-    invalid/string/bad-escape-02
-    invalid/string/bad-escape-03
-    invalid/string/bad-escape-04
-    invalid/string/bad-escape-05
-    invalid/string/bad-hex-esc-01
-    invalid/string/bad-hex-esc-02
-    invalid/string/bad-hex-esc-03
-    invalid/string/bad-hex-esc-04
-    invalid/string/bad-hex-esc-05
     invalid/string/bad-multiline
     invalid/string/bad-slash-escape
-    invalid/string/bad-uni-esc-01
-    invalid/string/bad-uni-esc-02
-    invalid/string/bad-uni-esc-03
-    invalid/string/bad-uni-esc-04
-    invalid/string/bad-uni-esc-05
-    invalid/string/bad-uni-esc-06
-    invalid/string/bad-uni-esc-07
-    invalid/string/bad-uni-esc-ml-01
-    invalid/string/bad-uni-esc-ml-02
-    invalid/string/bad-uni-esc-ml-03
-    invalid/string/bad-uni-esc-ml-04
-    invalid/string/bad-uni-esc-ml-05
-    invalid/string/bad-uni-esc-ml-06
-    invalid/string/bad-uni-esc-ml-07
     invalid/string/basic-byte-escapes
     invalid/string/basic-multiline-out-of-range-unicode-escape-01
     invalid/string/basic-multiline-out-of-range-unicode-escape-02
