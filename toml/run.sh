@@ -56,49 +56,6 @@ tests_to_skip=(
     invalid/array/tables-01
     invalid/array/tables-02
     invalid/datetime/y10k
-    invalid/float/double-dot-01
-    invalid/float/double-dot-02
-    invalid/float/exp-dot-01
-    invalid/float/exp-dot-02
-    invalid/float/exp-dot-03
-    invalid/float/exp-double-e-01
-    invalid/float/exp-double-e-02
-    invalid/float/exp-double-us
-    invalid/float/exp-leading-us
-    invalid/float/exp-trailing-us
-    invalid/float/exp-trailing-us-01
-    invalid/float/exp-trailing-us-02
-    invalid/float/inf-capital
-    invalid/float/inf-incomplete-01
-    invalid/float/inf-incomplete-02
-    invalid/float/inf-incomplete-03
-    invalid/float/inf_underscore
-    invalid/float/leading-dot
-    invalid/float/leading-dot-neg
-    invalid/float/leading-dot-plus
-    invalid/float/leading-us
-    invalid/float/leading-zero
-    invalid/float/leading-zero-neg
-    invalid/float/leading-zero-plus
-    invalid/float/nan-capital
-    invalid/float/nan-incomplete-01
-    invalid/float/nan-incomplete-02
-    invalid/float/nan-incomplete-03
-    invalid/float/nan_underscore
-    invalid/float/trailing-dot
-    invalid/float/trailing-dot-01
-    invalid/float/trailing-dot-02
-    invalid/float/trailing-dot-min
-    invalid/float/trailing-dot-plus
-    invalid/float/trailing-exp
-    invalid/float/trailing-exp-dot
-    invalid/float/trailing-exp-minus
-    invalid/float/trailing-exp-plus
-    invalid/float/trailing-us
-    invalid/float/trailing-us-exp-01
-    invalid/float/trailing-us-exp-02
-    invalid/float/us-after-dot
-    invalid/float/us-before-dot
     invalid/inline-table/bad-key-syntax
     invalid/inline-table/double-comma
     invalid/inline-table/duplicate-key-01
