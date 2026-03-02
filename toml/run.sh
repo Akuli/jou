@@ -39,13 +39,8 @@ tests_to_skip=(
     valid/key/quoted-unicode
 
     invalid/array/extend-defined-aot
-    invalid/inline-table/overwrite-06
-    invalid/inline-table/overwrite-07
-    invalid/key/dotted-redefine-table-01
-    invalid/key/dotted-redefine-table-02
     invalid/spec-1.1.0/common-46-0
     invalid/spec-1.1.0/common-46-1
-    invalid/spec-1.1.0/common-49-0
     invalid/table/append-with-dotted-keys-01
     invalid/table/append-with-dotted-keys-02
     invalid/table/append-with-dotted-keys-03
