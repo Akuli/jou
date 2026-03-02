@@ -27,12 +27,14 @@ class TOMLKeyVal:
         self.value.free()
 
 
-class TableInfo:
-    # True if it's inline table like {foo = "bar"}
-    is_inline: bool
+# For inline tables {foo = "bar"} and arrays ["foo", "bar"]
+const FLAG_INLINE: byte = 0b001
 
-    # True if it looks like [foo.bar.baz] on a line of its own
-    is_section: bool
+# For tables when the table looks like [foo.bar.baz] on a line of its own
+const FLAG_SECTION: byte = 0b010
+
+# For tables when the table foo.bar was created just to access foo.bar.baz
+const FLAG_CREATED_IMPLICITLY: byte = 0b100
 
 
 enum TOMLValueKind:
@@ -54,15 +56,10 @@ class TOMLValue:
         integer: int64
         floating: double
 
-    union:
-        # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
-        string_len: intnative
+    flags: uint8
 
-        # For arrays, whether it is an inline array like ["foo","bar"]
-        array_is_inline: bool
-
-        # For tables
-        table_info: TableInfo
+    # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
+    string_len: intnative
 
     def print_without_newline(self) -> None:
         match self.kind:
@@ -331,7 +328,7 @@ class TOMLParser:
                 return NULL
 
         assert target_table.kind == TOMLValueKind.Table
-        if target_table.table_info.is_inline:
+        if target_table.flags & FLAG_INLINE != 0:
             self.error = "inline tables cannot be extended after creating the table"
             free(key)
             return NULL
@@ -344,12 +341,12 @@ class TOMLParser:
 
         # Key not found --> create new table, unless it's the weird special
         # case where that is not allowed
-        if target_table.table_info.is_section and not allow_extending_sections:
+        if (target_table.flags & FLAG_SECTION) != 0 and not allow_extending_sections:
             self.error = "a dotted key of a key-value pair cannot extend a table after the content of the table has been explicitly listed above"
             free(key)
             return NULL
 
-        target_table.table.append(TOMLKeyVal{key = key})
+        target_table.table.append(TOMLKeyVal{key = key, value = TOMLValue{flags = FLAG_CREATED_IMPLICITLY}})
         return &target_table.table.end()[-1].value
 
     def val(self, result: TOMLValue*) -> bool:
@@ -681,8 +678,11 @@ class TOMLParser:
                 self.error = "cannot redefine an existing value as a table"
                 return False
 
-        self.current_table.table_info.is_section = True
-        if value_ptr.table_info.is_section:
+        # We must be set before we check. If a section is repeated with nothing
+        # in between, the check below catches this setting.
+        self.current_table.flags |= FLAG_SECTION
+
+        if value_ptr.flags & FLAG_SECTION != 0:
             self.error = "duplicate table"
             return False
         self.current_table = value_ptr
@@ -721,7 +721,7 @@ class TOMLParser:
                 return False
 
         assert value_ptr.kind == TOMLValueKind.Array
-        if value_ptr.array_is_inline:
+        if value_ptr.flags & FLAG_INLINE != 0:
             self.error = "inline arrays cannot be extended after creating the array"
             return False
 
@@ -775,7 +775,7 @@ class TOMLParser:
         assert *self.ptr == ']'
         self.ptr++
 
-        result.array_is_inline = True
+        result.flags |= FLAG_INLINE
         return True
 
     def parse_inline_table(self, result: TOMLValue*) -> bool:
@@ -811,7 +811,7 @@ class TOMLParser:
         assert *self.ptr == '}'
         self.ptr++
 
-        result.table_info.is_inline = True
+        result.flags |= FLAG_INLINE
         return True
 
     def whitespace_comment_newline(self) -> bool:
