@@ -290,14 +290,10 @@ class TOMLParser:
             case TOMLValueKind.Unset:
                 # TODO: what exactly should happen here?
                 parent_value.kind = TOMLValueKind.Table
-                target_table = &parent_value.table
+                target_table = parent_value
             case TOMLValueKind.Table:
-                if parent_value.table_is_inline:
-                    self.error = "inline tables cannot be extended after creating the table"
-                    free(key)
-                    return NULL
                 # TODO: what exactly should happen here?
-                target_table = &parent_value.table
+                target_table = parent_value
             case TOMLValueKind.Array:
                 # Refer to the last element. It must be a table.
                 if parent_value.array.len == 0:
@@ -308,20 +304,26 @@ class TOMLParser:
                     self.error = "last element of array is not a table"
                     free(key)
                     return NULL
-                target_table = &parent_value.array.end()[-1].table
+                target_table = &parent_value.array.end()[-1]
             case _:
                 # TODO: think of error message
                 assert False
 
+        assert target_table.kind == TOMLValueKind.Table
+        if target_table.table_is_inline:
+            self.error = "inline tables cannot be extended after creating the table"
+            free(key)
+            return NULL
+
         # Does this key already exists? If it exists, value will go there
-        for p = target_table.ptr; p < target_table.end(); p++:
-            if strcmp(p.key, key) == 0:
+        for kv = target_table.table.ptr; kv < target_table.table.end(); kv++:
+            if strcmp(kv.key, key) == 0:
                 free(key)
-                return &p.value
+                return &kv.value
 
         # Key not found --> create new table
-        target_table.append(TOMLKeyVal{key = key})
-        return &target_table.end()[-1].value
+        target_table.table.append(TOMLKeyVal{key = key})
+        return &target_table.table.end()[-1].value
 
     def val(self, result: TOMLValue*) -> bool:
         match *self.ptr:

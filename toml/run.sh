@@ -40,7 +40,6 @@ tests_to_skip=(
 
     # Assertion fails
     invalid/array/extend-defined-aot
-    invalid/array/extending-table
     invalid/array/tables-01
     invalid/inline-table/duplicate-key-04
     invalid/inline-table/overwrite-06
