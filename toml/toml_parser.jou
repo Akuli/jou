@@ -296,6 +296,9 @@ class TOMLParser:
                 return self.parse_inline_array(result)
             case '{':
                 return self.parse_inline_table(result)
+            case '\0':
+                self.error = "got end of TOML instead of a value"
+                return False
             case _:
                 pass
 

@@ -67,16 +67,6 @@ tests_to_skip=(
 
     invalid/array/extend-defined-aot
     invalid/array/extending-table
-    invalid/array/missing-separator-01
-    invalid/array/missing-separator-02
-    invalid/array/no-close-01
-    invalid/array/no-close-02
-    invalid/array/no-close-03
-    invalid/array/no-close-04
-    invalid/array/no-close-05
-    invalid/array/no-close-06
-    invalid/array/no-close-07
-    invalid/array/no-close-08
     invalid/array/no-close-table-01
     invalid/array/no-close-table-02
     invalid/array/no-comma-01
