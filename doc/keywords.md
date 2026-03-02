@@ -459,8 +459,7 @@ def main() -> int:
 Note that unlike in Python,
 you don't need to use `global` inside a function to modify the global variable.
 
-By default, global variables are always initialized to zero memory,
-and it is not possible to specify any other initializing.
+By default, global variables are always initialized to zero memory.
 For example, numbers are initialized to zero, booleans are initialized to `False` and pointers are initialized to `NULL`.
 It is possible to specify a different initial value:
 
