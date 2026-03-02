@@ -20,6 +20,11 @@ tests_to_skip=(
     valid/datetime/local-time
     valid/datetime/milliseconds
     valid/datetime/timezone
+    valid/spec-1.0.0/local-date-0
+    valid/spec-1.0.0/local-date-time-0
+    valid/spec-1.0.0/local-time-0
+    valid/spec-1.0.0/offset-date-time-0
+    valid/spec-1.0.0/offset-date-time-1
 
     # TODO: Figure out why these fail, fix as appropriate
     valid/array/array-subtables
@@ -31,11 +36,6 @@ tests_to_skip=(
     valid/key/quoted-unicode
     valid/spec-1.0.0/array-of-tables-0
     valid/spec-1.0.0/array-of-tables-1
-    valid/spec-1.0.0/local-date-0
-    valid/spec-1.0.0/local-date-time-0
-    valid/spec-1.0.0/local-time-0
-    valid/spec-1.0.0/offset-date-time-0
-    valid/spec-1.0.0/offset-date-time-1
     valid/spec-1.0.0/table-7
     valid/string/quoted-unicode
     valid/string/unicode-escape
