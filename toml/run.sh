@@ -38,7 +38,6 @@ tests_to_skip=(
     # given as strings.
     valid/key/quoted-unicode
 
-    # Assertion fails
     invalid/array/extend-defined-aot
     invalid/array/tables-01
     invalid/inline-table/duplicate-key-04
@@ -46,24 +45,22 @@ tests_to_skip=(
     invalid/inline-table/overwrite-07
     invalid/key/dotted-redefine-table-01
     invalid/key/dotted-redefine-table-02
-    invalid/table/append-with-dotted-keys-03
-    invalid/table/append-with-dotted-keys-06
-    invalid/table/append-with-dotted-keys-07
-    invalid/table/duplicate-key-10
-    invalid/table/overwrite-with-deep-table
-
-    # toml-test says: Expected an error, but no error was reported.
     invalid/spec-1.1.0/common-46-0
     invalid/spec-1.1.0/common-46-1
     invalid/spec-1.1.0/common-49-0
     invalid/table/append-with-dotted-keys-01
     invalid/table/append-with-dotted-keys-02
+    invalid/table/append-with-dotted-keys-03
     invalid/table/append-with-dotted-keys-04
+    invalid/table/append-with-dotted-keys-06
+    invalid/table/append-with-dotted-keys-07
     invalid/table/duplicate-key-01
     invalid/table/duplicate-key-04
     invalid/table/duplicate-key-05
     invalid/table/duplicate-key-08
     invalid/table/duplicate-key-09
+    invalid/table/duplicate-key-10
+    invalid/table/overwrite-with-deep-table
     invalid/table/redefine-02
     invalid/table/redefine-03
     invalid/table/super-twice
