@@ -28,10 +28,8 @@ tests_to_skip=(
     valid/spec-example-1
     valid/spec-example-1-compact
 
-    # Contains zero bytes in strings, which are not supported
+    # Contains zero byte in a key, which is not supported
     valid/key/quoted-unicode
-    valid/string/quoted-unicode
-    valid/string/unicode-escape
 
     # TODO: Figure out why these fail, fix as appropriate
     valid/array/array-subtables

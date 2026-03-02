@@ -3,6 +3,7 @@
 
 import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/json.jou"
 import "stdlib/limits.jou"
@@ -45,6 +46,9 @@ class TOMLValue:
         integer: int64
         floating: double
 
+    # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
+    string_len: intnative
+
     def print_without_newline(self) -> None:
         match self.kind:
             case TOMLValueKind.Unset:
@@ -65,7 +69,7 @@ class TOMLValue:
                     item.print_without_newline()
                 printf("]")
             case TOMLValueKind.String:
-                # Does not escape properly... but good enough for now
+                # Does not escape properly... but good enough for now?
                 printf("\"%s\"", self.string)
             case TOMLValueKind.Boolean:
                 printf("true" if self.boolean else "false")
@@ -245,7 +249,13 @@ class TOMLParser:
     def simple_key(self, parent_value: TOMLValue*) -> TOMLValue*:
         key: byte*
         if *self.ptr == '"' or *self.ptr == '\'':
-            key = self.parse_string(False)
+            key_len: intnative
+            key = self.parse_string(False, &key_len)
+            if key == NULL:
+                return NULL
+            if strlen(key) < key_len:
+                self.error = "sorry, zero bytes in keys are not supported"
+                return NULL
         else:
             n = strspn(self.ptr, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
             if n == 0 or n > INT32_MAX:
@@ -283,10 +293,11 @@ class TOMLParser:
     def val(self, result: TOMLValue*) -> bool:
         match *self.ptr:
             case '"' | '\'':
-                s = self.parse_string(True)
+                s_len: intnative
+                s = self.parse_string(True, &s_len)
                 if s == NULL:
                     return False
-                *result = TOMLValue{kind = TOMLValueKind.String, string = s}
+                *result = TOMLValue{kind = TOMLValueKind.String, string = s, string_len = s_len}
                 return True
 
             case 't':
@@ -462,19 +473,18 @@ class TOMLParser:
             codepoint |= v as uint32
 
         if codepoint == 0:
-            self.error = "sorry, zero bytes in strings are not supported :("
-            return False
+            out.append('\0')
+        else:
+            s = utf8_encode_char(codepoint)
+            if s[0] == '\0':
+                self.error = "escape in string produced an invalid Unicode character"
+                return False
+            out.extend_from_ptr(s, strlen(s))
 
-        s = utf8_encode_char(codepoint)
-        if s[0] == '\0':
-            self.error = "escape in string produced an invalid Unicode character"
-            return False
-
-        out.extend_from_ptr(s, strlen(s))
         self.ptr = &self.ptr[num_hex_digits]
         return True
 
-    def parse_string(self, allow_multiline: bool) -> byte*:
+    def parse_string(self, allow_multiline: bool, result_len: intnative*) -> byte*:
         quote = *self.ptr
         assert quote == '"' or quote == '\''
 
@@ -557,6 +567,7 @@ class TOMLParser:
 
         self.ptr = &self.ptr[3 if multiline else 1]
 
+        *result_len = result.len
         result.append('\0')
         return result.ptr
 
@@ -802,7 +813,7 @@ def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
         case TOMLValueKind.String:
             jb.begin_object()
             jb.key("type").string("string")
-            jb.key("value").string(value.string)
+            jb.key("value").string_with_len(value.string, value.string_len)
             jb.end_object()
         case TOMLValueKind.Boolean:
             jb.begin_object()
