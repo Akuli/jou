@@ -81,13 +81,6 @@ tests_to_skip=(
     invalid/spec-1.0.0/table-9-0
     invalid/spec-1.0.0/table-9-1
     invalid/string/basic-byte-escapes
-    invalid/string/literal-multiline-quotes-01
-    invalid/string/literal-multiline-quotes-02
-    invalid/string/missing-quotes
-    invalid/string/missing-quotes-array
-    invalid/string/missing-quotes-inline-table
-    invalid/string/text-after-string
-    invalid/string/wrong-close
     invalid/table/append-with-dotted-keys-01
     invalid/table/append-with-dotted-keys-02
     invalid/table/append-with-dotted-keys-03
