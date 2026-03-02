@@ -27,6 +27,14 @@ class TOMLKeyVal:
         self.value.free()
 
 
+class ContainerInfo:
+    # True if it's inline table like {foo = "bar"} or inline array like ["foo", "bar"]
+    is_inline: bool
+
+    # True if it looks like [foo.bar.baz] on a line of its own
+    is_section: bool
+
+
 enum TOMLValueKind:
     Unset  # must be first, so initializes to this
     Table
@@ -50,9 +58,8 @@ class TOMLValue:
         # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
         string_len: intnative
 
-        # Used to detect extending tables and arrays afterwards
-        table_is_inline: bool
-        array_is_inline: bool
+        # For tables and arrays
+        container_info: ContainerInfo
 
     def print_without_newline(self) -> None:
         match self.kind:
@@ -203,7 +210,7 @@ class TOMLParser:
             self.error = "missing key"
             return False
 
-        value_dest_ptr = self.key(relative_to)
+        value_dest_ptr = self.key(relative_to, False)
         if value_dest_ptr == NULL:
             return False
 
@@ -238,8 +245,8 @@ class TOMLParser:
     # Not exactly right according to the spec, because this ends with a call to
     # .ws() but a key shouldn't include trailing whitespace. We'll see if that
     # matters, maybe not...
-    def key(self, relative_to: TOMLValue*) -> TOMLValue*:
-        value_ptr = self.simple_key(relative_to)
+    def key(self, relative_to: TOMLValue*, allow_extending_sections: bool) -> TOMLValue*:
+        value_ptr = self.simple_key(relative_to, allow_extending_sections)
         if value_ptr == NULL:
             return NULL
 
@@ -252,7 +259,7 @@ class TOMLParser:
             while *self.ptr == ' ' or *self.ptr == '\t':
                 self.ptr++
 
-            value_ptr = self.simple_key(value_ptr)
+            value_ptr = self.simple_key(value_ptr, allow_extending_sections)
             if value_ptr == NULL:
                 return NULL
 
@@ -261,7 +268,7 @@ class TOMLParser:
 
         return value_ptr
 
-    def simple_key(self, parent_value: TOMLValue*) -> TOMLValue*:
+    def simple_key(self, parent_value: TOMLValue*, allow_extending_sections: bool) -> TOMLValue*:
         assert parent_value != NULL
 
         key: byte*
@@ -321,7 +328,7 @@ class TOMLParser:
                 return NULL
 
         assert target_table.kind == TOMLValueKind.Table
-        if target_table.table_is_inline:
+        if target_table.container_info.is_inline:
             self.error = "inline tables cannot be extended after creating the table"
             free(key)
             return NULL
@@ -332,7 +339,13 @@ class TOMLParser:
                 free(key)
                 return &kv.value
 
-        # Key not found --> create new table
+        # Key not found --> create new table, unless it's the weird special
+        # case where that is not allowed
+        if target_table.container_info.is_section and not allow_extending_sections:
+            self.error = "a dotted key of a key-value pair cannot extend a table after the content of the table has been explicitly listed above"
+            free(key)
+            return NULL
+
         target_table.table.append(TOMLKeyVal{key = key})
         return &target_table.table.end()[-1].value
 
@@ -647,7 +660,7 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        value_ptr = self.key(&self.root_table)
+        value_ptr = self.key(&self.root_table, True)
         if value_ptr == NULL:
             if strcmp(self.error, "invalid key") == 0:
                 self.error = "invalid table header"
@@ -665,6 +678,7 @@ class TOMLParser:
                 self.error = "cannot redefine an existing value as a table"
                 return False
 
+        self.current_table.container_info.is_section = True
         self.current_table = value_ptr
 
         while *self.ptr == ' ' or *self.ptr == '\t':
@@ -684,7 +698,7 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        value_ptr = self.key(&self.root_table)
+        value_ptr = self.key(&self.root_table, True)
         if value_ptr == NULL:
             if strcmp(self.error, "invalid key") == 0:
                 self.error = "invalid array header"
@@ -701,7 +715,7 @@ class TOMLParser:
                 return False
 
         assert value_ptr.kind == TOMLValueKind.Array
-        if value_ptr.array_is_inline:
+        if value_ptr.container_info.is_inline:
             self.error = "inline arrays cannot be extended after creating the array"
             return False
 
@@ -755,7 +769,7 @@ class TOMLParser:
         assert *self.ptr == ']'
         self.ptr++
 
-        result.array_is_inline = True
+        result.container_info.is_inline = True
         return True
 
     def parse_inline_table(self, result: TOMLValue*) -> bool:
@@ -791,7 +805,7 @@ class TOMLParser:
         assert *self.ptr == '}'
         self.ptr++
 
-        result.table_is_inline = True
+        result.container_info.is_inline = True
         return True
 
     def whitespace_comment_newline(self) -> bool:

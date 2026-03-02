@@ -41,12 +41,6 @@ tests_to_skip=(
     invalid/array/extend-defined-aot
     invalid/spec-1.1.0/common-46-0
     invalid/spec-1.1.0/common-46-1
-    invalid/table/append-with-dotted-keys-01
-    invalid/table/append-with-dotted-keys-02
-    invalid/table/append-with-dotted-keys-03
-    invalid/table/append-with-dotted-keys-04
-    invalid/table/append-with-dotted-keys-06
-    invalid/table/append-with-dotted-keys-07
     invalid/table/duplicate-key-01
     invalid/table/duplicate-key-04
     invalid/table/duplicate-key-05
