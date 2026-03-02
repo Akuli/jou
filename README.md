@@ -92,6 +92,7 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
     ```
     Let me know if you use a distro that doesn't have `apt`,
     and you need help with this step.
+    See also the list of supported LLVM/clang versions below.
 2. Download and compile Jou.
     ```
     $ git clone https://github.com/Akuli/jou
@@ -126,8 +127,6 @@ These LLVM/clang versions are supported:
 - LLVM 18 with clang 18
 - LLVM 19 with clang 19
 - LLVM 20 with clang 20
-
-These versions are not covered by automated tests but seem to work anyway:
 - LLVM 21 with clang 21
 
 By default, the `make` command picks the latest available version.
@@ -157,6 +156,7 @@ $ LLVM_CONFIG=llvm-config-15 make
     - `llvm@18`
     - `llvm@19`
     - `llvm@20`
+    - `llvm@21`
 2. Install Python if you don't have it already.
     Any reasonably new version will work.
 3. Download and compile Jou.

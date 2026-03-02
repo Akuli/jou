@@ -501,7 +501,6 @@ BASIC_TYPES = {
 }
 BASIC_TYPES["byte"] = BASIC_TYPES["uint8"]
 BASIC_TYPES["int"] = BASIC_TYPES["int32"]
-BASIC_TYPES["long"] = BASIC_TYPES["int64"]
 
 
 # argtypes passed as tuple to make the caching work
@@ -635,7 +634,6 @@ class Parser:
             "void",
             "noreturn",
             "int",
-            "long",
             "byte",
             "float",
             "double",
