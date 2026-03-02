@@ -86,16 +86,6 @@ tests_to_skip=(
     invalid/string/missing-quotes
     invalid/string/missing-quotes-array
     invalid/string/missing-quotes-inline-table
-    invalid/string/multiline-bad-escape-01
-    invalid/string/multiline-bad-escape-02
-    invalid/string/multiline-bad-escape-03
-    invalid/string/multiline-bad-escape-04
-    invalid/string/multiline-escape-space-01
-    invalid/string/multiline-escape-space-02
-    invalid/string/multiline-lit-no-close-01
-    invalid/string/multiline-lit-no-close-02
-    invalid/string/multiline-lit-no-close-03
-    invalid/string/multiline-lit-no-close-04
     invalid/string/text-after-string
     invalid/string/wrong-close
     invalid/table/append-with-dotted-keys-01
