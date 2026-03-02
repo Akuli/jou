@@ -211,6 +211,10 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
+        if *self.ptr == '\n' or *self.ptr == '\0':
+            self.error = "missing value"
+            return False
+
         val: TOMLValue
         if not self.val(&val):
             return False

@@ -109,7 +109,6 @@ tests_to_skip=(
     invalid/key/after-array
     invalid/key/dotted-redefine-table-01
     invalid/key/dotted-redefine-table-02
-    invalid/key/newline-06
     invalid/key/no-eol-01
     invalid/key/no-eol-02
     invalid/key/no-eol-03
