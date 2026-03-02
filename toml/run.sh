@@ -110,20 +110,6 @@ tests_to_skip=(
     invalid/key/dotted-redefine-table-01
     invalid/key/dotted-redefine-table-02
     invalid/key/no-eol-04
-    invalid/key/space
-    invalid/key/special-character
-    invalid/key/start-bracket
-    invalid/key/start-dot
-    invalid/key/two-equals-01
-    invalid/key/two-equals-02
-    invalid/key/two-equals-03
-    invalid/key/without-value-01
-    invalid/key/without-value-02
-    invalid/key/without-value-03
-    invalid/key/without-value-04
-    invalid/key/without-value-05
-    invalid/key/without-value-06
-    invalid/key/without-value-07
     invalid/spec-1.0.0/inline-table-2-0
     invalid/spec-1.0.0/inline-table-3-0
     invalid/spec-1.0.0/key-value-pair-1
