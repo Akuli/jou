@@ -216,21 +216,17 @@ class TOMLParser:
 
     def simple_key(self, parent_value: TOMLValue*) -> TOMLValue*:
         key: byte*
-        match *self.ptr:
-            case '"':
-                key = self.parse_basic_string(False)
-            case '\'':
-                key = self.parse_literal_string(False)
-            case _:
-                n = strspn(self.ptr, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
-                if n == 0 or n > INT32_MAX:
-                    self.error = "invalid key"
-                    return NULL
-
-                key = NULL
-                asprintf(&key, "%.*s", n as int, self.ptr)
-                assert key != NULL
-                self.ptr = &self.ptr[n]
+        if *self.ptr == '"' or *self.ptr == '\'':
+            key = self.parse_string(False)
+        else:
+            n = strspn(self.ptr, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+            if n == 0 or n > INT32_MAX:
+                self.error = "invalid key"
+                return NULL
+            key = NULL
+            asprintf(&key, "%.*s", n as int, self.ptr)
+            assert key != NULL
+            self.ptr = &self.ptr[n]
 
         if key == NULL:
             return NULL
@@ -258,15 +254,8 @@ class TOMLParser:
 
     def val(self, result: TOMLValue*) -> bool:
         match *self.ptr:
-            case '"':
-                s = self.parse_basic_string(True)
-                if s == NULL:
-                    return False
-                *result = TOMLValue{kind = TOMLValueKind.String, string = s}
-                return True
-
-            case '\'':
-                s = self.parse_literal_string(True)
+            case '"' | '\'':
+                s = self.parse_string(True)
                 if s == NULL:
                     return False
                 *result = TOMLValue{kind = TOMLValueKind.String, string = s}
@@ -369,77 +358,37 @@ class TOMLParser:
         *result = TOMLValue{kind = TOMLValueKind.Integer, integer = sign * unsigned_result}
         return True
 
-    def read_escaped_char(self, prefix_char: byte, num_hex_digits: int) -> byte[5]:
+    def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
         codepoint: uint32 = 0
         for i = 0; i < num_hex_digits; i++:
             v = hexdigit_value(self.ptr[i])
             if v == -1:
                 self.error = "invalid escape in string"
-                return ""
+                return False
             codepoint <<= 4
             codepoint |= v as uint32
 
         if codepoint == 0:
             self.error = "sorry, zero bytes in strings are not supported :("
-            return ""
+            return False
 
-        result = utf8_encode_char(codepoint)
-        if result[0] == '\0':
+        s = utf8_encode_char(codepoint)
+        if s[0] == '\0':
             self.error = "escape in string produced an invalid Unicode character"
-            return ""
+            return False
 
+        out.extend_from_ptr(s, strlen(s))
         self.ptr = &self.ptr[num_hex_digits]
-        return result
+        return True
 
-    def parse_escape_in_string(self, out: List[byte]*) -> bool:
-        assert *self.ptr == '\\'
-        self.ptr++
+    def parse_string(self, allow_multiline: bool) -> byte*:
+        quote = *self.ptr
+        assert quote == '"' or quote == '\''
 
-        match *self.ptr++:
-            case '"':
-                out.append('"')
-                return True
-            case '\\':
-                out.append('\\')
-                return True
-            case 'b':
-                out.append(0x08)  # Jou doesn't have \b
-                return True
-            case 'e':
-                out.append(0x1b)  # Jou doesn't have \e
-                return True
-            case 'f':
-                out.append(0x0c)  # Jou doesn't have \f
-                return True
-            case 'n':
-                out.append('\n')
-                return True
-            case 'r':
-                out.append('\r')
-                return True
-            case 't':
-                out.append('\t')
-                return True
-            case 'x':
-                s = self.read_escaped_char('x', 2)
-                out.extend_from_ptr(s, strlen(s))
-                return s[0] != '\0'
-            case 'u':
-                s = self.read_escaped_char('u', 4)
-                out.extend_from_ptr(s, strlen(s))
-                return s[0] != '\0'
-            case 'U':
-                s = self.read_escaped_char('U', 8)
-                out.extend_from_ptr(s, strlen(s))
-                return s[0] != '\0'
-            case _:
-                self.error = "invalid backslash escape in string"
-                return False
+        quote3 = [quote, quote, quote, '\0']
+        quote4 = [quote, quote, quote, quote, '\0']  # in TOML, '''foo'''' is same as "foo'"
 
-    def parse_basic_string(self, allow_multiline: bool) -> byte*:
-        assert *self.ptr == '"'
-
-        multiline = starts_with(self.ptr, "\"\"\"")
+        multiline = starts_with(self.ptr, quote3)
         if multiline and not allow_multiline:
             self.error = "multiline strings are not allowed here"
             return NULL
@@ -450,57 +399,60 @@ class TOMLParser:
 
         result = List[byte]{}
         while (
-            *self.ptr != '"'
-            or (multiline and not starts_with(self.ptr, "\"\"\""))
-            or (multiline and starts_with(self.ptr, "\"\"\"\""))
+            *self.ptr != quote
+            or (multiline and not starts_with(self.ptr, quote3))
+            or (multiline and starts_with(self.ptr, quote4))
         ):
             if *self.ptr == '\0' or (*self.ptr == '\n' and not multiline):
                 self.error = "missing quotes to end the string" if multiline else "missing quote to end the string"
                 free(result.ptr)
                 return NULL
-            elif multiline and *self.ptr == '\\' and self.ptr[1 + strspn(&self.ptr[1], " \t")] == '\n':
+            elif (
+                quote == '"'
+                and multiline
+                and *self.ptr == '\\'
+                and self.ptr[1 + strspn(&self.ptr[1], " \t")] == '\n'
+            ):
                 # Line continuation backslash causes all whitespace to be
                 # trimmed after the backslash. TOML is weird :)
                 self.ptr++
                 while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n':
                     self.ptr++
-            elif *self.ptr == '\\':
-                if not self.parse_escape_in_string(&result):
-                    free(result.ptr)
-                    return NULL
-            elif *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
-                self.error = "invalid character in string"
-                return NULL
-            else:
-                result.append(*self.ptr++)
-
-        self.ptr = &self.ptr[3 if multiline else 1]
-
-        result.append('\0')
-        return result.ptr
-
-    def parse_literal_string(self, allow_multiline: bool) -> byte*:
-        assert *self.ptr == '\''
-
-        multiline = starts_with(self.ptr, "'''")
-        if multiline and not allow_multiline:
-            self.error = "multiline strings are not allowed here"
-            return NULL
-
-        self.ptr = &self.ptr[3 if multiline else 1]
-        if multiline and *self.ptr == '\n':
-            self.ptr++
-
-        result = List[byte]{}
-        while (
-            *self.ptr != '\''
-            or (multiline and not starts_with(self.ptr, "'''"))
-            or (multiline and starts_with(self.ptr, "''''"))
-        ):
-            if *self.ptr == '\0' or (*self.ptr == '\n' and not multiline):
-                self.error = "missing quotes to end the string" if multiline else "missing quote to end the string"
-                free(result.ptr)
-                return NULL
+            elif quote == '"' and *self.ptr == '\\':
+                self.ptr++
+                match *self.ptr++:
+                    case '"':
+                        result.append('"')
+                    case '\\':
+                        result.append('\\')
+                    case 'b':
+                        result.append(0x08)  # Jou doesn't have \b
+                    case 'e':
+                        result.append(0x1b)  # Jou doesn't have \e
+                    case 'f':
+                        result.append(0x0c)  # Jou doesn't have \f
+                    case 'n':
+                        result.append('\n')
+                    case 'r':
+                        result.append('\r')
+                    case 't':
+                        result.append('\t')
+                    case 'x':
+                        if not self.read_unicode_escape_in_string('x', 2, &result):
+                            free(result.ptr)
+                            return NULL
+                    case 'u':
+                        if not self.read_unicode_escape_in_string('u', 4, &result):
+                            free(result.ptr)
+                            return NULL
+                    case 'U':
+                        if not self.read_unicode_escape_in_string('U', 8, &result):
+                            free(result.ptr)
+                            return NULL
+                    case _:
+                        self.error = "invalid backslash escape in string"
+                        free(result.ptr)
+                        return NULL
             elif *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
                 self.error = "invalid character in string"
                 return NULL
