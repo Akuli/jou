@@ -65,8 +65,6 @@ tests_to_skip=(
     valid/table/array-table-array
     valid/table/array-within-dotted
 
-    invalid/array/double-comma-01
-    invalid/array/double-comma-02
     invalid/array/extend-defined-aot
     invalid/array/extending-table
     invalid/array/missing-separator-01

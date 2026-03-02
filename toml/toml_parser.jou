@@ -184,7 +184,12 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        return self.val(value_dest_ptr)
+        val: TOMLValue
+        if not self.val(&val):
+            return False
+
+        *value_dest_ptr = val
+        return True
 
     # Returns a pointer where the corresponding value should be stored.
     #
@@ -544,6 +549,7 @@ class TOMLParser:
             result.array.append(value)
 
             if not self.whitespace_comment_newline():
+                result.free()
                 return False
 
             match *self.ptr:
@@ -552,9 +558,11 @@ class TOMLParser:
                 case ',':
                     self.ptr++
                     if not self.whitespace_comment_newline():
+                        result.free()
                         return False
                 case _:
                     self.error = "invalid array"
+                    result.free()
                     return False
 
         assert *self.ptr == ']'
