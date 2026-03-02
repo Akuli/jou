@@ -422,8 +422,8 @@ class TOMLParser:
             self.error = "unnecessary zero at the start of a number"
             return False
 
-        for i = 0; i+1 < len; i++:
-            if starts_with(self.ptr, "__"):
+        for i = 0; i < len; i++:
+            if starts_with(&self.ptr[i], "__"):
                 self.error = "consecutive underscores are not allowed in numbers"
                 return False
 

@@ -68,7 +68,6 @@ tests_to_skip=(
     invalid/inline-table/overwrite-02
     invalid/inline-table/overwrite-05
     invalid/inline-table/overwrite-08
-    invalid/integer/double-us
     invalid/spec-1.1.0/common-46-0
     invalid/spec-1.1.0/common-46-1
     invalid/spec-1.1.0/common-49-0
