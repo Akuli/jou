@@ -69,23 +69,6 @@ tests_to_skip=(
     invalid/array/extending-table
     invalid/array/tables-01
     invalid/array/tables-02
-    invalid/control/bare-cr
-    invalid/control/bare-formfeed
-    invalid/control/bare-null
-    invalid/control/bare-vertical-tab
-    invalid/control/comment-cr
-    invalid/control/comment-del
-    invalid/control/comment-ff
-    invalid/control/comment-lf
-    invalid/control/comment-null
-    invalid/control/comment-us
-    invalid/control/multi-del
-    invalid/control/multi-lf
-    invalid/control/multi-null
-    invalid/control/multi-us
-    invalid/control/only-ff
-    invalid/control/only-null
-    invalid/control/only-vt
     invalid/control/rawmulti-del
     invalid/control/rawmulti-lf
     invalid/control/rawmulti-null
