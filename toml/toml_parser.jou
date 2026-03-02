@@ -46,8 +46,12 @@ class TOMLValue:
         integer: int64
         floating: double
 
-    # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
-    string_len: intnative
+    union:
+        # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
+        string_len: intnative
+
+        # Used to detect reassigning tables
+        table_is_inline: bool
 
     def print_without_newline(self) -> None:
         match self.kind:
@@ -288,6 +292,10 @@ class TOMLParser:
                 parent_value.kind = TOMLValueKind.Table
                 target_table = &parent_value.table
             case TOMLValueKind.Table:
+                if parent_value.table_is_inline:
+                    self.error = "inline tables cannot be extended after creating the table"
+                    free(key)
+                    return NULL
                 # TODO: what exactly should happen here?
                 target_table = &parent_value.table
             case TOMLValueKind.Array:
@@ -763,6 +771,8 @@ class TOMLParser:
 
         assert *self.ptr == '}'
         self.ptr++
+
+        result.table_is_inline = True
         return True
 
     def whitespace_comment_newline(self) -> bool:

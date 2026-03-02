@@ -55,7 +55,6 @@ tests_to_skip=(
 
     # toml-test says: Expected an error, but no error was reported.
     invalid/inline-table/duplicate-key-03
-    invalid/inline-table/overwrite-02
     invalid/inline-table/overwrite-05
     invalid/inline-table/overwrite-08
     invalid/spec-1.1.0/common-46-0
