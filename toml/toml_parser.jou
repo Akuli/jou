@@ -220,10 +220,7 @@ class TOMLParser:
             case '"':
                 key = self.parse_basic_string(False)
             case '\'':
-                if starts_with(self.ptr, "'''"):
-                    self.error = "multiline strings are not allowed here"
-                    return NULL
-                key = self.parse_literal_string()
+                key = self.parse_literal_string(False)
             case _:
                 n = strspn(self.ptr, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
                 if n == 0 or n > INT32_MAX:
@@ -269,10 +266,7 @@ class TOMLParser:
                 return True
 
             case '\'':
-                if starts_with(self.ptr, "'''"):
-                    s = self.parse_multiline_literal_string()
-                else:
-                    s = self.parse_literal_string()
+                s = self.parse_literal_string(True)
                 if s == NULL:
                     return False
                 *result = TOMLValue{kind = TOMLValueKind.String, string = s}
@@ -474,7 +468,7 @@ class TOMLParser:
                 if not self.parse_escape_in_string(&result):
                     free(result.ptr)
                     return NULL
-            elif *self.ptr == '\x7f' or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
+            elif *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
                 self.error = "invalid character in string"
                 return NULL
             else:
@@ -485,54 +479,36 @@ class TOMLParser:
         result.append('\0')
         return result.ptr
 
-    # TODO: combine single-line and multiline literal string parsing
-    def parse_literal_string(self) -> byte*:
+    def parse_literal_string(self, allow_multiline: bool) -> byte*:
         assert *self.ptr == '\''
-        self.ptr++
 
-        result = List[byte]{}
-        while *self.ptr != '\'':
-            match *self.ptr:
-                case '\n' | '\0':
-                    self.error = "missing quote to end the string"
-                    free(result.ptr)
-                    return NULL
-                case _:
-                    if *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\t'):
-                        self.error = "invalid character in string"
-                        free(result.ptr)
-                        return NULL
-                    else:
-                        result.append(*self.ptr++)
+        multiline = starts_with(self.ptr, "'''")
+        if multiline and not allow_multiline:
+            self.error = "multiline strings are not allowed here"
+            return NULL
 
-        self.ptr++
-        result.append('\0')
-        return result.ptr
-
-    # TODO: combine single-line and multiline literal string parsing
-    def parse_multiline_literal_string(self) -> byte*:
-        assert starts_with(self.ptr, "'''")
-        self.ptr = &self.ptr[3]
-
-        if *self.ptr == '\n':
+        self.ptr = &self.ptr[3 if multiline else 1]
+        if multiline and *self.ptr == '\n':
             self.ptr++
 
         result = List[byte]{}
-        while not (starts_with(self.ptr, "'''") and not starts_with(self.ptr, "''''")):
-            match *self.ptr:
-                case '\0':
-                    self.error = "missing quotes to end the string"
-                    free(result.ptr)
-                    return NULL
-                case _:
-                    if *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
-                        self.error = "invalid character in string"
-                        free(result.ptr)
-                        return NULL
-                    else:
-                        result.append(*self.ptr++)
+        while (
+            *self.ptr != '\''
+            or (multiline and not starts_with(self.ptr, "'''"))
+            or (multiline and starts_with(self.ptr, "''''"))
+        ):
+            if *self.ptr == '\0' or (*self.ptr == '\n' and not multiline):
+                self.error = "missing quotes to end the string" if multiline else "missing quote to end the string"
+                free(result.ptr)
+                return NULL
+            elif *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
+                self.error = "invalid character in string"
+                return NULL
+            else:
+                result.append(*self.ptr++)
 
-        self.ptr = &self.ptr[3]
+        self.ptr = &self.ptr[3 if multiline else 1]
+
         result.append('\0')
         return result.ptr
 
