@@ -116,8 +116,8 @@ def looks_like_end_of_line(s: byte*) -> bool:
         s++
     return *s == '\n' or *s == '\0' or *s == '#'  # allow comments at end of line
 
-def is_valid_in_basic_string(b: byte) -> bool:
-    return b == '\n' or b == '\t' or b == ' ' or b == '!' or (b >= 0x22 and b <= 0x5b) or (b >= 0x5d and b <= 0x7e) or b >= 128
+def is_banned_in_basic_string(b: byte) -> bool:
+    return b == '\x7f' or (b < 0x20 and b != '\n' and b != '\t')
 
 def is_valid_in_literal_string(b: byte) -> bool:
     return b == '\t' or (0x20 <= b and b <= 0x26) or (0x28 <= b and b <= 0x7e) or b >= 128
@@ -484,7 +484,7 @@ class TOMLParser:
                 if not self.parse_escape_in_string(&result):
                     free(result.ptr)
                     return NULL
-            elif not is_valid_in_basic_string(*self.ptr):
+            elif is_banned_in_basic_string(*self.ptr):
                 self.error = "invalid character in string"
                 return NULL
             else:
