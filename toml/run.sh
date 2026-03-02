@@ -106,51 +106,9 @@ tests_to_skip=(
     invalid/integer/leading-zero-sign-01
     invalid/integer/leading-zero-sign-02
     invalid/integer/leading-zero-sign-03
-    invalid/integer/negative-bin
-    invalid/integer/negative-hex
-    invalid/integer/negative-oct
-    invalid/integer/positive-bin
-    invalid/integer/positive-hex
-    invalid/integer/positive-oct
-    invalid/integer/text-after-integer
-    invalid/integer/trailing-us
-    invalid/integer/trailing-us-bin
-    invalid/integer/trailing-us-hex
-    invalid/integer/trailing-us-oct
-    invalid/integer/us-after-bin
-    invalid/integer/us-after-hex
-    invalid/integer/us-after-oct
     invalid/key/after-array
-    invalid/key/after-table
-    invalid/key/after-value
-    invalid/key/bare-invalid-character-01
-    invalid/key/bare-invalid-character-02
-    invalid/key/dot
-    invalid/key/dotdot
     invalid/key/dotted-redefine-table-01
     invalid/key/dotted-redefine-table-02
-    invalid/key/duplicate-keys-01
-    invalid/key/duplicate-keys-02
-    invalid/key/duplicate-keys-03
-    invalid/key/duplicate-keys-04
-    invalid/key/duplicate-keys-05
-    invalid/key/duplicate-keys-06
-    invalid/key/duplicate-keys-07
-    invalid/key/duplicate-keys-08
-    invalid/key/duplicate-keys-09
-    invalid/key/empty
-    invalid/key/end-in-escape
-    invalid/key/escape
-    invalid/key/hash
-    invalid/key/multiline-key-01
-    invalid/key/multiline-key-02
-    invalid/key/multiline-key-03
-    invalid/key/multiline-key-04
-    invalid/key/newline-01
-    invalid/key/newline-02
-    invalid/key/newline-03
-    invalid/key/newline-04
-    invalid/key/newline-05
     invalid/key/newline-06
     invalid/key/no-eol-01
     invalid/key/no-eol-02
