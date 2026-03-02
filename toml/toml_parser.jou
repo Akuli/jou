@@ -285,10 +285,28 @@ class TOMLParser:
             target_table = self.current_table
         else:
             # Go to a part within an already chosen key
-            # TODO: what exactly should happen here?
-            assert parent_value.kind == TOMLValueKind.Unset or parent_value.kind == TOMLValueKind.Table
-            parent_value.kind = TOMLValueKind.Table
-            target_table = &parent_value.table
+            match parent_value.kind:
+                case TOMLValueKind.Unset:
+                    # TODO: what exactly should happen here?
+                    parent_value.kind = TOMLValueKind.Table
+                    target_table = &parent_value.table
+                case TOMLValueKind.Table:
+                    # TODO: what exactly should happen here?
+                    target_table = &parent_value.table
+                case TOMLValueKind.Array:
+                    # Refer to the last element. It must be a table.
+                    if parent_value.array.len == 0:
+                        self.error = "cannot refer to last element of empty array"
+                        free(key)
+                        return NULL
+                    if parent_value.array.end()[-1].kind != TOMLValueKind.Table:
+                        self.error = "last element of array is not a table"
+                        free(key)
+                        return NULL
+                    target_table = &parent_value.array.end()[-1].table
+                case _:
+                    # TODO: think of error message
+                    assert False
 
         # Does this key already exists? If it exists, value will go there
         for p = target_table.ptr; p < target_table.end(); p++:

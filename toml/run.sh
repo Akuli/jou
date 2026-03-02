@@ -38,12 +38,6 @@ tests_to_skip=(
     # given as strings.
     valid/key/quoted-unicode
 
-    # Assertion fails (valid)
-    valid/array/array-subtables
-    valid/spec-1.1.0/common-52
-    valid/table/array-nest
-    valid/table/array-table-array
-
     # Assertion fails (invalid)
     invalid/array/extend-defined-aot
     invalid/array/extending-table
