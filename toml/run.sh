@@ -8,11 +8,9 @@ jou -o toml_parser toml_parser.jou
 diff -u --color=always <(./toml-test-* list -toml 1.1 | grep ^invalid) <(grep '^"' expected_errors.toml | cut -d'"' -f2)
 
 tests_to_skip=(
-    # TODO: go through these and figure out what happens in each one
+    # These tests contain dates and times so they don't work. We don't support
+    # TOML dates and times.
     valid/array/array
-    valid/array/array-subtables
-    valid/array/open-parent-table
-    valid/comment/everywhere
     valid/datetime/datetime
     valid/datetime/edge
     valid/datetime/leap-year
@@ -22,24 +20,32 @@ tests_to_skip=(
     valid/datetime/milliseconds
     valid/datetime/no-seconds
     valid/datetime/timezone
+    valid/comment/everywhere
     valid/example
-    valid/inline-table/key-dotted-04
-    valid/key/dotted-04
-    valid/key/like-date
-    valid/key/quoted-unicode
-    valid/spec-1.1.0/common-27
-    valid/spec-1.1.0/common-28
-    valid/spec-1.1.0/common-29
-    valid/spec-1.1.0/common-30
-    valid/spec-1.1.0/common-31
+    valid/spec-example-1-compact
+    valid/spec-example-1
+    valid/spec-1.1.0/common-44
     valid/spec-1.1.0/common-32
     valid/spec-1.1.0/common-33
     valid/spec-1.1.0/common-34
-    valid/spec-1.1.0/common-44
+    valid/spec-1.1.0/common-31
+    valid/spec-1.1.0/common-30
+    valid/spec-1.1.0/common-29
+    valid/spec-1.1.0/common-28
+    valid/spec-1.1.0/common-27
+
+    # Zero byte in key. We support zero bytes in string values, but not in keys
+    # given as strings.
+    valid/key/quoted-unicode
+
+    # Assertion fails (valid)
+    valid/array/array-subtables
+    valid/array/open-parent-table
+    valid/inline-table/key-dotted-04
+    valid/key/dotted-04
+    valid/key/like-date
     valid/spec-1.1.0/common-51
     valid/spec-1.1.0/common-52
-    valid/spec-example-1
-    valid/spec-example-1-compact
     valid/table/array-empty
     valid/table/array-empty-name
     valid/table/array-implicit
@@ -49,73 +55,51 @@ tests_to_skip=(
     valid/table/array-one
     valid/table/array-table-array
     valid/table/array-within-dotted
+
+    # Assertion fails (invalid)
     invalid/array/extend-defined-aot
     invalid/array/extending-table
     invalid/array/tables-01
     invalid/array/tables-02
-    invalid/control/multi-cr
-    invalid/control/rawmulti-cr
-    invalid/datetime/y10k
-    invalid/inline-table/duplicate-key-03
     invalid/inline-table/duplicate-key-04
-    invalid/inline-table/overwrite-02
     invalid/inline-table/overwrite-04
-    invalid/inline-table/overwrite-05
     invalid/inline-table/overwrite-06
     invalid/inline-table/overwrite-07
-    invalid/inline-table/overwrite-08
-    invalid/integer/double-us
     invalid/key/after-array
     invalid/key/dotted-redefine-table-01
     invalid/key/dotted-redefine-table-02
     invalid/key/no-eol-04
-    invalid/spec-1.1.0/common-16-0
-    invalid/spec-1.1.0/common-19-0
-    invalid/spec-1.1.0/common-2
-    invalid/spec-1.1.0/common-46-0
-    invalid/spec-1.1.0/common-46-1
-    invalid/spec-1.1.0/common-49-0
-    invalid/spec-1.1.0/common-5
-    invalid/spec-1.1.0/common-50-0
-    invalid/table/append-with-dotted-keys-01
-    invalid/table/append-with-dotted-keys-02
     invalid/table/append-with-dotted-keys-03
-    invalid/table/append-with-dotted-keys-04
-    invalid/table/append-with-dotted-keys-05
     invalid/table/append-with-dotted-keys-06
     invalid/table/append-with-dotted-keys-07
-    invalid/table/array-empty
     invalid/table/array-implicit
-    invalid/table/array-no-close-01
-    invalid/table/array-no-close-02
-    invalid/table/array-no-close-03
-    invalid/table/array-no-close-04
-    invalid/table/bare-invalid-character-01
-    invalid/table/bare-invalid-character-02
-    invalid/table/dot
-    invalid/table/dotdot
-    invalid/table/duplicate-key-01
-    invalid/table/duplicate-key-02
     invalid/table/duplicate-key-03
-    invalid/table/duplicate-key-04
-    invalid/table/duplicate-key-05
     invalid/table/duplicate-key-06
     invalid/table/duplicate-key-07
     invalid/table/duplicate-key-08
-    invalid/table/duplicate-key-09
     invalid/table/duplicate-key-10
-    invalid/table/empty
-    invalid/table/newline-01
-    invalid/table/newline-02
-    invalid/table/newline-03
-    invalid/table/newline-05
-    invalid/table/no-close-03
     invalid/table/overwrite-array-in-parent
     invalid/table/overwrite-bool-with-array
     invalid/table/overwrite-with-deep-table
+
+    # toml-test says: Expected an error, but no error was reported.
+    invalid/inline-table/duplicate-key-03
+    invalid/inline-table/overwrite-02
+    invalid/inline-table/overwrite-05
+    invalid/inline-table/overwrite-08
+    invalid/integer/double-us
+    invalid/spec-1.1.0/common-46-0
+    invalid/spec-1.1.0/common-46-1
+    invalid/spec-1.1.0/common-49-0
+    invalid/table/append-with-dotted-keys-01
+    invalid/table/append-with-dotted-keys-02
+    invalid/table/append-with-dotted-keys-04
+    invalid/table/duplicate-key-01
+    invalid/table/duplicate-key-04
+    invalid/table/duplicate-key-05
+    invalid/table/duplicate-key-09
     invalid/table/redefine-02
     invalid/table/redefine-03
-    invalid/table/rrbrace
     invalid/table/super-twice
 )
 

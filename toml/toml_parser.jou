@@ -192,6 +192,10 @@ class TOMLParser:
         return True
 
     def keyval(self) -> bool:
+        if *self.ptr == '=':
+            self.error = "missing key"
+            return False
+
         value_dest_ptr = self.key()
         if value_dest_ptr == NULL:
             return False
