@@ -679,6 +679,9 @@ class TOMLParser:
                 return False
 
         self.current_table.container_info.is_section = True
+        if value_ptr.container_info.is_section:
+            self.error = "duplicate table"
+            return False
         self.current_table = value_ptr
 
         while *self.ptr == ' ' or *self.ptr == '\t':

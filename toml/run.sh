@@ -42,10 +42,8 @@ tests_to_skip=(
     invalid/spec-1.1.0/common-46-1
     invalid/table/duplicate-key-04
     invalid/table/duplicate-key-05
-    invalid/table/duplicate-key-09
     invalid/table/redefine-02
     invalid/table/redefine-03
-    invalid/table/super-twice
 )
 
 ./toml-test-* test -decoder ./toml_parser -toml 1.1 -skip-must-err -errors expected_errors.toml $(printf " -skip %s" ${tests_to_skip[@]}) "$@"
