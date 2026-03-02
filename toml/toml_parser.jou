@@ -7,6 +7,7 @@ import "stdlib/io.jou"
 import "stdlib/json.jou"
 import "stdlib/limits.jou"
 import "stdlib/list.jou"
+import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
@@ -759,11 +760,6 @@ def parse_toml(string: byte*) -> TOMLParseResult:
         return TOMLParseResult{failed = True, error_message = parser.error, error_lineno = lineno}
 
 
-# TODO: doesn't belong here
-def is_nan(x: double) -> bool:
-    return x != x
-
-
 # TODO: take value as pointer
 def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
     s: byte[100]
@@ -800,11 +796,15 @@ def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
         case TOMLValueKind.Floating:
             jb.begin_object()
             jb.key("type").string("float")
-            if is_nan(value.floating):
-                s = "nan"
+            if isnan(value.floating):
+                float_string = strdup("nan")
             else:
-                sprintf(s, "%g", value.floating)
-            jb.key("value").string(s)
+                # Use the JSON builder's float formatting code, but wrap to string
+                jb2 = JSONBuilder{}
+                jb2.number(value.floating)
+                float_string = jb2.finish()
+            jb.key("value").string(float_string)
+            free(float_string)
             jb.end_object()
 
 
