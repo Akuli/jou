@@ -116,9 +116,6 @@ def looks_like_end_of_line(s: byte*) -> bool:
         s++
     return *s == '\n' or *s == '\0' or *s == '#'  # allow comments at end of line
 
-def is_valid_in_literal_string(b: byte) -> bool:
-    return b == '\t' or (0x20 <= b and b <= 0x26) or (0x28 <= b and b <= 0x7e) or b >= 128
-
 
 class TOMLParser:
     ptr: byte*
@@ -161,11 +158,7 @@ class TOMLParser:
     def comment(self) -> bool:
         assert *self.ptr == '#'
         while *self.ptr != '\0' and *self.ptr != '\n':
-            b = *self.ptr
-            # Banned in comments:
-            # - ASCII DEL
-            # - ASCII control characters other than tab
-            if b == 127 or (b < 32 and b != '\t'):
+            if *self.ptr == 127 or (*self.ptr < 0x20 and *self.ptr != '\t'):
                 self.error = "invalid character in comment"
                 return False
             self.ptr++
@@ -505,12 +498,12 @@ class TOMLParser:
                     free(result.ptr)
                     return NULL
                 case _:
-                    if is_valid_in_literal_string(*self.ptr):
-                        result.append(*self.ptr++)
-                    else:
+                    if *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\t'):
                         self.error = "invalid character in string"
                         free(result.ptr)
                         return NULL
+                    else:
+                        result.append(*self.ptr++)
 
         self.ptr++
         result.append('\0')
@@ -532,12 +525,12 @@ class TOMLParser:
                     free(result.ptr)
                     return NULL
                 case _:
-                    if is_valid_in_literal_string(*self.ptr) or *self.ptr == '\'' or *self.ptr == '\n':
-                        result.append(*self.ptr++)
-                    else:
+                    if *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
                         self.error = "invalid character in string"
                         free(result.ptr)
                         return NULL
+                    else:
+                        result.append(*self.ptr++)
 
         self.ptr = &self.ptr[3]
         result.append('\0')
