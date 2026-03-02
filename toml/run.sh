@@ -38,16 +38,11 @@ tests_to_skip=(
     # given as strings.
     valid/key/quoted-unicode
 
-    invalid/array/extend-defined-aot
     invalid/spec-1.1.0/common-46-0
     invalid/spec-1.1.0/common-46-1
-    invalid/table/duplicate-key-01
     invalid/table/duplicate-key-04
     invalid/table/duplicate-key-05
-    invalid/table/duplicate-key-08
     invalid/table/duplicate-key-09
-    invalid/table/duplicate-key-10
-    invalid/table/overwrite-with-deep-table
     invalid/table/redefine-02
     invalid/table/redefine-03
     invalid/table/super-twice
