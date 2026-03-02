@@ -27,10 +27,11 @@ tests_to_skip=(
     valid/spec-1.0.0/table-7
     valid/spec-example-1
     valid/spec-example-1-compact
-    valid/string/quoted-unicode
 
     # Contains zero bytes in strings, which are not supported
     valid/key/quoted-unicode
+    valid/string/quoted-unicode
+    valid/string/unicode-escape
 
     # TODO: Figure out why these fail, fix as appropriate
     valid/array/array-subtables
@@ -40,7 +41,6 @@ tests_to_skip=(
     valid/key/like-date
     valid/spec-1.0.0/array-of-tables-0
     valid/spec-1.0.0/array-of-tables-1
-    valid/string/unicode-escape
     valid/table/array-empty
     valid/table/array-empty-name
     valid/table/array-implicit
