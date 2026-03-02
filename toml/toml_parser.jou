@@ -121,6 +121,24 @@ def looks_like_end_of_line(s: byte*) -> bool:
         s++
     return *s == '\n' or *s == '\0' or *s == '#'  # allow comments at end of line
 
+def looks_like_date(s: byte*) -> bool:
+    return (
+        is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and *s++ == '-'
+        and is_ascii_digit(*s)
+    )
+
+def looks_like_time(s: byte*) -> bool:
+    return (
+        is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and *s++ == ':'
+        and is_ascii_digit(*s)
+    )
+
 
 class TOMLParser:
     ptr: byte*
@@ -288,6 +306,9 @@ class TOMLParser:
                 | '+' | '-'
                 | 'i' | 'n'  # inf and nan
             ):
+                if looks_like_date(self.ptr) or looks_like_time(self.ptr):
+                    self.error = "dates and times in TOML are not supported :("
+                    return False
                 return self.parse_number(result)
             case '[':
                 return self.parse_inline_array(result)

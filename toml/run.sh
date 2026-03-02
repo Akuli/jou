@@ -9,8 +9,6 @@ diff -u --color=always <(./toml-test-* list | grep ^invalid) <(grep '^"' expecte
 tests_to_skip=(
     # These tests contain dates or times, so they are not supported
     valid/array/array
-    valid/spec-example-1
-    valid/spec-example-1-compact
     valid/comment/everywhere
     valid/datetime/datetime
     valid/datetime/edge
@@ -25,6 +23,8 @@ tests_to_skip=(
     valid/spec-1.0.0/local-time-0
     valid/spec-1.0.0/offset-date-time-0
     valid/spec-1.0.0/offset-date-time-1
+    valid/spec-example-1
+    valid/spec-example-1-compact
 
     # TODO: Figure out why these fail, fix as appropriate
     valid/array/array-subtables
@@ -68,40 +68,6 @@ tests_to_skip=(
     invalid/control/string-lf
     invalid/control/string-null
     invalid/control/string-us
-    invalid/datetime/day-zero
-    invalid/datetime/feb-29
-    invalid/datetime/feb-30
-    invalid/datetime/hour-over
-    invalid/datetime/mday-over
-    invalid/datetime/mday-under
-    invalid/datetime/minute-over
-    invalid/datetime/month-over
-    invalid/datetime/month-under
-    invalid/datetime/no-date-time-sep
-    invalid/datetime/no-leads
-    invalid/datetime/no-leads-month
-    invalid/datetime/no-leads-with-milli
-    invalid/datetime/no-secs
-    invalid/datetime/no-t
-    invalid/datetime/no-year-month-sep
-    invalid/datetime/offset-minus-minute-1digit
-    invalid/datetime/offset-minus-no-hour-minute
-    invalid/datetime/offset-minus-no-hour-minute-sep
-    invalid/datetime/offset-minus-no-minute
-    invalid/datetime/offset-overflow-hour
-    invalid/datetime/offset-overflow-minute
-    invalid/datetime/offset-plus-minute-1digit
-    invalid/datetime/offset-plus-no-hour-minute
-    invalid/datetime/offset-plus-no-hour-minute-sep
-    invalid/datetime/offset-plus-no-minute
-    invalid/datetime/only-T
-    invalid/datetime/only-TZ
-    invalid/datetime/only-Tdot
-    invalid/datetime/second-over
-    invalid/datetime/second-trailing-dot
-    invalid/datetime/second-trailing-dotz
-    invalid/datetime/time-no-leads
-    invalid/datetime/trailing-x
     invalid/datetime/y10k
     invalid/encoding/bad-codepoint
     invalid/encoding/bad-utf8-at-end
@@ -287,41 +253,6 @@ tests_to_skip=(
     invalid/key/without-value-05
     invalid/key/without-value-06
     invalid/key/without-value-07
-    invalid/local-date/day-1digit
-    invalid/local-date/feb-29
-    invalid/local-date/feb-30
-    invalid/local-date/mday-over
-    invalid/local-date/mday-under
-    invalid/local-date/month-over
-    invalid/local-date/month-under
-    invalid/local-date/no-leads
-    invalid/local-date/no-leads-with-milli
-    invalid/local-date/trailing-t
-    invalid/local-date/y10k
-    invalid/local-date/year-3digits
-    invalid/local-datetime/feb-29
-    invalid/local-datetime/feb-30
-    invalid/local-datetime/hour-over
-    invalid/local-datetime/mday-over
-    invalid/local-datetime/mday-under
-    invalid/local-datetime/minute-over
-    invalid/local-datetime/month-over
-    invalid/local-datetime/month-under
-    invalid/local-datetime/no-leads
-    invalid/local-datetime/no-leads-with-milli
-    invalid/local-datetime/no-secs
-    invalid/local-datetime/no-t
-    invalid/local-datetime/second-over
-    invalid/local-datetime/time-no-leads
-    invalid/local-datetime/y10k
-    invalid/local-time/hour-over
-    invalid/local-time/minute-over
-    invalid/local-time/no-secs
-    invalid/local-time/second-over
-    invalid/local-time/time-no-leads-01
-    invalid/local-time/time-no-leads-02
-    invalid/local-time/trailing-dot
-    invalid/local-time/trailing-dotdot
     invalid/spec-1.0.0/inline-table-2-0
     invalid/spec-1.0.0/inline-table-3-0
     invalid/spec-1.0.0/key-value-pair-1
