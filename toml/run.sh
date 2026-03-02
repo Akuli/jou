@@ -39,7 +39,6 @@ tests_to_skip=(
     valid/key/quoted-unicode
 
     invalid/array/extend-defined-aot
-    invalid/array/tables-01
     invalid/inline-table/duplicate-key-04
     invalid/inline-table/overwrite-06
     invalid/inline-table/overwrite-07

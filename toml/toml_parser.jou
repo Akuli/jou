@@ -50,8 +50,9 @@ class TOMLValue:
         # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
         string_len: intnative
 
-        # Used to detect reassigning tables
+        # Used to detect extending tables and arrays afterwards
         table_is_inline: bool
+        array_is_inline: bool
 
     def print_without_newline(self) -> None:
         match self.kind:
@@ -304,6 +305,11 @@ class TOMLParser:
                     self.error = "last element of array is not a table"
                     free(key)
                     return NULL
+                # TODO: need this?
+                #if parent_value.array_is_inline:
+                #    self.error = "inline arrays cannot be extended after creating the array"
+                #    free(key)
+                #    return NULL
                 target_table = &parent_value.array.end()[-1]
             case _:
                 # TODO: think of error message
@@ -690,6 +696,10 @@ class TOMLParser:
                 return False
 
         assert value_ptr.kind == TOMLValueKind.Array
+        if value_ptr.array_is_inline:
+            self.error = "inline arrays cannot be extended after creating the array"
+            return False
+
         value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
 
         self.current_table = &value_ptr.array.end()[-1]
@@ -739,6 +749,8 @@ class TOMLParser:
 
         assert *self.ptr == ']'
         self.ptr++
+
+        result.array_is_inline = True
         return True
 
     def parse_inline_table(self, result: TOMLValue*) -> bool:
