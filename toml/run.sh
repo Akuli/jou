@@ -24,21 +24,17 @@ tests_to_skip=(
     # TODO: Figure out why these fail, fix as appropriate
     valid/array/array-subtables
     valid/array/open-parent-table
-    valid/comment/tricky
     valid/example
-    valid/float/exponent
     valid/float/inf-and-nan
     valid/float/long
     valid/float/max-int
     valid/float/underscore
-    valid/float/zero
     valid/inline-table/key-dotted-04
     valid/key/dotted-04
     valid/key/like-date
     valid/key/quoted-unicode
     valid/spec-1.0.0/array-of-tables-0
     valid/spec-1.0.0/array-of-tables-1
-    valid/spec-1.0.0/float-0
     valid/spec-1.0.0/float-1
     valid/spec-1.0.0/float-2
     valid/spec-1.0.0/local-date-0
