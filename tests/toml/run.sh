@@ -85,9 +85,8 @@ if ! diff -u --color=always <(./toml-test list -toml 1.1 | grep ^invalid) <(grep
     exit 1
 fi
 
-(cd ../.. && make jou)
-
 # Compile our Jou program that parses TOML on stdin and outputs JSON
+(cd ../.. && make jou)
 ../../jou -o parser_program $jou_flags parser_program.jou
 
 if [ $valgrind = yes ]; then
