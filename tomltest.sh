@@ -15,8 +15,17 @@ if [ "$(uname)" != "Linux" ] || [ "$(uname -m)" != "x86_64" ]; then
     exit 1
 fi
 
+function usage() {
+    echo "Usage: $0 [--valgrind] [--jou-flags \"-O3 ...\"] [TEST_FILTER]"
+    echo ""
+    echo "If TEST_FILTER is given, only the test that contain it as a substring"
+    echo 'will be ran. It can be e.g. "string" or "valid/key/escapes.toml".'
+    exit 2
+}
+
 valgrind=no
 jou_flags=""
+test_filter=""
 
 while [ $# != 0 ]; do
     case "$1" in
@@ -35,9 +44,15 @@ while [ $# != 0 ]; do
             jou_flags="$jou_flags $2"
             shift 2
             ;;
+        -*)
+            usage
+            ;;
         *)
-            echo "Usage: $0 [--valgrind] [--jou-flags \"-O3 ...\"]" >&2
-            exit 2
+            if [ -n "$TEST_FILTER" ]; then
+                usage
+            fi
+            test_filter="$1"
+            shift
             ;;
     esac
 done
@@ -145,6 +160,27 @@ if [ $valgrind = yes ]; then
     # On my system, valgrind takes about 0.7 seconds to start. The default
     # timeout is 1 second and that seems a bit tight to me.
     toml_test_command+=(-timeout 5s)
+fi
+
+# The default is to run everything. If an argument is given, let's use it to
+# run only the tests that contain that argument.
+if [ "$test_filter" != "" ]; then
+    comma_separated=""
+    for test_name_dot_toml in $(tmp/toml-test list | grep '\.toml$'); do
+        test_name=${test_name_dot_toml%%.toml}
+        if [[ "$test_name" == *"$test_filter"* ]]; then
+            echo "  Selecting test '$test_name'"
+            if [ -n "$comma_separated" ]; then
+                comma_separated="$comma_separated,"
+            fi
+            comma_separated="$comma_separated$test_name"
+        fi
+    done
+    if [ -z "$comma_separated" ]; then
+        echo -e "${RED}Error: No test name contains $test_filter.${RESET}" >&2
+        exit 1
+    fi
+    toml_test_command+=(-run $comma_separated)
 fi
 
 "${toml_test_command[@]}"
