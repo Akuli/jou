@@ -33,7 +33,8 @@ const FLAG_INLINE: byte = 0b001
 # For tables when the table looks like [foo.bar.baz] on a line of its own
 const FLAG_SECTION: byte = 0b010
 
-# For tables when the table foo.bar was created just to access foo.bar.baz
+# For tables when the table foo.bar was created just to access foo.bar.baz in
+# the key of a key-value pair.
 const FLAG_CREATED_IMPLICITLY: byte = 0b100
 
 
@@ -210,7 +211,7 @@ class TOMLParser:
             self.error = "missing key"
             return False
 
-        value_dest_ptr = self.key(relative_to, False)
+        value_dest_ptr = self.key(relative_to, True)
         if value_dest_ptr == NULL:
             return False
 
@@ -245,8 +246,8 @@ class TOMLParser:
     # Not exactly right according to the spec, because this ends with a call to
     # .ws() but a key shouldn't include trailing whitespace. We'll see if that
     # matters, maybe not...
-    def key(self, relative_to: TOMLValue*, allow_extending_sections: bool) -> TOMLValue*:
-        value_ptr = self.simple_key(relative_to, allow_extending_sections)
+    def key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+        value_ptr = self.simple_key(relative_to, this_is_the_key_of_a_keyval_pair)
         if value_ptr == NULL:
             return NULL
 
@@ -259,7 +260,7 @@ class TOMLParser:
             while *self.ptr == ' ' or *self.ptr == '\t':
                 self.ptr++
 
-            value_ptr = self.simple_key(value_ptr, allow_extending_sections)
+            value_ptr = self.simple_key(value_ptr, this_is_the_key_of_a_keyval_pair)
             if value_ptr == NULL:
                 return NULL
 
@@ -268,7 +269,7 @@ class TOMLParser:
 
         return value_ptr
 
-    def simple_key(self, parent_value: TOMLValue*, allow_extending_sections: bool) -> TOMLValue*:
+    def simple_key(self, parent_value: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
         assert parent_value != NULL
 
         key: byte*
@@ -341,13 +342,16 @@ class TOMLParser:
 
         # Key not found --> create new table, unless it's the weird special
         # case where that is not allowed
-        if (target_table.flags & FLAG_SECTION) != 0 and not allow_extending_sections:
+        if (target_table.flags & FLAG_SECTION) != 0 and this_is_the_key_of_a_keyval_pair:
             self.error = "a dotted key of a key-value pair cannot extend a table after the content of the table has been explicitly listed above"
             free(key)
             return NULL
 
-        target_table.table.append(TOMLKeyVal{key = key, value = TOMLValue{flags = FLAG_CREATED_IMPLICITLY}})
-        return &target_table.table.end()[-1].value
+        target_table.table.append(TOMLKeyVal{key = key})
+        result = &target_table.table.end()[-1].value
+        if this_is_the_key_of_a_keyval_pair:
+            result.flags |= FLAG_CREATED_IMPLICITLY
+        return result
 
     def val(self, result: TOMLValue*) -> bool:
         match *self.ptr:
@@ -660,7 +664,7 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        value_ptr = self.key(&self.root_table, True)
+        value_ptr = self.key(&self.root_table, False)
         if value_ptr == NULL:
             if strcmp(self.error, "invalid key") == 0:
                 self.error = "invalid table header"
@@ -672,8 +676,9 @@ class TOMLParser:
                 *value_ptr = TOMLValue{kind = TOMLValueKind.Table}
             case TOMLValueKind.Table:
                 # Add more stuff to an existing table
-                # TODO: should only be allowed for automatically created tables
-                pass
+                if value_ptr.flags & FLAG_CREATED_IMPLICITLY != 0:
+                    self.error = "table already exists because it was defined implicitly by a dotted key"
+                    return False
             case _:
                 self.error = "cannot redefine an existing value as a table"
                 return False
@@ -704,7 +709,7 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        value_ptr = self.key(&self.root_table, True)
+        value_ptr = self.key(&self.root_table, False)
         if value_ptr == NULL:
             if strcmp(self.error, "invalid key") == 0:
                 self.error = "invalid array header"

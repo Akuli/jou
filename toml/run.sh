@@ -37,13 +37,6 @@ tests_to_skip=(
     # Zero byte in key. We support zero bytes in string values, but not in keys
     # given as strings.
     valid/key/quoted-unicode
-
-    invalid/spec-1.1.0/common-46-0
-    invalid/spec-1.1.0/common-46-1
-    invalid/table/duplicate-key-04
-    invalid/table/duplicate-key-05
-    invalid/table/redefine-02
-    invalid/table/redefine-03
 )
 
 ./toml-test-* test -decoder ./toml_parser -toml 1.1 -skip-must-err -errors expected_errors.toml $(printf " -skip %s" ${tests_to_skip[@]}) "$@"
