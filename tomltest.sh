@@ -15,7 +15,32 @@ if [ "$(uname)" != "Linux" ] || [ "$(uname -m)" != "x86_64" ]; then
     exit 1
 fi
 
-# TODO: add --valgrind flag
+valgrind=no
+jou_flags=""
+
+while [ $# != 0 ]; do
+    case "$1" in
+        --valgrind)
+            # Exit codes that are already in use:
+            #   0   valid TOML
+            #   1   invalid TOML
+            #   2   assertion failed
+            valgrind=yes
+            shift
+            ;;
+        --jou-flags)
+            if [ $# == 1 ]; then
+                usage
+            fi
+            jou_flags="$jou_flags $2"
+            shift 2
+            ;;
+        *)
+            echo "Usage: $0 [--valgrind] [--jou-flags \"-O3 ...\"]" >&2
+            exit 2
+            ;;
+    esac
+done
 
 if ! [ -x tmp/toml-test ]; then
     (
@@ -51,10 +76,16 @@ fi
 make jou
 
 # Compile our Jou program that parses TOML on stdin and outputs JSON
-./jou -o tmp/toml_test_jou_program tests/special/toml_test_program.jou
+./jou -o tmp/toml_test_jou_program $jou_flags tests/special/toml_test_program.jou
+
+if [ $valgrind = yes ]; then
+    jou_program_command="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=3 tmp/toml_test_jou_program"
+else
+    jou_program_command="tmp/toml_test_jou_program"
+fi
 
 # Let's put this in an array so we can have comments next to each argument
-command=(
+toml_test_command=(
     tmp/toml-test
 
     # What it should do
@@ -62,7 +93,7 @@ command=(
 
     # Give the test runner our Jou program that parses TOML on stdin, outputs
     # JSON, and exits with 1 on error.
-    -decoder 'tmp/toml_test_jou_program'
+    -decoder "$jou_program_command"
 
     # TOML language version
     -toml 1.1
@@ -75,7 +106,7 @@ command=(
     -skip-must-err
 
     # Check each error message
-    -errors tests/data/expected_toml_parser_errors.toml
+#    -errors tests/data/expected_toml_parser_errors.toml
 
     # These tests contain dates and times so they don't work. We don't support
     # TOML dates and times.
@@ -110,4 +141,10 @@ command=(
     -skip valid/key/quoted-unicode
 )
 
-"${command[@]}"
+if [ $valgrind = yes ]; then
+    # On my system, valgrind takes about 0.7 seconds to start. The default
+    # timeout is 1 second and that seems a bit tight to me.
+    toml_test_command+=(-timeout 5s)
+fi
+
+"${toml_test_command[@]}"

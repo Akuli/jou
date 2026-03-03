@@ -71,22 +71,16 @@ def toml_to_json(value: TOMLValue*, jb: JSONBuilder*) -> None:
 def read_stdin_to_string() -> byte*:
     bytes_list = List[byte]{}
 
-    buf: byte[4096]
     while True:
-        num_read = fread(buf, 1, sizeof buf, get_stdin())
-        if num_read == 0:
-            assert ferror(get_stdin()) == 0
-            break
-        bytes_list.extend_from_ptr(buf, num_read)
-
-    lineno = 1
-    for p = bytes_list.ptr; p < bytes_list.end(); p++:
-        match *p:
-            case '\n':
-                lineno++
+        c = getchar()
+        match c:
             case '\0':
                 fprintf(get_stderr(), "got zero byte from stdin, would be invalid TOML\n")
                 exit(1)
+            case EOF:
+                break
+            case _:
+                bytes_list.append(c as byte)
 
     bytes_list.append('\0')
     return bytes_list.ptr
