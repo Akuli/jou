@@ -707,6 +707,10 @@ class TOMLParser:
         return True
 
     def parse_array_header(self) -> bool:
+        # Mark the old current table as complete similarly to regular tables
+        self.current_table.flags |= FLAG_SECTION
+        self.current_table = NULL
+
         assert starts_with(self.ptr, "[[")
         self.ptr = &self.ptr[2]
 
