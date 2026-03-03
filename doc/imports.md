@@ -36,7 +36,8 @@ Practically, here's what you need to know:
 
 ## Public
 
-If you want a function, [class](classes.md), [enum](enums.md) or global variable to be importable,
+If you want a function, [method](classes.md#methods), [class](classes.md), [enum](enums.md),
+[constant](keywords.md#const) or [global variable](keywords.md#global) to be importable,
 make it public with the `@public` decorator.
 Anything not decorated with `@public` can only be used in the same file.
 
@@ -52,13 +53,14 @@ def visible_in_files_that_import_this_file() -> None:
 
 class OnlyForThisFile:
     field: int
-    def method(self) -> None:
+    def private_method(self) -> None:
         ...
 
 @public
 class VisibleInFilesThatImportThisFile:
     field: int
-    def method(self) -> None:
+    @public
+    def public_method(self) -> None:
         ...
 
 global kinda_ok_variable: int
@@ -67,14 +69,19 @@ global kinda_ok_variable: int
 global many_people_consider_this_bad: int
 ```
 
-Class fields and methods are always public.
-This means that if you have an instance of a class,
-you can simply call any method defined in the class.
-If you don't like this, please create an issue on GitHub to discuss it.
+Class fields are always public: if you have an instance of a class, you can access the data stored inside it.
+
+Importing methods is just like importing functions:
+to call a method defined in a different file,
+the method must be `@public` and you need to import the file that defines the method.
+You may find this surprising, because in most languages,
+public methods are always accessible regardless of imports,
+but Jou methods are basically functions with slightly different syntax.
 
 Many people dislike global variables, especially when they are accessed in multiple files.
 That said, Jou lets you decorate a global variable as `@public` and import it into another file,
 because sometimes that is the best solution.
+For example, [the `jou_assert_fail_handler` variable in stdlib/assert.jou](assert.md#the-jou_assert_fail_handler-global-variable) works this way.
 
 
 ## Conflicting Names
