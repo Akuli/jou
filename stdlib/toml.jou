@@ -182,18 +182,8 @@ class TOMLParser:
                     if not self.comment():
                         return False
                 case '[':
-                    if starts_with(self.ptr, "[["):
-                        if not self.parse_array_header():
-                            return False
-                        if not looks_like_end_of_line(self.ptr):
-                            self.error = "invalid array header"
-                            return False
-                    else:
-                        if not self.parse_table_header():
-                            return False
-                        if not looks_like_end_of_line(self.ptr):
-                            self.error = "invalid table header"
-                            return False
+                    if not self.parse_header():
+                        return False
                 case _:
                     if not self.keyval(self.current_table):
                         return False
@@ -659,7 +649,7 @@ class TOMLParser:
         result.append('\0')
         return result.ptr
 
-    def parse_table_header(self) -> bool:
+    def parse_header(self) -> bool:
         # Mark the old current table as complete. This must be done quite
         # early, because we may create a new table below, and that messes up
         # pointers into the old table when the tables are in the same array.
@@ -669,88 +659,66 @@ class TOMLParser:
         assert *self.ptr == '['
         self.ptr++
 
+        is_array = (*self.ptr == '[')
+        if is_array:
+            self.ptr++
+
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
         value_ptr = self.key(&self.root_table, False)
         if value_ptr == NULL:
             if strcmp(self.error, "invalid key") == 0:
-                self.error = "invalid table header"
+                self.error = "invalid array header" if is_array else "invalid table header"
             return False
 
-        match value_ptr.kind:
-            case TOMLValueKind.Unset:
-                # Just created for this
-                *value_ptr = TOMLValue{kind = TOMLValueKind.Table}
-            case TOMLValueKind.Table:
-                # Add more stuff to an existing table
-                if value_ptr.flags & FLAG_CREATED_IMPLICITLY != 0:
-                    self.error = "table already exists because it was defined implicitly by a dotted key"
+        if is_array:
+            match value_ptr.kind:
+                case TOMLValueKind.Unset:
+                    # Just created for this
+                    *value_ptr = TOMLValue{kind = TOMLValueKind.Array}
+                case TOMLValueKind.Array:
+                    pass
+                case _:
+                    self.error = "cannot redefine an existing value as an array"
                     return False
-            case _:
-                self.error = "cannot redefine an existing value as a table"
+
+            assert value_ptr.kind == TOMLValueKind.Array
+            if value_ptr.flags & FLAG_INLINE != 0:
+                self.error = "inline arrays cannot be extended after creating the array"
                 return False
 
-        if value_ptr.flags & FLAG_SECTION != 0:
-            self.error = "duplicate table"
-            return False
-        self.current_table = value_ptr
+            value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
+            self.current_table = &value_ptr.array.end()[-1]
+        else:
+            match value_ptr.kind:
+                case TOMLValueKind.Unset:
+                    # Just created for this
+                    *value_ptr = TOMLValue{kind = TOMLValueKind.Table}
+                case TOMLValueKind.Table:
+                    # Add more stuff to an existing table
+                    if value_ptr.flags & FLAG_CREATED_IMPLICITLY != 0:
+                        self.error = "table already exists because it was defined implicitly by a dotted key"
+                        return False
+                    if value_ptr.flags & FLAG_SECTION != 0:
+                        self.error = "duplicate table"
+                        return False
+                case _:
+                    self.error = "cannot redefine an existing value as a table"
+                    return False
+
+            self.current_table = value_ptr
 
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        if *self.ptr != ']':
-            self.error = "invalid table header"
+        suffix = "]]" if is_array else "]"
+        if starts_with(self.ptr, suffix) and looks_like_end_of_line(&self.ptr[strlen(suffix)]):
+            self.ptr = &self.ptr[strlen(suffix)]
+            return True
+        else:
+            self.error = "invalid array header" if is_array else "invalid table header"
             return False
-        self.ptr++
-
-        return True
-
-    def parse_array_header(self) -> bool:
-        # Mark the old current table as complete similarly to regular tables
-        self.current_table.flags |= FLAG_SECTION
-        self.current_table = NULL
-
-        assert starts_with(self.ptr, "[[")
-        self.ptr = &self.ptr[2]
-
-        while *self.ptr == ' ' or *self.ptr == '\t':
-            self.ptr++
-
-        value_ptr = self.key(&self.root_table, False)
-        if value_ptr == NULL:
-            if strcmp(self.error, "invalid key") == 0:
-                self.error = "invalid array header"
-            return False
-
-        match value_ptr.kind:
-            case TOMLValueKind.Unset:
-                # Just created for this
-                *value_ptr = TOMLValue{kind = TOMLValueKind.Array}
-            case TOMLValueKind.Array:
-                pass
-            case _:
-                self.error = "cannot redefine an existing value as an array"
-                return False
-
-        assert value_ptr.kind == TOMLValueKind.Array
-        if value_ptr.flags & FLAG_INLINE != 0:
-            self.error = "inline arrays cannot be extended after creating the array"
-            return False
-
-        value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
-
-        self.current_table = &value_ptr.array.end()[-1]
-
-        while *self.ptr == ' ' or *self.ptr == '\t':
-            self.ptr++
-
-        if not starts_with(self.ptr, "]]"):
-            self.error = "invalid array header"
-            return False
-        self.ptr = &self.ptr[2]
-
-        return True
 
     def parse_inline_array(self, result: TOMLValue*) -> bool:
         assert *self.ptr == '['
