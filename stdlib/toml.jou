@@ -678,15 +678,12 @@ class TOMLParser:
                     # Just created for this
                     *value_ptr = TOMLValue{kind = TOMLValueKind.Array}
                 case TOMLValueKind.Array:
-                    pass
+                    if value_ptr.flags & FLAG_INLINE != 0:
+                        self.error = "inline arrays cannot be extended after creating the array"
+                        return False
                 case _:
                     self.error = "cannot redefine an existing value as an array"
                     return False
-
-            assert value_ptr.kind == TOMLValueKind.Array
-            if value_ptr.flags & FLAG_INLINE != 0:
-                self.error = "inline arrays cannot be extended after creating the array"
-                return False
 
             value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
             self.current_table = &value_ptr.array.end()[-1]
@@ -697,11 +694,8 @@ class TOMLParser:
                     *value_ptr = TOMLValue{kind = TOMLValueKind.Table}
                 case TOMLValueKind.Table:
                     # Add more stuff to an existing table
-                    if value_ptr.flags & FLAG_CREATED_IMPLICITLY != 0:
-                        self.error = "table already exists because it was defined implicitly by a dotted key"
-                        return False
-                    if value_ptr.flags & FLAG_SECTION != 0:
-                        self.error = "duplicate table"
+                    if value_ptr.flags & (FLAG_CREATED_IMPLICITLY | FLAG_SECTION) != 0:
+                        self.error = "table already exists"
                         return False
                 case _:
                     self.error = "cannot redefine an existing value as a table"
