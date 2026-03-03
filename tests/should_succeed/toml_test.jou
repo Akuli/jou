@@ -1,0 +1,22 @@
+# Please note that stdlib/toml.jou is also tested with the official TOML test
+# suite that contains hundreds of TOML files and their expected results.
+# Therefore this test doesn't focus on various corner cases much.
+
+import "stdlib/io.jou"
+import "stdlib/toml.jou"
+
+def main() -> int:
+    result = parse_toml("[languages]\ntoml = 'supported in Jou'")
+    if result.failed:
+        printf("Oh no\n")  # does not get printed
+    else:
+        printf("%s\n", result.parsed.ptr[0].key)  # Output: languages
+        languages_table = result.parsed.ptr[0].value
+        match languages_table.kind:
+            case TOMLValueKind.Table:
+                key_value_pair = languages_table.table.ptr[0]
+                printf("%s\n", key_value_pair.key)  # Output: toml
+                printf("%s\n", key_value_pair.value.string)  # Output: supported in Jou
+            case _:
+                printf("wat?\n")
+    return 0
