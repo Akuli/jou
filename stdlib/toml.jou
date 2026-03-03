@@ -317,11 +317,6 @@ class TOMLParser:
                     self.error = "last element of array is not a table"
                     free(key)
                     return NULL
-                # TODO: need this?
-                #if parent_value.array_is_inline:
-                #    self.error = "inline arrays cannot be extended after creating the array"
-                #    free(key)
-                #    return NULL
                 target_table = &parent_value.array.end()[-1]
             case TOMLValueKind.String:
                 self.error = "expected a table, got a string"
@@ -816,6 +811,7 @@ class TOMLParser:
                     self.whitespace_comment_newline()
                 case _:
                     self.error = "invalid inline table"
+                    result.free()
                     return False
 
         assert *self.ptr == '}'
