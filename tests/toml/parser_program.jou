@@ -107,9 +107,8 @@ def main() -> int:
         return 1
 
     jb = JSONBuilder{pretty_print = 4}
-    result_as_value = TOMLValue{kind = TOMLValueKind.Table, table = result.parsed}
-    toml_to_json(&result_as_value, &jb)
-    result.free()
+    toml_to_json(&result.main_table, &jb)
+    result.main_table.free()
 
     json = jb.finish()
     puts(json)

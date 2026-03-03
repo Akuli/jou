@@ -113,17 +113,10 @@ class TOMLValue:
 
 @public
 class TOMLParseResult:
-    parsed: List[TOMLKeyVal]
+    main_table: TOMLValue
     failed: bool
     error_message: byte*
     error_lineno: int
-
-    @public
-    def free(self) -> None:
-        for kv = self.parsed.ptr; kv < self.parsed.end(); kv++:
-            kv.free()
-        free(self.parsed.ptr)
-        self.parsed = List[TOMLKeyVal]{}
 
 
 # TODO: this doesn't belong here
@@ -841,7 +834,7 @@ def parse_toml(string: byte*) -> TOMLParseResult:
 
     if parser.parse_the_whole_thing():
         free(string)
-        return TOMLParseResult{parsed = parser.root_table.table}
+        return TOMLParseResult{main_table = parser.root_table}
     else:
         # Figure out the line number where it failed
         lineno = 1
