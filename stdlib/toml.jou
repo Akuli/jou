@@ -5,11 +5,9 @@ import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
 import "stdlib/intnative.jou"
 import "stdlib/io.jou"
-import "stdlib/json.jou"
 import "stdlib/limits.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
-import "stdlib/process.jou"
 import "stdlib/str.jou"
 import "stdlib/utf8.jou"
 
@@ -19,6 +17,7 @@ class TOMLKeyVal:
     key: byte*
     value: TOMLValue
 
+    @public
     def free(self) -> None:
         free(self.key)
         self.value.free()
@@ -50,6 +49,7 @@ class TOMLValue:
     # Not meant to be used outside this file.
     flags: uint8
 
+    @public
     def free(self) -> None:
         match self.kind:
             case TOMLValueKind.Table:
@@ -109,6 +109,7 @@ class TOMLParseResult:
     error_message: byte*
     error_lineno: int
 
+    @public
     def free(self) -> None:
         for kv = self.parsed.ptr; kv < self.parsed.end(); kv++:
             kv.free()
@@ -831,30 +832,6 @@ class TOMLParser:
             else:
                 self.ptr++
         return True
-
-
-def read_stdin_to_string() -> byte*:
-    bytes_list = List[byte]{}
-
-    buf: byte[4096]
-    while True:
-        num_read = fread(buf, 1, sizeof buf, get_stdin())
-        if num_read == 0:
-            assert ferror(get_stdin()) == 0
-            break
-        bytes_list.extend_from_ptr(buf, num_read)
-
-    lineno = 1
-    for p = bytes_list.ptr; p < bytes_list.end(); p++:
-        match *p:
-            case '\n':
-                lineno++
-            case '\0':
-                fprintf(get_stderr(), "got zero byte from stdin, would be invalid TOML\n")
-                exit(1)
-
-    bytes_list.append('\0')
-    return bytes_list.ptr
 
 
 # Returns -1 if valid, line number if invalid

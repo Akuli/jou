@@ -50,6 +50,9 @@ fi
 
 make jou
 
+# Compile our Jou program that parses TOML on stdin and outputs JSON
+./jou -o tmp/toml_test_jou_program tests/special/toml_test_program.jou
+
 # Let's put this in an array so we can have comments next to each argument
 command=(
     tmp/toml-test
@@ -59,7 +62,7 @@ command=(
 
     # Give the test runner our Jou program that parses TOML on stdin, outputs
     # JSON, and exits with 1 on error.
-    -decoder './jou tests/special/toml_test_program.jou'
+    -decoder 'tmp/toml_test_jou_program'
 
     # TOML language version
     -toml 1.1

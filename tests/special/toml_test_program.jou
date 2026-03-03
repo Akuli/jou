@@ -16,13 +16,12 @@
 
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
-import "stdlib/ascii.jou"
 import "stdlib/json.jou"
 import "stdlib/list.jou"
-import "stdlib/math.jou"
-import "../../toml/toml_parser.jou"
 import "stdlib/mem.jou"
+import "stdlib/process.jou"
 import "stdlib/str.jou"
+import "stdlib/toml.jou"
 
 
 # TODO: take value as pointer
@@ -68,6 +67,30 @@ def toml_to_json(value: TOMLValue, jb: JSONBuilder*) -> None:
             jb.key("value").string(float_string)
             free(float_string)
             jb.end_object()
+
+
+def read_stdin_to_string() -> byte*:
+    bytes_list = List[byte]{}
+
+    buf: byte[4096]
+    while True:
+        num_read = fread(buf, 1, sizeof buf, get_stdin())
+        if num_read == 0:
+            assert ferror(get_stdin()) == 0
+            break
+        bytes_list.extend_from_ptr(buf, num_read)
+
+    lineno = 1
+    for p = bytes_list.ptr; p < bytes_list.end(); p++:
+        match *p:
+            case '\n':
+                lineno++
+            case '\0':
+                fprintf(get_stderr(), "got zero byte from stdin, would be invalid TOML\n")
+                exit(1)
+
+    bytes_list.append('\0')
+    return bytes_list.ptr
 
 
 # Test runner expects exit status 1 for failing tests, so let's use something
