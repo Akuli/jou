@@ -7,6 +7,8 @@
 
 set -e -o pipefail
 
+cd "$(dirname "$0")"
+
 RED="\x1b[31m"
 RESET="\x1b[0m"
 
@@ -18,7 +20,7 @@ fi
 function usage() {
     echo "Usage: $0 [--valgrind] [--jou-flags \"-O3 ...\"] [TEST_FILTER]"
     echo ""
-    echo "If TEST_FILTER is given, only the test that contain it as a substring"
+    echo "If TEST_FILTER is given, only the tests that contain it as a substring"
     echo 'will be ran. It can be e.g. "string" or "valid/key/escapes.toml".'
     exit 2
 }
@@ -57,51 +59,46 @@ while [ $# != 0 ]; do
     esac
 done
 
-if ! [ -x tmp/toml-test ]; then
-    (
-        mkdir -vp tmp
-        cd tmp
+if ! [ -x ./toml-test ]; then
+    echo "Downloading toml-test..."
+    wget -q https://github.com/toml-lang/toml-test/releases/download/v2.1.0/toml-test-v2.1.0-linux-amd64.gz
 
-        echo "Downloading toml-test..."
-        wget -q https://github.com/toml-lang/toml-test/releases/download/v2.1.0/toml-test-v2.1.0-linux-amd64.gz
+    echo "Verifying..."
+    if [ "$(sha256sum toml-test-v2.1.0-linux-amd64.gz | cut -d' ' -f1)" != "99fd36c93b297ebde9719ec174266765f56a28924d7fca799d911f3f4354c25d" ]; then
+        echo "Verifying failed!!!" >&2
+        exit 1
+    fi
 
-        echo "Verifying..."
-        if [ "$(sha256sum toml-test-v2.1.0-linux-amd64.gz | cut -d' ' -f1)" != "99fd36c93b297ebde9719ec174266765f56a28924d7fca799d911f3f4354c25d" ]; then
-            echo "Verifying failed!!!" >&2
-            exit 1
-        fi
-
-        echo "Extracting toml-test..."
-        gunzip toml-test-v2.1.0-linux-amd64.gz
-        mv -v toml-test-v2.1.0-linux-amd64 toml-test
-        chmod +x toml-test
-    )
+    echo "Extracting toml-test..."
+    gunzip toml-test-v2.1.0-linux-amd64.gz
+    mv -v toml-test-v2.1.0-linux-amd64 toml-test
+    chmod +x toml-test
 fi
 
 # Make sure that our file specifies an error messages for every file that is
 # supposed to fail with an error.
 #
 # The language version (-toml 1.1) is specified again below in this script.
-if ! diff -u --color=always <(tmp/toml-test list -toml 1.1 | grep ^invalid) <(grep '^"' tests/data/expected_toml_parser_errors.toml | cut -d'"' -f2); then
+if ! diff -u --color=always <(./toml-test list -toml 1.1 | grep ^invalid) <(grep '^"' expected_errors.toml | cut -d'"' -f2); then
     echo ""
-    echo -e "Error: ${RED}tests/data/expected_toml_parser_errors.toml is not up to date.${RESET}"
+    echo -e "Error: ${RED}expected_errors.toml is not up to date.${RESET}"
     exit 1
 fi
 
-make jou
+(cd ../.. && make jou)
 
 # Compile our Jou program that parses TOML on stdin and outputs JSON
-./jou -o tmp/toml_test_jou_program $jou_flags tests/special/toml_test_program.jou
+../../jou -o parser_program $jou_flags parser_program.jou
 
 if [ $valgrind = yes ]; then
-    jou_program_command="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=3 tmp/toml_test_jou_program"
+    jou_program_command="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=3 ./parser_program"
 else
-    jou_program_command="tmp/toml_test_jou_program"
+    jou_program_command="./parser_program"
 fi
 
 # Let's put this in an array so we can have comments next to each argument
 toml_test_command=(
-    tmp/toml-test
+    ./toml-test
 
     # What it should do
     test
@@ -119,9 +116,6 @@ toml_test_command=(
     # message than expected is enough to count as worthy of skip. But this is
     # still probably better than nothing.
     -skip-must-err
-
-    # Check each error message
-    -errors tests/data/expected_toml_parser_errors.toml
 
     # These tests contain dates and times so they don't work. We don't support
     # TOML dates and times.
@@ -165,22 +159,39 @@ fi
 # The default is to run everything. If an argument is given, let's use it to
 # run only the tests that contain that argument.
 if [ "$test_filter" != "" ]; then
+    # To check that we output the correct error messages, it is possible to pass a
+    # JSON or TOML file with the expected errors to toml-test. But it doesn't work
+    # quite like you would hope/expect: toml-test refuses to run the test if your
+    # error file contains errors that don't apply to any of the tests.
+    #
+    # So if we run only some specific tests, we must filter them out.
+    errors_file="$(mktemp --suffix=.toml)"
+    trap 'rm -f "$errors_file"' EXIT
+
     comma_separated=""
-    for test_name_dot_toml in $(tmp/toml-test list | grep '\.toml$'); do
-        test_name=${test_name_dot_toml%%.toml}
+    for test_name in $(./toml-test list -toml 1.1 | grep '\.toml$'); do
         if [[ "$test_name" == *"$test_filter"* ]]; then
             echo "  Selecting test '$test_name'"
             if [ -n "$comma_separated" ]; then
                 comma_separated="$comma_separated,"
             fi
-            comma_separated="$comma_separated$test_name"
+            comma_separated="${comma_separated}${test_name%%.toml}"
+            if [[ "$test_name" = invalid/* ]]; then
+                grep "^\"$test_name\" = " expected_errors.toml >> $errors_file || (echo "grepping failed"; exit 1)
+            fi
         fi
     done
+
     if [ -z "$comma_separated" ]; then
         echo -e "${RED}Error: No test name contains $test_filter.${RESET}" >&2
         exit 1
     fi
+
     toml_test_command+=(-run $comma_separated)
+else
+    errors_file=expected_errors.toml
 fi
+
+toml_test_command+=(-errors $errors_file)
 
 "${toml_test_command[@]}"
