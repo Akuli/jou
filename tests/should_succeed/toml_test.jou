@@ -1,22 +1,48 @@
 # Please note that stdlib/toml.jou is also tested with the official TOML test
-# suite that contains hundreds of TOML files and their expected results.
+# suite that contains hundreds of TOML files and their expected results.  For
+# that, see tests/toml/ directory.
+#
 # Therefore this test doesn't focus on various corner cases much.
 
 import "stdlib/io.jou"
 import "stdlib/toml.jou"
 
-def main() -> int:
+
+def test_basic_parsing() -> None:
     result = parse_toml("[languages]\ntoml = 'supported in Jou'")
     if result.failed:
         printf("Oh no\n")  # does not get printed
     else:
-        printf("%s\n", result.parsed.ptr[0].key)  # Output: languages
-        languages_table = result.parsed.ptr[0].value
-        match languages_table.kind:
-            case TOMLValueKind.Table:
+        printf("%s\n", result.toml_table.table.ptr[0].key)  # Output: languages
+        languages_table = result.toml_table.table.ptr[0].value
+        match languages_table.type:
+            case TOMLType.Table:
                 key_value_pair = languages_table.table.ptr[0]
                 printf("%s\n", key_value_pair.key)  # Output: toml
                 printf("%s\n", key_value_pair.value.string)  # Output: supported in Jou
             case _:
                 printf("wat?\n")
+
+
+def test_array_depth_limit() -> None:
+    # 64 levels. Allowed, but just barely.
+    result = parse_toml("\
+        x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['this is at level 64']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]\n\
+        [1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63]\n\
+        level64 = 'working fine'\n\
+        [one]\n\
+        2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64 = 'level64'\n\
+    ")
+    printf("failed = %d\n", result.failed)  # Output: failed = 0
+    result.toml_table.free()
+
+#    # 65 levels
+#    result = parse_toml("[foo]\nx = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+#    printf("failed = %d\n", result.failed)  # Output: failed = 1
+#    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 2: nesting deeper than 64 levels is not supported
+
+
+def main() -> int:
+    test_basic_parsing()
+    test_array_depth_limit()
     return 0

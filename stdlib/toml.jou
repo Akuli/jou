@@ -58,6 +58,9 @@ class TOMLValue:
         # Not meant to be accessed outside this file.
         created_by: CreatedBy
 
+    # Main/root table has depth 0, its contents have depth 1 etc
+    depth: int
+
     @public
     def free(self) -> None:
         match self.type:
@@ -113,10 +116,17 @@ class TOMLValue:
 
 @public
 class TOMLParseResult:
-    main_table: TOMLValue
+    toml_table: TOMLValue
     failed: bool
     error_message: byte*
     error_lineno: int
+
+
+# Very deeply nested TOML is banned, similarly to JSON. Creating such data
+# structures would be fine, but we're in trouble when it's time to free the
+# memory: we would need to recurse through the data structure to free each
+# member, and with deep nesting, that could overflow the stack.
+const MAX_DEPTH: int = 64
 
 
 # TODO: this doesn't belong here
@@ -830,7 +840,7 @@ def parse_toml(string: byte*) -> TOMLParseResult:
 
     if parser.parse_the_whole_thing():
         free(string)
-        return TOMLParseResult{main_table = parser.root_table}
+        return TOMLParseResult{toml_table = parser.root_table}
     else:
         # Figure out the line number where it failed
         lineno = 1

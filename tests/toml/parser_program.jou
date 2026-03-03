@@ -68,6 +68,21 @@ def toml_to_json(value: TOMLValue*, jb: JSONBuilder*) -> None:
             jb.end_object()
 
 
+# The depth calculations are hard to get right and we want to test them with
+# lots of test data, so here goes :)
+def check_depths(value: TOMLValue*, expected_depth: int) -> None:
+    assert value.depth == expected_depth
+    match value.type:
+        case TOMLType.Array:
+            for p = value.array.ptr; p < value.array.end(); p++:
+                check_depths(p, expected_depth + 1)
+        case TOMLType.Table:
+            for kv = value.table.ptr; kv < value.table.end(); kv++:
+                check_depths(&kv.value, expected_depth + 1)
+        case TOMLType.String | TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Unset:
+            pass
+
+
 def read_stdin_to_string() -> byte*:
     bytes_list = List[byte]{}
 
@@ -107,8 +122,9 @@ def main() -> int:
         return 1
 
     jb = JSONBuilder{pretty_print = 4}
-    toml_to_json(&result.main_table, &jb)
-    result.main_table.free()
+    toml_to_json(&result.toml_table, &jb)
+    check_depths(&result.toml_table, 0)
+    result.toml_table.free()
 
     json = jb.finish()
     puts(json)
