@@ -1,6 +1,18 @@
 import "stdlib/math.jou"
 import "stdlib/io.jou"
 
+# TODO: move these to stdlib/math.jou
+#
+# Here are some more readable ways to construct non-finite values. Note that
+# there are multiple different NaN values (see also: nan boxing), and the NaN
+# constructed here is just one of them.
+#
+# Like M_PI and M_E, these are doubles. Use "as float" as needed.
+@public
+const INFINITY: double = 1.0 / 0.0
+@public
+const NAN: double = 0.0 / 0.0
+
 def main() -> int:
     printf("%f\n", M_PI)  # Output: 3.141593
     printf("%d\n", M_PI == acos(-1))  # Output: 1
@@ -18,12 +30,24 @@ def main() -> int:
     printf("%f\n", fmax(1.2, 3.4))  # Output: 3.400000
     printf("%f\n", fmaxf(1.2 as float, 3.4 as float))  # Output: 3.400000
 
-    test_doubles = [123.0, -123.0, 1.0 / 0.0, -1.0 / 0.0, 0.0 / 0.0, -0.0 / 0.0]
+    test_doubles = [
+        0.0, -0.0, 123.0, -123.0,
+        # Parentheses are intentionally a bit weirdly here. It shouldn't matter
+        # how they are and I want to test that.
+        INFINITY, 1.0/0.0, -INFINITY, (-1.0)/0.0,
+        NAN, 0.0/0.0, -NAN, 0.0/(-0.0),
+    ]
 
     # Output: 1 0 0
     # Output: 1 0 0
+    # Output: 1 0 0
+    # Output: 1 0 0
     # Output: 0 1 0
     # Output: 0 1 0
+    # Output: 0 1 0
+    # Output: 0 1 0
+    # Output: 0 0 1
+    # Output: 0 0 1
     # Output: 0 0 1
     # Output: 0 0 1
     for d = &test_doubles[0]; d < &test_doubles[array_count(test_doubles)]; d++:
@@ -31,8 +55,14 @@ def main() -> int:
 
     # Output: 1 0 0
     # Output: 1 0 0
+    # Output: 1 0 0
+    # Output: 1 0 0
     # Output: 0 1 0
     # Output: 0 1 0
+    # Output: 0 1 0
+    # Output: 0 1 0
+    # Output: 0 0 1
+    # Output: 0 0 1
     # Output: 0 0 1
     # Output: 0 0 1
     for d = &test_doubles[0]; d < &test_doubles[array_count(test_doubles)]; d++:
@@ -105,5 +135,11 @@ def main() -> int:
 
     printf("%f\n", erf(2))  # Output: 0.995322
     printf("%f\n", erff(2))  # Output: 0.995322
+
+    # This wouldn't work if INFINITY is a float. Then the compiler would infer
+    # that my_inf is a float and refuse to assign a double to it.
+    my_inf = INFINITY
+    my_inf = 12.34
+    printf("%f\n", my_inf)  # Output: 12.340000
 
     return 0

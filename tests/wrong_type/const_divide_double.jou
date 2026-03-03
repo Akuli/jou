@@ -1,0 +1,6 @@
+# This works fine, it creates an infinity
+const GOOD_INF: double = 1.0 / 0.0
+
+# This must not convert the ints to double, because that's not what would
+# happen if this code without the "const" was inside a function
+const BAD_INF: double = 1 / 0  # Error: cannot evaluate value of constant at compile time

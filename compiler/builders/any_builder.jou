@@ -305,14 +305,14 @@ class AnyBuilder:
         return result
 
     @public
-    def float_or_double(self, t: Type*, string: byte*) -> AnyBuilderValue:
+    def float_or_double(self, t: Type*, dbl: double) -> AnyBuilderValue:
         result = AnyBuilderValue{}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.float_or_double(t, string)
+            result.lvalue = self.lbuilder.float_or_double(t, dbl)
         if self.ubuilder != NULL:
-            result.uvalue = self.ubuilder.float_or_double(t, string)
+            result.uvalue = self.ubuilder.float_or_double(t, dbl)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.float_or_double(t, string)
+            result.hvalue = self.hbuilder.float_or_double(t, dbl)
         return result
 
     @public

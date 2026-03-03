@@ -247,9 +247,9 @@ class HBuilder:
         return self.new_value(t)
 
     @public
-    def float_or_double(self, t: Type*, string: byte*) -> HBuilderValue:
+    def float_or_double(self, t: Type*, dbl: double) -> HBuilderValue:
         self.hash.add_string("float_or_double")
-        self.hash.add_string(string)
+        self.hash.add_bytes(&dbl as byte*, sizeof(dbl))
         return self.new_value(t)
 
     @public

@@ -8,6 +8,10 @@ import "stdlib/mem.jou"
 import "./types.jou"
 
 
+# TODO: this function doesn't belong here
+declare atof(string: byte*) -> double
+
+
 def print_string(s: byte*) -> None:
     putchar('"')
     for i = 0; s[i] != '\0'; i++:
@@ -47,6 +51,20 @@ class EnumMemberConstant:
     enumtype: Type*
     memberidx: int
 
+# Needed only for debugging
+def print_double(n: double) -> None:
+    # 17 significant digits is enough to print any double, but it's too
+    # much for some doubles. For example, with 17 significant digits, 3.14
+    # becomes 3.1400000000000001.
+    #
+    # The same logic is in stdlib/json.jou at the time of writing this.
+    buf: byte[64] = ""
+    snprintf(buf, sizeof(buf), "%.16g", n)
+    if atof(buf) != n:
+        snprintf(buf, sizeof(buf), "%.17g", n)
+    printf("%s", buf)
+
+
 @public
 class Constant:
     kind: ConstantKind
@@ -54,7 +72,7 @@ class Constant:
         integer: IntegerConstant
         pointer_string: byte*
         array_of_bytes: List[byte]  # may contain zero bytes
-        float_or_double_text: byte[100]  # convenient because LLVM wants a string anyway
+        float_or_double_value: double
         boolean: bool
         enum_member: EnumMemberConstant
         array_elements: List[Constant]
@@ -70,9 +88,13 @@ class Constant:
                 else:
                     printf("False\n")
             case ConstantKind.Float:
-                printf("float %s\n", self.float_or_double_text)
+                printf("float ")
+                print_double(self.float_or_double_value)
+                printf("\n")
             case ConstantKind.Double:
-                printf("double %s\n", self.float_or_double_text)
+                printf("double ")
+                print_double(self.float_or_double_value)
+                printf("\n")
             case ConstantKind.Integer:
                 if self.integer.is_signed:
                     signed_or_unsigned = "signed"

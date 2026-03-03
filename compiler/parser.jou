@@ -15,6 +15,10 @@ import "./constants.jou"
 import "./types.jou"
 
 
+# TODO: this function doesn't belong here
+declare atof(string: byte*) -> double
+
+
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
 #
 # This cannot be used for ++ and --, because with them we can't know the kind from
@@ -685,10 +689,10 @@ class Parser:
                 expr.constant = int_constant(uint_type(8), (self.tokens++).integer_value as int64)
             case TokenKind.Float:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = Constant{kind = ConstantKind.Float, float_or_double_text = (self.tokens++).short_string}
+                expr.constant = Constant{kind = ConstantKind.Float, float_or_double_value = atof((self.tokens++).short_string)}
             case TokenKind.Double:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = Constant{kind = ConstantKind.Double, float_or_double_text = (self.tokens++).short_string}
+                expr.constant = Constant{kind = ConstantKind.Double, float_or_double_value = atof((self.tokens++).short_string)}
             case TokenKind.String:
                 expr.kind = AstExpressionKind.Constant
                 expr.constant = Constant{kind = ConstantKind.PointerString, pointer_string = strdup((self.tokens++).long_string)}
