@@ -240,11 +240,6 @@ function should_skip()
         fi
     fi
 
-    # As directory name suggests.
-    if [[ $joufile =~ ^tests/special/ ]]; then
-        return 0
-    fi
-
     return 1  # false, don't skip
 }
 
@@ -312,7 +307,20 @@ num_tests_in_parallel=$(getconf _NPROCESSORS_ONLN)
 counter=0
 skipped=0
 
-for joufile in examples/*.jou examples/aoc*/day*/part*.jou tests/*/*.jou tests/should_succeed/double_dotdot_import/*/*.jou; do
+for joufile in \
+    examples/*.jou \
+    examples/aoc*/day*/part*.jou \
+    tests/404/*.jou \
+    tests/already_exists_error/*.jou \
+    tests/crash/*.jou \
+    tests/other_errors/*.jou \
+    tests/should_succeed/*.jou \
+    tests/should_succeed/double_dotdot_import/*/*.jou \
+    tests/syntax_error/*.jou \
+    tests/too_long/*.jou \
+    tests/wrong_place/*.jou \
+    tests/wrong_type/*.jou \
+; do
     if ! [[ $joufile == *"$file_filter"* ]]; then
         # Skip silently, without showing that this is skipped.
         # This produces less noisy output when you select only a few tests.
