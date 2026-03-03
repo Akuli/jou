@@ -121,7 +121,7 @@ toml_test_command=(
     -skip-must-err
 
     # Check each error message
-#    -errors tests/data/expected_toml_parser_errors.toml
+    -errors tests/data/expected_toml_parser_errors.toml
 
     # These tests contain dates and times so they don't work. We don't support
     # TOML dates and times.
