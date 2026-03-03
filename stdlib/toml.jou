@@ -32,6 +32,14 @@ enum TOMLValueKind:
     Integer
     Floating
 
+# This is used to prevent adding more stuff to an existing table/array when
+# that is not allowed by TOML's rules.
+enum CreatedBy:
+    Unset  # must be the first member so that this is the default
+    Inline  # e.g. {x = "foo", y = "bar"} or ["foo", "bar"]
+    Section  # foo was created with [foo] or [[foo]] on a line of its own
+    DottedKey  # table foo was created only to access foo.bar
+
 @public
 class TOMLValue:
     kind: TOMLValueKind
@@ -43,11 +51,12 @@ class TOMLValue:
         integer: int64
         floating: double
 
-    # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
-    string_len: intnative
+    union:
+        # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
+        string_len: intnative
 
-    # Not meant to be used outside this file.
-    flags: uint8
+        # Not meant to be accessed outside this file.
+        created_by: CreatedBy
 
     @public
     def free(self) -> None:
@@ -119,17 +128,6 @@ class TOMLParseResult:
 
 # TODO: this doesn't belong here
 declare atof(string: byte*) -> double
-
-# For inline tables {foo = "bar"} and arrays ["foo", "bar"]
-const FLAG_INLINE: byte = 0b001
-
-# For tables when the table looks like [foo.bar.baz] on a line of its own
-const FLAG_SECTION: byte = 0b010
-
-# For tables when the table foo.bar was created just to access foo.bar.baz in
-# the key of a key-value pair.
-const FLAG_CREATED_IMPLICITLY: byte = 0b100
-
 
 def hexdigit_value(b: byte) -> int:
     if '0' <= b and b <= '9':
@@ -320,7 +318,7 @@ class TOMLParser:
                 return NULL
 
         assert target_table.kind == TOMLValueKind.Table
-        if target_table.flags & FLAG_INLINE != 0:
+        if target_table.created_by == CreatedBy.Inline:
             self.error = "inline tables cannot be extended after creating the table"
             free(key)
             return NULL
@@ -333,7 +331,7 @@ class TOMLParser:
 
         # Key not found --> create new table, unless it's the weird special
         # case where that is not allowed
-        if (target_table.flags & FLAG_SECTION) != 0 and this_is_the_key_of_a_keyval_pair:
+        if target_table.created_by == CreatedBy.Section and this_is_the_key_of_a_keyval_pair:
             self.error = "a dotted key of a key-value pair cannot extend a table after the content of the table has been explicitly listed above"
             free(key)
             return NULL
@@ -341,7 +339,7 @@ class TOMLParser:
         target_table.table.append(TOMLKeyVal{key = key})
         result = &target_table.table.end()[-1].value
         if this_is_the_key_of_a_keyval_pair:
-            result.flags |= FLAG_CREATED_IMPLICITLY
+            result.created_by = CreatedBy.DottedKey
         return result
 
     def val(self, result: TOMLValue*) -> bool:
@@ -653,7 +651,7 @@ class TOMLParser:
         # Mark the old current table as complete. This must be done quite
         # early, because we may create a new table below, and that messes up
         # pointers into the old table when the tables are in the same array.
-        self.current_table.flags |= FLAG_SECTION
+        self.current_table.created_by = CreatedBy.Section
         self.current_table = NULL  # not necessary, but causes bugs to fail more loudly
 
         assert *self.ptr == '['
@@ -676,9 +674,14 @@ class TOMLParser:
             match value_ptr.kind:
                 case TOMLValueKind.Unset:
                     # Just created for this
-                    *value_ptr = TOMLValue{kind = TOMLValueKind.Array}
+                    #
+                    # Unlike with tables, we set created_by immediately, not
+                    # when we are done with populating the table. That doesn't
+                    # really matter. In fact, we could just leave created_by
+                    # unset here, but this feels like it makes more sense.
+                    *value_ptr = TOMLValue{kind = TOMLValueKind.Array, created_by = CreatedBy.Section}
                 case TOMLValueKind.Array:
-                    if value_ptr.flags & FLAG_INLINE != 0:
+                    if value_ptr.created_by == CreatedBy.Inline:
                         self.error = "inline arrays cannot be extended after creating the array"
                         return False
                 case _:
@@ -694,7 +697,7 @@ class TOMLParser:
                     *value_ptr = TOMLValue{kind = TOMLValueKind.Table}
                 case TOMLValueKind.Table:
                     # Add more stuff to an existing table
-                    if value_ptr.flags & (FLAG_CREATED_IMPLICITLY | FLAG_SECTION) != 0:
+                    if value_ptr.created_by != CreatedBy.Unset:
                         self.error = "table already exists"
                         return False
                 case _:
@@ -750,7 +753,7 @@ class TOMLParser:
         assert *self.ptr == ']'
         self.ptr++
 
-        result.flags |= FLAG_INLINE
+        result.created_by = CreatedBy.Inline
         return True
 
     def parse_inline_table(self, result: TOMLValue*) -> bool:
@@ -787,7 +790,7 @@ class TOMLParser:
         assert *self.ptr == '}'
         self.ptr++
 
-        result.flags |= FLAG_INLINE
+        result.created_by = CreatedBy.Inline
         return True
 
     def whitespace_comment_newline(self) -> bool:
