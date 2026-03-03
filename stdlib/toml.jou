@@ -285,6 +285,7 @@ class TOMLParser:
                 return NULL
             if strlen(key) < key_len:
                 self.error = "sorry, zero bytes in keys are not supported"
+                free(key)
                 return NULL
         else:
             n = strspn(self.ptr, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
@@ -295,9 +296,6 @@ class TOMLParser:
             asprintf(&key, "%.*s", n as int, self.ptr)
             assert key != NULL
             self.ptr = &self.ptr[n]
-
-        if key == NULL:
-            return NULL
 
         # Go to a part within an already chosen key
         match parent_value.kind:
@@ -320,12 +318,15 @@ class TOMLParser:
                 target_table = &parent_value.array.end()[-1]
             case TOMLValueKind.String:
                 self.error = "expected a table, got a string"
+                free(key)
                 return NULL
             case TOMLValueKind.Boolean:
                 self.error = "expected a table, got a boolean"
+                free(key)
                 return NULL
             case TOMLValueKind.Integer | TOMLValueKind.Floating:
                 self.error = "expected a table, got a number"
+                free(key)
                 return NULL
 
         assert target_table.kind == TOMLValueKind.Table
@@ -647,6 +648,7 @@ class TOMLParser:
                         return NULL
             elif *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
                 self.error = "invalid character in string"
+                free(result.ptr)
                 return NULL
             else:
                 result.append(*self.ptr++)
