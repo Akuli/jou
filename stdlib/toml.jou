@@ -660,6 +660,12 @@ class TOMLParser:
         return result.ptr
 
     def parse_table_header(self) -> bool:
+        # Mark the old current table as complete. This must be done quite
+        # early, because we may create a new table below, and that messes up
+        # pointers into the old table when the tables are in the same array.
+        self.current_table.flags |= FLAG_SECTION
+        self.current_table = NULL  # not necessary, but causes bugs to fail more loudly
+
         assert *self.ptr == '['
         self.ptr++
 
@@ -684,10 +690,6 @@ class TOMLParser:
             case _:
                 self.error = "cannot redefine an existing value as a table"
                 return False
-
-        # We must be set before we check. If a section is repeated with nothing
-        # in between, the check below catches this setting.
-        self.current_table.flags |= FLAG_SECTION
 
         if value_ptr.flags & FLAG_SECTION != 0:
             self.error = "duplicate table"
