@@ -26,37 +26,37 @@ import "stdlib/toml.jou"
 
 def toml_to_json(value: TOMLValue*, jb: JSONBuilder*) -> None:
     s: byte[100]
-    match value.kind:
-        case TOMLValueKind.Unset:
+    match value.type:
+        case TOMLType.Unset:
             jb.string("THIS SHOULD NEVER HAPPEN!!!!")
-        case TOMLValueKind.Array:
+        case TOMLType.Array:
             jb.begin_array()
             for p = value.array.ptr; p < value.array.end(); p++:
                 toml_to_json(p, jb)
             jb.end_array()
-        case TOMLValueKind.Table:
+        case TOMLType.Table:
             jb.begin_object()
             for kv = value.table.ptr; kv < value.table.end(); kv++:
                 jb.key(kv.key)
                 toml_to_json(&kv.value, jb)
             jb.end_object()
-        case TOMLValueKind.String:
+        case TOMLType.String:
             jb.begin_object()
             jb.key("type").string("string")
             jb.key("value").string_with_len(value.string, value.string_len)
             jb.end_object()
-        case TOMLValueKind.Boolean:
+        case TOMLType.Boolean:
             jb.begin_object()
             jb.key("type").string("bool")
             jb.key("value").string("true" if value.boolean else "false")
             jb.end_object()
-        case TOMLValueKind.Integer:
+        case TOMLType.Integer:
             jb.begin_object()
             jb.key("type").string("integer")
             sprintf(s, "%lld", value.integer)
             jb.key("value").string(s)
             jb.end_object()
-        case TOMLValueKind.Floating:
+        case TOMLType.Floating:
             jb.begin_object()
             jb.key("type").string("float")
             # Use the JSON builder's float formatting code, but wrap to string

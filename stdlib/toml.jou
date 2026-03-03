@@ -23,7 +23,7 @@ class TOMLKeyVal:
         self.value.free()
 
 @public
-enum TOMLValueKind:
+enum TOMLType:
     Unset  # must be first, so initializes to this
     Table
     Array
@@ -42,7 +42,7 @@ enum CreatedBy:
 
 @public
 class TOMLValue:
-    kind: TOMLValueKind
+    type: TOMLType
     union:
         table: List[TOMLKeyVal]
         array: List[TOMLValue]
@@ -60,26 +60,26 @@ class TOMLValue:
 
     @public
     def free(self) -> None:
-        match self.kind:
-            case TOMLValueKind.Table:
+        match self.type:
+            case TOMLType.Table:
                 for kv = self.table.ptr; kv < self.table.end(); kv++:
                     kv.free()
                 free(self.table.ptr)
-            case TOMLValueKind.Array:
+            case TOMLType.Array:
                 for p = self.array.ptr; p < self.array.end(); p++:
                     p.free()
                 free(self.array.ptr)
-            case TOMLValueKind.String:
+            case TOMLType.String:
                 free(self.string)
-            case TOMLValueKind.Boolean | TOMLValueKind.Integer | TOMLValueKind.Floating | TOMLValueKind.Unset:
+            case TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Unset:
                 pass
 
     # Needed to implement .print()
     def print_without_newline(self) -> None:
-        match self.kind:
-            case TOMLValueKind.Unset:
+        match self.type:
+            case TOMLType.Unset:
                 printf("<unset>")
-            case TOMLValueKind.Table:
+            case TOMLType.Table:
                 printf("{")
                 for kv = self.table.ptr; kv < self.table.end(); kv++:
                     if kv > self.table.ptr:
@@ -87,21 +87,21 @@ class TOMLValue:
                     printf("%s = ", kv.key)
                     kv.value.print_without_newline()
                 printf("}")
-            case TOMLValueKind.Array:
+            case TOMLType.Array:
                 printf("[")
                 for item = self.array.ptr; item < self.array.end(); item++:
                     if item > self.array.ptr:
                         printf(", ")
                     item.print_without_newline()
                 printf("]")
-            case TOMLValueKind.String:
+            case TOMLType.String:
                 # Does not escape properly... but good enough for now?
                 printf("\"%s\"", self.string)
-            case TOMLValueKind.Boolean:
+            case TOMLType.Boolean:
                 printf("true" if self.boolean else "false")
-            case TOMLValueKind.Integer:
+            case TOMLType.Integer:
                 printf("%lld", self.integer)
-            case TOMLValueKind.Floating:
+            case TOMLType.Floating:
                 # May not contain all digits needed to get the same value!
                 printf("%g", self.floating)
 
@@ -201,7 +201,7 @@ class TOMLParser:
         if value_dest_ptr == NULL:
             return False
 
-        if value_dest_ptr.kind != TOMLValueKind.Unset:
+        if value_dest_ptr.type != TOMLType.Unset:
             self.error = "duplicate key"
             return False
 
@@ -279,38 +279,38 @@ class TOMLParser:
             self.ptr = &self.ptr[n]
 
         # Go to a part within an already chosen key
-        match parent_value.kind:
-            case TOMLValueKind.Unset:
+        match parent_value.type:
+            case TOMLType.Unset:
                 # TODO: what exactly should happen here?
-                parent_value.kind = TOMLValueKind.Table
+                parent_value.type = TOMLType.Table
                 target_table = parent_value
-            case TOMLValueKind.Table:
+            case TOMLType.Table:
                 target_table = parent_value
-            case TOMLValueKind.Array:
+            case TOMLType.Array:
                 # Refer to the last element. It must be a table.
                 if parent_value.array.len == 0:
                     self.error = "cannot refer to last element of empty array"
                     free(key)
                     return NULL
-                if parent_value.array.end()[-1].kind != TOMLValueKind.Table:
+                if parent_value.array.end()[-1].type != TOMLType.Table:
                     self.error = "last element of array is not a table"
                     free(key)
                     return NULL
                 target_table = &parent_value.array.end()[-1]
-            case TOMLValueKind.String:
+            case TOMLType.String:
                 self.error = "expected a table, got a string"
                 free(key)
                 return NULL
-            case TOMLValueKind.Boolean:
+            case TOMLType.Boolean:
                 self.error = "expected a table, got a boolean"
                 free(key)
                 return NULL
-            case TOMLValueKind.Integer | TOMLValueKind.Floating:
+            case TOMLType.Integer | TOMLType.Floating:
                 self.error = "expected a table, got a number"
                 free(key)
                 return NULL
 
-        assert target_table.kind == TOMLValueKind.Table
+        assert target_table.type == TOMLType.Table
         if target_table.created_by == CreatedBy.Inline:
             self.error = "inline tables cannot be extended after creating the table"
             free(key)
@@ -342,13 +342,13 @@ class TOMLParser:
                 s = self.parse_string(True, &s_len)
                 if s == NULL:
                     return False
-                *result = TOMLValue{kind = TOMLValueKind.String, string = s, string_len = s_len}
+                *result = TOMLValue{type = TOMLType.String, string = s, string_len = s_len}
                 return True
 
             case 't':
                 if starts_with(self.ptr, "true"):
                     self.ptr = &self.ptr[4]
-                    *result = TOMLValue{kind = TOMLValueKind.Boolean, boolean = True}
+                    *result = TOMLValue{type = TOMLType.Boolean, boolean = True}
                     return True
 
             case 'T':
@@ -362,7 +362,7 @@ class TOMLParser:
             case 'f':
                 if starts_with(self.ptr, "false"):
                     self.ptr = &self.ptr[5]
-                    *result = TOMLValue{kind = TOMLValueKind.Boolean, boolean = False}
+                    *result = TOMLValue{type = TOMLType.Boolean, boolean = False}
                     return True
 
             case 'F':
@@ -418,12 +418,12 @@ class TOMLParser:
 
         if base == 10 and starts_with(self.ptr, "inf"):
             self.ptr = &self.ptr[3]
-            *result = TOMLValue{kind = TOMLValueKind.Floating, floating = sign * (1.0 / 0.0)}
+            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (1.0 / 0.0)}
             return True
 
         if base == 10 and starts_with(self.ptr, "nan"):
             self.ptr = &self.ptr[3]
-            *result = TOMLValue{kind = TOMLValueKind.Floating, floating = sign * (0.0 / 0.0)}
+            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (0.0 / 0.0)}
             return True
 
         # We validate the matched digits below, but we can't always search for
@@ -468,7 +468,7 @@ class TOMLParser:
 
         self.ptr = &self.ptr[len]
 
-        *result = TOMLValue{kind = TOMLValueKind.Integer, integer = sign * unsigned_result}
+        *result = TOMLValue{type = TOMLType.Integer, integer = sign * unsigned_result}
         return True
 
     def skip_float_integer_part(self) -> bool:
@@ -520,7 +520,7 @@ class TOMLParser:
         while dest < self.ptr:
             *dest++ = ' '
 
-        *result = TOMLValue{kind = TOMLValueKind.Floating, floating = sign*atof(start_of_float)}
+        *result = TOMLValue{type = TOMLType.Floating, floating = sign*atof(start_of_float)}
         return True
 
     def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
@@ -664,16 +664,16 @@ class TOMLParser:
             return False
 
         if is_array:
-            match value_ptr.kind:
-                case TOMLValueKind.Unset:
+            match value_ptr.type:
+                case TOMLType.Unset:
                     # Just created for this
                     #
                     # Unlike with tables, we set created_by immediately, not
                     # when we are done with populating the table. That doesn't
                     # really matter. In fact, we could just leave created_by
                     # unset here, but this feels like it makes more sense.
-                    *value_ptr = TOMLValue{kind = TOMLValueKind.Array, created_by = CreatedBy.Section}
-                case TOMLValueKind.Array:
+                    *value_ptr = TOMLValue{type = TOMLType.Array, created_by = CreatedBy.Section}
+                case TOMLType.Array:
                     if value_ptr.created_by == CreatedBy.Inline:
                         self.error = "inline arrays cannot be extended after creating the array"
                         return False
@@ -681,14 +681,14 @@ class TOMLParser:
                     self.error = "cannot redefine an existing value as an array"
                     return False
 
-            value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
+            value_ptr.array.append(TOMLValue{type = TOMLType.Table})
             self.current_table = &value_ptr.array.end()[-1]
         else:
-            match value_ptr.kind:
-                case TOMLValueKind.Unset:
+            match value_ptr.type:
+                case TOMLType.Unset:
                     # Just created for this
-                    *value_ptr = TOMLValue{kind = TOMLValueKind.Table}
-                case TOMLValueKind.Table:
+                    *value_ptr = TOMLValue{type = TOMLType.Table}
+                case TOMLType.Table:
                     # Add more stuff to an existing table
                     if value_ptr.created_by != CreatedBy.Unset:
                         self.error = "table already exists"
@@ -717,7 +717,7 @@ class TOMLParser:
         if not self.whitespace_comment_newline():
             return False
 
-        *result = TOMLValue{kind = TOMLValueKind.Array}
+        *result = TOMLValue{type = TOMLType.Array}
 
         while *self.ptr != ']':
             value: TOMLValue
@@ -756,7 +756,7 @@ class TOMLParser:
         if not self.whitespace_comment_newline():
             return False
 
-        *result = TOMLValue{kind = TOMLValueKind.Table}
+        *result = TOMLValue{type = TOMLType.Table}
 
         while *self.ptr != '}':
             keyval_ok = self.keyval(result)
@@ -829,7 +829,7 @@ def parse_toml(string: byte*) -> TOMLParseResult:
     assert string != NULL
     fix_newlines(string)
 
-    parser = TOMLParser{ptr = string, root_table = TOMLValue{kind = TOMLValueKind.Table}}
+    parser = TOMLParser{ptr = string, root_table = TOMLValue{type = TOMLType.Table}}
     parser.current_table = &parser.root_table  # the "default section"
 
     if parser.parse_the_whole_thing():
