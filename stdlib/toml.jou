@@ -669,7 +669,7 @@ class TOMLParser:
         value_ptr = self.key(&self.root_table, False)
         if value_ptr == NULL:
             if strcmp(self.error, "invalid key") == 0:
-                self.error = "invalid array header" if is_array else "invalid table header"
+                self.error = "invalid header"
             return False
 
         if is_array:
@@ -717,7 +717,7 @@ class TOMLParser:
             self.ptr = &self.ptr[strlen(suffix)]
             return True
         else:
-            self.error = "invalid array header" if is_array else "invalid table header"
+            self.error = "invalid header"
             return False
 
     def parse_inline_array(self, result: TOMLValue*) -> bool:
