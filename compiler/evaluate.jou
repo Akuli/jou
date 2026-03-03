@@ -210,17 +210,8 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                     result.integer.value *= -1
                     return True
                 case TypeKind.FloatingPoint:
-                    old_string: byte[100] = result.float_or_double_text
-                    if old_string[0] == '-':
-                        # Remove minus sign in beginning: -(-1.0) becomes 1.0
-                        strcpy(result.float_or_double_text, &old_string[1])
-                        return True
-                    elif strlen(old_string) + 1 < sizeof(result.float_or_double_text):
-                        # Add minus to beginning
-                        sprintf(result.float_or_double_text, "-%s", old_string)
-                        return True
-                    else:
-                        return False
+                    result.float_or_double_value *= -1
+                    return True
                 case _:
                     return False
 
