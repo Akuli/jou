@@ -1,0 +1,908 @@
+# TOML spec (english): https://toml.io/en/v1.1.0
+# TOML spec (grammar): https://github.com/toml-lang/toml/blob/1.1.0/toml.abnf
+
+import "stdlib/ascii.jou"
+import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
+import "stdlib/io.jou"
+import "stdlib/json.jou"
+import "stdlib/limits.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+import "stdlib/str.jou"
+import "stdlib/utf8.jou"
+
+
+@public
+class TOMLKeyVal:
+    key: byte*
+    value: TOMLValue
+
+    def free(self) -> None:
+        free(self.key)
+        self.value.free()
+
+@public
+enum TOMLValueKind:
+    Unset  # must be first, so initializes to this
+    Table
+    Array
+    String
+    Boolean
+    Integer
+    Floating
+
+@public
+class TOMLValue:
+    kind: TOMLValueKind
+    union:
+        table: List[TOMLKeyVal]
+        array: List[TOMLValue]
+        string: byte*
+        boolean: bool
+        integer: int64
+        floating: double
+
+    # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
+    string_len: intnative
+
+    # Not meant to be used outside this file.
+    flags: uint8
+
+    def free(self) -> None:
+        match self.kind:
+            case TOMLValueKind.Table:
+                for kv = self.table.ptr; kv < self.table.end(); kv++:
+                    kv.free()
+                free(self.table.ptr)
+            case TOMLValueKind.Array:
+                for p = self.array.ptr; p < self.array.end(); p++:
+                    p.free()
+                free(self.array.ptr)
+            case TOMLValueKind.String:
+                free(self.string)
+            case TOMLValueKind.Boolean | TOMLValueKind.Integer | TOMLValueKind.Floating | TOMLValueKind.Unset:
+                pass
+
+    # Needed to implement .print()
+    def print_without_newline(self) -> None:
+        match self.kind:
+            case TOMLValueKind.Unset:
+                printf("<unset>")
+            case TOMLValueKind.Table:
+                printf("{")
+                for kv = self.table.ptr; kv < self.table.end(); kv++:
+                    if kv > self.table.ptr:
+                        printf(", ")
+                    printf("%s = ", kv.key)
+                    kv.value.print_without_newline()
+                printf("}")
+            case TOMLValueKind.Array:
+                printf("[")
+                for item = self.array.ptr; item < self.array.end(); item++:
+                    if item > self.array.ptr:
+                        printf(", ")
+                    item.print_without_newline()
+                printf("]")
+            case TOMLValueKind.String:
+                # Does not escape properly... but good enough for now?
+                printf("\"%s\"", self.string)
+            case TOMLValueKind.Boolean:
+                printf("true" if self.boolean else "false")
+            case TOMLValueKind.Integer:
+                printf("%lld", self.integer)
+            case TOMLValueKind.Floating:
+                # May not contain all digits needed to get the same value!
+                printf("%g", self.floating)
+
+    # For debugging
+    if False:
+        def print(self) -> None:
+            self.print_without_newline()
+            printf("\n")
+
+@public
+class TOMLParseResult:
+    parsed: List[TOMLKeyVal]
+    failed: bool
+    error_message: byte*
+    error_lineno: int
+
+    def free(self) -> None:
+        for kv = self.parsed.ptr; kv < self.parsed.end(); kv++:
+            kv.free()
+        free(self.parsed.ptr)
+        self.parsed = List[TOMLKeyVal]{}
+
+
+# TODO: this doesn't belong here
+declare atof(string: byte*) -> double
+
+# For inline tables {foo = "bar"} and arrays ["foo", "bar"]
+const FLAG_INLINE: byte = 0b001
+
+# For tables when the table looks like [foo.bar.baz] on a line of its own
+const FLAG_SECTION: byte = 0b010
+
+# For tables when the table foo.bar was created just to access foo.bar.baz in
+# the key of a key-value pair.
+const FLAG_CREATED_IMPLICITLY: byte = 0b100
+
+
+def hexdigit_value(b: byte) -> int:
+    if '0' <= b and b <= '9':
+        return b - '0'
+    if 'A' <= b and b <= 'F':
+        return 10 + (b - 'A')
+    if 'a' <= b and b <= 'f':
+        return 10 + (b - 'a')
+    return -1
+
+def looks_like_end_of_line(s: byte*) -> bool:
+    while *s == ' ' or *s == '\t':
+        s++
+    return *s == '\n' or *s == '\0' or *s == '#'  # allow comments at end of line
+
+def looks_like_date(s: byte*) -> bool:
+    return (
+        is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and *s++ == '-'
+        and is_ascii_digit(*s)
+    )
+
+def looks_like_time(s: byte*) -> bool:
+    return (
+        is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and *s++ == ':'
+        and is_ascii_digit(*s)
+    )
+
+
+class TOMLParser:
+    ptr: byte*
+    root_table: TOMLValue
+    current_table: TOMLValue*
+    error: byte*
+
+    # Names of many methods are according to this:
+    # https://github.com/toml-lang/toml/blob/bcbbd1c1f03473ffe97b8bf26a0fc945efe2b4a1/toml.abnf
+
+    def parse_the_whole_thing(self) -> bool:
+        while *self.ptr != '\0':
+            match *self.ptr:
+                case ' ' | '\t' | '\n':
+                    self.ptr++
+                case '#':
+                    if not self.comment():
+                        return False
+                case '[':
+                    if starts_with(self.ptr, "[["):
+                        if not self.parse_array_header():
+                            return False
+                        if not looks_like_end_of_line(self.ptr):
+                            self.error = "invalid array header"
+                            return False
+                    else:
+                        if not self.parse_table_header():
+                            return False
+                        if not looks_like_end_of_line(self.ptr):
+                            self.error = "invalid table header"
+                            return False
+                case _:
+                    if not self.keyval(self.current_table):
+                        return False
+                    if not looks_like_end_of_line(self.ptr):
+                        self.error = "invalid syntax"  # probably won't be able to do much better than this...
+                        return False
+        return True
+
+    def comment(self) -> bool:
+        assert *self.ptr == '#'
+        while *self.ptr != '\0' and *self.ptr != '\n':
+            if *self.ptr == 127 or (*self.ptr < 0x20 and *self.ptr != '\t'):
+                self.error = "invalid character in comment"
+                return False
+            self.ptr++
+        return True
+
+    def keyval(self, relative_to: TOMLValue*) -> bool:
+        if *self.ptr == '=':
+            self.error = "missing key"
+            return False
+
+        value_dest_ptr = self.key(relative_to, True)
+        if value_dest_ptr == NULL:
+            return False
+
+        if value_dest_ptr.kind != TOMLValueKind.Unset:
+            self.error = "duplicate key"
+            return False
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        if *self.ptr != '=':
+            self.error = "invalid key-value pair"
+            return False
+        self.ptr++
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        if *self.ptr == '\n' or *self.ptr == '\0':
+            self.error = "missing value"
+            return False
+
+        val: TOMLValue
+        if not self.val(&val):
+            return False
+
+        *value_dest_ptr = val
+        return True
+
+    # Returns a pointer where the corresponding value should be stored.
+    #
+    # Not exactly right according to the spec, because this ends with a call to
+    # .ws() but a key shouldn't include trailing whitespace. We'll see if that
+    # matters, maybe not...
+    def key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+        value_ptr = self.simple_key(relative_to, this_is_the_key_of_a_keyval_pair)
+        if value_ptr == NULL:
+            return NULL
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        while *self.ptr == '.':
+            self.ptr++
+
+            while *self.ptr == ' ' or *self.ptr == '\t':
+                self.ptr++
+
+            value_ptr = self.simple_key(value_ptr, this_is_the_key_of_a_keyval_pair)
+            if value_ptr == NULL:
+                return NULL
+
+            while *self.ptr == ' ' or *self.ptr == '\t':
+                self.ptr++
+
+        return value_ptr
+
+    def simple_key(self, parent_value: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+        assert parent_value != NULL
+
+        key: byte*
+        if *self.ptr == '"' or *self.ptr == '\'':
+            key_len: intnative
+            key = self.parse_string(False, &key_len)
+            if key == NULL:
+                return NULL
+            if strlen(key) < key_len:
+                self.error = "sorry, zero bytes in keys are not supported"
+                return NULL
+        else:
+            n = strspn(self.ptr, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+            if n == 0 or n > INT32_MAX:
+                self.error = "invalid key"
+                return NULL
+            key = NULL
+            asprintf(&key, "%.*s", n as int, self.ptr)
+            assert key != NULL
+            self.ptr = &self.ptr[n]
+
+        if key == NULL:
+            return NULL
+
+        # Go to a part within an already chosen key
+        match parent_value.kind:
+            case TOMLValueKind.Unset:
+                # TODO: what exactly should happen here?
+                parent_value.kind = TOMLValueKind.Table
+                target_table = parent_value
+            case TOMLValueKind.Table:
+                target_table = parent_value
+            case TOMLValueKind.Array:
+                # Refer to the last element. It must be a table.
+                if parent_value.array.len == 0:
+                    self.error = "cannot refer to last element of empty array"
+                    free(key)
+                    return NULL
+                if parent_value.array.end()[-1].kind != TOMLValueKind.Table:
+                    self.error = "last element of array is not a table"
+                    free(key)
+                    return NULL
+                # TODO: need this?
+                #if parent_value.array_is_inline:
+                #    self.error = "inline arrays cannot be extended after creating the array"
+                #    free(key)
+                #    return NULL
+                target_table = &parent_value.array.end()[-1]
+            case TOMLValueKind.String:
+                self.error = "expected a table, got a string"
+                return NULL
+            case TOMLValueKind.Boolean:
+                self.error = "expected a table, got a boolean"
+                return NULL
+            case TOMLValueKind.Integer | TOMLValueKind.Floating:
+                self.error = "expected a table, got a number"
+                return NULL
+
+        assert target_table.kind == TOMLValueKind.Table
+        if target_table.flags & FLAG_INLINE != 0:
+            self.error = "inline tables cannot be extended after creating the table"
+            free(key)
+            return NULL
+
+        # Does this key already exists? If it exists, value will go there
+        for kv = target_table.table.ptr; kv < target_table.table.end(); kv++:
+            if strcmp(kv.key, key) == 0:
+                free(key)
+                return &kv.value
+
+        # Key not found --> create new table, unless it's the weird special
+        # case where that is not allowed
+        if (target_table.flags & FLAG_SECTION) != 0 and this_is_the_key_of_a_keyval_pair:
+            self.error = "a dotted key of a key-value pair cannot extend a table after the content of the table has been explicitly listed above"
+            free(key)
+            return NULL
+
+        target_table.table.append(TOMLKeyVal{key = key})
+        result = &target_table.table.end()[-1].value
+        if this_is_the_key_of_a_keyval_pair:
+            result.flags |= FLAG_CREATED_IMPLICITLY
+        return result
+
+    def val(self, result: TOMLValue*) -> bool:
+        match *self.ptr:
+            case '"' | '\'':
+                s_len: intnative
+                s = self.parse_string(True, &s_len)
+                if s == NULL:
+                    return False
+                *result = TOMLValue{kind = TOMLValueKind.String, string = s, string_len = s_len}
+                return True
+
+            case 't':
+                if starts_with(self.ptr, "true"):
+                    self.ptr = &self.ptr[4]
+                    *result = TOMLValue{kind = TOMLValueKind.Boolean, boolean = True}
+                    return True
+
+            case 'T':
+                if starts_with(self.ptr, "True"):
+                    self.error = "should be true, not True"
+                    return False
+                if starts_with(self.ptr, "TRUE"):
+                    self.error = "should be true, not TRUE"
+                    return False
+
+            case 'f':
+                if starts_with(self.ptr, "false"):
+                    self.ptr = &self.ptr[5]
+                    *result = TOMLValue{kind = TOMLValueKind.Boolean, boolean = False}
+                    return True
+
+            case 'F':
+                if starts_with(self.ptr, "False"):
+                    self.error = "should be false, not False"
+                    return False
+                if starts_with(self.ptr, "FALSE"):
+                    self.error = "should be false, not FALSE"
+                    return False
+
+            case (
+                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+                | '+' | '-'
+                | 'i' | 'n'  # inf and nan
+            ):
+                if looks_like_date(self.ptr) or looks_like_time(self.ptr):
+                    self.error = "dates and times in TOML are not supported :("
+                    return False
+                return self.parse_number(result)
+            case '[':
+                return self.parse_inline_array(result)
+            case '{':
+                return self.parse_inline_table(result)
+            case '\0':
+                self.error = "got end of TOML instead of a value"
+                return False
+            case _:
+                pass
+
+        self.error = "invalid value"
+        return False
+
+    def parse_number(self, result: TOMLValue*) -> bool:
+        sign = 1
+        max_abs = INT64_MAX as uint64
+        if starts_with(self.ptr, "0b"):
+            base = 2
+        elif starts_with(self.ptr, "0o"):
+            base = 8
+        elif starts_with(self.ptr, "0x"):
+            base = 16
+        else:
+            base = 10
+            # Only base 10 numbers and flo can be negative in TOML!
+            if *self.ptr == '-':
+                sign = -1
+                max_abs++  # Support the most negative 64-bit integer
+            if *self.ptr == '+' or *self.ptr == '-':
+                self.ptr++
+
+        if base != 10:
+            self.ptr = &self.ptr[2]
+
+        if base == 10 and starts_with(self.ptr, "inf"):
+            self.ptr = &self.ptr[3]
+            *result = TOMLValue{kind = TOMLValueKind.Floating, floating = sign * (1.0 / 0.0)}
+            return True
+
+        if base == 10 and starts_with(self.ptr, "nan"):
+            self.ptr = &self.ptr[3]
+            *result = TOMLValue{kind = TOMLValueKind.Floating, floating = sign * (0.0 / 0.0)}
+            return True
+
+        # We validate the matched digits below, but we can't always search for
+        # A-F and a-f because floats can contain E and e.
+        len = strspn(self.ptr, "0123456789ABCDEFabcdef_" if base == 16 else "0123456789_")
+        if len == 0:
+            self.error = "invalid number"
+            return False
+        if *self.ptr == '_':
+            self.error = "number cannot start with underscore"
+            return False
+        if self.ptr[len-1] == '_':
+            self.error = "number cannot end with underscore"
+            return False
+        if base == 10 and len >= 2 and *self.ptr == '0':
+            self.error = "unnecessary zero at the start of a number"
+            return False
+
+        for i = 0; i < len; i++:
+            if starts_with(&self.ptr[i], "__"):
+                self.error = "consecutive underscores are not allowed in numbers"
+                return False
+
+        if base == 10 and (self.ptr[len] == 'E' or self.ptr[len] == 'e' or self.ptr[len] == '.'):
+            return self.parse_float(result, sign)
+
+        unsigned_result: uint64 = 0
+        for i = 0; i < len; i++:
+            if self.ptr[i] != '_':
+                v = hexdigit_value(self.ptr[i])
+                assert v != -1
+                if v >= base:
+                    self.error = "invalid integer"
+                    return False
+
+                old = unsigned_result
+                new = (old*base + v) as uint64
+                if new/base != old or new > max_abs:
+                    self.error = "integer doesn't fit to int64"
+                    return False
+                unsigned_result = new
+
+        self.ptr = &self.ptr[len]
+
+        *result = TOMLValue{kind = TOMLValueKind.Integer, integer = sign * unsigned_result}
+        return True
+
+    def skip_float_integer_part(self) -> bool:
+        if not is_ascii_digit(*self.ptr):
+            self.error = "invalid float"
+            return False
+
+        while is_ascii_digit(*self.ptr) or *self.ptr == '_':
+            self.ptr++
+            if starts_with(self.ptr, "__"):
+                self.error = "consecutive underscores are not allowed in numbers"
+                return False
+
+        if self.ptr[-1] == '_':
+            self.error = "invalid float"
+            return False
+
+        return True
+
+    # Assumes that the sign has already been parsed.
+    def parse_float(self, result: TOMLValue*, sign: int) -> bool:
+        assert sign == 1 or sign == -1
+        start_of_float = self.ptr
+
+        # Skip integer part (underscores already validated)
+        while *self.ptr == '_' or is_ascii_digit(*self.ptr):
+            self.ptr++
+
+        assert *self.ptr == '.' or *self.ptr == 'E' or *self.ptr == 'e'
+        if *self.ptr == '.':
+            self.ptr++
+            if not self.skip_float_integer_part():
+                return False
+        if *self.ptr == 'E' or *self.ptr == 'e':
+            self.ptr++
+            if *self.ptr == '+' or *self.ptr == '-':
+                self.ptr++
+            if not self.skip_float_integer_part():
+                return False
+
+        # Get rid of all underscores for atof(): "1_2.3_4" --> "12.34  "
+        #
+        # This won't modify the string given by user, because we allocate a
+        # copy of it for CRLF (\r\n) handling anyway.
+        dest = start_of_float
+        for p = start_of_float; p < self.ptr; p++:
+            if *p != '_':
+                *dest++ = *p
+        while dest < self.ptr:
+            *dest++ = ' '
+
+        *result = TOMLValue{kind = TOMLValueKind.Floating, floating = sign*atof(start_of_float)}
+        return True
+
+    def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
+        codepoint: uint32 = 0
+        for i = 0; i < num_hex_digits; i++:
+            v = hexdigit_value(self.ptr[i])
+            if v == -1:
+                self.error = "invalid backslash escape in string"
+                return False
+            codepoint <<= 4
+            codepoint |= v as uint32
+
+        if codepoint == 0:
+            out.append('\0')
+        else:
+            s = utf8_encode_char(codepoint)
+            if s[0] == '\0':
+                self.error = "escape in string produced an invalid Unicode character"
+                return False
+            out.extend_from_ptr(s, strlen(s))
+
+        self.ptr = &self.ptr[num_hex_digits]
+        return True
+
+    def parse_string(self, allow_multiline: bool, result_len: intnative*) -> byte*:
+        quote = *self.ptr
+        assert quote == '"' or quote == '\''
+
+        quote3 = [quote, quote, quote, '\0']
+        quote4 = [quote, quote, quote, quote, '\0']
+        quote6 = [quote, quote, quote, quote, quote, quote, '\0']
+
+        multiline = starts_with(self.ptr, quote3)
+        if multiline and not allow_multiline:
+            self.error = "multiline strings are not allowed here"
+            return NULL
+
+        self.ptr++
+        if multiline:
+            self.ptr++
+            self.ptr++
+            if *self.ptr == '\n':
+                self.ptr++
+
+        result = List[byte]{}
+        while (
+            *self.ptr != quote
+            # Multiline strings are weird:
+            #   """foo""" --> 'foo'
+            #   """foo"""" --> 'foo"'
+            #   """foo""""" --> 'foo""'
+            #   """foo"""""" --> error
+            #   """foo""""""" --> error
+            or (multiline and not starts_with(self.ptr, quote3))
+            or (multiline and starts_with(self.ptr, quote4) and not starts_with(self.ptr, quote6))
+        ):
+            if *self.ptr == '\0' or (*self.ptr == '\n' and not multiline):
+                self.error = "missing quotes to end the string" if multiline else "missing quote to end the string"
+                free(result.ptr)
+                return NULL
+            elif (
+                quote == '"'
+                and multiline
+                and *self.ptr == '\\'
+                and self.ptr[1 + strspn(&self.ptr[1], " \t")] == '\n'
+            ):
+                # Line continuation backslash causes all whitespace to be
+                # trimmed after the backslash. TOML is weird :)
+                self.ptr++
+                while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n':
+                    self.ptr++
+            elif quote == '"' and *self.ptr == '\\':
+                self.ptr++
+                match *self.ptr++:
+                    case '"':
+                        result.append('"')
+                    case '\\':
+                        result.append('\\')
+                    case 'b':
+                        result.append(0x08)  # Jou doesn't have \b
+                    case 'e':
+                        result.append(0x1b)  # Jou doesn't have \e
+                    case 'f':
+                        result.append(0x0c)  # Jou doesn't have \f
+                    case 'n':
+                        result.append('\n')
+                    case 'r':
+                        result.append('\r')
+                    case 't':
+                        result.append('\t')
+                    case 'x':
+                        if not self.read_unicode_escape_in_string('x', 2, &result):
+                            free(result.ptr)
+                            return NULL
+                    case 'u':
+                        if not self.read_unicode_escape_in_string('u', 4, &result):
+                            free(result.ptr)
+                            return NULL
+                    case 'U':
+                        if not self.read_unicode_escape_in_string('U', 8, &result):
+                            free(result.ptr)
+                            return NULL
+                    case _:
+                        self.error = "invalid backslash escape in string"
+                        free(result.ptr)
+                        return NULL
+            elif *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
+                self.error = "invalid character in string"
+                return NULL
+            else:
+                result.append(*self.ptr++)
+
+        self.ptr = &self.ptr[3 if multiline else 1]
+
+        *result_len = result.len
+        result.append('\0')
+        return result.ptr
+
+    def parse_table_header(self) -> bool:
+        assert *self.ptr == '['
+        self.ptr++
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        value_ptr = self.key(&self.root_table, False)
+        if value_ptr == NULL:
+            if strcmp(self.error, "invalid key") == 0:
+                self.error = "invalid table header"
+            return False
+
+        match value_ptr.kind:
+            case TOMLValueKind.Unset:
+                # Just created for this
+                *value_ptr = TOMLValue{kind = TOMLValueKind.Table}
+            case TOMLValueKind.Table:
+                # Add more stuff to an existing table
+                if value_ptr.flags & FLAG_CREATED_IMPLICITLY != 0:
+                    self.error = "table already exists because it was defined implicitly by a dotted key"
+                    return False
+            case _:
+                self.error = "cannot redefine an existing value as a table"
+                return False
+
+        # We must be set before we check. If a section is repeated with nothing
+        # in between, the check below catches this setting.
+        self.current_table.flags |= FLAG_SECTION
+
+        if value_ptr.flags & FLAG_SECTION != 0:
+            self.error = "duplicate table"
+            return False
+        self.current_table = value_ptr
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        if *self.ptr != ']':
+            self.error = "invalid table header"
+            return False
+        self.ptr++
+
+        return True
+
+    def parse_array_header(self) -> bool:
+        assert starts_with(self.ptr, "[[")
+        self.ptr = &self.ptr[2]
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        value_ptr = self.key(&self.root_table, False)
+        if value_ptr == NULL:
+            if strcmp(self.error, "invalid key") == 0:
+                self.error = "invalid array header"
+            return False
+
+        match value_ptr.kind:
+            case TOMLValueKind.Unset:
+                # Just created for this
+                *value_ptr = TOMLValue{kind = TOMLValueKind.Array}
+            case TOMLValueKind.Array:
+                pass
+            case _:
+                self.error = "cannot redefine an existing value as an array"
+                return False
+
+        assert value_ptr.kind == TOMLValueKind.Array
+        if value_ptr.flags & FLAG_INLINE != 0:
+            self.error = "inline arrays cannot be extended after creating the array"
+            return False
+
+        value_ptr.array.append(TOMLValue{kind = TOMLValueKind.Table})
+
+        self.current_table = &value_ptr.array.end()[-1]
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        if not starts_with(self.ptr, "]]"):
+            self.error = "invalid array header"
+            return False
+        self.ptr = &self.ptr[2]
+
+        return True
+
+    def parse_inline_array(self, result: TOMLValue*) -> bool:
+        assert *self.ptr == '['
+        self.ptr++
+
+        if not self.whitespace_comment_newline():
+            return False
+
+        *result = TOMLValue{kind = TOMLValueKind.Array}
+
+        while *self.ptr != ']':
+            value: TOMLValue
+            if not self.val(&value):
+                result.free()
+                return False
+            result.array.append(value)
+
+            if not self.whitespace_comment_newline():
+                result.free()
+                return False
+
+            match *self.ptr:
+                case ']':
+                    break
+                case ',':
+                    self.ptr++
+                    if not self.whitespace_comment_newline():
+                        result.free()
+                        return False
+                case _:
+                    self.error = "invalid array"
+                    result.free()
+                    return False
+
+        assert *self.ptr == ']'
+        self.ptr++
+
+        result.flags |= FLAG_INLINE
+        return True
+
+    def parse_inline_table(self, result: TOMLValue*) -> bool:
+        assert *self.ptr == '{'
+        self.ptr++
+
+        if not self.whitespace_comment_newline():
+            return False
+
+        *result = TOMLValue{kind = TOMLValueKind.Table}
+
+        while *self.ptr != '}':
+            keyval_ok = self.keyval(result)
+
+            if not keyval_ok:
+                result.free()
+                return False
+
+            if not self.whitespace_comment_newline():
+                result.free()
+                return False
+
+            match *self.ptr:
+                case '}':
+                    break
+                case ',':
+                    self.ptr++
+                    self.whitespace_comment_newline()
+                case _:
+                    self.error = "invalid inline table"
+                    return False
+
+        assert *self.ptr == '}'
+        self.ptr++
+
+        result.flags |= FLAG_INLINE
+        return True
+
+    def whitespace_comment_newline(self) -> bool:
+        while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n' or *self.ptr == '#':
+            if *self.ptr == '#':
+                if not self.comment():
+                    return False
+            else:
+                self.ptr++
+        return True
+
+
+def read_stdin_to_string() -> byte*:
+    bytes_list = List[byte]{}
+
+    buf: byte[4096]
+    while True:
+        num_read = fread(buf, 1, sizeof buf, get_stdin())
+        if num_read == 0:
+            assert ferror(get_stdin()) == 0
+            break
+        bytes_list.extend_from_ptr(buf, num_read)
+
+    lineno = 1
+    for p = bytes_list.ptr; p < bytes_list.end(); p++:
+        match *p:
+            case '\n':
+                lineno++
+            case '\0':
+                fprintf(get_stderr(), "got zero byte from stdin, would be invalid TOML\n")
+                exit(1)
+
+    bytes_list.append('\0')
+    return bytes_list.ptr
+
+
+# Returns -1 if valid, line number if invalid
+def validate_utf8(string: byte*) -> int:
+    lineno = 1
+    while *string != '\0':
+        if *string == '\n':
+            lineno++
+        if utf8_decode_char(&string) == -1:
+            return lineno
+    return -1
+
+
+# Replaces \r\n with \n in-place
+def fix_newlines(s: byte*) -> None:
+    out = s
+    while *s != '\0':
+        if starts_with(s, "\r\n"):
+            s++
+        *out++ = *s++
+    *out = '\0'
+
+
+@public
+def parse_toml(string: byte*) -> TOMLParseResult:
+    assert string != NULL
+
+    utf8_error_lineno = validate_utf8(string)
+    if utf8_error_lineno != -1:
+        return TOMLParseResult{failed = True, error_message = "invalid UTF-8", error_lineno = utf8_error_lineno}
+
+    string = strdup(string)
+    assert string != NULL
+    fix_newlines(string)
+
+    parser = TOMLParser{ptr = string, root_table = TOMLValue{kind = TOMLValueKind.Table}}
+    parser.current_table = &parser.root_table  # the "default section"
+
+    if parser.parse_the_whole_thing():
+        free(string)
+        return TOMLParseResult{parsed = parser.root_table.table}
+    else:
+        # Figure out the line number where it failed
+        lineno = 1
+        while parser.ptr --> string:
+            if *parser.ptr == '\n':
+                lineno++
+
+        parser.root_table.free()
+        free(string)
+        return TOMLParseResult{failed = True, error_message = parser.error, error_lineno = lineno}

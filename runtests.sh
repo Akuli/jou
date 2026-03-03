@@ -240,6 +240,11 @@ function should_skip()
         fi
     fi
 
+    # As directory name suggests.
+    if [[ $joufile =~ ^tests/special/ ]]; then
+        return 0
+    fi
+
     return 1  # false, don't skip
 }
 
