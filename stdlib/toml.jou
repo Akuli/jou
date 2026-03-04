@@ -231,17 +231,21 @@ class TOMLParser:
             return False
 
         val: TOMLValue
-        if not self.val(&val):
+        if not self.val(&val, value_dest_ptr.depth):
             return False
 
         *value_dest_ptr = val
         return True
 
     # Returns a pointer where the corresponding value should be stored.
+    # Make sure not to overwrite the .depth of the returned pointer.
     def key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+        assert relative_to.depth > 0 or relative_to == &self.root_table
+
         value_ptr = self.simple_key(relative_to, this_is_the_key_of_a_keyval_pair)
         if value_ptr == NULL:
             return NULL
+        assert value_ptr.depth == relative_to.depth + 1
 
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
@@ -288,6 +292,7 @@ class TOMLParser:
         match parent_value.type:
             case TOMLType.Unset:
                 # TODO: what exactly should happen here?
+                # TODO: does this ever even run????
                 parent_value.type = TOMLType.Table
                 target_table = parent_value
             case TOMLType.Table:
@@ -337,24 +342,25 @@ class TOMLParser:
 
         target_table.table.append(TOMLKeyVal{key = key})
         result = &target_table.table.end()[-1].value
+        result.depth = target_table.depth + 1
         if this_is_the_key_of_a_keyval_pair:
             result.created_by = CreatedBy.DottedKey
         return result
 
-    def val(self, result: TOMLValue*) -> bool:
+    def val(self, result: TOMLValue*, depth: int) -> bool:
         match *self.ptr:
             case '"' | '\'':
                 s_len: intnative
                 s = self.parse_string(True, &s_len)
                 if s == NULL:
                     return False
-                *result = TOMLValue{type = TOMLType.String, string = s, string_len = s_len}
+                *result = TOMLValue{type = TOMLType.String, string = s, string_len = s_len, depth = depth}
                 return True
 
             case 't':
                 if starts_with(self.ptr, "true"):
                     self.ptr = &self.ptr[4]
-                    *result = TOMLValue{type = TOMLType.Boolean, boolean = True}
+                    *result = TOMLValue{type = TOMLType.Boolean, boolean = True, depth = depth}
                     return True
 
             case 'T':
@@ -368,7 +374,7 @@ class TOMLParser:
             case 'f':
                 if starts_with(self.ptr, "false"):
                     self.ptr = &self.ptr[5]
-                    *result = TOMLValue{type = TOMLType.Boolean, boolean = False}
+                    *result = TOMLValue{type = TOMLType.Boolean, boolean = False, depth = depth}
                     return True
 
             case 'F':
@@ -387,11 +393,11 @@ class TOMLParser:
                 if looks_like_date(self.ptr) or looks_like_time(self.ptr):
                     self.error = "dates and times in TOML are not supported :("
                     return False
-                return self.parse_number(result)
+                return self.parse_number(result, depth)
             case '[':
-                return self.parse_inline_array(result)
+                return self.parse_inline_array(result, depth)
             case '{':
-                return self.parse_inline_table(result)
+                return self.parse_inline_table(result, depth)
             case '\0':
                 self.error = "got end of TOML instead of a value"
                 return False
@@ -401,7 +407,7 @@ class TOMLParser:
         self.error = "invalid value"
         return False
 
-    def parse_number(self, result: TOMLValue*) -> bool:
+    def parse_number(self, result: TOMLValue*, depth: int) -> bool:
         sign = 1
         max_abs = INT64_MAX as uint64
         if starts_with(self.ptr, "0b"):
@@ -424,12 +430,12 @@ class TOMLParser:
 
         if base == 10 and starts_with(self.ptr, "inf"):
             self.ptr = &self.ptr[3]
-            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (1.0 / 0.0)}
+            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (1.0 / 0.0), depth = depth}
             return True
 
         if base == 10 and starts_with(self.ptr, "nan"):
             self.ptr = &self.ptr[3]
-            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (0.0 / 0.0)}
+            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (0.0 / 0.0), depth = depth}
             return True
 
         # We validate the matched digits below, but we can't always search for
@@ -454,7 +460,7 @@ class TOMLParser:
                 return False
 
         if base == 10 and (self.ptr[len] == 'E' or self.ptr[len] == 'e' or self.ptr[len] == '.'):
-            return self.parse_float(result, sign)
+            return self.parse_float(result, sign, depth)
 
         unsigned_result: uint64 = 0
         for i = 0; i < len; i++:
@@ -474,7 +480,7 @@ class TOMLParser:
 
         self.ptr = &self.ptr[len]
 
-        *result = TOMLValue{type = TOMLType.Integer, integer = sign * unsigned_result}
+        *result = TOMLValue{type = TOMLType.Integer, integer = sign * unsigned_result, depth = depth}
         return True
 
     def skip_float_integer_part(self) -> bool:
@@ -495,7 +501,7 @@ class TOMLParser:
         return True
 
     # Assumes that the sign has already been parsed.
-    def parse_float(self, result: TOMLValue*, sign: int) -> bool:
+    def parse_float(self, result: TOMLValue*, sign: int, depth: int) -> bool:
         assert sign == 1 or sign == -1
         start_of_float = self.ptr
 
@@ -526,7 +532,7 @@ class TOMLParser:
         while dest < self.ptr:
             *dest++ = ' '
 
-        *result = TOMLValue{type = TOMLType.Floating, floating = sign*atof(start_of_float)}
+        *result = TOMLValue{type = TOMLType.Floating, floating = sign*atof(start_of_float), depth = depth}
         return True
 
     def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
@@ -678,7 +684,8 @@ class TOMLParser:
                     # when we are done with populating the table. That doesn't
                     # really matter. In fact, we could just leave created_by
                     # unset here, but this feels like it makes more sense.
-                    *value_ptr = TOMLValue{type = TOMLType.Array, created_by = CreatedBy.Section}
+                    value_ptr.type = TOMLType.Array
+                    value_ptr.created_by = CreatedBy.Section
                 case TOMLType.Array:
                     if value_ptr.created_by == CreatedBy.Inline:
                         self.error = "inline arrays cannot be extended after creating the array"
@@ -687,13 +694,13 @@ class TOMLParser:
                     self.error = "cannot redefine an existing value as an array"
                     return False
 
-            value_ptr.array.append(TOMLValue{type = TOMLType.Table})
+            value_ptr.array.append(TOMLValue{type = TOMLType.Table, depth = value_ptr.depth + 1})
             self.current_table = &value_ptr.array.end()[-1]
         else:
             match value_ptr.type:
                 case TOMLType.Unset:
                     # Just created for this
-                    *value_ptr = TOMLValue{type = TOMLType.Table}
+                    value_ptr.type = TOMLType.Table
                 case TOMLType.Table:
                     # Add more stuff to an existing table
                     if value_ptr.created_by != CreatedBy.Unset:
@@ -716,18 +723,18 @@ class TOMLParser:
             self.error = "invalid header"
             return False
 
-    def parse_inline_array(self, result: TOMLValue*) -> bool:
+    def parse_inline_array(self, result: TOMLValue*, depth_of_array: int) -> bool:
         assert *self.ptr == '['
         self.ptr++
 
         if not self.whitespace_comment_newline():
             return False
 
-        *result = TOMLValue{type = TOMLType.Array}
+        *result = TOMLValue{type = TOMLType.Array, depth = depth_of_array}
 
         while *self.ptr != ']':
             value: TOMLValue
-            if not self.val(&value):
+            if not self.val(&value, depth_of_array + 1):
                 result.free()
                 return False
             result.array.append(value)
@@ -755,14 +762,14 @@ class TOMLParser:
         result.created_by = CreatedBy.Inline
         return True
 
-    def parse_inline_table(self, result: TOMLValue*) -> bool:
+    def parse_inline_table(self, result: TOMLValue*, depth_of_table: int) -> bool:
         assert *self.ptr == '{'
         self.ptr++
 
         if not self.whitespace_comment_newline():
             return False
 
-        *result = TOMLValue{type = TOMLType.Table}
+        *result = TOMLValue{type = TOMLType.Table, depth = depth_of_table}
 
         while *self.ptr != '}':
             keyval_ok = self.keyval(result)
