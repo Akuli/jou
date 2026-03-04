@@ -228,10 +228,6 @@ class TOMLParser:
         return True
 
     # Returns a pointer where the corresponding value should be stored.
-    #
-    # Not exactly right according to the spec, because this ends with a call to
-    # .ws() but a key shouldn't include trailing whitespace. We'll see if that
-    # matters, maybe not...
     def key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
         value_ptr = self.simple_key(relative_to, this_is_the_key_of_a_keyval_pair)
         if value_ptr == NULL:
