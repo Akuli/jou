@@ -4,6 +4,7 @@
 #
 # Therefore this test doesn't focus on various corner cases much.
 
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/toml.jou"
 
@@ -24,25 +25,62 @@ def test_basic_parsing() -> None:
                 printf("wat?\n")
 
 
-def test_array_depth_limit() -> None:
+def test_depth_limit() -> None:
     # 64 levels. Allowed, but just barely.
     result = parse_toml("\
-        x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['this is at level 64']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]\n\
-        [1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63]\n\
+        x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['one level from x=... and 63 from brackets']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]\n\
+        1a.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64 = 'level64'\n\
+        [1b.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63]\n\
         level64 = 'working fine'\n\
-        [one]\n\
-        2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64 = 'level64'\n\
+        # The array below is inside an object of depth 62, so the array's depth\n\
+        # is 63 and the depth of its items is 64.\n\
+        [[1c.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62]]\n\
+        level64 = 'working fine'\n\
     ")
     printf("failed = %d\n", result.failed)  # Output: failed = 0
-    result.toml_table.free()
+    if result.failed:
+        printf("line %d: %s\n", result.error_lineno, result.error_message)
 
-#    # 65 levels
-#    result = parse_toml("[foo]\nx = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
-#    printf("failed = %d\n", result.failed)  # Output: failed = 1
-#    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 2: nesting deeper than 64 levels is not supported
+    # 65 levels with brackets
+    result = parse_toml("x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['x=... and 64 brackets']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+    assert result.failed
+    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+
+    # 65 levels with dotted key
+    result = parse_toml("1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64.65 = 'oh no'")
+    assert result.failed
+    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+
+    # 65 levels with table key-value pair
+    result = parse_toml("\
+        [1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64]\n\
+        level65 = 'bad'\n\
+    ")
+    assert result.failed
+    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 2: nesting more than 64 levels deep is not supported
+
+    # 65 levels with table header
+    result = parse_toml("\
+        [1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64.65]\n\
+    ")
+    assert result.failed
+    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+
+    # value (level 65) inside an object (level 64) created by array header (level 63)
+    result = parse_toml("\
+        [[1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63]]\n\
+        level65 = 'bad'\n\
+    ")
+    assert result.failed
+    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 2: nesting more than 64 levels deep is not supported
+
+    # an object of level 65 created by array header
+    result = parse_toml("[[1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64]]")
+    assert result.failed
+    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
 
 
 def main() -> int:
     test_basic_parsing()
-    test_array_depth_limit()
+    test_depth_limit()
     return 0

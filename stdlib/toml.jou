@@ -327,6 +327,13 @@ class TOMLParser:
             free(key)
             return NULL
 
+        assert target_table.depth <= MAX_DEPTH
+        if target_table.depth == MAX_DEPTH:
+            assert MAX_DEPTH == 64
+            self.error = "nesting more than 64 levels deep is not supported"
+            free(key)
+            return NULL
+
         # Does this key already exists? If it exists, value will go there
         for kv = target_table.table.ptr; kv < target_table.table.end(); kv++:
             if strcmp(kv.key, key) == 0:
@@ -694,6 +701,12 @@ class TOMLParser:
                     self.error = "cannot redefine an existing value as an array"
                     return False
 
+            assert value_ptr.depth <= MAX_DEPTH
+            if value_ptr.depth == MAX_DEPTH:
+                assert MAX_DEPTH == 64
+                self.error = "nesting more than 64 levels deep is not supported"
+                return False
+
             value_ptr.array.append(TOMLValue{type = TOMLType.Table, depth = value_ptr.depth + 1})
             self.current_table = &value_ptr.array.end()[-1]
         else:
@@ -733,6 +746,13 @@ class TOMLParser:
         *result = TOMLValue{type = TOMLType.Array, depth = depth_of_array}
 
         while *self.ptr != ']':
+            assert depth_of_array <= MAX_DEPTH
+            if depth_of_array == MAX_DEPTH:
+                assert MAX_DEPTH == 64
+                self.error = "nesting more than 64 levels deep is not supported"
+                result.free()
+                return False
+
             value: TOMLValue
             if not self.val(&value, depth_of_array + 1):
                 result.free()
