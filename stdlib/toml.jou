@@ -169,6 +169,7 @@ class TOMLParser:
     ptr: byte*
     root_table: TOMLValue
     current_table: TOMLValue*
+    current_table_depth: int
     error: byte*
 
     # Names of many methods are according to this:
@@ -186,7 +187,7 @@ class TOMLParser:
                     if not self.parse_header():
                         return False
                 case _:
-                    if not self.keyval(self.current_table):
+                    if not self.keyval(self.current_table, self.current_table_depth):
                         return False
                     if not looks_like_end_of_line(self.ptr):
                         self.error = "invalid syntax"  # probably won't be able to do much better than this...
@@ -202,14 +203,19 @@ class TOMLParser:
             self.ptr++
         return True
 
-    def keyval(self, relative_to: TOMLValue*) -> bool:
+    def keyval(self, relative_to: TOMLValue*, depth: int) -> bool:
+        assert relative_to.depth > 0 or relative_to == &self.root_table
+        assert relative_to.depth == depth
+
         if *self.ptr == '=':
             self.error = "missing key"
             return False
 
-        value_dest_ptr = self.key(relative_to, True)
+        value_dest_ptr = self.key(relative_to, True, &depth)
         if value_dest_ptr == NULL:
             return False
+
+        assert value_dest_ptr.depth == depth
 
         if value_dest_ptr.type != TOMLType.Unset:
             self.error = "duplicate key"
@@ -230,6 +236,7 @@ class TOMLParser:
             self.error = "missing value"
             return False
 
+        assert value_dest_ptr.depth == depth
         val: TOMLValue
         if not self.val(&val, value_dest_ptr.depth):
             return False
@@ -239,13 +246,15 @@ class TOMLParser:
 
     # Returns a pointer where the corresponding value should be stored.
     # Make sure not to overwrite the .depth of the returned pointer.
-    def key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+    def key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool, depth: int*) -> TOMLValue*:
         assert relative_to.depth > 0 or relative_to == &self.root_table
+        assert relative_to.depth == *depth
 
-        value_ptr = self.simple_key(relative_to, this_is_the_key_of_a_keyval_pair)
+        value_ptr = self.simple_key(relative_to, this_is_the_key_of_a_keyval_pair, depth)
         if value_ptr == NULL:
             return NULL
-        assert value_ptr.depth == relative_to.depth + 1
+        assert value_ptr.depth == relative_to.depth + 1  # TODO: can this assert fail?
+        assert value_ptr.depth == *depth
 
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
@@ -256,16 +265,17 @@ class TOMLParser:
             while *self.ptr == ' ' or *self.ptr == '\t':
                 self.ptr++
 
-            value_ptr = self.simple_key(value_ptr, this_is_the_key_of_a_keyval_pair)
+            value_ptr = self.simple_key(value_ptr, this_is_the_key_of_a_keyval_pair, depth)
             if value_ptr == NULL:
                 return NULL
+            assert value_ptr.depth == *depth
 
             while *self.ptr == ' ' or *self.ptr == '\t':
                 self.ptr++
 
         return value_ptr
 
-    def simple_key(self, parent_value: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+    def simple_key(self, parent_value: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool, depth: int*) -> TOMLValue*:
         assert parent_value != NULL
 
         key: byte*
@@ -295,6 +305,7 @@ class TOMLParser:
                 # TODO: does this ever even run????
                 parent_value.type = TOMLType.Table
                 target_table = parent_value
+                assert False
             case TOMLType.Table:
                 target_table = parent_value
             case TOMLType.Array:
@@ -308,6 +319,7 @@ class TOMLParser:
                     free(key)
                     return NULL
                 target_table = &parent_value.array.end()[-1]
+                ++*depth
             case TOMLType.String:
                 self.error = "expected a table, got a string"
                 free(key)
@@ -322,6 +334,7 @@ class TOMLParser:
                 return NULL
 
         assert target_table.type == TOMLType.Table
+        assert target_table.depth == *depth
         if target_table.created_by == CreatedBy.Inline:
             self.error = "inline tables cannot be extended after creating the table"
             free(key)
@@ -350,6 +363,7 @@ class TOMLParser:
         target_table.table.append(TOMLKeyVal{key = key})
         result = &target_table.table.end()[-1].value
         result.depth = target_table.depth + 1
+        ++*depth
         if this_is_the_key_of_a_keyval_pair:
             result.created_by = CreatedBy.DottedKey
         return result
@@ -663,8 +677,10 @@ class TOMLParser:
         # Mark the old current table as complete. This must be done quite
         # early, because we may create a new table below, and that messes up
         # pointers into the old table when the tables are in the same array.
+        assert self.current_table_depth == self.current_table.depth
         self.current_table.created_by = CreatedBy.Section
         self.current_table = NULL  # not necessary, but causes bugs to fail more loudly
+        self.current_table_depth = 0
 
         assert *self.ptr == '['
         self.ptr++
@@ -676,11 +692,13 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        value_ptr = self.key(&self.root_table, False)
+        depth = 0
+        value_ptr = self.key(&self.root_table, False, &depth)
         if value_ptr == NULL:
             if strcmp(self.error, "invalid key") == 0:
                 self.error = "invalid header"
             return False
+        assert value_ptr.depth == depth
 
         if is_array:
             match value_ptr.type:
@@ -701,6 +719,7 @@ class TOMLParser:
                     self.error = "cannot redefine an existing value as an array"
                     return False
 
+            assert value_ptr.depth == depth
             assert value_ptr.depth <= MAX_DEPTH
             if value_ptr.depth == MAX_DEPTH:
                 assert MAX_DEPTH == 64
@@ -709,6 +728,8 @@ class TOMLParser:
 
             value_ptr.array.append(TOMLValue{type = TOMLType.Table, depth = value_ptr.depth + 1})
             self.current_table = &value_ptr.array.end()[-1]
+            self.current_table_depth = depth + 1
+            assert self.current_table.depth == self.current_table_depth
         else:
             match value_ptr.type:
                 case TOMLType.Unset:
@@ -724,6 +745,8 @@ class TOMLParser:
                     return False
 
             self.current_table = value_ptr
+            self.current_table_depth = depth
+            assert self.current_table.depth == self.current_table_depth
 
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
@@ -792,7 +815,7 @@ class TOMLParser:
         *result = TOMLValue{type = TOMLType.Table, depth = depth_of_table}
 
         while *self.ptr != '}':
-            keyval_ok = self.keyval(result)
+            keyval_ok = self.keyval(result, depth_of_table)
 
             if not keyval_ok:
                 result.free()
