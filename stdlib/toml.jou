@@ -44,23 +44,25 @@ enum CreatedBy:
 @public
 class TOMLValue:
     type: TOMLType
-    union:
-        table: List[TOMLKeyVal]
-        array: List[TOMLValue]
-        string: byte*
-        boolean: bool
-        integer: int64
-        floating: double
 
-    union:
-        # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
-        string_len: intnative
+    # Only one of these exists at a time. But all fields are available, so that
+    # if you e.g. try to loop over a number as if it was an array, it will
+    # appear as an empty array instead of crashing your program.
+    table: List[TOMLKeyVal]
+    array: List[TOMLValue]
+    string: byte*
+    boolean: bool
+    integer: int64
+    floating: double
 
-        # Not meant to be accessed outside this file.
-        created_by: CreatedBy
+    # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
+    string_len: intnative
 
     # Main/root table has depth 0, its contents have depth 1 etc
     depth: int
+
+    # Internal detail. Not meant to be accessed outside this file.
+    created_by: CreatedBy
 
     @public
     def free(self) -> None:
@@ -200,20 +202,20 @@ class TOMLParser:
                 case ' ' | '\t' | '\n':
                     self.ptr++
                 case '#':
-                    if not self.comment():
+                    if not self.skip_comment():
                         return False
                 case '[':
                     if not self.parse_header():
                         return False
                 case _:
-                    if not self.keyval(self.current_table):
+                    if not self.parse_key_equals_value(self.current_table):
                         return False
                     if not looks_like_end_of_line(self.ptr):
                         self.error = "invalid syntax"  # probably won't be able to do much better than this...
                         return False
         return True
 
-    def comment(self) -> bool:
+    def skip_comment(self) -> bool:
         assert *self.ptr == '#'
         while *self.ptr != '\0' and *self.ptr != '\n':
             if *self.ptr == 127 or (*self.ptr < 0x20 and *self.ptr != '\t'):
@@ -222,12 +224,12 @@ class TOMLParser:
             self.ptr++
         return True
 
-    def keyval(self, relative_to: TOMLValue*) -> bool:
+    def parse_key_equals_value(self, relative_to: TOMLValue*) -> bool:
         if *self.ptr == '=':
             self.error = "missing key"
             return False
 
-        value_dest_ptr = self.key(relative_to, True)
+        value_dest_ptr = self.parse_key(relative_to, True)
         if value_dest_ptr == NULL:
             return False
 
@@ -259,10 +261,10 @@ class TOMLParser:
 
     # Returns a pointer where the corresponding value should be stored.
     # Make sure not to overwrite the .depth of the returned pointer.
-    def key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+    def parse_key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
         assert relative_to.depth > 0 or relative_to == &self.root_table
 
-        value_ptr = self.simple_key(relative_to, this_is_the_key_of_a_keyval_pair)
+        value_ptr = self.parse_component_of_key(relative_to, this_is_the_key_of_a_keyval_pair)
         if value_ptr == NULL:
             return NULL
         assert value_ptr.depth == relative_to.depth + 1
@@ -276,7 +278,7 @@ class TOMLParser:
             while *self.ptr == ' ' or *self.ptr == '\t':
                 self.ptr++
 
-            value_ptr = self.simple_key(value_ptr, this_is_the_key_of_a_keyval_pair)
+            value_ptr = self.parse_component_of_key(value_ptr, this_is_the_key_of_a_keyval_pair)
             if value_ptr == NULL:
                 return NULL
 
@@ -285,7 +287,7 @@ class TOMLParser:
 
         return value_ptr
 
-    def simple_key(self, parent_value: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+    def parse_component_of_key(self, parent_value: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
         assert parent_value != NULL
 
         key: byte*
@@ -696,7 +698,7 @@ class TOMLParser:
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
 
-        value_ptr = self.key(&self.root_table, False)
+        value_ptr = self.parse_key(&self.root_table, False)
         if value_ptr == NULL:
             if strcmp(self.error, "invalid key") == 0:
                 self.error = "invalid header"
@@ -756,6 +758,15 @@ class TOMLParser:
             self.error = "invalid header"
             return False
 
+    def whitespace_comment_newline(self) -> bool:
+        while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n' or *self.ptr == '#':
+            if *self.ptr == '#':
+                if not self.skip_comment():
+                    return False
+            else:
+                self.ptr++
+        return True
+
     def parse_inline_array(self, result: TOMLValue*, depth_of_array: int) -> bool:
         assert *self.ptr == '['
         self.ptr++
@@ -812,7 +823,7 @@ class TOMLParser:
         *result = TOMLValue{type = TOMLType.Table, depth = depth_of_table}
 
         while *self.ptr != '}':
-            keyval_ok = self.keyval(result)
+            keyval_ok = self.parse_key_equals_value(result)
 
             if not keyval_ok:
                 result.free()
@@ -837,15 +848,6 @@ class TOMLParser:
         self.ptr++
 
         result.created_by = CreatedBy.Inline
-        return True
-
-    def whitespace_comment_newline(self) -> bool:
-        while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n' or *self.ptr == '#':
-            if *self.ptr == '#':
-                if not self.comment():
-                    return False
-            else:
-                self.ptr++
         return True
 
 
