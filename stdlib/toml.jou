@@ -7,6 +7,7 @@ import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/limits.jou"
 import "stdlib/list.jou"
+import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/utf8.jou"
@@ -77,42 +78,61 @@ class TOMLValue:
             case TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Unset:
                 pass
 
-    # Needed to implement .print()
-    def print_without_newline(self) -> None:
+    # For debugging
+    @public
+    def print(self) -> None:
         match self.type:
             case TOMLType.Unset:
-                printf("<unset>")
+                puts("Unset")
             case TOMLType.Table:
-                printf("{")
+                puts("Table:")
                 for kv = self.table.ptr; kv < self.table.end(); kv++:
-                    if kv > self.table.ptr:
-                        printf(", ")
-                    printf("%s = ", kv.key)
-                    kv.value.print_without_newline()
-                printf("}")
+                    printf("%*s%s = ", 2*kv.value.depth, "", kv.key)
+                    kv.value.print()
             case TOMLType.Array:
-                printf("[")
+                puts("Array:")
                 for item = self.array.ptr; item < self.array.end(); item++:
-                    if item > self.array.ptr:
-                        printf(", ")
-                    item.print_without_newline()
-                printf("]")
+                    printf("%*s", 2*item.depth, "")
+                    item.print()
             case TOMLType.String:
-                # Does not escape properly... but good enough for now?
-                printf("\"%s\"", self.string)
+                printf("String: \"")
+                for p = self.string; p < &self.string[self.string_len]; p++:
+                    match *p:
+                        case '\n':
+                            printf("\\n")
+                        case '\t':
+                            printf("\\t")
+                        case '\r':
+                            printf("\\r")
+                        case '"':
+                            printf("\\\"")
+                        case '\\':
+                            printf("\\\\")  # lol
+                        case _:
+                            if *p < 128 and not is_ascii_printable(*p):
+                                # unprintable ASCII character
+                                printf("\\x%02x", *p)
+                            else:
+                                # This prints all non-ASCII characters as is
+                                putchar(*p)
+                printf("\"\n")
             case TOMLType.Boolean:
-                printf("true" if self.boolean else "false")
+                printf("Boolean: %s\n", "true" if self.boolean else "false")
             case TOMLType.Integer:
-                printf("%lld", self.integer)
+                printf("Integer: %lld\n", self.integer)
             case TOMLType.Floating:
-                # May not contain all digits needed to get the same value!
-                printf("%g", self.floating)
-
-    # For debugging
-    if False:
-        def print(self) -> None:
-            self.print_without_newline()
-            printf("\n")
+                if isnan(self.floating):
+                    printf("Floating: nan\n")
+                elif isinf(self.floating):
+                    printf("Floating: %sinf\n", "+" if self.floating > 0 else "-")
+                else:
+                    # Same logic as in stdlib/json.jou
+                    buf: byte[64] = ""
+                    snprintf(buf, sizeof(buf), "%.16g", self.floating)
+                    if atof(buf) == self.floating:
+                        printf("Floating: %.16g\n", self.floating)
+                    else:
+                        printf("Floating: %.17g\n", self.floating)
 
 @public
 class TOMLParseResult:

@@ -9,18 +9,29 @@ import "stdlib/io.jou"
 import "stdlib/toml.jou"
 
 
+# TODO: test corner cases of the printing more
 def test_basic_parsing() -> None:
-    result = parse_toml("[languages]\ntoml = 'supported in Jou'")
+    result = parse_toml("[languages]\njson = 'simple'\ntoml = 'complicated'")
     if result.failed:
         printf("Oh no\n")  # does not get printed
     else:
-        printf("%s\n", result.toml_table.table.ptr[0].key)  # Output: languages
+        # Output: Table:
+        # Output:   languages = Table:
+        # Output:     json = String: "simple"
+        # Output:     toml = String: "complicated"
+        result.toml_table.print()
+
+        # Output: Table:
+        # Output:   json = String: "simple"
+        # Output:   toml = String: "complicated"
         languages_table = result.toml_table.table.ptr[0].value
+        languages_table.print()
+
         match languages_table.type:
             case TOMLType.Table:
                 key_value_pair = languages_table.table.ptr[0]
-                printf("%s\n", key_value_pair.key)  # Output: toml
-                printf("%s\n", key_value_pair.value.string)  # Output: supported in Jou
+                printf("%s\n", key_value_pair.key)  # Output: json
+                printf("%s\n", key_value_pair.value.string)  # Output: simple
             case _:
                 printf("wat?\n")
 
