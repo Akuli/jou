@@ -58,9 +58,6 @@ class TOMLValue:
         # Not meant to be accessed outside this file.
         created_by: CreatedBy
 
-    # Main/root table has depth 0, its contents have depth 1 etc
-    depth: int
-
     @public
     def free(self) -> None:
         match self.type:
@@ -204,8 +201,7 @@ class TOMLParser:
         return True
 
     def keyval(self, relative_to: TOMLValue*, depth: int) -> bool:
-        assert relative_to.depth > 0 or relative_to == &self.root_table
-        assert relative_to.depth == depth
+        assert (*depth == 0 and relative_to == &self.root_table) or (*depth > 0 and relative_to != &self.root_table)
 
         if *self.ptr == '=':
             self.error = "missing key"
@@ -214,8 +210,6 @@ class TOMLParser:
         value_dest_ptr = self.key(relative_to, True, &depth)
         if value_dest_ptr == NULL:
             return False
-
-        assert value_dest_ptr.depth == depth
 
         if value_dest_ptr.type != TOMLType.Unset:
             self.error = "duplicate key"
@@ -236,25 +230,22 @@ class TOMLParser:
             self.error = "missing value"
             return False
 
-        assert value_dest_ptr.depth == depth
+        # TODO: try to simplify this little dance?
         val: TOMLValue
-        if not self.val(&val, value_dest_ptr.depth):
+        if not self.val(&val, depth):
             return False
-
         *value_dest_ptr = val
         return True
 
     # Returns a pointer where the corresponding value should be stored.
-    # Make sure not to overwrite the .depth of the returned pointer.
+    # TODO: Other code was written carefully not to overwrite a "depth" field in
+    #       the returned value, but the "depth" field no longer exists so it doesn't
     def key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool, depth: int*) -> TOMLValue*:
-        assert relative_to.depth > 0 or relative_to == &self.root_table
-        assert relative_to.depth == *depth
+        assert (*depth == 0 and relative_to == &self.root_table) or (*depth > 0 and relative_to != &self.root_table)
 
         value_ptr = self.simple_key(relative_to, this_is_the_key_of_a_keyval_pair, depth)
         if value_ptr == NULL:
             return NULL
-        assert value_ptr.depth == relative_to.depth + 1  # TODO: can this assert fail?
-        assert value_ptr.depth == *depth
 
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
@@ -270,7 +261,6 @@ class TOMLParser:
             value_ptr = self.simple_key(value_ptr, this_is_the_key_of_a_keyval_pair, depth)
             if value_ptr == NULL:
                 return NULL
-            assert value_ptr.depth == *depth
 
             while *self.ptr == ' ' or *self.ptr == '\t':
                 self.ptr++
@@ -332,26 +322,23 @@ class TOMLParser:
                 return NULL
 
         assert target_table.type == TOMLType.Table
-        assert target_table.depth == *depth
         if target_table.created_by == CreatedBy.Inline:
             self.error = "inline tables cannot be extended after creating the table"
             free(key)
             return NULL
 
-        assert target_table.depth <= MAX_DEPTH
-        if target_table.depth == MAX_DEPTH:
+        assert *depth <= MAX_DEPTH
+        if *depth == MAX_DEPTH:
             assert MAX_DEPTH == 64
             self.error = "nesting more than 64 levels deep is not supported"
             free(key)
             return NULL
-
         ++*depth
 
         # Does this key already exists? If it exists, value will go there
         for kv = target_table.table.ptr; kv < target_table.table.end(); kv++:
             if strcmp(kv.key, key) == 0:
                 free(key)
-                assert kv.value.depth == *depth
                 return &kv.value
 
         # Key not found --> create new table, unless it's the weird special
@@ -363,8 +350,6 @@ class TOMLParser:
 
         target_table.table.append(TOMLKeyVal{key = key})
         result = &target_table.table.end()[-1].value
-        result.depth = target_table.depth + 1
-        assert result.depth == *depth
         if this_is_the_key_of_a_keyval_pair:
             result.created_by = CreatedBy.DottedKey
         return result
@@ -376,13 +361,13 @@ class TOMLParser:
                 s = self.parse_string(True, &s_len)
                 if s == NULL:
                     return False
-                *result = TOMLValue{type = TOMLType.String, string = s, string_len = s_len, depth = depth}
+                *result = TOMLValue{type = TOMLType.String, string = s, string_len = s_len}
                 return True
 
             case 't':
                 if starts_with(self.ptr, "true"):
                     self.ptr = &self.ptr[4]
-                    *result = TOMLValue{type = TOMLType.Boolean, boolean = True, depth = depth}
+                    *result = TOMLValue{type = TOMLType.Boolean, boolean = True}
                     return True
 
             case 'T':
@@ -396,7 +381,7 @@ class TOMLParser:
             case 'f':
                 if starts_with(self.ptr, "false"):
                     self.ptr = &self.ptr[5]
-                    *result = TOMLValue{type = TOMLType.Boolean, boolean = False, depth = depth}
+                    *result = TOMLValue{type = TOMLType.Boolean, boolean = False}
                     return True
 
             case 'F':
@@ -415,7 +400,7 @@ class TOMLParser:
                 if looks_like_date(self.ptr) or looks_like_time(self.ptr):
                     self.error = "dates and times in TOML are not supported :("
                     return False
-                return self.parse_number(result, depth)
+                return self.parse_number(result)
             case '[':
                 return self.parse_inline_array(result, depth)
             case '{':
@@ -429,7 +414,7 @@ class TOMLParser:
         self.error = "invalid value"
         return False
 
-    def parse_number(self, result: TOMLValue*, depth: int) -> bool:
+    def parse_number(self, result: TOMLValue*) -> bool:
         sign = 1
         max_abs = INT64_MAX as uint64
         if starts_with(self.ptr, "0b"):
@@ -452,12 +437,12 @@ class TOMLParser:
 
         if base == 10 and starts_with(self.ptr, "inf"):
             self.ptr = &self.ptr[3]
-            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (1.0 / 0.0), depth = depth}
+            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (1.0 / 0.0)}
             return True
 
         if base == 10 and starts_with(self.ptr, "nan"):
             self.ptr = &self.ptr[3]
-            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (0.0 / 0.0), depth = depth}
+            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (0.0 / 0.0)}
             return True
 
         # We validate the matched digits below, but we can't always search for
@@ -482,7 +467,7 @@ class TOMLParser:
                 return False
 
         if base == 10 and (self.ptr[len] == 'E' or self.ptr[len] == 'e' or self.ptr[len] == '.'):
-            return self.parse_float(result, sign, depth)
+            return self.parse_float(result, sign)
 
         unsigned_result: uint64 = 0
         for i = 0; i < len; i++:
@@ -502,7 +487,7 @@ class TOMLParser:
 
         self.ptr = &self.ptr[len]
 
-        *result = TOMLValue{type = TOMLType.Integer, integer = sign * unsigned_result, depth = depth}
+        *result = TOMLValue{type = TOMLType.Integer, integer = sign * unsigned_result}
         return True
 
     def skip_float_integer_part(self) -> bool:
@@ -523,7 +508,7 @@ class TOMLParser:
         return True
 
     # Assumes that the sign has already been parsed.
-    def parse_float(self, result: TOMLValue*, sign: int, depth: int) -> bool:
+    def parse_float(self, result: TOMLValue*, sign: int) -> bool:
         assert sign == 1 or sign == -1
         start_of_float = self.ptr
 
@@ -554,7 +539,7 @@ class TOMLParser:
         while dest < self.ptr:
             *dest++ = ' '
 
-        *result = TOMLValue{type = TOMLType.Floating, floating = sign*atof(start_of_float), depth = depth}
+        *result = TOMLValue{type = TOMLType.Floating, floating = sign*atof(start_of_float)}
         return True
 
     def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
@@ -678,10 +663,9 @@ class TOMLParser:
         # Mark the old current table as complete. This must be done quite
         # early, because we may create a new table below, and that messes up
         # pointers into the old table when the tables are in the same array.
-        assert self.current_table_depth == self.current_table.depth
         self.current_table.created_by = CreatedBy.Section
         self.current_table = NULL  # not necessary, but causes bugs to fail more loudly
-        self.current_table_depth = 0
+        self.current_table_depth = -1  # also not necessary
 
         assert *self.ptr == '['
         self.ptr++
@@ -699,7 +683,6 @@ class TOMLParser:
             if strcmp(self.error, "invalid key") == 0:
                 self.error = "invalid header"
             return False
-        assert value_ptr.depth == depth
 
         if is_array:
             match value_ptr.type:
@@ -720,17 +703,16 @@ class TOMLParser:
                     self.error = "cannot redefine an existing value as an array"
                     return False
 
-            assert value_ptr.depth == depth
-            assert value_ptr.depth <= MAX_DEPTH
-            if value_ptr.depth == MAX_DEPTH:
+            assert depth <= MAX_DEPTH
+            if depth == MAX_DEPTH:
                 assert MAX_DEPTH == 64
                 self.error = "nesting more than 64 levels deep is not supported"
                 return False
+            depth++
 
-            value_ptr.array.append(TOMLValue{type = TOMLType.Table, depth = value_ptr.depth + 1})
+            value_ptr.array.append(TOMLValue{type = TOMLType.Table})
             self.current_table = &value_ptr.array.end()[-1]
-            self.current_table_depth = depth + 1
-            assert self.current_table.depth == self.current_table_depth
+            self.current_table_depth = depth
         else:
             match value_ptr.type:
                 case TOMLType.Unset:
@@ -747,7 +729,6 @@ class TOMLParser:
 
             self.current_table = value_ptr
             self.current_table_depth = depth
-            assert self.current_table.depth == self.current_table_depth
 
         while *self.ptr == ' ' or *self.ptr == '\t':
             self.ptr++
@@ -767,7 +748,7 @@ class TOMLParser:
         if not self.whitespace_comment_newline():
             return False
 
-        *result = TOMLValue{type = TOMLType.Array, depth = depth_of_array}
+        *result = TOMLValue{type = TOMLType.Array}
 
         while *self.ptr != ']':
             assert depth_of_array <= MAX_DEPTH
@@ -813,7 +794,7 @@ class TOMLParser:
         if not self.whitespace_comment_newline():
             return False
 
-        *result = TOMLValue{type = TOMLType.Table, depth = depth_of_table}
+        *result = TOMLValue{type = TOMLType.Table}
 
         while *self.ptr != '}':
             keyval_ok = self.keyval(result, depth_of_table)
