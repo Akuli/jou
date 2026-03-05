@@ -21,9 +21,10 @@ def test_basic_parsing() -> None:
         # Output:     toml = String: "complicated"
         result.toml_table.print()
 
+        # Indentation is a bit weird here.
         # Output: Table:
-        # Output:   json = String: "simple"
-        # Output:   toml = String: "complicated"
+        # Output:     json = String: "simple"
+        # Output:     toml = String: "complicated"
         languages_table = result.toml_table.table.ptr[0].value
         languages_table.print()
 
@@ -34,6 +35,14 @@ def test_basic_parsing() -> None:
                 printf("%s\n", key_value_pair.value.string)  # Output: simple
             case _:
                 printf("wat?\n")
+
+        result.toml_table.free()
+
+
+def test_harmless_free() -> None:
+    result = parse_toml("this is not valid toml!")
+    assert result.failed
+    result.toml_table.free()  # This should do nothing
 
 
 def test_depth_limit() -> None:
@@ -93,5 +102,6 @@ def test_depth_limit() -> None:
 
 def main() -> int:
     test_basic_parsing()
+    test_harmless_free()
     test_depth_limit()
     return 0
