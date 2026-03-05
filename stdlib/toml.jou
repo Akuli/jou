@@ -344,10 +344,13 @@ class TOMLParser:
             free(key)
             return NULL
 
+        ++*depth
+
         # Does this key already exists? If it exists, value will go there
         for kv = target_table.table.ptr; kv < target_table.table.end(); kv++:
             if strcmp(kv.key, key) == 0:
                 free(key)
+                assert kv.value.depth == *depth
                 return &kv.value
 
         # Key not found --> create new table, unless it's the weird special
@@ -360,7 +363,7 @@ class TOMLParser:
         target_table.table.append(TOMLKeyVal{key = key})
         result = &target_table.table.end()[-1].value
         result.depth = target_table.depth + 1
-        ++*depth
+        assert result.depth == *depth
         if this_is_the_key_of_a_keyval_pair:
             result.created_by = CreatedBy.DottedKey
         return result
