@@ -265,6 +265,7 @@ class TOMLParser:
             while *self.ptr == ' ' or *self.ptr == '\t':
                 self.ptr++
 
+            value_ptr.type = TOMLType.Table
             value_ptr = self.simple_key(value_ptr, this_is_the_key_of_a_keyval_pair, depth)
             if value_ptr == NULL:
                 return NULL
@@ -301,10 +302,6 @@ class TOMLParser:
         # Go to a part within an already chosen key
         match parent_value.type:
             case TOMLType.Unset:
-                # TODO: what exactly should happen here?
-                # TODO: does this ever even run????
-                parent_value.type = TOMLType.Table
-                target_table = parent_value
                 assert False
             case TOMLType.Table:
                 target_table = parent_value
