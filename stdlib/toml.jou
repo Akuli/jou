@@ -265,7 +265,8 @@ class TOMLParser:
             while *self.ptr == ' ' or *self.ptr == '\t':
                 self.ptr++
 
-            value_ptr.type = TOMLType.Table
+            if value_ptr.type == TOMLType.Unset:
+                value_ptr.type = TOMLType.Table
             value_ptr = self.simple_key(value_ptr, this_is_the_key_of_a_keyval_pair, depth)
             if value_ptr == NULL:
                 return NULL
