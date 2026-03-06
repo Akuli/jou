@@ -61,7 +61,8 @@ def test_depth_limit() -> None:
     ")
     printf("failed = %d\n", result.failed)  # Output: failed = 0
     if result.failed:
-        printf("line %d: %s\n", result.error_lineno, result.error_message)
+        printf("SHOULD NOT HAPPEN... line %d: %s\n", result.error_lineno, result.error_message)
+    result.table.free()
 
     # 65 levels with brackets
     result = parse_toml("x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['x=... and 64 brackets']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
