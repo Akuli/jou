@@ -117,9 +117,9 @@ class Token:
             case TokenKind.Decorator:
                 got = "a decorator"
             case TokenKind.Name:
-                snprintf(got, sizeof got, "a variable name '%s'", self.short_string)
+                snprintf(got, sizeof(got), "a variable name '%s'", self.short_string)
             case TokenKind.Keyword:
-                snprintf(got, sizeof got, "the '%s' keyword", self.short_string)
+                snprintf(got, sizeof(got), "the '%s' keyword", self.short_string)
             case TokenKind.Newline:
                 got = "end of line"
             case TokenKind.Indent:
@@ -127,7 +127,7 @@ class Token:
             case TokenKind.Dedent:
                 got = "less indentation"
             case TokenKind.Operator:
-                snprintf(got, sizeof got, "'%s'", self.short_string)
+                snprintf(got, sizeof(got), "'%s'", self.short_string)
             case TokenKind.EndOfFile:
                 got = "end of file"
 

@@ -612,7 +612,7 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
     # indent tokens and parsing will fail. If the file doesn't have any blank/comment
     # lines in the beginning, it has a newline token anyway to avoid special casing.
     assert tokens.ptr[0].kind == TokenKind.Newline
-    memmove(&tokens.ptr[0], &tokens.ptr[1], sizeof tokens.ptr[0] * --tokens.len)
+    memmove(&tokens.ptr[0], &tokens.ptr[1], sizeof(tokens.ptr[0]) * --tokens.len)
 
     return tokens.ptr
 
@@ -626,7 +626,7 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
         message: byte[200]
         if import_statement == NULL:
             # File is not imported
-            snprintf(message, sizeof message, "cannot open file: %s", strerror(get_errno()))
+            snprintf(message, sizeof(message), "cannot open file: %s", strerror(get_errno()))
             fail(Location{path=path}, message)
         if not ends_with(path, ".jou"):
             # e.g. import "stdlib/io"
@@ -637,13 +637,13 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
             if file != NULL:
                 snprintf(
                     message,
-                    sizeof message,
+                    sizeof(message),
                     "use \"%s.jou\" instead of \"%s\"",
                     import_statement.import_statement.specified_path,
                     import_statement.import_statement.specified_path,
                 )
                 fail(import_statement.location, message)
-        snprintf(message, sizeof message, "cannot import from \"%s\": %s", path, strerror(get_errno()))
+        snprintf(message, sizeof(message), "cannot import from \"%s\": %s", path, strerror(get_errno()))
         fail(import_statement.location, message)
 
     bytes_list = List[byte]{}
@@ -658,7 +658,7 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
 
     buf: byte[4096]
     while True:
-        num_read = fread(buf, 1, sizeof buf, file)
+        num_read = fread(buf, 1, sizeof(buf), file)
         if num_read == 0:
             if ferror(file) != 0:
                 # TODO: include errno in the error message?

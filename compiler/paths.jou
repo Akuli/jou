@@ -237,7 +237,7 @@ def hash_of_compiler() -> Hash:
 @public
 def find_stdlib() -> byte*:
     checked: byte*[3]
-    memset(&checked, 0, sizeof checked)
+    memset(&checked, 0, sizeof(checked))
 
     exedir = find_current_executable()
     while WINDOWS and strstr(exedir, "\\") != NULL:
