@@ -172,12 +172,12 @@ class Type:
     def pointer_type(self) -> Type*:
         info = cast_type_to_typeinfo(self)
         if info.pointer == NULL:
-            ptr: TypeInfo* = calloc(1, sizeof *ptr)
+            ptr: TypeInfo* = calloc(1, sizeof(*ptr))
             ptr.type = Type{kind=TypeKind.Pointer, value_type=self}
             if self.kind == TypeKind.FuncPtr:
-                snprintf(ptr.type.name, sizeof ptr.type.name, "(%s)*", self.name)
+                snprintf(ptr.type.name, sizeof(ptr.type.name), "(%s)*", self.name)
             else:
-                snprintf(ptr.type.name, sizeof ptr.type.name, "%s*", self.name)
+                snprintf(ptr.type.name, sizeof(ptr.type.name), "%s*", self.name)
             info.pointer = ptr
         return &info.pointer.type
 
@@ -196,12 +196,12 @@ class Type:
             ):
                 return &(*t).type
 
-        arr: TypeInfo* = calloc(1, sizeof *arr)
+        arr: TypeInfo* = calloc(1, sizeof(*arr))
         arr.type = Type{kind = TypeKind.Array, array = ArrayType{item_type = self, count = count}}
         if self.kind == TypeKind.FuncPtr:
-            snprintf(arr.type.name, sizeof arr.type.name, "(%s)[%d]", self.name, count)
+            snprintf(arr.type.name, sizeof(arr.type.name), "(%s)[%d]", self.name, count)
         else:
-            snprintf(arr.type.name, sizeof arr.type.name, "%s[%d]", self.name, count)
+            snprintf(arr.type.name, sizeof(arr.type.name), "%s[%d]", self.name, count)
 
         info.related_types.append(arr)
         return &arr.type
@@ -515,7 +515,7 @@ def funcptr_type(argtypes: Type**, nargs: intnative, takes_varargs: bool, return
         assert not is_noreturn
         ret_name = return_type.name
 
-    info: TypeInfo* = calloc(1, sizeof *info)
+    info: TypeInfo* = calloc(1, sizeof(*info))
     assert info != NULL
 
     fptype = FuncPtrType{
@@ -591,10 +591,10 @@ def satisfy_valgrind(ti: TypeInfo*) -> None:
 
 
 def create_simple_type(name: byte*, kind: TypeKind) -> Type*:
-    result: TypeInfo* = calloc(1, sizeof *result)
+    result: TypeInfo* = calloc(1, sizeof(*result))
     result.type = Type{kind = kind}
 
-    assert strlen(name) < sizeof result.type.name
+    assert strlen(name) < sizeof(result.type.name)
     strcpy(result.type.name, name)
 
     satisfy_valgrind(result)
@@ -618,10 +618,10 @@ def create_enum(name: byte*, members: List[byte[100]]) -> Type*:
     copied_members = List[byte[100]]{}
     copied_members.extend(members)
 
-    result: TypeInfo* = calloc(1, sizeof *result)
+    result: TypeInfo* = calloc(1, sizeof(*result))
     result.type = Type{kind = TypeKind.Enum, enum_members = copied_members}
 
-    assert strlen(name) < sizeof result.type.name
+    assert strlen(name) < sizeof(result.type.name)
     strcpy(result.type.name, name)
 
     satisfy_valgrind(result)
@@ -706,8 +706,8 @@ class Signature:
             if strcmp(arg.name, "self") == 0 and not include_self:
                 continue
 
-            assert sizeof arg.name == 100
-            assert sizeof arg.type.name == 500
+            assert sizeof(arg.name) == 100
+            assert sizeof(arg.type.name) == 500
             result = realloc(result, strlen(result) + 1000)
             assert result != NULL
             strcat(result, arg.name)

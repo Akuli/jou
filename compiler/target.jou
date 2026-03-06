@@ -86,11 +86,11 @@ def init_global_target() -> None:
 
     if JOU_TARGET[0] != '\0':
         triple = JOU_TARGET
-        assert strlen(triple) < sizeof global_compiler_state.target.triple
+        assert strlen(triple) < sizeof(global_compiler_state.target.triple)
         strcpy(global_compiler_state.target.triple, triple)
     else:
         triple = LLVMGetDefaultTargetTriple()
-        assert strlen(triple) < sizeof global_compiler_state.target.triple
+        assert strlen(triple) < sizeof(global_compiler_state.target.triple)
         strcpy(global_compiler_state.target.triple, triple)
         LLVMDisposeMessage(triple)
 
@@ -113,7 +113,7 @@ def init_global_target() -> None:
     # corner cases where either the compiler or the program crashes...
     dummy_target = init_thread_local_target()
     tmp = LLVMCopyStringRepOfTargetData(dummy_target.data)
-    assert strlen(tmp) < sizeof global_compiler_state.target.data_layout
+    assert strlen(tmp) < sizeof(global_compiler_state.target.data_layout)
     strcpy(global_compiler_state.target.data_layout, tmp)
     LLVMDisposeMessage(tmp)
     dummy_target.free()

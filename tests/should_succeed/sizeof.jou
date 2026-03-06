@@ -15,7 +15,7 @@ def ensure_sizeof_isnt_too_small_in_a_weird_corner_case() -> None:
     value = Foo{a=1, b=2, c='x'}
     # We need the heap allocation, because otherwise the optimizer happens to make things work.
     ptr = malloc(50) as Foo*
-    memcpy(ptr, &value, sizeof value)
+    memcpy(ptr, &value, sizeof(value))
     # If sizeof is too small, this prints garbage.
     printf("%c\n", ptr.c)  # Output: x
     free(ptr)
@@ -27,20 +27,20 @@ def main() -> int:
     by: byte
     n: int
     m: int64
-    printf("%d %d %d %d\n", sizeof bo, sizeof by, sizeof n, sizeof m)  # Output: 1 1 4 8
+    printf("%d %d %d %d\n", sizeof(bo), sizeof(by), sizeof(n), sizeof(m))  # Output: 1 1 4 8
 
-    # test that operator precedence works
-    printf("%d\n", sizeof by + sizeof n + sizeof m)  # Output: 13
+    # Test that operator precedence works
+    printf("%d\n", sizeof(by) + sizeof(n) + sizeof(m))  # Output: 13
 
     arr: int64[100]
-    printf("%d\n", sizeof arr)  # Output: 800
+    printf("%d\n", sizeof(arr))  # Output: 800
 
-    # The "array length trick"
-    printf("%d\n", sizeof arr / sizeof arr[0])  # Output: 100
+    # The "array length trick" that was used before array_count() existed
+    printf("%d\n", sizeof(arr) / sizeof(arr[0]))  # Output: 100
     printf("%d\n", array_count arr)  # Output: 100
 
     # Evaluating a sizeof has no side effects.
-    printf("%d\n", sizeof side_effect())  # Output: 4
+    printf("%d\n", sizeof(side_effect()))  # Output: 4
 
     # Size of strings. Size of byte* is expected to be 4 or 8.
     # Output: 6 100 <pointersize>

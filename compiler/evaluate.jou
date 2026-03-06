@@ -73,7 +73,7 @@ def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Loca
     file_content = List[byte]{}
     buf: byte[4096]
     while True:
-        num_read = fread(buf, 1, sizeof buf, file)
+        num_read = fread(buf, 1, sizeof(buf), file)
         if num_read == 0:
             if ferror(file) != 0:
                 # TODO: include errno in the error message?
