@@ -468,12 +468,23 @@ class TOMLParser:
 
         if base == 10 and starts_with(self.ptr, "inf"):
             self.ptr = &self.ptr[3]
-            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (1.0 / 0.0), depth = depth}
+            f = sign * (1.0 / 0.0)
+            *result = TOMLValue{
+                type = TOMLType.Floating,
+                floating = f,
+                integer = f as int64,
+                depth = depth,
+            }
             return True
 
         if base == 10 and starts_with(self.ptr, "nan"):
             self.ptr = &self.ptr[3]
-            *result = TOMLValue{type = TOMLType.Floating, floating = sign * (0.0 / 0.0), depth = depth}
+            *result = TOMLValue{
+                type = TOMLType.Floating,
+                floating = sign * (0.0 / 0.0),
+                # No need to specify integer, NaN converts to 0 in Jou
+                depth = depth,
+            }
             return True
 
         # We validate the matched digits below, but we can't always search for
@@ -517,8 +528,13 @@ class TOMLParser:
                 unsigned_result = new
 
         self.ptr = &self.ptr[len]
-
-        *result = TOMLValue{type = TOMLType.Integer, integer = sign * unsigned_result, depth = depth}
+        signed_result = sign * unsigned_result
+        *result = TOMLValue{
+            type = TOMLType.Integer,
+            integer = signed_result,
+            floating = signed_result,
+            depth = depth,
+        }
         return True
 
     def skip_float_integer_part(self) -> bool:
@@ -570,7 +586,13 @@ class TOMLParser:
         while dest < self.ptr:
             *dest++ = ' '
 
-        *result = TOMLValue{type = TOMLType.Floating, floating = sign*atof(start_of_float), depth = depth}
+        f = sign * atof(start_of_float)
+        *result = TOMLValue{
+            type = TOMLType.Floating,
+            floating = f,
+            integer = f as int64,
+            depth = depth,
+        }
         return True
 
     def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
