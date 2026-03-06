@@ -138,10 +138,19 @@ class TOMLValue:
 
 @public
 class TOMLParseResult:
-    toml_table: TOMLValue
+    table: TOMLValue
     failed: bool
     error_message: byte*
     error_lineno: int
+
+
+@public
+def toml_get(table: TOMLValue*, key: byte*) -> TOMLValue*:
+    if table != NULL and key != NULL:
+        for kv = table.table.ptr; kv < table.table.end(); kv++:
+            if strcmp(kv.key, key) == 0:
+                return &kv.value
+    return NULL
 
 
 # Very deeply nested TOML is banned, similarly to JSON. Creating such data
@@ -889,7 +898,7 @@ def parse_toml(string: byte*) -> TOMLParseResult:
 
     if parser.parse_the_whole_thing():
         free(string)
-        return TOMLParseResult{toml_table = parser.root_table}
+        return TOMLParseResult{table = parser.root_table}
     else:
         # Figure out the line number where it failed
         lineno = 1
