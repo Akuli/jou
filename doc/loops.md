@@ -253,7 +253,7 @@ def main() -> int:
     return 0
 ```
 
-Looping through an array with pointers (see [`array_end` documentation](keywords.md#array-end)):
+Looping through an array with pointers (see [`array_end` documentation](keywords.md#array_end)):
 
 ```python
 import "stdlib/io.jou"
