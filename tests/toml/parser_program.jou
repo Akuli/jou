@@ -1,0 +1,133 @@
+# The TOML test suite invokes this program. That's how the same test suite can
+# be used to test so many different TOML libraries: you just create one of
+# these programs that works in a specific way, and you give it as an argument
+# to the toml-test program.
+#
+# The interface of this program is:
+#   - no command-line arguments
+#   - read TOML on stdin
+#   - if TOML is valid, print a JSON representation of it to stdout
+#   - if TOML is invalid, print an error message to stderr
+#
+# For more details, see:
+# https://github.com/toml-lang/toml-test/tree/v2.1.0?tab=readme-ov-file#implementing-a-decoder
+#
+# The Jou test runner does not invoke this directly.
+
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/json.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+import "stdlib/str.jou"
+import "stdlib/toml.jou"
+
+
+def toml_to_json(value: TOMLValue*, jb: JSONBuilder*) -> None:
+    s: byte[100]
+    match value.type:
+        case TOMLType.Unset:
+            jb.string("THIS SHOULD NEVER HAPPEN!!!!")
+        case TOMLType.Array:
+            jb.begin_array()
+            for p = value.array.ptr; p < value.array.end(); p++:
+                toml_to_json(p, jb)
+            jb.end_array()
+        case TOMLType.Table:
+            jb.begin_object()
+            for kv = value.table.ptr; kv < value.table.end(); kv++:
+                jb.key(kv.key)
+                toml_to_json(&kv.value, jb)
+            jb.end_object()
+        case TOMLType.String:
+            jb.begin_object()
+            jb.key("type").string("string")
+            jb.key("value").string_with_len(value.string, value.string_len)
+            jb.end_object()
+        case TOMLType.Boolean:
+            jb.begin_object()
+            jb.key("type").string("bool")
+            jb.key("value").string("true" if value.boolean else "false")
+            jb.end_object()
+        case TOMLType.Integer:
+            jb.begin_object()
+            jb.key("type").string("integer")
+            sprintf(s, "%lld", value.integer)
+            jb.key("value").string(s)
+            jb.end_object()
+        case TOMLType.Floating:
+            jb.begin_object()
+            jb.key("type").string("float")
+            # Use the JSON builder's float formatting code, but wrap to string
+            jb2 = JSONBuilder{}
+            jb2.number(value.floating)
+            float_string = jb2.finish()
+            jb.key("value").string(float_string)
+            free(float_string)
+            jb.end_object()
+
+
+# The depth calculations are hard to get right and we want to test them with
+# lots of test data, so here goes :)
+def check_depths(value: TOMLValue*, expected_depth: int) -> None:
+    assert value.depth == expected_depth
+    match value.type:
+        case TOMLType.Array:
+            for p = value.array.ptr; p < value.array.end(); p++:
+                check_depths(p, expected_depth + 1)
+        case TOMLType.Table:
+            for kv = value.table.ptr; kv < value.table.end(); kv++:
+                check_depths(&kv.value, expected_depth + 1)
+        case TOMLType.String | TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Unset:
+            pass
+
+
+def read_stdin_to_string() -> byte*:
+    bytes_list = List[byte]{}
+
+    while True:
+        c = getchar()
+        match c:
+            case '\0':
+                fprintf(get_stderr(), "got zero byte from stdin, would be invalid TOML\n")
+                exit(1)
+            case EOF:
+                break
+            case _:
+                bytes_list.append(c as byte)
+
+    bytes_list.append('\0')
+    return bytes_list.ptr
+
+
+# Test runner expects exit status 1 for failing tests, so let's use something
+# else for failing asserts.
+def exit2_assert_handler(assertion: byte*, path: byte*, lineno: int) -> None:
+    # Do what stdlib/assert.jou does but with exit status 2 instead of 1
+    fflush(get_stdout())
+    fprintf(get_stderr(), "Assertion '%s' failed in file \"%s\", line %d.\n", assertion, path, lineno)
+    exit(2)
+
+
+def main() -> int:
+    jou_assert_fail_handler = exit2_assert_handler
+
+    string = read_stdin_to_string()
+    result = parse_toml(string)
+    free(string)
+
+    if result.failed:
+        fprintf(get_stderr(), "error on line %d: %s\n", result.error_lineno, result.error_message)
+        return 1
+
+    jb = JSONBuilder{pretty_print = 4}
+    toml_to_json(&result.toml_table, &jb)
+    check_depths(&result.toml_table, 0)
+    result.toml_table.free()
+
+    json = jb.finish()
+    puts(json)
+    free(json)
+
+    return 0

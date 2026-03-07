@@ -1,0 +1,933 @@
+# TOML spec (english): https://toml.io/en/v1.1.0
+# TOML spec (grammar): https://github.com/toml-lang/toml/blob/1.1.0/toml.abnf
+
+import "stdlib/ascii.jou"
+import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
+import "stdlib/io.jou"
+import "stdlib/limits.jou"
+import "stdlib/list.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/utf8.jou"
+
+
+@public
+class TOMLKeyVal:
+    key: byte*
+    value: TOMLValue
+
+    @public
+    def free(self) -> None:
+        free(self.key)
+        self.value.free()
+
+@public
+enum TOMLType:
+    Unset  # must be first, so initializes to this
+    Table
+    Array
+    String
+    Boolean
+    Integer
+    Floating
+
+# This is used to prevent adding more stuff to an existing table/array when
+# that is not allowed by TOML's rules.
+enum CreatedBy:
+    Unset  # must be the first member so that this is the default
+    Inline  # e.g. {x = "foo", y = "bar"} or ["foo", "bar"]
+    Section  # foo was created with [foo] or [[foo]] on a line of its own
+    DottedKey  # table foo was created only to access foo.bar
+
+@public
+class TOMLValue:
+    type: TOMLType
+
+    # Only one of these exists at a time. But all fields are available, so that
+    # if you e.g. try to loop over a number as if it was an array, it will
+    # appear as an empty array instead of crashing your program.
+    table: List[TOMLKeyVal]
+    array: List[TOMLValue]
+    string: byte*
+    boolean: bool
+    integer: int64
+    floating: double
+
+    # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
+    string_len: intnative
+
+    # Main/root table has depth 0, its contents have depth 1 etc
+    depth: int
+
+    # Internal detail. Not meant to be accessed outside this file.
+    created_by: CreatedBy
+
+    @public
+    def free(self) -> None:
+        match self.type:
+            case TOMLType.Table:
+                for kv = self.table.ptr; kv < self.table.end(); kv++:
+                    kv.free()
+                free(self.table.ptr)
+            case TOMLType.Array:
+                for p = self.array.ptr; p < self.array.end(); p++:
+                    p.free()
+                free(self.array.ptr)
+            case TOMLType.String:
+                free(self.string)
+            case TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Unset:
+                pass
+
+    # For debugging
+    @public
+    def print(self) -> None:
+        match self.type:
+            case TOMLType.Unset:
+                puts("Unset")
+            case TOMLType.Table:
+                puts("Table:")
+                for kv = self.table.ptr; kv < self.table.end(); kv++:
+                    printf("%*s%s = ", 2*kv.value.depth, "", kv.key)
+                    kv.value.print()
+            case TOMLType.Array:
+                puts("Array:")
+                for item = self.array.ptr; item < self.array.end(); item++:
+                    printf("%*s", 2*item.depth, "")
+                    item.print()
+            case TOMLType.String:
+                printf("String: \"")
+                for p = self.string; p < &self.string[self.string_len]; p++:
+                    match *p:
+                        case '\n':
+                            printf("\\n")
+                        case '\t':
+                            printf("\\t")
+                        case '\r':
+                            printf("\\r")
+                        case '"':
+                            printf("\\\"")
+                        case '\\':
+                            printf("\\\\")  # lol
+                        case _:
+                            if *p < 128 and not is_ascii_printable(*p):
+                                # unprintable ASCII character
+                                printf("\\x%02x", *p)
+                            else:
+                                # This prints all non-ASCII characters as is
+                                putchar(*p)
+                printf("\"\n")
+            case TOMLType.Boolean:
+                printf("Boolean: %s\n", "true" if self.boolean else "false")
+            case TOMLType.Integer:
+                printf("Integer: %lld\n", self.integer)
+            case TOMLType.Floating:
+                if isnan(self.floating):
+                    printf("Floating: nan\n")
+                elif isinf(self.floating):
+                    printf("Floating: %sinf\n", "+" if self.floating > 0 else "-")
+                else:
+                    # Same logic as in stdlib/json.jou
+                    buf: byte[64] = ""
+                    snprintf(buf, sizeof(buf), "%.16g", self.floating)
+                    if atof(buf) == self.floating:
+                        printf("Floating: %.16g\n", self.floating)
+                    else:
+                        printf("Floating: %.17g\n", self.floating)
+
+@public
+class TOMLParseResult:
+    table: TOMLValue
+    failed: bool
+    error_message: byte*
+    error_lineno: int
+
+
+@public
+def toml_get(table: TOMLValue*, key: byte*) -> TOMLValue*:
+    if table != NULL and key != NULL:
+        for kv = table.table.ptr; kv < table.table.end(); kv++:
+            if strcmp(kv.key, key) == 0:
+                return &kv.value
+    return NULL
+
+
+# Very deeply nested TOML is banned, similarly to JSON. Creating such data
+# structures would be fine, but we're in trouble when it's time to free the
+# memory: we would need to recurse through the data structure to free each
+# member, and with deep nesting, that could overflow the stack.
+const MAX_DEPTH: int = 64
+
+
+# TODO: this doesn't belong here
+declare atof(string: byte*) -> double
+
+def hexdigit_value(b: byte) -> int:
+    if '0' <= b and b <= '9':
+        return b - '0'
+    if 'A' <= b and b <= 'F':
+        return 10 + (b - 'A')
+    if 'a' <= b and b <= 'f':
+        return 10 + (b - 'a')
+    return -1
+
+def looks_like_end_of_line(s: byte*) -> bool:
+    while *s == ' ' or *s == '\t':
+        s++
+    return *s == '\n' or *s == '\0' or *s == '#'  # allow comments at end of line
+
+def looks_like_date(s: byte*) -> bool:
+    return (
+        is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and *s++ == '-'
+        and is_ascii_digit(*s)
+    )
+
+def looks_like_time(s: byte*) -> bool:
+    return (
+        is_ascii_digit(*s++)
+        and is_ascii_digit(*s++)
+        and *s++ == ':'
+        and is_ascii_digit(*s)
+    )
+
+
+class TOMLParser:
+    ptr: byte*
+    root_table: TOMLValue
+    current_table: TOMLValue*
+    error: byte*
+
+    # Names of many methods are according to this:
+    # https://github.com/toml-lang/toml/blob/bcbbd1c1f03473ffe97b8bf26a0fc945efe2b4a1/toml.abnf
+
+    def parse_the_whole_thing(self) -> bool:
+        while *self.ptr != '\0':
+            match *self.ptr:
+                case ' ' | '\t' | '\n':
+                    self.ptr++
+                case '#':
+                    if not self.skip_comment():
+                        return False
+                case '[':
+                    if not self.parse_header():
+                        return False
+                case _:
+                    if not self.parse_key_equals_value(self.current_table):
+                        return False
+                    if not looks_like_end_of_line(self.ptr):
+                        self.error = "invalid syntax"  # probably won't be able to do much better than this...
+                        return False
+        return True
+
+    def skip_comment(self) -> bool:
+        assert *self.ptr == '#'
+        while *self.ptr != '\0' and *self.ptr != '\n':
+            if *self.ptr == 127 or (*self.ptr < 0x20 and *self.ptr != '\t'):
+                self.error = "invalid character in comment"
+                return False
+            self.ptr++
+        return True
+
+    def parse_key_equals_value(self, relative_to: TOMLValue*) -> bool:
+        if *self.ptr == '=':
+            self.error = "missing key"
+            return False
+
+        value_dest_ptr = self.parse_key(relative_to, True)
+        if value_dest_ptr == NULL:
+            return False
+
+        if value_dest_ptr.type != TOMLType.Unset:
+            self.error = "duplicate key"
+            return False
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        if *self.ptr != '=':
+            self.error = "invalid key-value pair"
+            return False
+        self.ptr++
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        if *self.ptr == '\n' or *self.ptr == '\0':
+            self.error = "missing value"
+            return False
+
+        val: TOMLValue
+        if not self.val(&val, value_dest_ptr.depth):
+            return False
+
+        *value_dest_ptr = val
+        return True
+
+    # Returns a pointer where the corresponding value should be stored.
+    # Make sure not to overwrite the .depth of the returned pointer.
+    def parse_key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+        assert relative_to.depth > 0 or relative_to == &self.root_table
+
+        value_ptr = self.parse_component_of_key(relative_to, this_is_the_key_of_a_keyval_pair)
+        if value_ptr == NULL:
+            return NULL
+        assert value_ptr.depth == relative_to.depth + 1
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        while *self.ptr == '.':
+            self.ptr++
+
+            while *self.ptr == ' ' or *self.ptr == '\t':
+                self.ptr++
+
+            value_ptr = self.parse_component_of_key(value_ptr, this_is_the_key_of_a_keyval_pair)
+            if value_ptr == NULL:
+                return NULL
+
+            while *self.ptr == ' ' or *self.ptr == '\t':
+                self.ptr++
+
+        return value_ptr
+
+    def parse_component_of_key(self, parent_value: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+        assert parent_value != NULL
+
+        key: byte*
+        if *self.ptr == '"' or *self.ptr == '\'':
+            key_len: intnative
+            key = self.parse_string(False, &key_len)
+            if key == NULL:
+                return NULL
+            if strlen(key) < key_len:
+                self.error = "sorry, zero bytes in keys are not supported"
+                free(key)
+                return NULL
+        else:
+            n = strspn(self.ptr, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+            if n == 0 or n > INT32_MAX:
+                self.error = "invalid key"
+                return NULL
+            key = NULL
+            asprintf(&key, "%.*s", n as int, self.ptr)
+            assert key != NULL
+            self.ptr = &self.ptr[n]
+
+        # Go to a part within an already chosen key
+        match parent_value.type:
+            case TOMLType.Unset:
+                # TODO: what exactly should happen here?
+                # TODO: does this ever even run????
+                parent_value.type = TOMLType.Table
+                target_table = parent_value
+            case TOMLType.Table:
+                target_table = parent_value
+            case TOMLType.Array:
+                # Refer to the last element. It must be a table.
+                if parent_value.array.len == 0:
+                    self.error = "cannot refer to last element of empty array"
+                    free(key)
+                    return NULL
+                if parent_value.array.end()[-1].type != TOMLType.Table:
+                    self.error = "last element of array is not a table"
+                    free(key)
+                    return NULL
+                target_table = &parent_value.array.end()[-1]
+            case TOMLType.String:
+                self.error = "expected a table, got a string"
+                free(key)
+                return NULL
+            case TOMLType.Boolean:
+                self.error = "expected a table, got a boolean"
+                free(key)
+                return NULL
+            case TOMLType.Integer | TOMLType.Floating:
+                self.error = "expected a table, got a number"
+                free(key)
+                return NULL
+
+        assert target_table.type == TOMLType.Table
+        if target_table.created_by == CreatedBy.Inline:
+            self.error = "inline tables cannot be extended after creating the table"
+            free(key)
+            return NULL
+
+        assert target_table.depth <= MAX_DEPTH
+        if target_table.depth == MAX_DEPTH:
+            assert MAX_DEPTH == 64
+            self.error = "nesting more than 64 levels deep is not supported"
+            free(key)
+            return NULL
+
+        # Does this key already exists? If it exists, value will go there
+        for kv = target_table.table.ptr; kv < target_table.table.end(); kv++:
+            if strcmp(kv.key, key) == 0:
+                free(key)
+                return &kv.value
+
+        # Key not found --> create new table, unless it's the weird special
+        # case where that is not allowed
+        if target_table.created_by == CreatedBy.Section and this_is_the_key_of_a_keyval_pair:
+            self.error = "a dotted key of a key-value pair cannot extend a table after the content of the table has been explicitly listed above"
+            free(key)
+            return NULL
+
+        target_table.table.append(TOMLKeyVal{key = key})
+        result = &target_table.table.end()[-1].value
+        result.depth = target_table.depth + 1
+        if this_is_the_key_of_a_keyval_pair:
+            result.created_by = CreatedBy.DottedKey
+        return result
+
+    def val(self, result: TOMLValue*, depth: int) -> bool:
+        match *self.ptr:
+            case '"' | '\'':
+                s_len: intnative
+                s = self.parse_string(True, &s_len)
+                if s == NULL:
+                    return False
+                *result = TOMLValue{type = TOMLType.String, string = s, string_len = s_len, depth = depth}
+                return True
+
+            case 't':
+                if starts_with(self.ptr, "true"):
+                    self.ptr = &self.ptr[4]
+                    *result = TOMLValue{type = TOMLType.Boolean, boolean = True, depth = depth}
+                    return True
+
+            case 'T':
+                if starts_with(self.ptr, "True"):
+                    self.error = "should be true, not True"
+                    return False
+                if starts_with(self.ptr, "TRUE"):
+                    self.error = "should be true, not TRUE"
+                    return False
+
+            case 'f':
+                if starts_with(self.ptr, "false"):
+                    self.ptr = &self.ptr[5]
+                    *result = TOMLValue{type = TOMLType.Boolean, boolean = False, depth = depth}
+                    return True
+
+            case 'F':
+                if starts_with(self.ptr, "False"):
+                    self.error = "should be false, not False"
+                    return False
+                if starts_with(self.ptr, "FALSE"):
+                    self.error = "should be false, not FALSE"
+                    return False
+
+            case (
+                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+                | '+' | '-'
+                | 'i' | 'n'  # inf and nan
+            ):
+                if looks_like_date(self.ptr) or looks_like_time(self.ptr):
+                    self.error = "dates and times in TOML are not supported :("
+                    return False
+                return self.parse_number(result, depth)
+            case '[':
+                return self.parse_inline_array(result, depth)
+            case '{':
+                return self.parse_inline_table(result, depth)
+            case '\0':
+                self.error = "got end of TOML instead of a value"
+                return False
+            case _:
+                pass
+
+        self.error = "invalid value"
+        return False
+
+    def parse_number(self, result: TOMLValue*, depth: int) -> bool:
+        sign = 1
+        max_abs = INT64_MAX as uint64
+        if starts_with(self.ptr, "0b"):
+            base = 2
+        elif starts_with(self.ptr, "0o"):
+            base = 8
+        elif starts_with(self.ptr, "0x"):
+            base = 16
+        else:
+            base = 10
+            # Only base 10 numbers and flo can be negative in TOML!
+            if *self.ptr == '-':
+                sign = -1
+                max_abs++  # Support the most negative 64-bit integer
+            if *self.ptr == '+' or *self.ptr == '-':
+                self.ptr++
+
+        if base != 10:
+            self.ptr = &self.ptr[2]
+
+        if base == 10 and starts_with(self.ptr, "inf"):
+            self.ptr = &self.ptr[3]
+            f = sign * (1.0 / 0.0)
+            *result = TOMLValue{
+                type = TOMLType.Floating,
+                floating = f,
+                integer = f as int64,
+                depth = depth,
+            }
+            return True
+
+        if base == 10 and starts_with(self.ptr, "nan"):
+            self.ptr = &self.ptr[3]
+            *result = TOMLValue{
+                type = TOMLType.Floating,
+                floating = sign * (0.0 / 0.0),
+                # No need to specify integer, NaN converts to 0 in Jou
+                depth = depth,
+            }
+            return True
+
+        # We validate the matched digits below, but we can't always search for
+        # A-F and a-f because floats can contain E and e.
+        len = strspn(self.ptr, "0123456789ABCDEFabcdef_" if base == 16 else "0123456789_")
+        if len == 0:
+            self.error = "invalid number"
+            return False
+        if *self.ptr == '_':
+            self.error = "number cannot start with underscore"
+            return False
+        if self.ptr[len-1] == '_':
+            self.error = "number cannot end with underscore"
+            return False
+        if base == 10 and len >= 2 and *self.ptr == '0':
+            self.error = "unnecessary zero at the start of a number"
+            return False
+
+        for i = 0; i < len; i++:
+            if starts_with(&self.ptr[i], "__"):
+                self.error = "consecutive underscores are not allowed in numbers"
+                return False
+
+        if base == 10 and (self.ptr[len] == 'E' or self.ptr[len] == 'e' or self.ptr[len] == '.'):
+            return self.parse_float(result, sign, depth)
+
+        unsigned_result: uint64 = 0
+        for i = 0; i < len; i++:
+            if self.ptr[i] != '_':
+                v = hexdigit_value(self.ptr[i])
+                assert v != -1
+                if v >= base:
+                    self.error = "invalid integer"
+                    return False
+
+                old = unsigned_result
+                new = (old*base + v) as uint64
+                if new/base != old or new > max_abs:
+                    self.error = "integer doesn't fit to int64"
+                    return False
+                unsigned_result = new
+
+        self.ptr = &self.ptr[len]
+        signed_result = sign * unsigned_result
+        *result = TOMLValue{
+            type = TOMLType.Integer,
+            integer = signed_result,
+            floating = signed_result,
+            depth = depth,
+        }
+        return True
+
+    def skip_float_integer_part(self) -> bool:
+        if not is_ascii_digit(*self.ptr):
+            self.error = "invalid float"
+            return False
+
+        while is_ascii_digit(*self.ptr) or *self.ptr == '_':
+            self.ptr++
+            if starts_with(self.ptr, "__"):
+                self.error = "consecutive underscores are not allowed in numbers"
+                return False
+
+        if self.ptr[-1] == '_':
+            self.error = "invalid float"
+            return False
+
+        return True
+
+    # Assumes that the sign has already been parsed.
+    def parse_float(self, result: TOMLValue*, sign: int, depth: int) -> bool:
+        assert sign == 1 or sign == -1
+        start_of_float = self.ptr
+
+        # Skip integer part (underscores already validated)
+        while *self.ptr == '_' or is_ascii_digit(*self.ptr):
+            self.ptr++
+
+        assert *self.ptr == '.' or *self.ptr == 'E' or *self.ptr == 'e'
+        if *self.ptr == '.':
+            self.ptr++
+            if not self.skip_float_integer_part():
+                return False
+        if *self.ptr == 'E' or *self.ptr == 'e':
+            self.ptr++
+            if *self.ptr == '+' or *self.ptr == '-':
+                self.ptr++
+            if not self.skip_float_integer_part():
+                return False
+
+        # Get rid of all underscores for atof(): "1_2.3_4" --> "12.34  "
+        #
+        # This won't modify the string given by user, because we allocate a
+        # copy of it for CRLF (\r\n) handling anyway.
+        dest = start_of_float
+        for p = start_of_float; p < self.ptr; p++:
+            if *p != '_':
+                *dest++ = *p
+        while dest < self.ptr:
+            *dest++ = ' '
+
+        f = sign * atof(start_of_float)
+        *result = TOMLValue{
+            type = TOMLType.Floating,
+            floating = f,
+            integer = f as int64,
+            depth = depth,
+        }
+        return True
+
+    def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
+        codepoint: uint32 = 0
+        for i = 0; i < num_hex_digits; i++:
+            v = hexdigit_value(self.ptr[i])
+            if v == -1:
+                self.error = "invalid backslash escape in string"
+                return False
+            codepoint <<= 4
+            codepoint |= v as uint32
+
+        if codepoint == 0:
+            out.append('\0')
+        else:
+            s = utf8_encode_char(codepoint)
+            if s[0] == '\0':
+                self.error = "escape in string produced an invalid Unicode character"
+                return False
+            out.extend_from_ptr(s, strlen(s))
+
+        self.ptr = &self.ptr[num_hex_digits]
+        return True
+
+    def parse_string(self, allow_multiline: bool, result_len: intnative*) -> byte*:
+        quote = *self.ptr
+        assert quote == '"' or quote == '\''
+
+        quote3 = [quote, quote, quote, '\0']
+        quote4 = [quote, quote, quote, quote, '\0']
+        quote6 = [quote, quote, quote, quote, quote, quote, '\0']
+
+        multiline = starts_with(self.ptr, quote3)
+        if multiline and not allow_multiline:
+            self.error = "multiline strings are not allowed here"
+            return NULL
+
+        self.ptr++
+        if multiline:
+            self.ptr++
+            self.ptr++
+            if *self.ptr == '\n':
+                self.ptr++
+
+        result = List[byte]{}
+        while (
+            *self.ptr != quote
+            # Multiline strings are weird:
+            #   """foo""" --> 'foo'
+            #   """foo"""" --> 'foo"'
+            #   """foo""""" --> 'foo""'
+            #   """foo"""""" --> error
+            #   """foo""""""" --> error
+            or (multiline and not starts_with(self.ptr, quote3))
+            or (multiline and starts_with(self.ptr, quote4) and not starts_with(self.ptr, quote6))
+        ):
+            if *self.ptr == '\0' or (*self.ptr == '\n' and not multiline):
+                self.error = "missing quotes to end the string" if multiline else "missing quote to end the string"
+                free(result.ptr)
+                return NULL
+            elif (
+                quote == '"'
+                and multiline
+                and *self.ptr == '\\'
+                and self.ptr[1 + strspn(&self.ptr[1], " \t")] == '\n'
+            ):
+                # Line continuation backslash causes all whitespace to be
+                # trimmed after the backslash. TOML is weird :)
+                self.ptr++
+                while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n':
+                    self.ptr++
+            elif quote == '"' and *self.ptr == '\\':
+                self.ptr++
+                match *self.ptr++:
+                    case '"':
+                        result.append('"')
+                    case '\\':
+                        result.append('\\')
+                    case 'b':
+                        result.append(0x08)  # Jou doesn't have \b
+                    case 'e':
+                        result.append(0x1b)  # Jou doesn't have \e
+                    case 'f':
+                        result.append(0x0c)  # Jou doesn't have \f
+                    case 'n':
+                        result.append('\n')
+                    case 'r':
+                        result.append('\r')
+                    case 't':
+                        result.append('\t')
+                    case 'x':
+                        if not self.read_unicode_escape_in_string('x', 2, &result):
+                            free(result.ptr)
+                            return NULL
+                    case 'u':
+                        if not self.read_unicode_escape_in_string('u', 4, &result):
+                            free(result.ptr)
+                            return NULL
+                    case 'U':
+                        if not self.read_unicode_escape_in_string('U', 8, &result):
+                            free(result.ptr)
+                            return NULL
+                    case _:
+                        self.error = "invalid backslash escape in string"
+                        free(result.ptr)
+                        return NULL
+            elif *self.ptr == 0x7f or (*self.ptr < 0x20 and *self.ptr != '\n' and *self.ptr != '\t'):
+                self.error = "invalid character in string"
+                free(result.ptr)
+                return NULL
+            else:
+                result.append(*self.ptr++)
+
+        self.ptr = &self.ptr[3 if multiline else 1]
+
+        *result_len = result.len
+        result.append('\0')
+        return result.ptr
+
+    def parse_header(self) -> bool:
+        # Mark the old current table as complete. This must be done quite
+        # early, because we may create a new table below, and that messes up
+        # pointers into the old table when the tables are in the same array.
+        self.current_table.created_by = CreatedBy.Section
+        self.current_table = NULL  # not necessary, but causes bugs to fail more loudly
+
+        assert *self.ptr == '['
+        self.ptr++
+
+        is_array = (*self.ptr == '[')
+        if is_array:
+            self.ptr++
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        value_ptr = self.parse_key(&self.root_table, False)
+        if value_ptr == NULL:
+            if strcmp(self.error, "invalid key") == 0:
+                self.error = "invalid header"
+            return False
+
+        if is_array:
+            match value_ptr.type:
+                case TOMLType.Unset:
+                    # Just created for this
+                    #
+                    # Unlike with tables, we set created_by immediately, not
+                    # when we are done with populating the table. That doesn't
+                    # really matter. In fact, we could just leave created_by
+                    # unset here, but this feels like it makes more sense.
+                    value_ptr.type = TOMLType.Array
+                    value_ptr.created_by = CreatedBy.Section
+                case TOMLType.Array:
+                    if value_ptr.created_by == CreatedBy.Inline:
+                        self.error = "inline arrays cannot be extended after creating the array"
+                        return False
+                case _:
+                    self.error = "cannot redefine an existing value as an array"
+                    return False
+
+            assert value_ptr.depth <= MAX_DEPTH
+            if value_ptr.depth == MAX_DEPTH:
+                assert MAX_DEPTH == 64
+                self.error = "nesting more than 64 levels deep is not supported"
+                return False
+
+            value_ptr.array.append(TOMLValue{type = TOMLType.Table, depth = value_ptr.depth + 1})
+            self.current_table = &value_ptr.array.end()[-1]
+        else:
+            match value_ptr.type:
+                case TOMLType.Unset:
+                    # Just created for this
+                    value_ptr.type = TOMLType.Table
+                case TOMLType.Table:
+                    # Add more stuff to an existing table
+                    if value_ptr.created_by != CreatedBy.Unset:
+                        self.error = "table already exists"
+                        return False
+                case _:
+                    self.error = "cannot redefine an existing value as a table"
+                    return False
+
+            self.current_table = value_ptr
+
+        while *self.ptr == ' ' or *self.ptr == '\t':
+            self.ptr++
+
+        suffix = "]]" if is_array else "]"
+        if starts_with(self.ptr, suffix) and looks_like_end_of_line(&self.ptr[strlen(suffix)]):
+            self.ptr = &self.ptr[strlen(suffix)]
+            return True
+        else:
+            self.error = "invalid header"
+            return False
+
+    def whitespace_comment_newline(self) -> bool:
+        while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n' or *self.ptr == '#':
+            if *self.ptr == '#':
+                if not self.skip_comment():
+                    return False
+            else:
+                self.ptr++
+        return True
+
+    def parse_inline_array(self, result: TOMLValue*, depth_of_array: int) -> bool:
+        assert *self.ptr == '['
+        self.ptr++
+
+        if not self.whitespace_comment_newline():
+            return False
+
+        *result = TOMLValue{type = TOMLType.Array, depth = depth_of_array}
+
+        while *self.ptr != ']':
+            assert depth_of_array <= MAX_DEPTH
+            if depth_of_array == MAX_DEPTH:
+                assert MAX_DEPTH == 64
+                self.error = "nesting more than 64 levels deep is not supported"
+                result.free()
+                return False
+
+            value: TOMLValue
+            if not self.val(&value, depth_of_array + 1):
+                result.free()
+                return False
+            result.array.append(value)
+
+            if not self.whitespace_comment_newline():
+                result.free()
+                return False
+
+            match *self.ptr:
+                case ']':
+                    break
+                case ',':
+                    self.ptr++
+                    if not self.whitespace_comment_newline():
+                        result.free()
+                        return False
+                case _:
+                    self.error = "invalid array"
+                    result.free()
+                    return False
+
+        assert *self.ptr == ']'
+        self.ptr++
+
+        result.created_by = CreatedBy.Inline
+        return True
+
+    def parse_inline_table(self, result: TOMLValue*, depth_of_table: int) -> bool:
+        assert *self.ptr == '{'
+        self.ptr++
+
+        if not self.whitespace_comment_newline():
+            return False
+
+        *result = TOMLValue{type = TOMLType.Table, depth = depth_of_table}
+
+        while *self.ptr != '}':
+            keyval_ok = self.parse_key_equals_value(result)
+
+            if not keyval_ok:
+                result.free()
+                return False
+
+            if not self.whitespace_comment_newline():
+                result.free()
+                return False
+
+            match *self.ptr:
+                case '}':
+                    break
+                case ',':
+                    self.ptr++
+                    self.whitespace_comment_newline()
+                case _:
+                    self.error = "invalid inline table"
+                    result.free()
+                    return False
+
+        assert *self.ptr == '}'
+        self.ptr++
+
+        result.created_by = CreatedBy.Inline
+        return True
+
+
+# Returns -1 if valid, line number if invalid
+def validate_utf8(string: byte*) -> int:
+    lineno = 1
+    while *string != '\0':
+        if *string == '\n':
+            lineno++
+        if utf8_decode_char(&string) == -1:
+            return lineno
+    return -1
+
+
+# Replaces \r\n with \n in-place
+def fix_newlines(s: byte*) -> None:
+    out = s
+    while *s != '\0':
+        if starts_with(s, "\r\n"):
+            s++
+        *out++ = *s++
+    *out = '\0'
+
+
+@public
+def parse_toml(string: byte*) -> TOMLParseResult:
+    assert string != NULL
+
+    utf8_error_lineno = validate_utf8(string)
+    if utf8_error_lineno != -1:
+        return TOMLParseResult{failed = True, error_message = "invalid UTF-8", error_lineno = utf8_error_lineno}
+
+    string = strdup(string)
+    assert string != NULL
+    fix_newlines(string)
+
+    parser = TOMLParser{ptr = string, root_table = TOMLValue{type = TOMLType.Table}}
+    parser.current_table = &parser.root_table  # the "default section"
+
+    if parser.parse_the_whole_thing():
+        free(string)
+        return TOMLParseResult{table = parser.root_table}
+    else:
+        # Figure out the line number where it failed
+        lineno = 1
+        while parser.ptr --> string:
+            if *parser.ptr == '\n':
+                lineno++
+
+        parser.root_table.free()
+        free(string)
+        return TOMLParseResult{failed = True, error_message = parser.error, error_lineno = lineno}
