@@ -362,9 +362,9 @@ def test_numbers() -> None:
     assert not json_is_valid("5k")
     assert json_to_double("5k") == 5
     assert not json_is_valid("Infinityyyy")
-    assert json_to_double("Infinityyyy") == 1.0 / 0.0
+    assert json_to_double("Infinityyyy") == INFINITY
     assert not json_is_valid("-Infinityyyy")
-    assert json_to_double("-Infinityyyy") == -1.0 / 0.0
+    assert json_to_double("-Infinityyyy") == -INFINITY
 
 
 def test_json_from_github_api() -> None:

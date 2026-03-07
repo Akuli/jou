@@ -107,13 +107,14 @@ For example:
 import "stdlib/json.jou"
 import "stdlib/io.jou"
 import "stdlib/mem.jou"
+import "stdlib/math.jou"  # defines INFINITY and NAN
 
 def main() -> int:
     jb = JSONBuilder{}
     jb.begin_array()
-    jb.number(1.0 / 0.0)
-    jb.number(-1.0 / 0.0)
-    jb.number(0.0 / 0.0)
+    jb.number(INFINITY)
+    jb.number(-INFINITY)
+    jb.number(NAN)
     jb.end_array()
 
     json = jb.finish()

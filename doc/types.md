@@ -177,15 +177,15 @@ For example:
 
 ```python
 import "stdlib/io.jou"
+import "stdlib/math.jou"
 
 def main() -> int:
     printf("%d\n", 1234.5 as byte)  # Output: 255
     printf("%d\n", 24.68 as int)    # Output: 24
     printf("%d\n", -24.68 as int)   # Output: -24
 
-    # Infinity and NaN
-    printf("%d\n", (1.0 / 0.0) as int)   # Output: 2147483647
-    printf("%d\n", (0.0 / 0.0) as int)   # Output: 0
+    printf("%d\n", INFINITY as int)   # Output: 2147483647
+    printf("%d\n", NAN as int)   # Output: 0
 
     return 0
 ```

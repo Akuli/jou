@@ -195,9 +195,9 @@ def test_numbers() -> None:
     jb.number(pow(2, -20))
     # Technically Infinity and NaN are not valid JSON, but many libraries
     # support them to some extent so we support them too.
-    jb.number(1.0 / 0.0)    # Infinity
-    jb.number(-1.0 / 0.0)   # -Infinity
-    jb.number(0.0 / 0.0)    # NaN
+    jb.number(INFINITY)
+    jb.number(-INFINITY)
+    jb.number(NAN)
     jb.end_array()
 
     json = jb.finish()
@@ -305,7 +305,7 @@ def test_complex_example() -> None:
     jb.key("alternative null")
     jb.string(NULL)
     jb.key("big numba")
-    jb.number(1.0 / 0.0)
+    jb.number(INFINITY)
     jb.end_object()
     jb.end_array()
 
