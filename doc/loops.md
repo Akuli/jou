@@ -253,7 +253,7 @@ def main() -> int:
     return 0
 ```
 
-Looping through an array with pointers:
+Looping through an array with pointers (see [`array_end` documentation](keywords.md#array_end)):
 
 ```python
 import "stdlib/io.jou"
@@ -264,7 +264,7 @@ def main() -> int:
     # Output: 123
     # Output: 456
     # Output: 789
-    for p = &array[0]; p < &array[array_count(array)]; p++:
+    for p = &array[0]; p < array_end(array); p++:
         printf("%d\n", *p)
 
     return 0
@@ -299,6 +299,24 @@ def main() -> int:
     # Output: 456
     # Output: 123
     for p = &array[array_count(array) - 1]; p >= &array[0]; p--:
+        printf("%d\n", *p)
+
+    return 0
+```
+
+Instead of `&array[array_count(array) - 1]`, you can also use `&array_end(array)[-1]`.
+This may be convenient, because you need to write `array` only once.
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    array = [123, 456, 789]
+
+    # Output: 789
+    # Output: 456
+    # Output: 123
+    for p = &array_end(array)[-1]; p >= &array[0]; p--:
         printf("%d\n", *p)
 
     return 0

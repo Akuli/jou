@@ -53,6 +53,24 @@ def main() -> int:
     increment(foo as int*)  # same cast explicitly
     printf("%d %d %d\n", foo[0], foo[1], foo[2])  # Output: 7 5 6
 
+    # Looping through array with indexes
+    # Output: 756
+    for i = 0; i < array_count(foo); i++:
+        printf("%d", foo[i])
+    printf("\n")
+
+    # Looping through array with pointers (old way)
+    # Output: 756
+    for p = &foo[0]; p < &foo[array_count(foo)]; p++:
+        printf("%d", *p)
+    printf("\n")
+
+    # Looping through array with pointers (new way)
+    # Output: 756
+    for p = &foo[0]; p < array_end(foo); p++:
+        printf("%d", *p)
+    printf("\n")
+
     # corner case: byte* <--> void* can be converted both ways, use byte*
     strings = ["hello", NULL, "world", NULL]
     printf("%s %s\n", strings[0], strings[2])  # Output: hello world
