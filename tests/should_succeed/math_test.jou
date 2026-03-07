@@ -50,7 +50,7 @@ def main() -> int:
     # Output: 0 0 1
     # Output: 0 0 1
     # Output: 0 0 1
-    for d = &test_doubles[0]; d < &test_doubles[array_count(test_doubles)]; d++:
+    for d = &test_doubles[0]; d < array_end(test_doubles); d++:
         printf("%d %d %d\n", isfinite(*d), isinf(*d), isnan(*d))
 
     # Output: 1 0 0
@@ -65,7 +65,7 @@ def main() -> int:
     # Output: 0 0 1
     # Output: 0 0 1
     # Output: 0 0 1
-    for d = &test_doubles[0]; d < &test_doubles[array_count(test_doubles)]; d++:
+    for d = &test_doubles[0]; d < array_end(test_doubles); d++:
         printf("%d %d %d\n", isfinite(*d as float), isinf(*d as float), isnan(*d as float))
 
     printf("%d\n", abs(-1)) # Output: 1
