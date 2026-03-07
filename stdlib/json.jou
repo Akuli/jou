@@ -495,19 +495,19 @@ def skip_number(s: byte*) -> byte*:
 @public
 def json_to_double(s: byte*) -> double:
     if s == NULL:
-        return 0.0 / 0.0
+        return NAN
 
     while is_json_whitespace(*s):
         s++
     if skip_number(s) == NULL:
-        return 0.0 / 0.0
+        return NAN
 
     if starts_with(s, "Infinity"):
-        return 1.0 / 0.0
+        return INFINITY
     if starts_with(s, "-Infinity"):
-        return -1.0 / 0.0
+        return -INFINITY
     if starts_with(s, "NaN"):
-        return 0.0 / 0.0
+        return NAN
 
     return atof(s)
 
