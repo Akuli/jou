@@ -677,6 +677,40 @@ class Parser:
 
         return result
 
+    def parse_special_function_like_expression(self) -> AstExpression:
+        expr = AstExpression{location = self.tokens.location}
+
+        assert self.tokens.kind == TokenKind.Keyword
+        match (self.tokens++).short_string with strcmp:
+            case "sizeof":
+                expr.kind = AstExpressionKind.SizeOf
+                error = "value after sizeof must be in parentheses, e.g. sizeof(foo)"
+            case "array_count":
+                expr.kind = AstExpressionKind.ArrayCount
+                error = "value after array_count must be in parentheses, e.g. array_count(foo)"
+            case "enum_count":
+                expr.kind = AstExpressionKind.EnumCount
+                error = "enum type after enum_count must be in parentheses, e.g. enum_count(Foo)"
+            case "embed_file":
+                expr.kind = AstExpressionKind.EmbedFile
+                error = "file name after embed_file must be in parentheses, e.g. embed_file(\"foo.txt\")"
+            case _:
+                assert False
+
+        if not self.tokens.is_operator("("):
+            fail(self.tokens.location, error)
+        self.tokens++
+
+        if expr.kind == AstExpressionKind.EnumCount:
+            expr.enumcount.enum_type_ast = self.parse_type()
+        else:
+            expr.operands = malloc(sizeof(expr.operands[0]))
+            assert expr.operands != NULL
+            *expr.operands = self.parse_expression()
+
+        self.eat_operator(")", True, "a ')'")
+        return expr
+
     def parse_elementary_expression(self) -> AstExpression:
         expr = AstExpression{location = self.tokens.location}
 
@@ -730,20 +764,13 @@ class Parser:
                 elif self.tokens.is_operator("["):
                     expr.kind = AstExpressionKind.Array
                     expr.array = self.parse_array()
-                elif self.tokens.is_keyword("sizeof"):
-                    expr.kind = AstExpressionKind.SizeOf
-                    self.eat_keyword("sizeof", False, NULL)
-                    if not self.tokens.is_operator("("):
-                        fail(self.tokens.location, "value after sizeof must be in parentheses, e.g. sizeof(thing)")
-                    self.tokens++
-                    expr.operands = malloc(sizeof(expr.operands[0]))
-                    assert expr.operands != NULL
-                    *expr.operands = self.parse_expression()
-                    self.eat_operator(")", True, "a ')'")
-                elif self.tokens.is_keyword("enum_count"):
-                    expr.kind = AstExpressionKind.EnumCount
-                    self.tokens++
-                    expr.enumcount.enum_type_ast = self.parse_type()
+                elif (
+                    self.tokens.is_keyword("sizeof")
+                    or self.tokens.is_keyword("array_count")
+                    or self.tokens.is_keyword("embed_file")
+                    or self.tokens.is_keyword("enum_count")
+                ):
+                    expr = self.parse_special_function_like_expression()
                 else:
                     # Special error message for e.g. int(x)
                     msg: byte[300]
@@ -845,8 +872,6 @@ class Parser:
             or self.tokens.is_operator("&")
             or self.tokens.is_operator("*")
             or self.tokens.is_operator("~")
-            or self.tokens.is_keyword("embed_file")
-            or self.tokens.is_keyword("array_count")
         ):
             self.tokens++
         prefix_end = self.tokens
@@ -883,10 +908,6 @@ class Parser:
                     kind = AstExpressionKind.AddressOf
                 elif token.is_operator("~"):
                     kind = AstExpressionKind.BitNot
-                elif token.is_keyword("embed_file"):
-                    kind = AstExpressionKind.EmbedFile
-                elif token.is_keyword("array_count"):
-                    kind = AstExpressionKind.ArrayCount
                 else:
                     assert False
 

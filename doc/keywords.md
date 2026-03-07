@@ -14,7 +14,6 @@ Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo`
 ## `array_count`
 
 Use `array_count(array)` to get the number of elements in [an array](types.md#pointers-and-arrays) as `int`.
-The parentheses are optional.
 The number of elements in an array is always known at compile time, and in fact,
 the `array` is not evaluated when the program runs.
 
@@ -26,7 +25,6 @@ import "stdlib/io.jou"
 def main() -> int:
     array: int[10]
     printf("%d\n", array_count(array))  # Output: 10
-    printf("%d\n", array_count array)  # Output: 10
     return 0
 ```
 
