@@ -497,7 +497,7 @@ def json_to_double(s: byte*) -> double:
     if s != NULL:
         while is_json_whitespace(*s):
             s++
-        if skip_number(s) != NULL:
+        if skip_number(s) != NULL and not starts_with(s, "NaN"):
             return atof(s)
     return NAN
 
