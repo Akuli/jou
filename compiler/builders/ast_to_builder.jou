@@ -493,7 +493,7 @@ class AstToBuilder:
                 ptr_to_array = self.build_address_of_expression(&expr.operands[0])
                 ptr_to_start = self.builder.cast(ptr_to_array, array_type.array.item_type.pointer_type())
                 count = self.builder.integer(int_type(64), array_type.array.count)
-                return self.builder.indexed_pointer(ptr_to_array, count)
+                return self.builder.indexed_pointer(ptr_to_start, count)
             case AstExpressionKind.AddressOf:
                 return self.build_address_of_expression(&expr.operands[0])
             case AstExpressionKind.Dereference:
