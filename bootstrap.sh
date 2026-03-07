@@ -37,10 +37,8 @@ fi
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
-    make="mingw32-make"
     exe_suffix=".exe"
 else
-    make="make"
     exe_suffix=""
 fi
 
