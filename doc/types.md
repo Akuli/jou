@@ -185,7 +185,7 @@ def main() -> int:
     printf("%d\n", -24.68 as int)   # Output: -24
 
     printf("%d\n", INFINITY as int)   # Output: 2147483647
-    printf("%d\n", NAN as int)   # Output: 0
+    printf("%d\n", NAN as int)        # Output: 0
 
     return 0
 ```
