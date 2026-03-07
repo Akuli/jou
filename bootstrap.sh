@@ -233,23 +233,18 @@ function compile_next_jou_compiler() {
         echo "Deleting version check..."
         sed -i -e "/Found unsupported LLVM version/d" Makefile.*
 
-        echo "Running make..."
-
-        # The jou_bootstrap(.exe) file should never be rebuilt.
-        # We don't want bootstrap inside bootstrap.
-        local make_flags="--old-file jou_bootstrap$exe_suffix"
-
+        echo "Compiling Jou compiler with the previous Jou compiler..."
+        # We don't do this with make, because it might decide to build
+        # jou_bootstrap(.exe) for whatever reason, and we don't want bootstrap
+        # inside bootstrap.
         if [[ "$OS" =~ Windows ]]; then
             # Use correct path to mingw64. This used to copy the mingw64 folder,
             # but it was slow and wasted disk space. Afaik symlinks aren't really a
             # thing on windows.
-            make_flags="$make_flags JOU_MINGW_DIR=../../../mingw64"
+            JOU_MINGW_DIR=../../../mingw64 ./jou_bootstrap.exe -o jou.exe compiler/main.jou
         else
-            # Also don't rebuild config.jou
-            make_flags="$make_flags --old-file config.jou"
+            ./jou_bootstrap -o jou compiler/main.jou
         fi
-
-        $make $make_flags jou$exe_suffix
     )
 }
 
