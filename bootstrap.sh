@@ -20,6 +20,7 @@ numbered_commits=(
     026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d  # <--- "./windows_setup.sh --small" starts from here! (release 2025-12-23-0400)
     027_3f878188ab2f5784514bb0c19057bee37c98bd60  # accept @public decorator on methods
     028_cb88ac4b437db34545d1249c93ff61605ae59644  # <--- bootstrap_transpiler.py starts here!
+    029_95e29106b13cda7ef33c7e934ed67158463a88e9  # support for INFINITY and NAN constants, array_end() built-in
 )
 
 # This should be an item of the above list according to what
@@ -36,10 +37,8 @@ fi
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
-    make="mingw32-make"
     exe_suffix=".exe"
 else
-    make="make"
     exe_suffix=""
 fi
 
@@ -203,52 +202,28 @@ function compile_next_jou_compiler() {
 
     if [[ "$OS" =~ Windows ]]; then
         echo "Copying LLVM files..."
-        # These files used to be in a separate "libs" folder next to mingw64 folder.
-        # Now they are in mingw64/lib.
-        # They were also named slightly differently before.
-        if [ $number -le 16 ]; then
-            mkdir $folder/libs
-            for f in ${windows_llvm_files[@]}; do
-                cp $f $folder/libs/$(basename -s .dll.a $f).a
-            done
-        else
-            mkdir -p $folder/mingw64/lib
-            cp ${windows_llvm_files[@]} $folder/mingw64/lib/
-        fi
+        mkdir -p $folder/mingw64/lib
+        cp ${windows_llvm_files[@]} $folder/mingw64/lib/
     fi
 
     (
         cd $folder
 
-        if [ $number -eq 23 ]; then
-            # I changed how the assert statement works: the new compiler imports
-            # "stdlib/assert.jou" in every file that uses `assert`, and the old
-            # compiler doesn't expect it so it gives a bunch of unused import
-            # warnings. Let's get rid of the warnings.
-            echo "Deleting stdlib/assert.jou imports..."
-            sed -i -e '/import "stdlib\/assert.jou"/d' compiler/*.jou compiler/*/*.jou
-        fi
-
         echo "Deleting version check..."
         sed -i -e "/Found unsupported LLVM version/d" Makefile.*
 
-        echo "Running make..."
-
-        # The jou_bootstrap(.exe) file should never be rebuilt.
-        # We don't want bootstrap inside bootstrap.
-        local make_flags="--old-file jou_bootstrap$exe_suffix"
-
+        echo "Compiling Jou compiler with the previous Jou compiler..."
+        # We don't do this with make, because it might decide to build
+        # jou_bootstrap(.exe) for whatever reason, and we don't want bootstrap
+        # inside bootstrap.
         if [[ "$OS" =~ Windows ]]; then
             # Use correct path to mingw64. This used to copy the mingw64 folder,
             # but it was slow and wasted disk space. Afaik symlinks aren't really a
             # thing on windows.
-            make_flags="$make_flags JOU_MINGW_DIR=../../../mingw64"
+            JOU_MINGW_DIR=../../../mingw64 ./jou_bootstrap.exe -o jou.exe compiler/main.jou
         else
-            # Also don't rebuild config.jou
-            make_flags="$make_flags --old-file config.jou"
+            ./jou_bootstrap -o jou compiler/main.jou
         fi
-
-        $make $make_flags jou$exe_suffix
     )
 }
 
