@@ -20,7 +20,7 @@ numbered_commits=(
     026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d  # <--- "./windows_setup.sh --small" starts from here! (release 2025-12-23-0400)
     027_3f878188ab2f5784514bb0c19057bee37c98bd60  # accept @public decorator on methods
     028_cb88ac4b437db34545d1249c93ff61605ae59644  # <--- bootstrap_transpiler.py starts here!
-    029_95e29106b13cda7ef33c7e934ed67158463a88e9  # INFINITY and NAN constants, array_end() built-in
+    029_95e29106b13cda7ef33c7e934ed67158463a88e9  # support for INFINITY and NAN constants, array_end() built-in
 )
 
 # This should be an item of the above list according to what
