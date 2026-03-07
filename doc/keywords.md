@@ -43,6 +43,39 @@ def main() -> int:
 ```
 
 
+## `array_end`
+
+Use `array_end(array)` to get a pointer just beyond the last element of an array.
+This is same as `&array[array_count(array)]`.
+
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    array = [1, 2, 3, 4]
+    printf("%d\n", array_end(array)[-1])  # Output: 4
+    return 0
+```
+
+The most common use for `array_end()` is [looping through an array](loops.md#looping-through-an-array) with pointers:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    array = [1, 2, 3, 4]
+    # Output: 1
+    # Output: 2
+    # Output: 3
+    # Output: 4
+    for p = &array[0]; p < array_end(array); p++:
+        printf("%d\n", *p)
+    return 0
+```
+
+
 ## `as`
 
 The `as` keyword does an explicit cast. See [the documentation on casts](types.md#casts).
