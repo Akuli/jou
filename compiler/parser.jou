@@ -688,12 +688,15 @@ class Parser:
             case "array_count":
                 expr.kind = AstExpressionKind.ArrayCount
                 error = "value after array_count must be in parentheses, e.g. array_count(foo)"
-            case "enum_count":
-                expr.kind = AstExpressionKind.EnumCount
-                error = "enum type after enum_count must be in parentheses, e.g. enum_count(Foo)"
+            case "array_end":
+                expr.kind = AstExpressionKind.ArrayEnd
+                error = "value after array_end must be in parentheses, e.g. array_end(foo)"
             case "embed_file":
                 expr.kind = AstExpressionKind.EmbedFile
                 error = "file name after embed_file must be in parentheses, e.g. embed_file(\"foo.txt\")"
+            case "enum_count":
+                expr.kind = AstExpressionKind.EnumCount
+                error = "enum type after enum_count must be in parentheses, e.g. enum_count(Foo)"
             case _:
                 assert False
 
@@ -767,6 +770,7 @@ class Parser:
                 elif (
                     self.tokens.is_keyword("sizeof")
                     or self.tokens.is_keyword("array_count")
+                    or self.tokens.is_keyword("array_end")
                     or self.tokens.is_keyword("embed_file")
                     or self.tokens.is_keyword("enum_count")
                 ):

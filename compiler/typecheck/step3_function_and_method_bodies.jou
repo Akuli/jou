@@ -60,6 +60,8 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "a sizeof expression"
         case AstExpressionKind.ArrayCount:
             return "an array_count expression"
+        case AstExpressionKind.ArrayEnd:
+            return "an array_end expression"
         case AstExpressionKind.EmbedFile:
             return "an embed_file expression"
         case AstExpressionKind.EnumCount:
@@ -1177,6 +1179,13 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 snprintf(msg, sizeof(msg), "array_count must be called on an array, not %s", array_type.name)
                 fail(expr.location, msg)
             result = int_type(32)
+
+        case AstExpressionKind.ArrayEnd:
+            array_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)
+            if array_type.kind != TypeKind.Array:
+                snprintf(msg, sizeof(msg), "array_end must be called on an array, not %s", array_type.name)
+                fail(expr.location, msg)
+            result = array_type.array.item_type.pointer_type()
 
         case AstExpressionKind.Instantiate:
             result = typecheck_instantiation(state, &expr.instantiation, expr.location)
