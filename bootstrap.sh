@@ -203,31 +203,12 @@ function compile_next_jou_compiler() {
 
     if [[ "$OS" =~ Windows ]]; then
         echo "Copying LLVM files..."
-        # These files used to be in a separate "libs" folder next to mingw64 folder.
-        # Now they are in mingw64/lib.
-        # They were also named slightly differently before.
-        if [ $number -le 16 ]; then
-            mkdir $folder/libs
-            for f in ${windows_llvm_files[@]}; do
-                cp $f $folder/libs/$(basename -s .dll.a $f).a
-            done
-        else
-            mkdir -p $folder/mingw64/lib
-            cp ${windows_llvm_files[@]} $folder/mingw64/lib/
-        fi
+        mkdir -p $folder/mingw64/lib
+        cp ${windows_llvm_files[@]} $folder/mingw64/lib/
     fi
 
     (
         cd $folder
-
-        if [ $number -eq 23 ]; then
-            # I changed how the assert statement works: the new compiler imports
-            # "stdlib/assert.jou" in every file that uses `assert`, and the old
-            # compiler doesn't expect it so it gives a bunch of unused import
-            # warnings. Let's get rid of the warnings.
-            echo "Deleting stdlib/assert.jou imports..."
-            sed -i -e '/import "stdlib\/assert.jou"/d' compiler/*.jou compiler/*/*.jou
-        fi
 
         echo "Deleting version check..."
         sed -i -e "/Found unsupported LLVM version/d" Makefile.*
