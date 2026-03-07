@@ -494,12 +494,22 @@ def skip_number(s: byte*) -> byte*:
 
 @public
 def json_to_double(s: byte*) -> double:
-    if s != NULL:
-        while is_json_whitespace(*s):
-            s++
-        if skip_number(s) != NULL and not starts_with(s, "NaN"):
-            return atof(s)
-    return NAN
+    if s == NULL:
+        return NAN
+
+    while is_json_whitespace(*s):
+        s++
+    if skip_number(s) == NULL:
+        return NAN
+
+    if starts_with(s, "Infinity"):
+        return INFINITY
+    if starts_with(s, "-Infinity"):
+        return -INFINITY
+    if starts_with(s, "NaN"):
+        return NAN
+
+    return atof(s)
 
 
 # This is for the \u syntax inside strings.
