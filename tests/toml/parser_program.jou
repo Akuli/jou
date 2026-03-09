@@ -24,10 +24,10 @@ import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
 
-def toml_to_json(value: TOMLValue*, jb: JSONBuilder*) -> None:
+def toml_to_json(value: TOML*, jb: JSONBuilder*) -> None:
     s: byte[100]
     match value.type:
-        case TOMLType.Unset:
+        case TOMLType.Error:
             jb.string("THIS SHOULD NEVER HAPPEN!!!!")
         case TOMLType.Array:
             jb.begin_array()
@@ -70,7 +70,7 @@ def toml_to_json(value: TOMLValue*, jb: JSONBuilder*) -> None:
 
 # The depth calculations are hard to get right and we want to test them with
 # lots of test data, so here goes :)
-def check_depths(value: TOMLValue*, expected_depth: int) -> None:
+def check_depths(value: TOML*, expected_depth: int) -> None:
     assert value.depth == expected_depth
     match value.type:
         case TOMLType.Array:
@@ -79,7 +79,7 @@ def check_depths(value: TOMLValue*, expected_depth: int) -> None:
         case TOMLType.Table:
             for kv = value.table.ptr; kv < value.table.end(); kv++:
                 check_depths(&kv.value, expected_depth + 1)
-        case TOMLType.String | TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Unset:
+        case TOMLType.String | TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Error:
             pass
 
 
@@ -117,14 +117,14 @@ def main() -> int:
     result = parse_toml(string)
     free(string)
 
-    if result.failed:
-        fprintf(get_stderr(), "error on line %d: %s\n", result.error_lineno, result.error_message)
+    if result.type == TOMLType.Error:
+        fprintf(get_stderr(), "error on line %d: %s\n", result.lineno, result.string)
         return 1
 
     jb = JSONBuilder{pretty_print = 4}
-    toml_to_json(&result.table, &jb)
-    check_depths(&result.table, 0)
-    result.table.free()
+    toml_to_json(&result, &jb)
+    check_depths(&result, 0)
+    result.free()
 
     json = jb.finish()
     puts(json)
