@@ -67,7 +67,7 @@ def main() -> int:
 | `json_object_value(json)`     | `byte*` (JSON)            | pointer into value in `json` or NULL              |
 | `json_get(json, key)`         | `byte*` (JSON)            | pointer into value in `json` or NULL              |
 | `json_to_double(json)`        | `double`                  | value in `json` or NaN                            |
-| `json_to_string(json)`        | `byte*` (needs `free()`)  | string from `json` or NULL                        |
+| `json_to_string(json)`        | `byte*` (needs `free()`)  | new copy of string in `json` or NULL              |
 | `json_equals_string(json, s)` | `bool`                    | `True` if `json` points at `s` as a JSON string   |
 | `json_is_true(json)`          | `bool`                    | `True` if `json` points at a JSON `true`          |
 | `json_is_false(json)`         | `bool`                    | `True` if `json` points at a JSON `false`         |

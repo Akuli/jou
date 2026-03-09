@@ -74,7 +74,7 @@ def main() -> int:
     # Output: 1
     # Output: 2
     toml_array = toml_get(&toml, "array")
-    if toml_array != NULL:
+    if toml_array != NULL and toml_array.type == TOMLType.Array:
         for p = toml_array.array.ptr; p < toml_array.array.end(); p++:
             printf("%d\n", toml_to_int(toml_get(p, "x"), -1))
 
@@ -84,3 +84,79 @@ def main() -> int:
     return 0
 ```
 
+Functions:
+
+| Function                          | Return type   | Return value                                      |
+|-----------------------------------|---------------|---------------------------------------------------|
+| `parse_toml(string)`              | `TOML`        | `.type` is `TOMLType.Table` or `TOMLType.Error`   |
+| `toml_get(toml, key)`             | `TOML*`       | pointer into value in `toml` or NULL              |
+| `toml_to_int(toml, fallback)`     | `int`         | value in `toml` or the given `fallback`           |
+| `toml_to_int64(toml, fallback)`   | `int64`       | value in `toml` or the given `fallback`           |
+| `toml_to_double(toml)`            | `double`      | value in `toml` or NaN                            |
+| `toml_to_string(toml)`            | `byte*`       | string in `toml` or NULL                          |
+| `toml_is_true(toml)`              | `bool`        | `True` if `toml` is a TOML `true`                 |
+| `toml_is_false(toml)`             | `bool`        | `True` if `json` is a TOML `false`                |
+
+Data structures:
+
+```python
+@public
+class TOMLKeyVal:
+    key: byte*
+    value: TOML
+
+@public
+enum TOMLType:
+    Error
+    Table
+    Array
+    String
+    Boolean
+    Integer
+    Floating
+
+@public
+class TOML:
+    type: TOMLType
+
+    # Only one of these is used depending on the type!
+    union:
+        table: List[TOMLKeyVal]     # only for TOMLType.Table
+        array: List[TOML]           # only for TOMLType.Array
+        string: byte*               # only for TOMLType.String
+        error_message: byte[300]    # only for TOMLType.Error
+        boolean: bool               # only for TOMLType.Boolean
+        integer: int64              # only for TOMLType.Integer
+        floating: double            # only for TOMLType.Floating
+
+    # For TOMLType.String, this is the string length with included zero bytes.
+    # For other types this is always zero.
+    string_len: intnative
+
+    lineno: int     # Line number, available on all TOML objects
+    depth: int      # 0 for return value of parse_toml(), 1 for its contents etc
+```
+
+
+## Overview
+
+Parsing TOML with `stdlib/toml.jou` should always be done like this:
+1. Call the `parse_toml()` function. It returns a `TOML` object.
+2. Check if parsing succeeded.
+    - If parsing succeeded, the `.type` field of the returned `TOML` object is `TOMLType.Table`.
+        In TOML, a "table" means a collection of key-value pairs,
+        and successfully parsing a TOML file always produces such a collection.
+    - If parsing failed, the `.type` field of the returned `TOML` object is `TOMLType.Error`.
+        Handle the error in whatever way you want.
+        You may find `.error_message` and `.lineno` useful for this.
+3. Access whatever you need from the `TOML` object.
+4. Call the `.free()` method on the `TOML` object to free memory used by it.
+    This is similar to [`free(list.ptr)` for lists](lists.md#what-does-freelistptr-do).
+    You don't need to call the `.free()` method when parsing failed, but doing so is harmless.
+
+The rest of this documentation focuses on accessing what you need from the TOML object (step 3).
+
+
+## Simple interface: functions to get values
+
+TODO: document the rest

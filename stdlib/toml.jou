@@ -1,5 +1,6 @@
-# TOML spec (english): https://toml.io/en/v1.1.0
-# TOML spec (grammar): https://github.com/toml-lang/toml/blob/1.1.0/toml.abnf
+# TOML 1.1 parser
+#
+# See doc/toml.md for documentation.
 
 import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
@@ -12,11 +13,6 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/utf8.jou"
 
-
-@public
-class TOMLKeyVal:
-    key: byte*
-    value: TOML
 
 @public
 enum TOMLType:
@@ -39,29 +35,30 @@ enum CreatedBy:
     Inline  # e.g. {x = "foo", y = "bar"} or ["foo", "bar"]
     Section  # foo was created with [foo] or [[foo]] on a line of its own
     DottedKey  # table foo was created only to access foo.bar
+    CurrentlyBeingDestroyed  # used in .free()
 
 @public
 class TOML:
+    # Please keep the documentation up to date if you change this!
+
     type: TOMLType
 
-    # Location in the original TOML document
-    lineno: int
+    # Only one of these is used depending on the type!
+    union:
+        table: List[TOMLKeyVal]     # only for TOMLType.Table
+        array: List[TOML]           # only for TOMLType.Array
+        string: byte*               # only for TOMLType.String
+        error_message: byte[300]    # only for TOMLType.Error
+        boolean: bool               # only for TOMLType.Boolean
+        integer: int64              # only for TOMLType.Integer
+        floating: double            # only for TOMLType.Floating
 
-    # Only one of these exists at a time. But all fields are available, so that
-    # if you e.g. try to loop over a number as if it was an array, it will
-    # appear as an empty array instead of crashing your program.
-    table: List[TOMLKeyVal]
-    array: List[TOML]
-    string: byte*  # also used for TOMLType.Error
-    boolean: bool
-    integer: int64
-    floating: double
-
-    # For strings, this can be used to distinguish "foo" and "foo\u0000bar" in TOML
+    # For TOMLType.String, this is the string length with included zero bytes.
+    # For other types this is always zero.
     string_len: intnative
 
-    # Main/root table has depth 0, its contents have depth 1 etc
-    depth: int
+    lineno: int     # Line number, available on all TOML objects
+    depth: int      # 0 for return value of parse_toml(), 1 for its contents etc
 
     # Internal detail. Not meant to be accessed outside this file.
     created_by: CreatedBy
@@ -82,6 +79,9 @@ class TOML:
                 free(self.string)
             case TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating:
                 pass
+
+        # In case someone frees a part of a big TOML document... but why?
+        *self = TOML{}
 
     # For debugging
     @public
@@ -137,6 +137,11 @@ class TOML:
                         printf(" %.16g\n", self.floating)
                     else:
                         printf(" %.17g\n", self.floating)
+
+@public
+class TOMLKeyVal:
+    key: byte*
+    value: TOML
 
 @public
 def toml_get(table: TOML*, key: byte*) -> TOML*:
@@ -921,7 +926,6 @@ def parse_toml(string: byte*) -> TOML:
         return TOML{
             type = TOMLType.Error,
             string = strdup(parser.error),
-            string_len = strlen(parser.error),
             lineno = parser.lineno,
         }
 

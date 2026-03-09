@@ -119,6 +119,12 @@ def test_bigger_example() -> None:
     toml.free()
 
 
+def test_harmless_free() -> None:
+    result = parse_toml("this is not valid toml!")
+    assert result.type == TOMLType.Error
+    result.free()  # This should do nothing
+
+
 def test_depth_limit() -> None:
     # 64 levels. Allowed, but just barely.
     toml = parse_toml("\
@@ -240,6 +246,7 @@ def test_convenience_function_errors() -> None:
 def main() -> int:
     test_basic_parsing()
     test_bigger_example()
+    test_harmless_free()
     test_depth_limit()
     test_convenience_function_errors()
     return 0
