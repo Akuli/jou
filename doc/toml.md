@@ -121,10 +121,10 @@ class TOML:
 
     # Only one of these is used depending on the type!
     union:
+        error_message: byte[300]    # only for TOMLType.Error
         table: List[TOMLKeyVal]     # only for TOMLType.Table
         array: List[TOML]           # only for TOMLType.Array
         string: byte*               # only for TOMLType.String
-        error_message: byte[300]    # only for TOMLType.Error
         boolean: bool               # only for TOMLType.Boolean
         integer: int64              # only for TOMLType.Integer
         floating: double            # only for TOMLType.Floating

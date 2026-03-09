@@ -4,10 +4,13 @@
 #
 # Therefore this test doesn't focus on various corner cases much.
 
+import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
 
@@ -241,10 +244,83 @@ def test_convenience_function_errors() -> None:
     toml.free()
 
 
+def read_file_to_big_string(path: byte*) -> byte*:
+    max_size = 1_000_000
+    result: byte* = malloc(max_size)
+    assert result != NULL
+    f = fopen(path, "rb")
+    assert f != NULL
+    n = fread(result, 1, max_size, f)
+    fclose(f)
+    assert n >= 0
+    assert n < max_size
+    # Handle line endings: CRLF --> LF
+    p = result
+    for i = 0; i < n; i++:
+        if result[i] != '\r':
+            *p++ = result[i]
+    *p = '\0'
+    # Ignore all comments
+    while strstr(result, "#") != NULL:
+        start = strstr(result, "#")
+        while start > result and start[-1] == ' ':
+            start--
+        end = &start[strcspn(start, "\n")]
+        memmove(start, end, strlen(end) + 1)
+    # Ignore all double newlines
+    while strstr(result, "\n\n") != NULL:
+        p = strstr(result, "\n\n")
+        memmove(p, &p[1], strlen(&p[1]) + 1)
+    return result
+
+
+def test_data_structures_of_documentation_are_actually_in_stdlib() -> None:
+    doc_toml_md = read_file_to_big_string("doc/toml.md")
+    stdlib_toml_jou = read_file_to_big_string("stdlib/toml.jou")
+
+    s = strstr(doc_toml_md, "\nData structures:\n")
+    assert s != NULL
+    s = strstr(s, "```")
+    assert s != NULL
+    s = strstr(s, "\n")
+    assert s != NULL
+    s++
+
+    # Don't look beyond end of code block
+    assert strstr(s, "```") != NULL
+    *strstr(s, "```") = '\0'
+
+    dscount = 0
+
+    # Each data structure (separated by "@public") must appear in stdlib/toml.jou
+    # as is, and in the correct order.
+    assert starts_with(s, "@public")
+    for ds_start = s; ds_start != NULL; ds_start = strstr(&ds_start[1], "@public"):
+        ds = strdup(ds_start)
+        if strstr(&ds[1], "@public") != NULL:
+            # Not the last data structure, truncate out subsequent data structures
+            *strstr(&ds[1], "@public") = '\0'
+        trim_ascii_whitespace(ds)
+        if strstr(stdlib_toml_jou, ds) == NULL:
+            puts("Data structure of doc/toml.md not found in stdlib/toml.jou!")
+            puts("----------------------------------------")
+            puts(ds)
+            puts("----------------------------------------")
+            puts("")
+        free(ds)
+        dscount++
+
+    printf("Checked %d data structures.\n", dscount)  # Output: Checked 3 data structures.
+
+    free(doc_toml_md)
+    free(stdlib_toml_jou)
+
+
 def main() -> int:
     test_basic_parsing()
     test_bigger_example()
     test_harmless_free()
     test_depth_limit()
     test_convenience_function_errors()
+    test_data_structures_of_documentation_are_actually_in_stdlib()
     return 0
