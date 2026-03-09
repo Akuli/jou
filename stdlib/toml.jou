@@ -18,11 +18,6 @@ class TOMLKeyVal:
     key: byte*
     value: TOML
 
-    @public
-    def free(self) -> None:
-        free(self.key)
-        self.value.free()
-
 @public
 enum TOMLType:
     Error  # the parser relies on this being first, and uses this as "not initialized" value
@@ -72,7 +67,8 @@ class TOML:
         match self.type:
             case TOMLType.Table:
                 for kv = self.table.ptr; kv < self.table.end(); kv++:
-                    kv.free()
+                    free(kv.key)
+                    kv.value.free()
                 free(self.table.ptr)
             case TOMLType.Array:
                 for p = self.array.ptr; p < self.array.end(); p++:
@@ -367,10 +363,10 @@ class TOMLParser:
             return NULL
 
         # Does this key already exists? If it exists, value will go there
-        for kv = target_table.table.ptr; kv < target_table.table.end(); kv++:
-            if strcmp(kv.key, key) == 0:
-                free(key)
-                return &kv.value
+        existing = toml_get(target_table, key)
+        if existing != NULL:
+            free(key)
+            return existing
 
         # Key not found --> create new table, unless it's the weird special
         # case where that is not allowed
