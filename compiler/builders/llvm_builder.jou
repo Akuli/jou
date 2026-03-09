@@ -603,11 +603,11 @@ class LBuilder:
         }
 
     @public
-    def float_or_double(self, t: Type*, string: byte*) -> LBuilderValue:
+    def float_or_double(self, t: Type*, dbl: double) -> LBuilderValue:
         assert t.kind == TypeKind.FloatingPoint
         return LBuilderValue{
             type = t,
-            llvm_value = LLVMConstRealOfString(type_to_llvm(self.state, t), string)
+            llvm_value = LLVMConstReal(type_to_llvm(self.state, t), dbl)
         }
 
     @public

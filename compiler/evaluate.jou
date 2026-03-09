@@ -73,7 +73,7 @@ def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Loca
     file_content = List[byte]{}
     buf: byte[4096]
     while True:
-        num_read = fread(buf, 1, sizeof buf, file)
+        num_read = fread(buf, 1, sizeof(buf), file)
         if num_read == 0:
             if ferror(file) != 0:
                 # TODO: include errno in the error message?
@@ -210,19 +210,35 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                     result.integer.value *= -1
                     return True
                 case TypeKind.FloatingPoint:
-                    old_string: byte[100] = result.float_or_double_text
-                    if old_string[0] == '-':
-                        # Remove minus sign in beginning: -(-1.0) becomes 1.0
-                        strcpy(result.float_or_double_text, &old_string[1])
-                        return True
-                    elif strlen(old_string) + 1 < sizeof(result.float_or_double_text):
-                        # Add minus to beginning
-                        sprintf(result.float_or_double_text, "-%s", old_string)
-                        return True
-                    else:
-                        return False
+                    result.float_or_double_value *= -1
+                    return True
                 case _:
                     return False
+
+        # Evaluate float division in some very limited cases.
+        # Mostly for defining "INF = 1.0 / 0.0" and similar constants.
+        #
+        # Note: This evaluates the division on the computer that is compiling,
+        # not on the target. So if floating point works differently on the
+        # target computer, this may be off. Currently that is not the case with
+        # any of our supported compilation targets.
+        case AstExpressionKind.Div:
+            if type_hint != float_type() and type_hint != double_type():
+                return False
+
+            lhs_rhs: Constant[2]
+            for i = 0; i < 2; i++:
+                if not evaluate_constant_expression(jou_file, &expr.operands[i], &lhs_rhs[i], type_hint):
+                    return False
+                if lhs_rhs[i].get_type() != type_hint:
+                    return False
+
+            assert lhs_rhs[0].kind == lhs_rhs[1].kind
+            *result = Constant{
+                kind = lhs_rhs[0].kind,
+                float_or_double_value = lhs_rhs[0].float_or_double_value / lhs_rhs[1].float_or_double_value,
+            }
+            return True
 
         case AstExpressionKind.Array:
             if type_hint != NULL and type_hint.kind == TypeKind.Array:

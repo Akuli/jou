@@ -157,10 +157,10 @@ class TreePrinter:
         subprinter = TreePrinter{}
         if is_last_child:
             printf("%s`--- ", self.prefix)
-            snprintf(subprinter.prefix, sizeof subprinter.prefix, "%s  ", self.prefix)
+            snprintf(subprinter.prefix, sizeof(subprinter.prefix), "%s  ", self.prefix)
         else:
             printf("%s|--- ", self.prefix)
-            snprintf(subprinter.prefix, sizeof subprinter.prefix, "%s| ", self.prefix)
+            snprintf(subprinter.prefix, sizeof(subprinter.prefix), "%s| ", self.prefix)
         return subprinter
 
 
@@ -254,8 +254,9 @@ enum AstExpressionKind:
     As
     EnumCount
     # unary operators
-    SizeOf          # sizeof x
-    ArrayCount      # array_count x
+    SizeOf          # sizeof(x)
+    ArrayCount      # array_count(x)
+    ArrayEnd        # array_end(x)
     EmbedFile       # embed_file("./foo.bar")
     AddressOf       # &x
     Dereference     # *x
@@ -368,6 +369,8 @@ class AstExpression:
                 printf("embed_file\n")
             case AstExpressionKind.ArrayCount:
                 printf("array_count\n")
+            case AstExpressionKind.ArrayEnd:
+                printf("array_end\n")
             case AstExpressionKind.AddressOf:
                 printf("address of\n")
             case AstExpressionKind.Dereference:
@@ -466,6 +469,7 @@ class AstExpression:
                 AstExpressionKind.SizeOf
                 | AstExpressionKind.EmbedFile
                 | AstExpressionKind.ArrayCount
+                | AstExpressionKind.ArrayEnd
                 | AstExpressionKind.AddressOf
                 | AstExpressionKind.Dereference
                 | AstExpressionKind.Negate

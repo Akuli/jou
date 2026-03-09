@@ -95,7 +95,7 @@ def main() -> int:
 ```
 
 The problem is that when we do `increment_y(p)`,
-we simply pass the 64 (or more) bytes of the instance `p` to the `increment_y()` function.
+we simply pass the 64 bits of the instance `p` to the `increment_y()` function.
 This is very similar to creating two variables `x` and `y` in the `main()` function:
 
 ```python

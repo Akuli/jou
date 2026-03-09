@@ -14,7 +14,6 @@ Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo`
 ## `array_count`
 
 Use `array_count(array)` to get the number of elements in [an array](types.md#pointers-and-arrays) as `int`.
-The parentheses are optional.
 The number of elements in an array is always known at compile time, and in fact,
 the `array` is not evaluated when the program runs.
 
@@ -26,7 +25,6 @@ import "stdlib/io.jou"
 def main() -> int:
     array: int[10]
     printf("%d\n", array_count(array))  # Output: 10
-    printf("%d\n", array_count array)  # Output: 10
     return 0
 ```
 
@@ -42,6 +40,39 @@ if you accidentally call it on a pointer:
 def main() -> int:
     x = 123
     n = array_count(&x)  # Error: array_count must be called on an array, not int*
+```
+
+
+## `array_end`
+
+Use `array_end(array)` to get a pointer just beyond the last element of an array.
+This is same as `&array[array_count(array)]`.
+
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    array = [1, 2, 3, 4]
+    printf("%d\n", array_end(array)[-1])  # Output: 4
+    return 0
+```
+
+The most common use for `array_end()` is [looping through an array](loops.md#looping-through-an-array) with pointers:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    array = [1, 2, 3, 4]
+    # Output: 1
+    # Output: 2
+    # Output: 3
+    # Output: 4
+    for p = &array[0]; p < array_end(array); p++:
+        printf("%d\n", *p)
+    return 0
 ```
 
 
@@ -459,8 +490,7 @@ def main() -> int:
 Note that unlike in Python,
 you don't need to use `global` inside a function to modify the global variable.
 
-By default, global variables are always initialized to zero memory,
-and it is not possible to specify any other initializing.
+By default, global variables are always initialized to zero memory.
 For example, numbers are initialized to zero, booleans are initialized to `False` and pointers are initialized to `NULL`.
 It is possible to specify a different initial value:
 

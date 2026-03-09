@@ -39,7 +39,7 @@ def warn_about_unused(jou_file: JouFile*) -> None:
 
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         if stmt.kind == AstStatementKind.Import and not stmt.import_statement.used:
-            snprintf(msg, sizeof msg, "\"%s\" imported but not used", stmt.import_statement.specified_path)
+            snprintf(msg, sizeof(msg), "\"%s\" imported but not used", stmt.import_statement.specified_path)
             show_warning(stmt.location, msg)
 
     for sym_stmt = jou_file.symbol_statements.ptr; sym_stmt < jou_file.symbol_statements.end(); sym_stmt++:
@@ -280,7 +280,7 @@ def make_imported_statements_available() -> None:
 
             for i = 0; i < seen_before.len; i++:
                 if seen_before.ptr[i] == imported:
-                    snprintf(msg, sizeof msg, "file \"%s\" is imported twice", the_import.import_statement.specified_path)
+                    snprintf(msg, sizeof(msg), "file \"%s\" is imported twice", the_import.import_statement.specified_path)
                     fail(the_import.location, msg)
             seen_before.append(imported)
 

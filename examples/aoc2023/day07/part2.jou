@@ -107,7 +107,7 @@ class Hand:
             if self.letters[i] == 'J':
                 # Duplicate each existing variation 13 times
                 nvariations *= 13
-                variations = realloc(variations, sizeof(variations)[0] * nvariations)
+                variations = realloc(variations, sizeof(variations[0]) * nvariations)
                 for isrc = nvariations/13 - 1; isrc >= 0; isrc--:
                     for idest = 13*isrc; idest < 13*(isrc+1); idest++:
                         variations[idest] = variations[isrc]

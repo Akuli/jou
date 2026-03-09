@@ -60,6 +60,8 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "a sizeof expression"
         case AstExpressionKind.ArrayCount:
             return "an array_count expression"
+        case AstExpressionKind.ArrayEnd:
+            return "an array_end expression"
         case AstExpressionKind.EmbedFile:
             return "an embed_file expression"
         case AstExpressionKind.EnumCount:
@@ -130,11 +132,11 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
 
         case AstExpressionKind.AddressOf:
             inner = short_expression_description(&expr.operands[0])
-            snprintf(result, sizeof result, "address of %s", inner)
+            snprintf(result, sizeof(result), "address of %s", inner)
             return result
 
         case AstExpressionKind.GetClassField | AstExpressionKind.GetClassFieldPtr | AstExpressionKind.DotOperator:
-            snprintf(result, sizeof result, "field '%s'", expr.class_field.field_name)
+            snprintf(result, sizeof(result), "field '%s'", expr.class_field.field_name)
             return result
 
 
@@ -801,7 +803,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
         ):
             assert strstr(method_name, "%") == NULL
             snprintf(
-                msg, sizeof msg,
+                msg, sizeof(msg),
                 "cannot take address of %%s, needed for calling the %s() method",
                 method_name,
             )
@@ -864,7 +866,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
         # This is a common error, so worth spending some effort to get a good error message.
         which_arg = nth(i+1)
         snprintf(
-            msg, sizeof msg,
+            msg, sizeof(msg),
             "%s argument of %s should have type <to>, not <from>", which_arg, what_we_calling
         )
         typecheck_expression_with_implicit_cast(state, &call.args.ptr[i], param_type, msg)
@@ -913,7 +915,7 @@ def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Lo
     for f = inst.fields.ptr; f < inst.fields.end(); f++:
         field = typecheck_class_field(state, t, f.name, f.value.location)
 
-        snprintf(msg, sizeof msg,
+        snprintf(msg, sizeof(msg),
             "value for field '%s' of class %s must be of type <to>, not <from>",
             f.name, t.name)
         typecheck_expression_with_implicit_cast(state, &f.value, field.type, msg)
@@ -1177,6 +1179,13 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 snprintf(msg, sizeof(msg), "array_count must be called on an array, not %s", array_type.name)
                 fail(expr.location, msg)
             result = int_type(32)
+
+        case AstExpressionKind.ArrayEnd:
+            array_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)
+            if array_type.kind != TypeKind.Array:
+                snprintf(msg, sizeof(msg), "array_end must be called on an array, not %s", array_type.name)
+                fail(expr.location, msg)
+            result = array_type.array.item_type.pointer_type()
 
         case AstExpressionKind.Instantiate:
             result = typecheck_instantiation(state, &expr.instantiation, expr.location)
@@ -1570,7 +1579,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     msg = "cannot place a value of type <from> into a pointer of type <to>*"
                 else:
                     desc = short_expression_description(targetexpr)
-                    snprintf(msg, sizeof msg, "cannot assign a value of type <from> to %s of type <to>", desc)
+                    snprintf(msg, sizeof(msg), "cannot assign a value of type <from> to %s of type <to>", desc)
                 typecheck_expression_with_implicit_cast(state, valueexpr, targettype, msg)
 
         case (
@@ -1636,7 +1645,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             t = check_binop(state.fom, op, stmt.location, targetexpr, valueexpr)
             if t != targetexpr.types.orig_type:
                 snprintf(
-                    msg, sizeof msg,
+                    msg, sizeof(msg),
                     "%s produced a value of type %s which cannot be assigned back to %s",
                     opname, t.name, targetexpr.types.orig_type.name
                 )
@@ -1671,7 +1680,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 fail(stmt.location, msg)
 
             if stmt.return_value != NULL:
-                snprintf(msg, sizeof msg,
+                snprintf(msg, sizeof(msg),
                     "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
                     function_or_method, state.fom.symbol.signature.name)
                 typecheck_expression_with_implicit_cast(state, stmt.return_value, return_type, msg)

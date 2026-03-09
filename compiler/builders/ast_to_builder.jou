@@ -396,7 +396,7 @@ class AstToBuilder:
             case ConstantKind.Bool:
                 return self.builder.boolean(constant.boolean)
             case ConstantKind.Float | ConstantKind.Double:
-                return self.builder.float_or_double(constant.get_type(), constant.float_or_double_text)
+                return self.builder.float_or_double(constant.get_type(), constant.float_or_double_value)
             case ConstantKind.Null:
                 return self.builder.zero_of_type(void_ptr_type())
             case ConstantKind.EnumMember:
@@ -487,6 +487,13 @@ class AstToBuilder:
                 array_type = expr.operands[0].types.implicit_cast_type
                 assert array_type.kind == TypeKind.Array
                 return self.builder.integer(int_type(32), array_type.array.count)
+            case AstExpressionKind.ArrayEnd:
+                array_type = expr.operands[0].types.implicit_cast_type
+                assert array_type.kind == TypeKind.Array
+                ptr_to_array = self.build_address_of_expression(&expr.operands[0])
+                ptr_to_start = self.builder.cast(ptr_to_array, array_type.array.item_type.pointer_type())
+                count = self.builder.integer(int_type(64), array_type.array.count)
+                return self.builder.indexed_pointer(ptr_to_start, count)
             case AstExpressionKind.AddressOf:
                 return self.build_address_of_expression(&expr.operands[0])
             case AstExpressionKind.Dereference:

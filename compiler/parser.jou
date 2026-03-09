@@ -15,13 +15,17 @@ import "./constants.jou"
 import "./types.jou"
 
 
+# TODO: this function doesn't belong here
+declare atof(string: byte*) -> double
+
+
 # arity = number of operands, e.g. 2 for a binary operator such as "+"
 #
 # This cannot be used for ++ and --, because with them we can't know the kind from
 # just the token (e.g. ++ could mean pre-increment or post-increment).
 def build_operator_expression(t: Token*, arity: int, operands: AstExpression*) -> AstExpression:
     assert arity == 1 or arity == 2 or arity == 3
-    nbytes = arity * sizeof operands[0]
+    nbytes = arity * sizeof(operands[0])
     ptr = malloc(nbytes)
     memcpy(ptr, operands, nbytes)
 
@@ -520,7 +524,7 @@ class Parser:
 
             # Now let's just assume it's an array, e.g. int[10]
             self.tokens = old_tokens_ptr
-            len_expression: AstExpression* = malloc(sizeof *len_expression)
+            len_expression: AstExpression* = malloc(sizeof(*len_expression))
             *len_expression = self.parse_expression()
             self.eat_operator("]", True, "a ']' to end the array size")
             temp_ptr = malloc(sizeof(*temp_ptr))
@@ -555,7 +559,7 @@ class Parser:
         value: AstExpression* = NULL
         if self.tokens.is_operator("="):
             self.eat_operator("=", False, NULL)
-            value = malloc(sizeof *value)
+            value = malloc(sizeof(*value))
             *value = self.parse_expression()
 
         return AstNameTypeValue{name = name.short_string, name_location = name.location, type = type, value = value}
@@ -603,7 +607,7 @@ class Parser:
                 for p = result.args.ptr; p < result.args.end(); p++:
                     if strcmp(p.name, arg.name) == 0:
                         snprintf(
-                            message, sizeof message,
+                            message, sizeof(message),
                             "there are multiple arguments named '%s'", arg.name)
                         fail(arg.name_location, message)
 
@@ -626,7 +630,7 @@ class Parser:
         self.eat_operator("->", True, "a '->'")
 
         if not used_self and is_method:
-            snprintf(message, sizeof message, "missing self, should be 'def %s(self, ...)'", result.name)
+            snprintf(message, sizeof(message), "missing self, should be 'def %s(self, ...)'", result.name)
             fail(self.tokens.location, message)
 
         result.return_type = self.parse_type()
@@ -641,11 +645,11 @@ class Parser:
             for f = result.fields.ptr; f < result.fields.end(); f++:
                 if strcmp(f.name, fname.short_string) == 0:
                     error: byte[500]
-                    snprintf(error, sizeof error, "multiple values were given for field '%s'", fname.short_string)
+                    snprintf(error, sizeof(error), "multiple values were given for field '%s'", fname.short_string)
                     fail(fname.location, error)
 
             msg: byte[300]
-            snprintf(msg, sizeof msg, "'=' followed by a value for field '%s'", fname.short_string)
+            snprintf(msg, sizeof(msg), "'=' followed by a value for field '%s'", fname.short_string)
             self.eat_operator("=", True, msg)
 
             result.fields.append(AstInstantiationField{name = fname.short_string, value = self.parse_expression()})
@@ -673,6 +677,43 @@ class Parser:
 
         return result
 
+    def parse_special_function_like_expression(self) -> AstExpression:
+        expr = AstExpression{location = self.tokens.location}
+
+        assert self.tokens.kind == TokenKind.Keyword
+        match (self.tokens++).short_string with strcmp:
+            case "sizeof":
+                expr.kind = AstExpressionKind.SizeOf
+                error = "value after sizeof must be in parentheses, e.g. sizeof(foo)"
+            case "array_count":
+                expr.kind = AstExpressionKind.ArrayCount
+                error = "value after array_count must be in parentheses, e.g. array_count(foo)"
+            case "array_end":
+                expr.kind = AstExpressionKind.ArrayEnd
+                error = "value after array_end must be in parentheses, e.g. array_end(foo)"
+            case "embed_file":
+                expr.kind = AstExpressionKind.EmbedFile
+                error = "file name after embed_file must be in parentheses, e.g. embed_file(\"foo.txt\")"
+            case "enum_count":
+                expr.kind = AstExpressionKind.EnumCount
+                error = "enum type after enum_count must be in parentheses, e.g. enum_count(Foo)"
+            case _:
+                assert False
+
+        if not self.tokens.is_operator("("):
+            fail(self.tokens.location, error)
+        self.tokens++
+
+        if expr.kind == AstExpressionKind.EnumCount:
+            expr.enumcount.enum_type_ast = self.parse_type()
+        else:
+            expr.operands = malloc(sizeof(expr.operands[0]))
+            assert expr.operands != NULL
+            *expr.operands = self.parse_expression()
+
+        self.eat_operator(")", True, "a ')'")
+        return expr
+
     def parse_elementary_expression(self) -> AstExpression:
         expr = AstExpression{location = self.tokens.location}
 
@@ -685,10 +726,10 @@ class Parser:
                 expr.constant = int_constant(uint_type(8), (self.tokens++).integer_value as int64)
             case TokenKind.Float:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = Constant{kind = ConstantKind.Float, float_or_double_text = (self.tokens++).short_string}
+                expr.constant = Constant{kind = ConstantKind.Float, float_or_double_value = atof((self.tokens++).short_string)}
             case TokenKind.Double:
                 expr.kind = AstExpressionKind.Constant
-                expr.constant = Constant{kind = ConstantKind.Double, float_or_double_text = (self.tokens++).short_string}
+                expr.constant = Constant{kind = ConstantKind.Double, float_or_double_value = atof((self.tokens++).short_string)}
             case TokenKind.String:
                 expr.kind = AstExpressionKind.Constant
                 expr.constant = Constant{kind = ConstantKind.PointerString, pointer_string = strdup((self.tokens++).long_string)}
@@ -726,10 +767,14 @@ class Parser:
                 elif self.tokens.is_operator("["):
                     expr.kind = AstExpressionKind.Array
                     expr.array = self.parse_array()
-                elif self.tokens.is_keyword("enum_count"):
-                    expr.kind = AstExpressionKind.EnumCount
-                    self.tokens++
-                    expr.enumcount.enum_type_ast = self.parse_type()
+                elif (
+                    self.tokens.is_keyword("sizeof")
+                    or self.tokens.is_keyword("array_count")
+                    or self.tokens.is_keyword("array_end")
+                    or self.tokens.is_keyword("embed_file")
+                    or self.tokens.is_keyword("enum_count")
+                ):
+                    expr = self.parse_special_function_like_expression()
                 else:
                     # Special error message for e.g. int(x)
                     msg: byte[300]
@@ -769,7 +814,7 @@ class Parser:
         self.eat_operator(".", False, NULL)
         field_name_token = self.eat_by_kind(TokenKind.Name, True, "a field or method name")
 
-        instance: AstExpression* = malloc(sizeof *instance)
+        instance: AstExpression* = malloc(sizeof(*instance))
         *instance = obj
         return AstExpression{
             location = field_name_token.location,
@@ -831,9 +876,6 @@ class Parser:
             or self.tokens.is_operator("&")
             or self.tokens.is_operator("*")
             or self.tokens.is_operator("~")
-            or self.tokens.is_keyword("sizeof")
-            or self.tokens.is_keyword("embed_file")
-            or self.tokens.is_keyword("array_count")
         ):
             self.tokens++
         prefix_end = self.tokens
@@ -870,12 +912,6 @@ class Parser:
                     kind = AstExpressionKind.AddressOf
                 elif token.is_operator("~"):
                     kind = AstExpressionKind.BitNot
-                elif token.is_keyword("sizeof"):
-                    kind = AstExpressionKind.SizeOf
-                elif token.is_keyword("embed_file"):
-                    kind = AstExpressionKind.EmbedFile
-                elif token.is_keyword("array_count"):
-                    kind = AstExpressionKind.ArrayCount
                 else:
                     assert False
 
@@ -1039,7 +1075,7 @@ class Parser:
             self.tokens++
             result.kind = AstStatementKind.Return
             if self.tokens.kind != TokenKind.Newline:
-                result.return_value = malloc(sizeof *result.return_value)
+                result.return_value = malloc(sizeof(*result.return_value))
                 *result.return_value = self.parse_expression()
         elif self.tokens.is_keyword("assert"):
             assert_keyword = self.tokens++
@@ -1191,7 +1227,7 @@ class Parser:
         if self.tokens.is_operator(";"):
             init = NULL
         else:
-            init = malloc(sizeof *init)
+            init = malloc(sizeof(*init))
             *init = self.parse_oneline_statement()
 
         self.eat_operator(";", True, "a ';'")
@@ -1200,7 +1236,7 @@ class Parser:
         if self.tokens.is_operator(";"):
             cond = NULL
         else:
-            cond = malloc(sizeof *cond)
+            cond = malloc(sizeof(*cond))
             *cond = self.parse_expression()
 
         self.eat_operator(";", True, "a ';'")
@@ -1209,7 +1245,7 @@ class Parser:
         if self.tokens.is_operator(":"):
             incr = NULL
         else:
-            incr = malloc(sizeof *incr)
+            incr = malloc(sizeof(*incr))
             *incr = self.parse_oneline_statement()
 
         if (
@@ -1594,7 +1630,7 @@ class Parser:
 
             for p = result.members.ptr; p < result.members.end(); p++:
                 if strcmp(*p, member_name.short_string) == 0:
-                    assert sizeof member_name.short_string == 100
+                    assert sizeof(member_name.short_string) == 100
                     error: byte[200]
                     sprintf(error, "the enum has two members named '%s'", member_name.short_string)
                     fail(member_name.location, error)
