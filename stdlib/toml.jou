@@ -399,15 +399,10 @@ class TOMLParser:
     def val(self, result: TOMLValue*, depth: int) -> bool:
         match *self.ptr:
             case '"' | '\'':
-                s_lineno = self.lineno
-                s_len: intnative
-                s = self.parse_string(True, &s_len)
-                if s == NULL:
-                    return False
                 self.init_value(result, TOMLType.String, depth)
-                result.lineno = s_lineno
-                result.string = s
-                result.string_len = s_len
+                result.string = self.parse_string(True, &result.string_len)
+                if result.string == NULL:
+                    return False
                 return True
 
             case 't':
