@@ -45,6 +45,9 @@ enum CreatedBy:
 class TOMLValue:
     type: TOMLType
 
+    # Location in the original TOML document
+    lineno: int
+
     # Only one of these exists at a time. But all fields are available, so that
     # if you e.g. try to loop over a number as if it was an array, it will
     # appear as an empty array instead of crashing your program.
@@ -200,6 +203,7 @@ class TOMLParser:
     ptr: byte*
     root_table: TOMLValue
     current_table: TOMLValue*
+    lineno: int
     error: byte*
 
     # Names of many methods are according to this:
@@ -208,7 +212,10 @@ class TOMLParser:
     def parse_the_whole_thing(self) -> bool:
         while *self.ptr != '\0':
             match *self.ptr:
-                case ' ' | '\t' | '\n':
+                case '\n':
+                    self.ptr++
+                    self.lineno++
+                case ' ' | '\t':
                     self.ptr++
                 case '#':
                     if not self.skip_comment():
@@ -325,6 +332,7 @@ class TOMLParser:
                 # TODO: what exactly should happen here?
                 # TODO: does this ever even run????
                 parent_value.type = TOMLType.Table
+                parent_value.lineno = self.lineno
                 target_table = parent_value
             case TOMLType.Table:
                 target_table = parent_value
@@ -388,17 +396,18 @@ class TOMLParser:
     def val(self, result: TOMLValue*, depth: int) -> bool:
         match *self.ptr:
             case '"' | '\'':
+                s_lineno = self.lineno
                 s_len: intnative
                 s = self.parse_string(True, &s_len)
                 if s == NULL:
                     return False
-                *result = TOMLValue{type = TOMLType.String, string = s, string_len = s_len, depth = depth}
+                *result = TOMLValue{type = TOMLType.String, lineno = s_lineno, string = s, string_len = s_len, depth = depth}
                 return True
 
             case 't':
                 if starts_with(self.ptr, "true"):
                     self.ptr = &self.ptr[4]
-                    *result = TOMLValue{type = TOMLType.Boolean, boolean = True, depth = depth}
+                    *result = TOMLValue{type = TOMLType.Boolean, lineno = self.lineno, boolean = True, depth = depth}
                     return True
 
             case 'T':
@@ -412,7 +421,7 @@ class TOMLParser:
             case 'f':
                 if starts_with(self.ptr, "false"):
                     self.ptr = &self.ptr[5]
-                    *result = TOMLValue{type = TOMLType.Boolean, boolean = False, depth = depth}
+                    *result = TOMLValue{type = TOMLType.Boolean, lineno = self.lineno, boolean = False, depth = depth}
                     return True
 
             case 'F':
@@ -471,6 +480,7 @@ class TOMLParser:
             f = sign * (1.0 / 0.0)
             *result = TOMLValue{
                 type = TOMLType.Floating,
+                lineno = self.lineno,
                 floating = f,
                 integer = f as int64,
                 depth = depth,
@@ -481,6 +491,7 @@ class TOMLParser:
             self.ptr = &self.ptr[3]
             *result = TOMLValue{
                 type = TOMLType.Floating,
+                lineno = self.lineno,
                 floating = sign * (0.0 / 0.0),
                 # No need to specify integer, NaN converts to 0 in Jou
                 depth = depth,
@@ -531,6 +542,7 @@ class TOMLParser:
         signed_result = sign * unsigned_result
         *result = TOMLValue{
             type = TOMLType.Integer,
+            lineno = self.lineno,
             integer = signed_result,
             floating = signed_result,
             depth = depth,
@@ -589,6 +601,7 @@ class TOMLParser:
         f = sign * atof(start_of_float)
         *result = TOMLValue{
             type = TOMLType.Floating,
+            lineno = self.lineno,
             floating = f,
             integer = f as int64,
             depth = depth,
@@ -635,6 +648,7 @@ class TOMLParser:
             self.ptr++
             self.ptr++
             if *self.ptr == '\n':
+                self.lineno++
                 self.ptr++
 
         result = List[byte]{}
@@ -663,7 +677,8 @@ class TOMLParser:
                 # trimmed after the backslash. TOML is weird :)
                 self.ptr++
                 while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n':
-                    self.ptr++
+                    if *self.ptr++ == '\n':
+                        self.lineno++
             elif quote == '"' and *self.ptr == '\\':
                 self.ptr++
                 match *self.ptr++:
@@ -704,6 +719,8 @@ class TOMLParser:
                 free(result.ptr)
                 return NULL
             else:
+                if *self.ptr == '\n':
+                    self.lineno++
                 result.append(*self.ptr++)
 
         self.ptr = &self.ptr[3 if multiline else 1]
@@ -734,6 +751,8 @@ class TOMLParser:
             if strcmp(self.error, "invalid key") == 0:
                 self.error = "invalid header"
             return False
+        if value_ptr.lineno == 0:
+            value_ptr.lineno = self.lineno
 
         if is_array:
             match value_ptr.type:
@@ -760,7 +779,7 @@ class TOMLParser:
                 self.error = "nesting more than 64 levels deep is not supported"
                 return False
 
-            value_ptr.array.append(TOMLValue{type = TOMLType.Table, depth = value_ptr.depth + 1})
+            value_ptr.array.append(TOMLValue{type = TOMLType.Table, lineno = self.lineno, depth = value_ptr.depth + 1})
             self.current_table = &value_ptr.array.end()[-1]
         else:
             match value_ptr.type:
@@ -795,17 +814,17 @@ class TOMLParser:
                 if not self.skip_comment():
                     return False
             else:
-                self.ptr++
+                if *self.ptr++ == '\n':
+                    self.lineno++
         return True
 
     def parse_inline_array(self, result: TOMLValue*, depth_of_array: int) -> bool:
         assert *self.ptr == '['
         self.ptr++
+        *result = TOMLValue{type = TOMLType.Array, lineno = self.lineno, depth = depth_of_array}
 
         if not self.whitespace_comment_newline():
             return False
-
-        *result = TOMLValue{type = TOMLType.Array, depth = depth_of_array}
 
         while *self.ptr != ']':
             assert depth_of_array <= MAX_DEPTH
@@ -847,11 +866,10 @@ class TOMLParser:
     def parse_inline_table(self, result: TOMLValue*, depth_of_table: int) -> bool:
         assert *self.ptr == '{'
         self.ptr++
+        *result = TOMLValue{type = TOMLType.Table, lineno = self.lineno, depth = depth_of_table}
 
         if not self.whitespace_comment_newline():
             return False
-
-        *result = TOMLValue{type = TOMLType.Table, depth = depth_of_table}
 
         while *self.ptr != '}':
             keyval_ok = self.parse_key_equals_value(result)
@@ -915,7 +933,7 @@ def parse_toml(string: byte*) -> TOMLParseResult:
     assert string != NULL
     fix_newlines(string)
 
-    parser = TOMLParser{ptr = string, root_table = TOMLValue{type = TOMLType.Table}}
+    parser = TOMLParser{ptr = string, root_table = TOMLValue{type = TOMLType.Table, lineno = 1}, lineno = 1}
     parser.current_table = &parser.root_table  # the "default section"
 
     if parser.parse_the_whole_thing():

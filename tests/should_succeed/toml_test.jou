@@ -6,7 +6,10 @@
 
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/json.jou"
+import "stdlib/list.jou"
 import "stdlib/math.jou"
+import "stdlib/mem.jou"
 import "stdlib/toml.jou"
 
 
@@ -140,9 +143,108 @@ def test_depth_limit() -> None:
     printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
 
 
+def print_with_line_numbers(toml: TOMLValue) -> None:
+    printf("[line %2d] %*s", toml.lineno, 2*toml.depth, "")
+    match toml.type:
+        case TOMLType.Unset:
+            puts("Unset")
+        case TOMLType.Table:
+            puts("Table:")
+            for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+                print_with_line_numbers(kv.value)
+        case TOMLType.Array:
+            puts("Array:")
+            for item = toml.array.ptr; item < toml.array.end(); item++:
+                print_with_line_numbers(*item)
+        case TOMLType.String:
+            printf("\"%s\"\n", toml.string)
+        case TOMLType.Boolean:
+            puts("true" if toml.boolean else "false")
+        case TOMLType.Integer:
+            printf("%lld\n", toml.integer)
+        case TOMLType.Floating:
+            jb = JSONBuilder{}
+            jb.number(toml.floating)
+            s = jb.finish()
+            puts(s)
+            free(s)
+
+
+def test_line_numbers_on_success() -> None:
+    toml_string = "\
+        string = 'jouuuu'   # line 1  \n\
+        string2 = \"\"\"\\ \n\
+        multi  \\ \n\
+        line\n\
+        string \"\"\"       # line 5    \n\
+        integer = 123\n\
+        floats = [2.718, -1e20, +inf, -inf, +nan, -nan]\n\
+        \n\
+        inline_array = [\n\
+            \"one\",        # line 10  \n\
+            2,\n\
+        ]\n\
+        inline_table = {\n\
+            foo = 1,\n\
+            nested.bar = 2, # line 15  \n\
+        }\n\
+        boolean = true\n\
+        \n\
+        [table]\n\
+        thing = 'stuff'     # line 20  \n\
+        \n\
+        [table.sub.subbbb]\n\
+        lol = 'wat'\n\
+        \n\
+        [[ar.ray]]          # line 25  \n\
+        x = 1\n\
+        [[ar.ray]]\n\
+        y = 2\n\
+    "
+
+    # Output: [line  1] Table:
+    # Output: [line  1]   "jouuuu"
+    # Output: [line  2]   "multi  line
+    # Output:         string "
+    # Output: [line  6]   123
+    # Output: [line  7]   Array:
+    # Output: [line  7]     2.718
+    # Output: [line  7]     -1e+20
+    # Output: [line  7]     Infinity
+    # Output: [line  7]     -Infinity
+    # Output: [line  7]     NaN
+    # Output: [line  7]     NaN
+    # Output: [line  9]   Array:
+    # Output: [line 10]     "one"
+    # Output: [line 11]     2
+    # Output: [line 13]   Table:
+    # Output: [line 14]     1
+    # Output: [line 15]     Table:
+    # Output: [line 15]       2
+    # Output: [line 17]   true
+    # Output: [line 19]   Table:
+    # Output: [line 20]     "stuff"
+    # Output: [line 22]     Table:
+    # Output: [line 22]       Table:
+    # Output: [line 23]         "wat"
+    # Output: [line 25]   Table:
+    # Output: [line 25]     Array:
+    # Output: [line 25]       Table:
+    # Output: [line 26]         1
+    # Output: [line 27]       Table:
+    # Output: [line 28]         2
+    toml_result = parse_toml(toml_string)
+    if toml_result.failed:
+        printf("error on line %d: %s\n", toml_result.error_lineno, toml_result.error_message)
+    assert not toml_result.failed
+    print_with_line_numbers(toml_result.table)
+    toml_result.table.free()
+
+
 def main() -> int:
     test_basic_parsing()
     test_harmless_free()
     test_int64_and_double_available()
     test_depth_limit()
+    test_line_numbers_on_success()
     return 0
