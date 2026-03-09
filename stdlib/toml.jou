@@ -75,9 +75,9 @@ class TOML:
                 for p = self.array.ptr; p < self.array.end(); p++:
                     p.free()
                 free(self.array.ptr)
-            case TOMLType.String | TOMLType.Error:
+            case TOMLType.String:
                 free(self.string)
-            case TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating:
+            case TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Error:
                 pass
 
         # In case someone frees a part of a big TOML document... but why?
@@ -88,6 +88,8 @@ class TOML:
     def print(self) -> None:
         printf("%s on line %d:", TOML_TYPE_NAMES[self.type as int], self.lineno)
         match self.type:
+            case TOMLType.Error:
+                printf(" %s\n", self.error_message)
             case TOMLType.Table:
                 printf("\n")
                 for kv = self.table.ptr; kv < self.table.end(); kv++:
@@ -98,7 +100,7 @@ class TOML:
                 for item = self.array.ptr; item < self.array.end(); item++:
                     printf("%*s", 2*item.depth, "")
                     item.print()
-            case TOMLType.Error | TOMLType.String:
+            case TOMLType.String:
                 printf(" \"")
                 for p = self.string; p < &self.string[self.string_len]; p++:
                     match *p:
@@ -200,7 +202,7 @@ class TOMLParser:
     root_table: TOML
     current_table: TOML*
     lineno: int
-    error: byte*
+    error: byte[300]
 
     # Names of many methods are according to this:
     # https://github.com/toml-lang/toml/blob/bcbbd1c1f03473ffe97b8bf26a0fc945efe2b4a1/toml.abnf
@@ -643,7 +645,10 @@ class TOMLParser:
             or (multiline and starts_with(self.ptr, quote4) and not starts_with(self.ptr, quote6))
         ):
             if *self.ptr == '\0' or (*self.ptr == '\n' and not multiline):
-                self.error = "missing quotes to end the string" if multiline else "missing quote to end the string"
+                if multiline:
+                    self.error = "missing quotes to end the string"
+                else:
+                    self.error = "missing quote to end the string"
                 free(result.ptr)
                 return NULL
             elif (
@@ -908,7 +913,7 @@ def parse_toml(string: byte*) -> TOML:
 
     utf8_error_lineno = validate_utf8(string)
     if utf8_error_lineno != -1:
-        return TOML{type = TOMLType.Error, string = strdup("invalid UTF-8"), lineno = utf8_error_lineno}
+        return TOML{type = TOMLType.Error, error_message = "invalid UTF-8", lineno = utf8_error_lineno}
 
     string = strdup(string)
     assert string != NULL
@@ -925,7 +930,7 @@ def parse_toml(string: byte*) -> TOML:
         parser.root_table.free()
         return TOML{
             type = TOMLType.Error,
-            string = strdup(parser.error),
+            error_message = parser.error,
             lineno = parser.lineno,
         }
 

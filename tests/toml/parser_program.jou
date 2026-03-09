@@ -118,7 +118,7 @@ def main() -> int:
     free(string)
 
     if result.type == TOMLType.Error:
-        fprintf(get_stderr(), "error on line %d: %s\n", result.lineno, result.string)
+        fprintf(get_stderr(), "error on line %d: %s\n", result.lineno, result.error_message)
         return 1
 
     jb = JSONBuilder{pretty_print = 4}
