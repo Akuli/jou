@@ -133,8 +133,8 @@ class TOML:
     # For other types this is always zero.
     string_len: intnative
 
-    lineno: int     # Line number, available on all TOML objects
-    depth: int      # 0 for return value of parse_toml(), 1 for its contents etc
+    lineno: int     # Line number (starts from 1), available on all TOML objects
+    depth: int      # 0 for return value of parse_toml(), 1 for its contents, etc
 ```
 
 
