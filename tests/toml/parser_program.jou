@@ -122,9 +122,9 @@ def main() -> int:
         return 1
 
     jb = JSONBuilder{pretty_print = 4}
-    toml_to_json(&result.toml_table, &jb)
-    check_depths(&result.toml_table, 0)
-    result.toml_table.free()
+    toml_to_json(&result.table, &jb)
+    check_depths(&result.table, 0)
+    result.table.free()
 
     json = jb.finish()
     puts(json)
