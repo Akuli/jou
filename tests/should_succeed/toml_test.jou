@@ -6,17 +6,19 @@
 
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/math.jou"
 import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
 
 def test_basic_parsing() -> None:
-    toml = parse_toml("[languages]\njson = 'simple'\ntoml = 'complicated'")
+    toml = parse_toml("[languages]\njson = 'simple'\ntoml = 'complicated'\nnumber = 123")
     # Output: Table on line 1:
     # Output:   languages = Table on line 1:
     # Output:     json = String on line 2: "simple"
     # Output:     toml = String on line 3: "complicated"
+    # Output:     number = Integer on line 4: 123
     toml.print()
 
     assert toml_get(&toml, NULL) == NULL
@@ -29,6 +31,7 @@ def test_basic_parsing() -> None:
     # Output: Table on line 1:
     # Output:     json = String on line 2: "simple"
     # Output:     toml = String on line 3: "complicated"
+    # Output:     number = Integer on line 4: 123
     toml_get(&toml, "languages").print()
 
     # Output: String on line 3: "complicated"
@@ -39,6 +42,11 @@ def test_basic_parsing() -> None:
 
     # Output: 3
     printf("%d\n", toml_get(toml_get(&toml, "languages"), "toml").lineno)
+
+    # Output: 123
+    printf("%d\n", toml_get(toml_get(&toml, "languages"), "number").integer)
+    # Output: 0.000000
+    printf("%f\n", toml_get(toml_get(&toml, "languages"), "number").floating)
 
     toml.free()
 
@@ -111,41 +119,6 @@ def test_bigger_example() -> None:
     toml.free()
 
 
-def test_int64_and_double_available() -> None:
-    toml = parse_toml("year = 2026\npi = 3.14\nbig = inf\nsmol = -inf\nwat = nan\n")
-
-    value = toml_get(&toml, "year")
-    assert value != NULL
-    printf("%lld\n", value.integer)  # Output: 2026
-    printf("%f\n", value.floating)   # Output: 2026.000000
-
-    value = toml_get(&toml, "pi")
-    assert value != NULL
-    printf("%lld\n", value.integer)  # Output: 3
-    printf("%f\n", value.floating)   # Output: 3.140000
-
-    # This test does not print infinities and NaNs as floats because the exact
-    # output depends on platform.
-    value = toml_get(&toml, "big")
-    assert value != NULL
-    printf("%lld\n", value.integer)  # Output: 9223372036854775807
-    assert isinf(value.floating)
-    assert value.floating > 0
-
-    value = toml_get(&toml, "smol")
-    assert value != NULL
-    printf("%lld\n", value.integer)  # Output: -9223372036854775808
-    assert isinf(value.floating)
-    assert value.floating < 0
-
-    value = toml_get(&toml, "wat")
-    assert value != NULL
-    printf("%lld\n", value.integer)  # Output: 0
-    assert isnan(value.floating)
-
-    toml.free()
-
-
 def test_depth_limit() -> None:
     # 64 levels. Allowed, but just barely.
     toml = parse_toml("\
@@ -208,9 +181,65 @@ def test_depth_limit() -> None:
     toml.free()
 
 
+def test_convenience_function_errors() -> None:
+    toml = parse_toml("string = 'hi'\ninteger = 1234\nbig_int = 123123123123123123\nsmol_int = -123123123123123123\nfloat = 12.34")
+    toml_string = toml_get(&toml, "string")
+    toml_big_int = toml_get(&toml, "big_int")
+    toml_smol_int = toml_get(&toml, "smol_int")
+    toml_float = toml_get(&toml, "float")
+    assert toml_string != NULL
+    assert toml_big_int != NULL
+    assert toml_smol_int != NULL
+    assert toml_float != NULL
+
+    assert toml_get(NULL, NULL) == NULL
+    assert toml_get(NULL, "whatever") == NULL
+    assert toml_get(toml_string, "whatever") == NULL
+    assert toml_get(&toml, "whatever") == NULL
+
+    printf("%d\n", toml_to_int(NULL, -123))         # Output: -123
+    printf("%d\n", toml_to_int(toml_string, -123))  # Output: -123
+
+    printf("%lld\n", toml_to_int64(NULL, -456))         # Output: -456
+    printf("%lld\n", toml_to_int64(toml_string, -456))  # Output: -456
+
+    # Not printing these because the way NaN prints is platform dependent
+    assert isnan(toml_to_double(toml_string))
+    assert isnan(toml_to_double(NULL))
+
+    assert toml_to_string(NULL) == NULL
+    assert toml_to_string(toml_big_int) == NULL
+
+    assert not toml_is_true(NULL)
+    assert not toml_is_true(toml_string)
+    assert not toml_is_true(toml_big_int)
+    assert not toml_is_false(toml_float)
+
+    assert not toml_is_false(NULL)
+    assert not toml_is_false(toml_string)
+    assert not toml_is_false(toml_big_int)
+    assert not toml_is_false(toml_float)
+
+    printf("%d\n", toml_to_int(toml_big_int, -1))  # Output: -1
+    printf("%d\n", toml_to_int(toml_smol_int, -1))  # Output: -1
+    printf("%d\n", toml_to_int(toml_float, -1))  # Output: -1
+
+    printf("%lld\n", toml_to_int64(toml_big_int, -1))  # Output: 123123123123123123
+    printf("%lld\n", toml_to_int64(toml_smol_int, -1))  # Output: -123123123123123123
+    printf("%lld\n", toml_to_int64(toml_float, -1))  # Output: -1
+
+    # These loops should do nothing
+    for p = toml_string.array.ptr; p < toml_string.array.end(); p++:
+        printf("wat??? 1\n")
+    for kv = toml_string.table.ptr; kv < toml_string.table.end(); kv++:
+        printf("wat??? 2\n")
+
+    toml.free()
+
+
 def main() -> int:
     test_basic_parsing()
     test_bigger_example()
-    test_int64_and_double_available()
     test_depth_limit()
+    test_convenience_function_errors()
     return 0

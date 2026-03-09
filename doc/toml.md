@@ -78,5 +78,9 @@ def main() -> int:
         for p = toml_array.array.ptr; p < toml_array.array.end(); p++:
             printf("%d\n", toml_to_int(toml_get(p, "x"), -1))
 
+    # Free memory used by the TOML object
+    toml.free()
+
     return 0
 ```
+
