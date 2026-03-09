@@ -16,7 +16,7 @@ import "stdlib/utf8.jou"
 @public
 class TOMLKeyVal:
     key: byte*
-    value: TOMLValue
+    value: TOML
 
     @public
     def free(self) -> None:
@@ -25,7 +25,7 @@ class TOMLKeyVal:
 
 @public
 enum TOMLType:
-    Unset  # must be first, so initializes to this
+    Error  # the parser relies on this being first, and uses this as "not initialized" value
     Table
     Array
     String
@@ -42,7 +42,7 @@ enum CreatedBy:
     DottedKey  # table foo was created only to access foo.bar
 
 @public
-class TOMLValue:
+class TOML:
     type: TOMLType
 
     # Location in the original TOML document
@@ -52,8 +52,8 @@ class TOMLValue:
     # if you e.g. try to loop over a number as if it was an array, it will
     # appear as an empty array instead of crashing your program.
     table: List[TOMLKeyVal]
-    array: List[TOMLValue]
-    string: byte*
+    array: List[TOML]
+    string: byte*  # also used for TOMLType.Error
     boolean: bool
     integer: int64
     floating: double
@@ -78,17 +78,15 @@ class TOMLValue:
                 for p = self.array.ptr; p < self.array.end(); p++:
                     p.free()
                 free(self.array.ptr)
-            case TOMLType.String:
+            case TOMLType.String | TOMLType.Error:
                 free(self.string)
-            case TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Unset:
+            case TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating:
                 pass
 
     # For debugging
     @public
     def print(self) -> None:
         match self.type:
-            case TOMLType.Unset:
-                puts("Unset")
             case TOMLType.Table:
                 puts("Table:")
                 for kv = self.table.ptr; kv < self.table.end(); kv++:
@@ -99,8 +97,8 @@ class TOMLValue:
                 for item = self.array.ptr; item < self.array.end(); item++:
                     printf("%*s", 2*item.depth, "")
                     item.print()
-            case TOMLType.String:
-                printf("String: \"")
+            case TOMLType.Error | TOMLType.String:
+                printf("%s: \"", "Error" if self.type == TOMLType.Error else "String")
                 for p = self.string; p < &self.string[self.string_len]; p++:
                     match *p:
                         case '\n':
@@ -140,15 +138,7 @@ class TOMLValue:
                         printf("Floating: %.17g\n", self.floating)
 
 @public
-class TOMLParseResult:
-    table: TOMLValue
-    failed: bool
-    error_message: byte*
-    error_lineno: int
-
-
-@public
-def toml_get(table: TOMLValue*, key: byte*) -> TOMLValue*:
+def toml_get(table: TOML*, key: byte*) -> TOML*:
     if table != NULL and key != NULL:
         for kv = table.table.ptr; kv < table.table.end(); kv++:
             if strcmp(kv.key, key) == 0:
@@ -201,8 +191,8 @@ def looks_like_time(s: byte*) -> bool:
 
 class TOMLParser:
     ptr: byte*
-    root_table: TOMLValue
-    current_table: TOMLValue*
+    root_table: TOML
+    current_table: TOML*
     lineno: int
     error: byte*
 
@@ -231,8 +221,8 @@ class TOMLParser:
                         return False
         return True
 
-    def init_value(self, value_ptr: TOMLValue*, type: TOMLType, depth: int) -> None:
-        *value_ptr = TOMLValue{type = type, depth = depth, lineno = self.lineno}
+    def init_value(self, value_ptr: TOML*, type: TOMLType, depth: int) -> None:
+        *value_ptr = TOML{type = type, depth = depth, lineno = self.lineno}
 
     def skip_comment(self) -> bool:
         assert *self.ptr == '#'
@@ -243,7 +233,7 @@ class TOMLParser:
             self.ptr++
         return True
 
-    def parse_key_equals_value(self, relative_to: TOMLValue*) -> bool:
+    def parse_key_equals_value(self, relative_to: TOML*) -> bool:
         if *self.ptr == '=':
             self.error = "missing key"
             return False
@@ -252,7 +242,7 @@ class TOMLParser:
         if value_dest_ptr == NULL:
             return False
 
-        if value_dest_ptr.type != TOMLType.Unset:
+        if value_dest_ptr.type != TOMLType.Error:
             self.error = "duplicate key"
             return False
 
@@ -271,7 +261,7 @@ class TOMLParser:
             self.error = "missing value"
             return False
 
-        val: TOMLValue
+        val: TOML
         if not self.val(&val, value_dest_ptr.depth):
             return False
 
@@ -280,7 +270,7 @@ class TOMLParser:
 
     # Returns a pointer where the corresponding value should be stored.
     # Make sure not to overwrite the .depth of the returned pointer.
-    def parse_key(self, relative_to: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+    def parse_key(self, relative_to: TOML*, this_is_the_key_of_a_keyval_pair: bool) -> TOML*:
         assert relative_to.depth > 0 or relative_to == &self.root_table
 
         value_ptr = self.parse_component_of_key(relative_to, this_is_the_key_of_a_keyval_pair)
@@ -306,7 +296,7 @@ class TOMLParser:
 
         return value_ptr
 
-    def parse_component_of_key(self, parent_value: TOMLValue*, this_is_the_key_of_a_keyval_pair: bool) -> TOMLValue*:
+    def parse_component_of_key(self, parent_value: TOML*, this_is_the_key_of_a_keyval_pair: bool) -> TOML*:
         assert parent_value != NULL
 
         key: byte*
@@ -331,7 +321,7 @@ class TOMLParser:
 
         # Go to a part within an already chosen key
         match parent_value.type:
-            case TOMLType.Unset:
+            case TOMLType.Error:
                 # TODO: what exactly should happen here?
                 # TODO: does this ever even run????
                 parent_value.type = TOMLType.Table
@@ -396,7 +386,7 @@ class TOMLParser:
             result.created_by = CreatedBy.DottedKey
         return result
 
-    def val(self, result: TOMLValue*, depth: int) -> bool:
+    def val(self, result: TOML*, depth: int) -> bool:
         match *self.ptr:
             case '"' | '\'':
                 self.init_value(result, TOMLType.String, depth)
@@ -457,7 +447,7 @@ class TOMLParser:
         self.error = "invalid value"
         return False
 
-    def parse_number(self, result: TOMLValue*, depth: int) -> bool:
+    def parse_number(self, result: TOML*, depth: int) -> bool:
         sign = 1
         max_abs = INT64_MAX as uint64
         if starts_with(self.ptr, "0b"):
@@ -558,7 +548,7 @@ class TOMLParser:
         return True
 
     # Assumes that the sign has already been parsed.
-    def parse_float(self, result: TOMLValue*, sign: int, depth: int) -> bool:
+    def parse_float(self, result: TOML*, sign: int, depth: int) -> bool:
         assert sign == 1 or sign == -1
         start_of_float = self.ptr
 
@@ -743,7 +733,7 @@ class TOMLParser:
 
         if is_array:
             match value_ptr.type:
-                case TOMLType.Unset:
+                case TOMLType.Error:
                     # Just created for this
                     #
                     # Unlike with tables, we set created_by immediately, not
@@ -766,13 +756,13 @@ class TOMLParser:
                 self.error = "nesting more than 64 levels deep is not supported"
                 return False
 
-            item: TOMLValue
+            item: TOML
             self.init_value(&item, TOMLType.Table, value_ptr.depth + 1)
             value_ptr.array.append(item)
             self.current_table = &value_ptr.array.end()[-1]
         else:
             match value_ptr.type:
-                case TOMLType.Unset:
+                case TOMLType.Error:
                     # Just created for this
                     value_ptr.type = TOMLType.Table
                 case TOMLType.Table:
@@ -807,7 +797,7 @@ class TOMLParser:
                     self.lineno++
         return True
 
-    def parse_inline_array(self, result: TOMLValue*, depth_of_array: int) -> bool:
+    def parse_inline_array(self, result: TOML*, depth_of_array: int) -> bool:
         assert *self.ptr == '['
         self.ptr++
         self.init_value(result, TOMLType.Array, depth_of_array)
@@ -823,7 +813,7 @@ class TOMLParser:
                 result.free()
                 return False
 
-            value: TOMLValue
+            value: TOML
             if not self.val(&value, depth_of_array + 1):
                 result.free()
                 return False
@@ -852,7 +842,7 @@ class TOMLParser:
         result.created_by = CreatedBy.Inline
         return True
 
-    def parse_inline_table(self, result: TOMLValue*, depth_of_table: int) -> bool:
+    def parse_inline_table(self, result: TOML*, depth_of_table: int) -> bool:
         assert *self.ptr == '{'
         self.ptr++
         self.init_value(result, TOMLType.Table, depth_of_table)
@@ -911,23 +901,23 @@ def fix_newlines(s: byte*) -> None:
 
 
 @public
-def parse_toml(string: byte*) -> TOMLParseResult:
+def parse_toml(string: byte*) -> TOML:
     assert string != NULL
 
     utf8_error_lineno = validate_utf8(string)
     if utf8_error_lineno != -1:
-        return TOMLParseResult{failed = True, error_message = "invalid UTF-8", error_lineno = utf8_error_lineno}
+        return TOML{type = TOMLType.Error, string = strdup("invalid UTF-8"), lineno = utf8_error_lineno}
 
     string = strdup(string)
     assert string != NULL
     fix_newlines(string)
 
-    parser = TOMLParser{ptr = string, root_table = TOMLValue{type = TOMLType.Table, lineno = 1}, lineno = 1}
+    parser = TOMLParser{ptr = string, root_table = TOML{type = TOMLType.Table, lineno = 1}, lineno = 1}
     parser.current_table = &parser.root_table  # the "default section"
 
     if parser.parse_the_whole_thing():
         free(string)
-        return TOMLParseResult{table = parser.root_table}
+        return parser.root_table
     else:
         # Figure out the line number where it failed
         lineno = 1
@@ -937,4 +927,9 @@ def parse_toml(string: byte*) -> TOMLParseResult:
 
         parser.root_table.free()
         free(string)
-        return TOMLParseResult{failed = True, error_message = parser.error, error_lineno = lineno}
+        return TOML{
+            type = TOMLType.Error,
+            string = strdup(parser.error),
+            string_len = strlen(parser.error),
+            lineno = lineno,
+        }

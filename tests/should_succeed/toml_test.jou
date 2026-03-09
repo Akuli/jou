@@ -15,81 +15,72 @@ import "stdlib/toml.jou"
 
 # TODO: test corner cases of the printing more
 def test_basic_parsing() -> None:
-    result = parse_toml("[languages]\njson = 'simple'\ntoml = 'complicated'")
-    assert not result.failed
-
+    toml = parse_toml("[languages]\njson = 'simple'\ntoml = 'complicated'")
     # Output: Table:
     # Output:   languages = Table:
     # Output:     json = String: "simple"
     # Output:     toml = String: "complicated"
-    result.table.print()
+    toml.print()
 
-    assert toml_get(&result.table, NULL) == NULL
-    assert toml_get(&result.table, "lankuaakez") == NULL
-    assert toml_get(&result.table, "languages") != NULL
-    assert toml_get(toml_get(&result.table, "languages"), "json") != NULL
-    assert toml_get(toml_get(toml_get(&result.table, "languages"), "json"), "whatever") == NULL
+    assert toml_get(&toml, NULL) == NULL
+    assert toml_get(&toml, "lankuaakez") == NULL
+    assert toml_get(&toml, "languages") != NULL
+    assert toml_get(toml_get(&toml, "languages"), "json") != NULL
+    assert toml_get(toml_get(toml_get(&toml, "languages"), "json"), "whatever") == NULL
 
     # Indentation is a bit weird here.
     # Output: Table:
     # Output:     json = String: "simple"
     # Output:     toml = String: "complicated"
-    toml_get(&result.table, "languages").print()
+    toml_get(&toml, "languages").print()
 
     # Output: String: "complicated"
-    toml_get(toml_get(&result.table, "languages"), "toml").print()
+    toml_get(toml_get(&toml, "languages"), "toml").print()
 
     # Output: complicated
-    puts(toml_get(toml_get(&result.table, "languages"), "toml").string)
+    puts(toml_get(toml_get(&toml, "languages"), "toml").string)
 
-    result.table.free()
+    toml.free()
 
 
 def test_int64_and_double_available() -> None:
-    result = parse_toml("year = 2026\npi = 3.14\nbig = inf\nsmol = -inf\nwat = nan\n")
-    assert not result.failed
+    toml = parse_toml("year = 2026\npi = 3.14\nbig = inf\nsmol = -inf\nwat = nan\n")
 
-    value = toml_get(&result.table, "year")
+    value = toml_get(&toml, "year")
     assert value != NULL
     printf("%lld\n", value.integer)  # Output: 2026
     printf("%f\n", value.floating)   # Output: 2026.000000
 
-    value = toml_get(&result.table, "pi")
+    value = toml_get(&toml, "pi")
     assert value != NULL
     printf("%lld\n", value.integer)  # Output: 3
     printf("%f\n", value.floating)   # Output: 3.140000
 
     # This test does not print infinities and NaNs as floats because the exact
     # output depends on platform.
-    value = toml_get(&result.table, "big")
+    value = toml_get(&toml, "big")
     assert value != NULL
     printf("%lld\n", value.integer)  # Output: 9223372036854775807
     assert isinf(value.floating)
     assert value.floating > 0
 
-    value = toml_get(&result.table, "smol")
+    value = toml_get(&toml, "smol")
     assert value != NULL
     printf("%lld\n", value.integer)  # Output: -9223372036854775808
     assert isinf(value.floating)
     assert value.floating < 0
 
-    value = toml_get(&result.table, "wat")
+    value = toml_get(&toml, "wat")
     assert value != NULL
     printf("%lld\n", value.integer)  # Output: 0
     assert isnan(value.floating)
 
-    result.table.free()
-
-
-def test_harmless_free() -> None:
-    result = parse_toml("this is not valid toml!")
-    assert result.failed
-    result.table.free()  # This should do nothing
+    toml.free()
 
 
 def test_depth_limit() -> None:
     # 64 levels. Allowed, but just barely.
-    result = parse_toml("\
+    toml = parse_toml("\
         x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['one level from x=... and 63 from brackets']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]\n\
         1a.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64 = 'level64'\n\
         [1b.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63]\n\
@@ -99,55 +90,60 @@ def test_depth_limit() -> None:
         [[1c.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62]]\n\
         level64 = 'working fine'\n\
     ")
-    printf("failed = %d\n", result.failed)  # Output: failed = 0
-    if result.failed:
-        printf("SHOULD NOT HAPPEN... line %d: %s\n", result.error_lineno, result.error_message)
-    result.table.free()
+    if toml.type == TOMLType.Error:
+        printf("SHOULD NOT HAPPEN... line %d: %s\n", toml.lineno, toml.string)
+    toml.free()
 
     # 65 levels with brackets
-    result = parse_toml("x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['x=... and 64 brackets']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
-    assert result.failed
-    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml = parse_toml("x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['x=... and 64 brackets']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.string)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml.free()
 
     # 65 levels with dotted key
-    result = parse_toml("1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64.65 = 'oh no'")
-    assert result.failed
-    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml = parse_toml("1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64.65 = 'oh no'")
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.string)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml.free()
 
     # 65 levels with table key-value pair
-    result = parse_toml("\
+    toml = parse_toml("\
         [1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64]\n\
         level65 = 'bad'\n\
     ")
-    assert result.failed
-    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 2: nesting more than 64 levels deep is not supported
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.string)  # Output: line 2: nesting more than 64 levels deep is not supported
+    toml.free()
 
     # 65 levels with table header
-    result = parse_toml("\
+    toml = parse_toml("\
         [1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64.65]\n\
     ")
-    assert result.failed
-    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.string)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml.free()
 
     # value (level 65) inside an object (level 64) created by array header (level 63)
-    result = parse_toml("\
+    toml = parse_toml("\
         [[1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63]]\n\
         level65 = 'bad'\n\
     ")
-    assert result.failed
-    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 2: nesting more than 64 levels deep is not supported
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.string)  # Output: line 2: nesting more than 64 levels deep is not supported
+    toml.free()
 
     # an object of level 65 created by array header
-    result = parse_toml("[[1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64]]")
-    assert result.failed
-    printf("line %d: %s\n", result.error_lineno, result.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml = parse_toml("[[1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64]]")
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.string)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml.free()
 
 
-def print_with_line_numbers(toml: TOMLValue) -> None:
+def print_with_line_numbers(toml: TOML) -> None:
     printf("[line %2d] %*s", toml.lineno, 2*toml.depth, "")
     match toml.type:
-        case TOMLType.Unset:
-            puts("Unset")
+        case TOMLType.Error:
+            puts("ERROR!!!!!")
         case TOMLType.Table:
             puts("Table:")
             for kv = toml.table.ptr; kv < toml.table.end(); kv++:
@@ -233,17 +229,16 @@ def test_line_numbers_on_success() -> None:
     # Output: [line 26]         1
     # Output: [line 27]       Table:
     # Output: [line 28]         2
-    toml_result = parse_toml(toml_string)
-    if toml_result.failed:
-        printf("error on line %d: %s\n", toml_result.error_lineno, toml_result.error_message)
-    assert not toml_result.failed
-    print_with_line_numbers(toml_result.table)
-    toml_result.table.free()
+    toml = parse_toml(toml_string)
+    if toml.type == TOMLType.Error:
+        printf("error on line %d: %s\n", toml.lineno, toml.string)
+    assert toml.type == TOMLType.Table
+    print_with_line_numbers(toml)
+    toml.free()
 
 
 def main() -> int:
     test_basic_parsing()
-    test_harmless_free()
     test_int64_and_double_available()
     test_depth_limit()
     test_line_numbers_on_success()
