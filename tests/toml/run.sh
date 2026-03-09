@@ -32,10 +32,6 @@ test_filter=""
 while [ $# != 0 ]; do
     case "$1" in
         --valgrind)
-            # Exit codes that are already in use:
-            #   0   valid TOML
-            #   1   invalid TOML
-            #   2   assertion failed
             valgrind=yes
             shift
             ;;
@@ -90,12 +86,16 @@ fi
 ../../jou -o parser_program $jou_flags parser_program.jou
 
 if [ $valgrind = yes ]; then
-    jou_program_command="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=3 ./parser_program"
+    # Exit codes that are already in use:
+    #   0   valid TOML
+    #   1   invalid TOML
+    #   2   assertion failed
+    parser_program_command="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=3 ./parser_program"
 else
-    jou_program_command="./parser_program"
+    parser_program_command="./parser_program"
 fi
 
-# Let's put this in an array so we can have comments next to each argument
+# Let's put this in an array so we can have comments between the arguments.
 toml_test_command=(
     ./toml-test
 
@@ -104,7 +104,7 @@ toml_test_command=(
 
     # Give the test runner our Jou program that parses TOML on stdin, outputs
     # JSON, and exits with 1 on error.
-    -decoder "$jou_program_command"
+    -decoder "$parser_program_command"
 
     # TOML language version
     -toml 1.1
