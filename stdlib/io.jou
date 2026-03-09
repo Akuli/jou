@@ -70,15 +70,17 @@ elif MACOS:
     declare global __stdinp: FILE*
     declare global __stdoutp: FILE*
     declare global __stderrp: FILE*
+elif LINUX:
+    declare global stdin: FILE*
+    declare global stdout: FILE*
+    declare global stderr: FILE*
 elif NETBSD:
     if IS_32BIT:
         declare global __sF: byte[88][3]  # sizeof(FILE) == 88
     else:
         declare global __sF: byte[152][3]  # sizeof(FILE) == 152
 else:
-    declare global stdin: FILE*
-    declare global stdout: FILE*
-    declare global stderr: FILE*
+    assert False  # unsupported system
 
 # Returns stdin, the special file for reading keyboard input from terminal.
 @public
@@ -87,10 +89,12 @@ def get_stdin() -> FILE*:
         return __acrt_iob_func(0)
     elif MACOS:
         return __stdinp
+    elif LINUX:
+        return stdin
     elif NETBSD:
         return &__sF[0] as FILE*
     else:
-        return stdin
+        assert False
 
 # Returns stdout, the special file for printing to terminal.
 @public
@@ -99,10 +103,12 @@ def get_stdout() -> FILE*:
         return __acrt_iob_func(1)
     elif MACOS:
         return __stdoutp
+    elif LINUX:
+        return stdout
     elif NETBSD:
         return &__sF[1] as FILE*
     else:
-        return stdout
+        assert False
 
 # Returns stderr, the special file for showing error and warning messages.
 #
@@ -117,10 +123,12 @@ def get_stderr() -> FILE*:
         return __acrt_iob_func(2)
     elif MACOS:
         return __stderrp
+    elif LINUX:
+        return stderr
     elif NETBSD:
         return &__sF[2] as FILE*
     else:
-        return stderr
+        assert False
 
 # Open/close a file for reading or writing. Mode can be e.g. "r", "w",
 # "a", "rb", "wb" or "ab". The meanings of these modes are as in many
