@@ -26,7 +26,7 @@ def main() -> int:
 
     # Checking if parsing succeeded
     if toml.type == TOMLType.Error:
-        printf("error on line %d: %s\n", toml.lineno, toml.string)
+        printf("error on line %d: %s\n", toml.lineno, toml.error_message)
         return 1
 
     # Debug print
