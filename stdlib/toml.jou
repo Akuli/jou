@@ -474,14 +474,12 @@ class TOMLParser:
             f = sign * INFINITY
             self.init_value(result, TOMLType.Floating, depth)
             result.floating = f
-            result.integer = f as int64
             return True
 
         if base == 10 and starts_with(self.ptr, "nan"):
             self.ptr = &self.ptr[3]
             self.init_value(result, TOMLType.Floating, depth)
             result.floating = sign * NAN
-            # No need to specify integer, NaN converts to 0 in Jou
             return True
 
         # We validate the matched digits below, but we can't always search for
@@ -528,7 +526,6 @@ class TOMLParser:
         signed_result = sign * unsigned_result
         self.init_value(result, TOMLType.Integer, depth)
         result.integer = signed_result
-        result.floating = signed_result
         return True
 
     def skip_float_integer_part(self) -> bool:
@@ -583,7 +580,6 @@ class TOMLParser:
         f = sign * atof(start_of_float)
         self.init_value(result, TOMLType.Floating, depth)
         result.floating = f
-        result.integer = f as int64
         return True
 
     def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
@@ -928,3 +924,64 @@ def parse_toml(string: byte*) -> TOML:
             string_len = strlen(parser.error),
             lineno = parser.lineno,
         }
+
+
+@public
+def toml_to_int(toml: TOML*, fallback: int) -> int:
+    if toml == NULL:
+        return fallback
+
+    match toml.type:
+        case TOMLType.Integer:
+            if toml.integer < INT32_MIN or toml.integer > INT32_MAX:
+                return fallback
+            return toml.integer as int
+        case TOMLType.Floating:
+            if isfinite(toml.floating) and toml.floating == (toml.floating as int):
+                return toml.floating as int
+            return fallback
+        case _:
+            return fallback
+
+@public
+def toml_to_int64(toml: TOML*, fallback: int64) -> int64:
+    if toml == NULL:
+        return fallback
+
+    match toml.type:
+        case TOMLType.Integer:
+            return toml.integer
+        case TOMLType.Floating:
+            if isfinite(toml.floating) and toml.floating == (toml.floating as int64):
+                return toml.floating as int64
+            return fallback
+        case _:
+            return fallback
+
+@public
+def toml_to_double(toml: TOML*) -> double:
+    if toml == NULL:
+        return NAN
+
+    match toml.type:
+        case TOMLType.Integer:
+            return toml.integer as double
+        case TOMLType.Floating:
+            return toml.floating
+        case _:
+            return NAN
+
+# Unlike with json_to_string(), you should NOT need to free() the result!
+@public
+def toml_to_string(toml: TOML*) -> byte*:
+    if toml == NULL or toml.type != TOMLType.String or strlen(toml.string) != toml.string_len:
+        return NULL
+    return toml.string
+
+@public
+def toml_is_true(toml: TOML*) -> bool:
+    return toml != NULL and toml.type == TOMLType.Boolean and toml.boolean
+
+@public
+def toml_is_false(toml: TOML*) -> bool:
+    return toml != NULL and toml.type == TOMLType.Boolean and not toml.boolean
