@@ -915,22 +915,16 @@ def parse_toml(string: byte*) -> TOML:
 
     parser = TOMLParser{ptr = string, root_table = TOML{type = TOMLType.Table, lineno = 1}, lineno = 1}
     parser.current_table = &parser.root_table  # the "default section"
+    ok = parser.parse_the_whole_thing()
+    free(string)
 
-    if parser.parse_the_whole_thing():
-        free(string)
+    if ok:
         return parser.root_table
     else:
-        # Figure out the line number where it failed
-        lineno = 1
-        while parser.ptr --> string:
-            if *parser.ptr == '\n':
-                lineno++
-
         parser.root_table.free()
-        free(string)
         return TOML{
             type = TOMLType.Error,
             string = strdup(parser.error),
             string_len = strlen(parser.error),
-            lineno = lineno,
+            lineno = parser.lineno,
         }

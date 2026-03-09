@@ -7,6 +7,7 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/math.jou"
+import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
 
@@ -42,6 +43,7 @@ def test_basic_parsing() -> None:
     toml.free()
 
 
+# The main purpose of this test is to check that line numbers are always set correctly.
 def test_bigger_example() -> None:
     toml = parse_toml("\
         string = 'jouuuu'   # line 1  \n\
@@ -164,6 +166,7 @@ def test_depth_limit() -> None:
     toml = parse_toml("x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['x=... and 64 brackets']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
     assert toml.type == TOMLType.Error
     printf("line %d: %s\n", toml.lineno, toml.string)  # Output: line 1: nesting more than 64 levels deep is not supported
+    assert strlen(toml.string) == toml.string_len  # Checking this just once is probably enough...
     toml.free()
 
     # 65 levels with dotted key
