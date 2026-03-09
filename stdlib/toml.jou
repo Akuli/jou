@@ -28,6 +28,10 @@ enum TOMLType:
     Integer
     Floating
 
+global TOML_TYPE_NAMES: byte*[enum_count(TOMLType)] = [
+    "Error", "Table", "Array", "String", "Boolean", "Integer", "Floating"
+]
+
 # This is used to prevent adding more stuff to an existing table/array when
 # that is not allowed by TOML's rules.
 enum CreatedBy:
@@ -82,19 +86,20 @@ class TOML:
     # For debugging
     @public
     def print(self) -> None:
+        printf("%s on line %d:", TOML_TYPE_NAMES[self.type as int], self.lineno)
         match self.type:
             case TOMLType.Table:
-                puts("Table:")
+                printf("\n")
                 for kv = self.table.ptr; kv < self.table.end(); kv++:
                     printf("%*s%s = ", 2*kv.value.depth, "", kv.key)
                     kv.value.print()
             case TOMLType.Array:
-                puts("Array:")
+                printf("\n")
                 for item = self.array.ptr; item < self.array.end(); item++:
                     printf("%*s", 2*item.depth, "")
                     item.print()
             case TOMLType.Error | TOMLType.String:
-                printf("%s: \"", "Error" if self.type == TOMLType.Error else "String")
+                printf(" \"")
                 for p = self.string; p < &self.string[self.string_len]; p++:
                     match *p:
                         case '\n':
@@ -116,22 +121,22 @@ class TOML:
                                 putchar(*p)
                 printf("\"\n")
             case TOMLType.Boolean:
-                printf("Boolean: %s\n", "true" if self.boolean else "false")
+                printf(" %s\n", "true" if self.boolean else "false")
             case TOMLType.Integer:
-                printf("Integer: %lld\n", self.integer)
+                printf(" %lld\n", self.integer)
             case TOMLType.Floating:
                 if isnan(self.floating):
-                    printf("Floating: nan\n")
+                    printf(" nan\n")
                 elif isinf(self.floating):
-                    printf("Floating: %sinf\n", "+" if self.floating > 0 else "-")
+                    printf(" %sinf\n", "+" if self.floating > 0 else "-")
                 else:
                     # Same logic as in stdlib/json.jou
                     buf: byte[64] = ""
                     snprintf(buf, sizeof(buf), "%.16g", self.floating)
                     if atof(buf) == self.floating:
-                        printf("Floating: %.16g\n", self.floating)
+                        printf(" %.16g\n", self.floating)
                     else:
-                        printf("Floating: %.17g\n", self.floating)
+                        printf(" %.17g\n", self.floating)
 
 @public
 def toml_get(table: TOML*, key: byte*) -> TOML*:

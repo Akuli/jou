@@ -6,20 +6,16 @@
 
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
-import "stdlib/json.jou"
-import "stdlib/list.jou"
 import "stdlib/math.jou"
-import "stdlib/mem.jou"
 import "stdlib/toml.jou"
 
 
-# TODO: test corner cases of the printing more
 def test_basic_parsing() -> None:
     toml = parse_toml("[languages]\njson = 'simple'\ntoml = 'complicated'")
-    # Output: Table:
-    # Output:   languages = Table:
-    # Output:     json = String: "simple"
-    # Output:     toml = String: "complicated"
+    # Output: Table on line 1:
+    # Output:   languages = Table on line 1:
+    # Output:     json = String on line 2: "simple"
+    # Output:     toml = String on line 3: "complicated"
     toml.print()
 
     assert toml_get(&toml, NULL) == NULL
@@ -29,16 +25,86 @@ def test_basic_parsing() -> None:
     assert toml_get(toml_get(toml_get(&toml, "languages"), "json"), "whatever") == NULL
 
     # Indentation is a bit weird here.
-    # Output: Table:
-    # Output:     json = String: "simple"
-    # Output:     toml = String: "complicated"
+    # Output: Table on line 1:
+    # Output:     json = String on line 2: "simple"
+    # Output:     toml = String on line 3: "complicated"
     toml_get(&toml, "languages").print()
 
-    # Output: String: "complicated"
+    # Output: String on line 3: "complicated"
     toml_get(toml_get(&toml, "languages"), "toml").print()
 
     # Output: complicated
     puts(toml_get(toml_get(&toml, "languages"), "toml").string)
+
+    # Output: 3
+    printf("%d\n", toml_get(toml_get(&toml, "languages"), "toml").lineno)
+
+    toml.free()
+
+
+def test_bigger_example() -> None:
+    toml = parse_toml("\
+        string = 'jouuuu'   # line 1  \n\
+        string2 = \"\"\"\\ \n\
+        multi  \\ \n\
+        line\n\
+        string \"\"\"       # line 5    \n\
+        integer = 123\n\
+        floats = [2.718, -1e20, +inf, -inf, +nan, -nan]\n\
+        \n\
+        inline_array = [\n\
+            \"one\",        # line 10  \n\
+            2,\n\
+        ]\n\
+        inline_table = {\n\
+            foo = 1,\n\
+            nested.bar = 2, # line 15  \n\
+        }\n\
+        boolean = true\n\
+        \n\
+        [table]\n\
+        thing = 'stuff'     # line 20  \n\
+        \n\
+        [table.sub.subbbb]\n\
+        lol = 'wat'\n\
+        \n\
+        [[ar.ray]]          # line 25  \n\
+        x = 1\n\
+        [[ar.ray]]\n\
+        y = 2\n\
+    ")
+
+    # Output: Table on line 1:
+    # Output:   string = String on line 1: "jouuuu"
+    # Output:   string2 = String on line 2: "multi  line\n        string "
+    # Output:   integer = Integer on line 6: 123
+    # Output:   floats = Array on line 7:
+    # Output:     Floating on line 7: 2.718
+    # Output:     Floating on line 7: -1e+20
+    # Output:     Floating on line 7: +inf
+    # Output:     Floating on line 7: -inf
+    # Output:     Floating on line 7: nan
+    # Output:     Floating on line 7: nan
+    # Output:   inline_array = Array on line 9:
+    # Output:     String on line 10: "one"
+    # Output:     Integer on line 11: 2
+    # Output:   inline_table = Table on line 13:
+    # Output:     foo = Integer on line 14: 1
+    # Output:     nested = Table on line 15:
+    # Output:       bar = Integer on line 15: 2
+    # Output:   boolean = Boolean on line 17: true
+    # Output:   table = Table on line 19:
+    # Output:     thing = String on line 20: "stuff"
+    # Output:     sub = Table on line 22:
+    # Output:       subbbb = Table on line 22:
+    # Output:         lol = String on line 23: "wat"
+    # Output:   ar = Table on line 25:
+    # Output:     ray = Array on line 25:
+    # Output:       Table on line 25:
+    # Output:         x = Integer on line 26: 1
+    # Output:       Table on line 27:
+    # Output:         y = Integer on line 28: 2
+    toml.print()
 
     toml.free()
 
@@ -139,107 +205,9 @@ def test_depth_limit() -> None:
     toml.free()
 
 
-def print_with_line_numbers(toml: TOML) -> None:
-    printf("[line %2d] %*s", toml.lineno, 2*toml.depth, "")
-    match toml.type:
-        case TOMLType.Error:
-            puts("ERROR!!!!!")
-        case TOMLType.Table:
-            puts("Table:")
-            for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-                print_with_line_numbers(kv.value)
-        case TOMLType.Array:
-            puts("Array:")
-            for item = toml.array.ptr; item < toml.array.end(); item++:
-                print_with_line_numbers(*item)
-        case TOMLType.String:
-            printf("\"%s\"\n", toml.string)
-        case TOMLType.Boolean:
-            puts("true" if toml.boolean else "false")
-        case TOMLType.Integer:
-            printf("%lld\n", toml.integer)
-        case TOMLType.Floating:
-            jb = JSONBuilder{}
-            jb.number(toml.floating)
-            s = jb.finish()
-            puts(s)
-            free(s)
-
-
-def test_line_numbers_on_success() -> None:
-    toml_string = "\
-        string = 'jouuuu'   # line 1  \n\
-        string2 = \"\"\"\\ \n\
-        multi  \\ \n\
-        line\n\
-        string \"\"\"       # line 5    \n\
-        integer = 123\n\
-        floats = [2.718, -1e20, +inf, -inf, +nan, -nan]\n\
-        \n\
-        inline_array = [\n\
-            \"one\",        # line 10  \n\
-            2,\n\
-        ]\n\
-        inline_table = {\n\
-            foo = 1,\n\
-            nested.bar = 2, # line 15  \n\
-        }\n\
-        boolean = true\n\
-        \n\
-        [table]\n\
-        thing = 'stuff'     # line 20  \n\
-        \n\
-        [table.sub.subbbb]\n\
-        lol = 'wat'\n\
-        \n\
-        [[ar.ray]]          # line 25  \n\
-        x = 1\n\
-        [[ar.ray]]\n\
-        y = 2\n\
-    "
-
-    # Output: [line  1] Table:
-    # Output: [line  1]   "jouuuu"
-    # Output: [line  2]   "multi  line
-    # Output:         string "
-    # Output: [line  6]   123
-    # Output: [line  7]   Array:
-    # Output: [line  7]     2.718
-    # Output: [line  7]     -1e+20
-    # Output: [line  7]     Infinity
-    # Output: [line  7]     -Infinity
-    # Output: [line  7]     NaN
-    # Output: [line  7]     NaN
-    # Output: [line  9]   Array:
-    # Output: [line 10]     "one"
-    # Output: [line 11]     2
-    # Output: [line 13]   Table:
-    # Output: [line 14]     1
-    # Output: [line 15]     Table:
-    # Output: [line 15]       2
-    # Output: [line 17]   true
-    # Output: [line 19]   Table:
-    # Output: [line 20]     "stuff"
-    # Output: [line 22]     Table:
-    # Output: [line 22]       Table:
-    # Output: [line 23]         "wat"
-    # Output: [line 25]   Table:
-    # Output: [line 25]     Array:
-    # Output: [line 25]       Table:
-    # Output: [line 26]         1
-    # Output: [line 27]       Table:
-    # Output: [line 28]         2
-    toml = parse_toml(toml_string)
-    if toml.type == TOMLType.Error:
-        printf("error on line %d: %s\n", toml.lineno, toml.string)
-    assert toml.type == TOMLType.Table
-    print_with_line_numbers(toml)
-    toml.free()
-
-
 def main() -> int:
     test_basic_parsing()
+    test_bigger_example()
     test_int64_and_double_available()
     test_depth_limit()
-    test_line_numbers_on_success()
     return 0
