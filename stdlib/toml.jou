@@ -231,6 +231,9 @@ class TOMLParser:
                         return False
         return True
 
+    def init_value(self, value_ptr: TOMLValue*, type: TOMLType, depth: int) -> None:
+        *value_ptr = TOMLValue{type = type, depth = depth, lineno = self.lineno}
+
     def skip_comment(self) -> bool:
         assert *self.ptr == '#'
         while *self.ptr != '\0' and *self.ptr != '\n':
@@ -401,13 +404,17 @@ class TOMLParser:
                 s = self.parse_string(True, &s_len)
                 if s == NULL:
                     return False
-                *result = TOMLValue{type = TOMLType.String, lineno = s_lineno, string = s, string_len = s_len, depth = depth}
+                self.init_value(result, TOMLType.String, depth)
+                result.lineno = s_lineno
+                result.string = s
+                result.string_len = s_len
                 return True
 
             case 't':
                 if starts_with(self.ptr, "true"):
                     self.ptr = &self.ptr[4]
-                    *result = TOMLValue{type = TOMLType.Boolean, lineno = self.lineno, boolean = True, depth = depth}
+                    self.init_value(result, TOMLType.Boolean, depth)
+                    result.boolean = True
                     return True
 
             case 'T':
@@ -421,7 +428,8 @@ class TOMLParser:
             case 'f':
                 if starts_with(self.ptr, "false"):
                     self.ptr = &self.ptr[5]
-                    *result = TOMLValue{type = TOMLType.Boolean, lineno = self.lineno, boolean = False, depth = depth}
+                    self.init_value(result, TOMLType.Boolean, depth)
+                    result.boolean = False
                     return True
 
             case 'F':
@@ -465,7 +473,7 @@ class TOMLParser:
             base = 16
         else:
             base = 10
-            # Only base 10 numbers and flo can be negative in TOML!
+            # Only base 10 numbers and floats can be negative in TOML!
             if *self.ptr == '-':
                 sign = -1
                 max_abs++  # Support the most negative 64-bit integer
@@ -477,25 +485,17 @@ class TOMLParser:
 
         if base == 10 and starts_with(self.ptr, "inf"):
             self.ptr = &self.ptr[3]
-            f = sign * (1.0 / 0.0)
-            *result = TOMLValue{
-                type = TOMLType.Floating,
-                lineno = self.lineno,
-                floating = f,
-                integer = f as int64,
-                depth = depth,
-            }
+            f = sign * INFINITY
+            self.init_value(result, TOMLType.Floating, depth)
+            result.floating = f
+            result.integer = f as int64
             return True
 
         if base == 10 and starts_with(self.ptr, "nan"):
             self.ptr = &self.ptr[3]
-            *result = TOMLValue{
-                type = TOMLType.Floating,
-                lineno = self.lineno,
-                floating = sign * (0.0 / 0.0),
-                # No need to specify integer, NaN converts to 0 in Jou
-                depth = depth,
-            }
+            self.init_value(result, TOMLType.Floating, depth)
+            result.floating = sign * NAN
+            # No need to specify integer, NaN converts to 0 in Jou
             return True
 
         # We validate the matched digits below, but we can't always search for
@@ -540,13 +540,9 @@ class TOMLParser:
 
         self.ptr = &self.ptr[len]
         signed_result = sign * unsigned_result
-        *result = TOMLValue{
-            type = TOMLType.Integer,
-            lineno = self.lineno,
-            integer = signed_result,
-            floating = signed_result,
-            depth = depth,
-        }
+        self.init_value(result, TOMLType.Integer, depth)
+        result.integer = signed_result
+        result.floating = signed_result
         return True
 
     def skip_float_integer_part(self) -> bool:
@@ -599,13 +595,9 @@ class TOMLParser:
             *dest++ = ' '
 
         f = sign * atof(start_of_float)
-        *result = TOMLValue{
-            type = TOMLType.Floating,
-            lineno = self.lineno,
-            floating = f,
-            integer = f as int64,
-            depth = depth,
-        }
+        self.init_value(result, TOMLType.Floating, depth)
+        result.floating = f
+        result.integer = f as int64
         return True
 
     def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
@@ -779,7 +771,9 @@ class TOMLParser:
                 self.error = "nesting more than 64 levels deep is not supported"
                 return False
 
-            value_ptr.array.append(TOMLValue{type = TOMLType.Table, lineno = self.lineno, depth = value_ptr.depth + 1})
+            item: TOMLValue
+            self.init_value(&item, TOMLType.Table, value_ptr.depth + 1)
+            value_ptr.array.append(item)
             self.current_table = &value_ptr.array.end()[-1]
         else:
             match value_ptr.type:
@@ -821,7 +815,7 @@ class TOMLParser:
     def parse_inline_array(self, result: TOMLValue*, depth_of_array: int) -> bool:
         assert *self.ptr == '['
         self.ptr++
-        *result = TOMLValue{type = TOMLType.Array, lineno = self.lineno, depth = depth_of_array}
+        self.init_value(result, TOMLType.Array, depth_of_array)
 
         if not self.whitespace_comment_newline():
             return False
@@ -866,7 +860,7 @@ class TOMLParser:
     def parse_inline_table(self, result: TOMLValue*, depth_of_table: int) -> bool:
         assert *self.ptr == '{'
         self.ptr++
-        *result = TOMLValue{type = TOMLType.Table, lineno = self.lineno, depth = depth_of_table}
+        self.init_value(result, TOMLType.Table, depth_of_table)
 
         if not self.whitespace_comment_newline():
             return False
