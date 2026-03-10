@@ -123,7 +123,8 @@ class DirIter:
 
     @public
     def next(self) -> bool:
-        if self.dir == NULL:
+        # TODO: do we need empty string check?
+        if self.dir == NULL or self.dir[0] == '\0':
             return False
 
         if WINDOWS:
