@@ -1,0 +1,39 @@
+import "stdlib/fs.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/sort.jou"
+import "stdlib/str.jou"
+
+
+def test_dir_iter() -> None:
+    paths = List[byte*]{}
+
+    iter = DirIter{dir = "tests", slash = '/'}
+    while iter.next():
+        paths.append(strdup(iter.path))
+
+    sort_strings(paths.ptr, paths.len)
+
+    # Output: tests/404
+    # Output: tests/already_exists_error
+    # Output: tests/crash
+    # Output: tests/data
+    # Output: tests/other_errors
+    # Output: tests/should_succeed
+    # Output: tests/special
+    # Output: tests/syntax_error
+    # Output: tests/toml
+    # Output: tests/too_long
+    # Output: tests/vm
+    # Output: tests/wrong_place
+    # Output: tests/wrong_type
+    for p = paths.ptr; p < paths.end(); p++:
+        puts(*p)
+        free(*p)
+    free(paths.ptr)
+
+
+def main() -> int:
+    test_dir_iter()
+    return 0
