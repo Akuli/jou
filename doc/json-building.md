@@ -132,7 +132,8 @@ I get `12,34` in the JSON instead of the expected `12.34`.
 Some libraries (e.g. Gtk) call `setlocale()` automatically,
 and that can also cause this problem.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you run into this.
-There is a similar problem with [parsing JSON](json-parsing.md#notes-about-numbers).
+There is a similar problem with [parsing JSON](json-parsing.md#notes-about-numbers)
+and [parsing TOML](toml.md#notes-about-numbers).
 
 
 ## Notes about strings

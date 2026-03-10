@@ -144,7 +144,7 @@ class TOMLKeyVal:
 
 @public
 def toml_get(table: TOML*, key: byte*) -> TOML*:
-    if table != NULL and key != NULL:
+    if table != NULL and key != NULL and table.type == TOMLType.Table:
         for kv = table.table.ptr; kv < table.table.end(); kv++:
             if strcmp(kv.key, key) == 0:
                 return &kv.value
@@ -266,11 +266,11 @@ class TOMLParser:
             self.error = "missing value"
             return False
 
-        val: TOML
-        if not self.val(&val, value_dest_ptr.depth):
+        value: TOML
+        if not self.parse_value(&value, value_dest_ptr.depth):
             return False
 
-        *value_dest_ptr = val
+        *value_dest_ptr = value
         return True
 
     # Returns a pointer where the corresponding value should be stored.
@@ -311,7 +311,7 @@ class TOMLParser:
             if key == NULL:
                 return NULL
             if strlen(key) < key_len:
-                self.error = "sorry, zero bytes in keys are not supported"
+                self.error = "zero bytes in keys are not supported"
                 free(key)
                 return NULL
         else:
@@ -391,7 +391,7 @@ class TOMLParser:
             result.created_by = CreatedBy.DottedKey
         return result
 
-    def val(self, result: TOML*, depth: int) -> bool:
+    def parse_value(self, result: TOML*, depth: int) -> bool:
         match *self.ptr:
             case '"' | '\'':
                 self.init_value(result, TOMLType.String, depth)
@@ -818,7 +818,7 @@ class TOMLParser:
                 return False
 
             value: TOML
-            if not self.val(&value, depth_of_array + 1):
+            if not self.parse_value(&value, depth_of_array + 1):
                 result.free()
                 return False
             result.array.append(value)

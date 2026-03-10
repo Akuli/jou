@@ -137,6 +137,7 @@ Once you have found the value you want, you can use these functions to parse it:
     `json_is_null("null")` returns `True` but `json_is_null(NULL)` returns `False`.
 - `json_to_double(json: byte*) -> double` gets a `double` value from a JSON number.
     If `json` doesn't start with a JSON number, this function returns NaN.
+    To check for NaN, you can use the `isnan()` function in [stdlib/math.jou](../stdlib/math.jou).
     See also [the notes about numbers below](#notes-about-numbers).
 - `json_to_string(json: byte*) -> byte*` parses a string from JSON
     and returns it as `\0`-terminated UTF-8 (that is, a typical Jou string).
@@ -300,7 +301,8 @@ and `atof()` does not understand the `.34` part of the number because it's expec
 Some libraries (e.g. Gtk) call `setlocale()` automatically,
 and that can also cause this problem.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you run into this.
-There is a similar problem with [building JSON](json-building.md#notes-about-numbers).
+There is a similar problem with [building JSON](json-building.md#notes-about-numbers)
+and [parsing TOML](toml.md#notes-about-numbers).
 
 
 ## Notes about strings
