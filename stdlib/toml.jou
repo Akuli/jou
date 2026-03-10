@@ -787,14 +787,18 @@ class TOMLParser:
             return False
 
     def whitespace_comment_newline(self) -> bool:
-        while *self.ptr == ' ' or *self.ptr == '\t' or *self.ptr == '\n' or *self.ptr == '#':
-            if *self.ptr == '#':
-                if not self.skip_comment():
-                    return False
-            else:
-                if *self.ptr++ == '\n':
+        while True:
+            match *self.ptr:
+                case ' ' | '\t':
+                    self.ptr++
+                case '\n':
+                    self.ptr++
                     self.lineno++
-        return True
+                case '#':
+                    if not self.skip_comment():
+                        return False
+                case _:
+                    return True
 
     def parse_inline_array(self, result: TOML*, depth_of_array: int) -> bool:
         assert *self.ptr == '['
