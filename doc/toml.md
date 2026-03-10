@@ -491,3 +491,12 @@ def main() -> int:
     toml.free()
     return 0
 ```
+
+
+## Notes about arrays and tables
+
+No more than **64 levels** of nested arrays and tables are supported.
+The TOML parser returns an error if you try to parse TOML that is nested deeper than that.
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if this is a problem for you.
+It would be relatively easy to make this limit adjustable.
