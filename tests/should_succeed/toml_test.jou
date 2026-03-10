@@ -275,45 +275,50 @@ def read_file_to_big_string(path: byte*) -> byte*:
 
 
 def test_data_structures_of_documentation_are_actually_in_stdlib() -> None:
-    doc_toml_md = read_file_to_big_string("doc/toml.md")
-    stdlib_toml_jou = read_file_to_big_string("stdlib/toml.jou")
+    doc_md = read_file_to_big_string("doc/toml.md")
+    source_code = read_file_to_big_string("stdlib/toml.jou")
 
-    s = strstr(doc_toml_md, "\nData structures:\n")
-    assert s != NULL
-    s = strstr(s, "```")
-    assert s != NULL
-    s = strstr(s, "\n")
-    assert s != NULL
-    s++
+    # Find data structures in documentation by looking for @public decorator
+    ds_count = 0  # number of data structures found
+    for ds_start = strstr(doc_md, "\n@public"); ds_start != NULL; ds_start = strstr(&ds_start[1], "\n@public"):
+        ds_count++
 
-    # Don't look beyond end of code block
-    assert strstr(s, "```") != NULL
-    *strstr(s, "```") = '\0'
+        # Find end of data structure, either the next one or end of the whole code block
+        ds_len = 2
+        while (
+            ds_start[ds_len] != '\0'
+            and not starts_with(&ds_start[ds_len], "\n@public")
+            and not starts_with(&ds_start[ds_len], "```")
+        ):
+            ds_len++
 
-    dscount = 0
-
-    # Each data structure (separated by "@public") must appear in stdlib/toml.jou
-    # as is, and in the correct order.
-    assert starts_with(s, "@public")
-    for ds_start = s; ds_start != NULL; ds_start = strstr(&ds_start[1], "@public"):
         ds = strdup(ds_start)
-        if strstr(&ds[1], "@public") != NULL:
-            # Not the last data structure, truncate out subsequent data structures
-            *strstr(&ds[1], "@public") = '\0'
+        ds[ds_len] = '\0'
+
+        #puts("------------ DS ------------")
+        #puts(ds)
+        #puts("----------------------------")
+
+        # If it contains "..." let's just check the first part. Good enough.
+        if strstr(ds, "...") != NULL:
+            *strstr(ds, "...") = '\0'
+
         trim_ascii_whitespace(ds)
-        if strstr(stdlib_toml_jou, ds) == NULL:
-            puts("Data structure of doc/toml.md not found in stdlib/toml.jou!")
-            puts("----------------------------------------")
-            puts(ds)
-            puts("----------------------------------------")
+        assert strlen(ds) >= 30
+
+        if strstr(source_code, ds) == NULL:
             puts("")
+            puts("----- Data structure of doc/toml.md not found in stdlib/toml.jou! -----")
+            puts(ds)
+            puts("-----------------------------------------------------------------------")
+            puts("")
+
         free(ds)
-        dscount++
 
-    printf("Checked %d data structures.\n", dscount)  # Output: Checked 3 data structures.
+    printf("Checked %d data structures.\n", ds_count)  # Output: Checked 5 data structures.
 
-    free(doc_toml_md)
-    free(stdlib_toml_jou)
+    free(doc_md)
+    free(source_code)
 
 
 def main() -> int:
