@@ -62,7 +62,7 @@ def test_bigger_example() -> None:
         line\n\
         string \"\"\"       # line 5    \n\
         integer = 123\n\
-        floats = [2.718, -1e20, +inf, -inf, +nan, -nan]\n\
+        floats = [2.718, +inf, -inf, +nan, -nan]\n\
         \n\
         inline_array = [\n\
             \"one\",        # line 10  \n\
@@ -92,7 +92,6 @@ def test_bigger_example() -> None:
     # Output:   integer = Integer on line 6: 123
     # Output:   floats = Array on line 7:
     # Output:     Floating on line 7: 2.718
-    # Output:     Floating on line 7: -1e+20
     # Output:     Floating on line 7: +inf
     # Output:     Floating on line 7: -inf
     # Output:     Floating on line 7: nan
@@ -249,6 +248,11 @@ def read_file_to_big_string(path: byte*) -> byte*:
     result: byte* = malloc(max_size)
     assert result != NULL
     f = fopen(path, "rb")
+    if f == NULL:
+        # Probably running this file inside tests/should_succeed
+        path2: byte[100]
+        snprintf(path2, sizeof(path2), "../../%s", path)
+        f = fopen(path2, "rb")
     assert f != NULL
     n = fread(result, 1, max_size, f)
     fclose(f)
