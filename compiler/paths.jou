@@ -345,6 +345,7 @@ def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
     list = listdir(dir)
 
     for p = list.ptr; p < list.end(); p++:
+        printf("listdir --> '%s'\n", *p)
         if ends_with(*p, suffix):
             full_path: byte*
             asprintf(&full_path, "%s/%s", dir, *p)
