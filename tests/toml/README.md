@@ -52,10 +52,6 @@ $ ./toml-test copy -toml 1.1 name_of_output_directory
 ## TOML versions
 
 The Jou TOML parser targets TOML 1.1, not TOML 1.0.
-This means that it can successfully parse any valid TOML 1.0 or TOML 1.1 file,
-but it would not pass the `invalid` tests of TOML 1.0,
-because many things that are valid in TOML 1.1 are invalid in TOML 1.0.
-
 It is important to **specify `-toml 1.1`** when you invoke `toml-test`.
 [Due to a bug](https://github.com/toml-lang/toml-test/issues/188),
 omitting the `-toml` flag or using `-toml latest` causes `toml-test` to use TOML 1.0 tests.
