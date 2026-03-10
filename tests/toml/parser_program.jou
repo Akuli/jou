@@ -111,17 +111,18 @@ def main() -> int:
     jou_assert_fail_handler = exit2_assert_handler
 
     string = read_stdin_to_string()
-    result = parse_toml(string)
+    toml = parse_toml(string)
     free(string)
 
-    if result.type == TOMLType.Error:
-        fprintf(get_stderr(), "error on line %d: %s\n", result.lineno, result.error_message)
+    check_depths(&toml, 0)
+
+    if toml.type == TOMLType.Error:
+        fprintf(get_stderr(), "error on line %d: %s\n", toml.lineno, toml.error_message)
         return 1
 
     jb = JSONBuilder{pretty_print = 4}
-    toml_to_json(&result, &jb)
-    check_depths(&result, 0)
-    result.free()
+    toml_to_json(&toml, &jb)
+    toml.free()
 
     json = jb.finish()
     puts(json)
