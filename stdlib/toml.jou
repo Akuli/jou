@@ -977,7 +977,7 @@ def toml_to_double(toml: TOML*) -> double:
         case _:
             return NAN
 
-# Unlike with json_to_string(), you should NOT need to free() the result!
+# Unlike with json_to_string(), you should NOT free() the result!
 @public
 def toml_to_string(toml: TOML*) -> byte*:
     if toml == NULL or toml.type != TOMLType.String or strlen(toml.string) != toml.string_len:
