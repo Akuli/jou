@@ -30,10 +30,17 @@ else:
     class DIR:
         pass
 
-    if MACOS:
+    if LINUX:
+        class dirent:
+            d_ino: uint64
+            d_off: int64
+            d_reclen: uint16
+            d_type: byte
+            d_name: byte[256]
+    elif MACOS:
         # This struct definition was a bit painful to find. One way to find it
         # is to run C preprocessor on '#include <dirent.h>' in GitHub Actions.
-        assert IS_64BIT
+        assert not IS_32BIT
         class dirent:
             d_ino: uint64
             d_seekoff: uint64
@@ -41,22 +48,12 @@ else:
             d_namlen: uint16
             d_type: byte
             d_name: byte[1024]
-
-    elif LINUX:
-        class dirent:
-            d_ino: uint64
-            d_off: int64
-            d_reclen: uint16
-            d_type: byte
-            d_name: byte[256]
-
     elif NETBSD:
         class dirent:
             d_ino: uint64
             d_reclen: uint16
             d_type: byte
             d_name: byte[512]
-
     else:
         assert False  # unsupported system
 
