@@ -55,3 +55,4 @@ jobs:
       - name: "Run hello world with valgrind"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
       - run: ./doctest.sh
+      - run: tests/toml/run.sh --jou-flags "${{ matrix.params.opt-level }}"

@@ -70,6 +70,7 @@ jobs:
       - run: LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }} make
       - name: "Test compiler with valgrind"
         run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.params.opt-level }}"
+      - run: tests/toml/run.sh --valgrind --jou-flags "${{ matrix.params.opt-level }}"
 
   # Please keep in sync with macos.yml and linux-aarch64.yml
   create-issue-on-failure:

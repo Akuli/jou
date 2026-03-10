@@ -1,0 +1,335 @@
+# Please note that stdlib/toml.jou is also tested with the official TOML test
+# suite that contains hundreds of TOML files and their expected results. For
+# that, see tests/toml/ directory.
+#
+# Therefore this test doesn't focus much on weird TOML files.
+
+import "stdlib/ascii.jou"
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/toml.jou"
+
+
+def test_basic_parsing() -> None:
+    toml = parse_toml("[languages]\njson = 'simple'\ntoml = 'complicated'\nnumber = 123")
+    # Output: Table on line 1:
+    # Output:   languages = Table on line 1:
+    # Output:     json = String on line 2: "simple"
+    # Output:     toml = String on line 3: "complicated"
+    # Output:     number = Integer on line 4: 123
+    toml.print()
+
+    assert toml_get(&toml, NULL) == NULL
+    assert toml_get(&toml, "lankuaakez") == NULL
+    assert toml_get(&toml, "languages") != NULL
+    assert toml_get(toml_get(&toml, "languages"), "json") != NULL
+    assert toml_get(toml_get(toml_get(&toml, "languages"), "json"), "whatever") == NULL
+
+    # Indentation is a bit weird here.
+    # Output: Table on line 1:
+    # Output:     json = String on line 2: "simple"
+    # Output:     toml = String on line 3: "complicated"
+    # Output:     number = Integer on line 4: 123
+    toml_get(&toml, "languages").print()
+
+    # Output: String on line 3: "complicated"
+    toml_get(toml_get(&toml, "languages"), "toml").print()
+
+    # Output: complicated
+    puts(toml_get(toml_get(&toml, "languages"), "toml").string)
+
+    # Output: 3
+    printf("%d\n", toml_get(toml_get(&toml, "languages"), "toml").lineno)
+
+    # Output: 123
+    printf("%d\n", toml_get(toml_get(&toml, "languages"), "number").integer)
+    # Output: 0.000000
+    printf("%f\n", toml_get(toml_get(&toml, "languages"), "number").floating)
+
+    toml.free()
+
+
+# The main purpose of this test is to check that line numbers are always set correctly.
+def test_bigger_example() -> None:
+    toml = parse_toml("\
+        string = 'jouuuu'   # line 1  \n\
+        string2 = \"\"\"\\ \n\
+        multi  \\ \n\
+        line\n\
+        string \"\"\"       # line 5    \n\
+        integer = 123\n\
+        floats = [2.718, +inf, -inf, +nan, -nan]\n\
+        \n\
+        inline_array = [\n\
+            \"one\",        # line 10  \n\
+            2,\n\
+        ]\n\
+        inline_table = {\n\
+            foo = 1,\n\
+            nested.bar = 2, # line 15  \n\
+        }\n\
+        boolean = true\n\
+        \n\
+        [table]\n\
+        thing = 'stuff'     # line 20  \n\
+        \n\
+        [table.sub.subbbb]\n\
+        lol = 'wat'\n\
+        \n\
+        [[ar.ray]]          # line 25  \n\
+        x = 1\n\
+        [[ar.ray]]\n\
+        y = 2\n\
+    ")
+
+    # Output: Table on line 1:
+    # Output:   string = String on line 1: "jouuuu"
+    # Output:   string2 = String on line 2: "multi  line\n        string "
+    # Output:   integer = Integer on line 6: 123
+    # Output:   floats = Array on line 7:
+    # Output:     Floating on line 7: 2.718
+    # Output:     Floating on line 7: +inf
+    # Output:     Floating on line 7: -inf
+    # Output:     Floating on line 7: nan
+    # Output:     Floating on line 7: nan
+    # Output:   inline_array = Array on line 9:
+    # Output:     String on line 10: "one"
+    # Output:     Integer on line 11: 2
+    # Output:   inline_table = Table on line 13:
+    # Output:     foo = Integer on line 14: 1
+    # Output:     nested = Table on line 15:
+    # Output:       bar = Integer on line 15: 2
+    # Output:   boolean = Boolean on line 17: true
+    # Output:   table = Table on line 19:
+    # Output:     thing = String on line 20: "stuff"
+    # Output:     sub = Table on line 22:
+    # Output:       subbbb = Table on line 22:
+    # Output:         lol = String on line 23: "wat"
+    # Output:   ar = Table on line 25:
+    # Output:     ray = Array on line 25:
+    # Output:       Table on line 25:
+    # Output:         x = Integer on line 26: 1
+    # Output:       Table on line 27:
+    # Output:         y = Integer on line 28: 2
+    toml.print()
+
+    toml.free()
+
+
+def test_harmless_free() -> None:
+    result = parse_toml("this is not valid toml!")
+    assert result.type == TOMLType.Error
+    result.free()  # This should do nothing
+
+
+def test_depth_limit() -> None:
+    # 64 levels. Allowed, but just barely.
+    toml = parse_toml("\
+        x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['one level from x=... and 63 from brackets']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]\n\
+        1a.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64 = 'level64'\n\
+        [1b.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63]\n\
+        level64 = 'working fine'\n\
+        # The array below is inside an object of depth 62, so the array's depth\n\
+        # is 63 and the depth of its items is 64.\n\
+        [[1c.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62]]\n\
+        level64 = 'working fine'\n\
+    ")
+    if toml.type == TOMLType.Error:
+        printf("SHOULD NOT HAPPEN... line %d: %s\n", toml.lineno, toml.error_message)
+    toml.free()
+
+    # 65 levels with brackets
+    toml = parse_toml("x = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[['x=... and 64 brackets']]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml.free()
+
+    # 65 levels with dotted key
+    toml = parse_toml("1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64.65 = 'oh no'")
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml.free()
+
+    # 65 levels with table key-value pair
+    toml = parse_toml("\
+        [1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64]\n\
+        level65 = 'bad'\n\
+    ")
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.error_message)  # Output: line 2: nesting more than 64 levels deep is not supported
+    toml.free()
+
+    # 65 levels with table header
+    toml = parse_toml("\
+        [1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64.65]\n\
+    ")
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml.free()
+
+    # value (level 65) inside an object (level 64) created by array header (level 63)
+    toml = parse_toml("\
+        [[1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63]]\n\
+        level65 = 'bad'\n\
+    ")
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.error_message)  # Output: line 2: nesting more than 64 levels deep is not supported
+    toml.free()
+
+    # an object of level 65 created by array header
+    toml = parse_toml("[[1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.21.22.23.24.25.26.27.28.29.30.31.32.33.34.35.36.37.38.39.40.41.42.43.44.45.46.47.48.49.50.51.52.53.54.55.56.57.58.59.60.61.62.63.64]]")
+    assert toml.type == TOMLType.Error
+    printf("line %d: %s\n", toml.lineno, toml.error_message)  # Output: line 1: nesting more than 64 levels deep is not supported
+    toml.free()
+
+
+def test_convenience_function_errors() -> None:
+    toml = parse_toml("string = 'hi'\ninteger = 1234\nbig_int = 123123123123123123\nsmol_int = -123123123123123123\nfloat = 12.34")
+    toml_string = toml_get(&toml, "string")
+    toml_big_int = toml_get(&toml, "big_int")
+    toml_smol_int = toml_get(&toml, "smol_int")
+    toml_float = toml_get(&toml, "float")
+    assert toml_string != NULL
+    assert toml_big_int != NULL
+    assert toml_smol_int != NULL
+    assert toml_float != NULL
+
+    assert toml_get(NULL, NULL) == NULL
+    assert toml_get(NULL, "whatever") == NULL
+    assert toml_get(toml_string, "whatever") == NULL
+    assert toml_get(&toml, "whatever") == NULL
+
+    printf("%d\n", toml_to_int(NULL, -123))         # Output: -123
+    printf("%d\n", toml_to_int(toml_string, -123))  # Output: -123
+
+    printf("%lld\n", toml_to_int64(NULL, -456))         # Output: -456
+    printf("%lld\n", toml_to_int64(toml_string, -456))  # Output: -456
+
+    # Not printing these because the way NaN prints is platform dependent
+    assert isnan(toml_to_double(toml_string))
+    assert isnan(toml_to_double(NULL))
+
+    assert toml_to_string(NULL) == NULL
+    assert toml_to_string(toml_big_int) == NULL
+
+    assert not toml_is_true(NULL)
+    assert not toml_is_true(toml_string)
+    assert not toml_is_true(toml_big_int)
+    assert not toml_is_false(toml_float)
+
+    assert not toml_is_false(NULL)
+    assert not toml_is_false(toml_string)
+    assert not toml_is_false(toml_big_int)
+    assert not toml_is_false(toml_float)
+
+    printf("%d\n", toml_to_int(toml_big_int, -1))  # Output: -1
+    printf("%d\n", toml_to_int(toml_smol_int, -1))  # Output: -1
+    printf("%d\n", toml_to_int(toml_float, -1))  # Output: -1
+
+    printf("%lld\n", toml_to_int64(toml_big_int, -1))  # Output: 123123123123123123
+    printf("%lld\n", toml_to_int64(toml_smol_int, -1))  # Output: -123123123123123123
+    printf("%lld\n", toml_to_int64(toml_float, -1))  # Output: -1
+
+    # These loops should do nothing
+    for p = toml_string.array.ptr; p < toml_string.array.end(); p++:
+        printf("wat??? 1\n")
+    for kv = toml_string.table.ptr; kv < toml_string.table.end(); kv++:
+        printf("wat??? 2\n")
+
+    toml.free()
+
+
+def read_file_to_big_string(path: byte*) -> byte*:
+    max_size = 1_000_000
+    result: byte* = malloc(max_size)
+    assert result != NULL
+    f = fopen(path, "rb")
+    if f == NULL:
+        # Probably running this file inside tests/should_succeed
+        path2: byte[100]
+        snprintf(path2, sizeof(path2), "../../%s", path)
+        f = fopen(path2, "rb")
+    assert f != NULL
+    n = fread(result, 1, max_size, f)
+    fclose(f)
+    assert n >= 0
+    assert n < max_size
+    # Handle line endings: CRLF --> LF
+    p = result
+    for i = 0; i < n; i++:
+        if result[i] != '\r':
+            *p++ = result[i]
+    *p = '\0'
+    # Ignore all comments
+    while strstr(result, "#") != NULL:
+        start = strstr(result, "#")
+        while start > result and start[-1] == ' ':
+            start--
+        end = &start[strcspn(start, "\n")]
+        memmove(start, end, strlen(end) + 1)
+    # Ignore all double newlines
+    while strstr(result, "\n\n") != NULL:
+        p = strstr(result, "\n\n")
+        memmove(p, &p[1], strlen(&p[1]) + 1)
+    return result
+
+
+def test_data_structures_of_documentation_are_actually_in_stdlib() -> None:
+    doc_md = read_file_to_big_string("doc/toml.md")
+    source_code = read_file_to_big_string("stdlib/toml.jou")
+
+    # Find data structures in documentation by looking for @public decorator
+    ds_count = 0  # number of data structures found
+    for ds_start = strstr(doc_md, "\n@public"); ds_start != NULL; ds_start = strstr(&ds_start[1], "\n@public"):
+        ds_count++
+
+        # Find end of data structure, either the next one or end of the whole code block
+        ds_len = 2
+        while (
+            ds_start[ds_len] != '\0'
+            and not starts_with(&ds_start[ds_len], "\n@public")
+            and not starts_with(&ds_start[ds_len], "```")
+        ):
+            ds_len++
+
+        ds = strdup(ds_start)
+        ds[ds_len] = '\0'
+
+        #puts("------------ DS ------------")
+        #puts(ds)
+        #puts("----------------------------")
+
+        # If it contains "..." let's just check the first part. Good enough.
+        if strstr(ds, "...") != NULL:
+            *strstr(ds, "...") = '\0'
+
+        trim_ascii_whitespace(ds)
+        assert strlen(ds) >= 30
+
+        if strstr(source_code, ds) == NULL:
+            puts("")
+            puts("----- Data structure of doc/toml.md not found in stdlib/toml.jou! -----")
+            puts(ds)
+            puts("-----------------------------------------------------------------------")
+            puts("")
+
+        free(ds)
+
+    printf("Checked %d data structures.\n", ds_count)  # Output: Checked 5 data structures.
+
+    free(doc_md)
+    free(source_code)
+
+
+def main() -> int:
+    test_basic_parsing()
+    test_bigger_example()
+    test_harmless_free()
+    test_depth_limit()
+    test_convenience_function_errors()
+    test_data_structures_of_documentation_are_actually_in_stdlib()
+    return 0
