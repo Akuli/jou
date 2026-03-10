@@ -52,6 +52,7 @@ if WINDOWS:
     class WIN32_FIND_DATAA:
         # WIN32_FIND_DATAA is 320 bytes. We can't fill in the actual members
         # here because jou adds a lot of padding.
+        # TODO: no longer true, we could try filling in the members now
         dummy: byte[320]
 
     const INVALID_HANDLE_VALUE: int64 = -1
@@ -78,9 +79,10 @@ else:
     #    }
     if NETBSD:
         const DIRENT_NAME_OFFSET: int = 13
-    else:
-        # Assume linux
+    elif LINUX:
         const DIRENT_NAME_OFFSET: int = 19
+    else:
+        assert False  # unsupported system
 
     if NETBSD:
         # On NetBSD, "opendir" and "readdir" are legacy functions.

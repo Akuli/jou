@@ -1,4 +1,6 @@
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
@@ -39,51 +41,188 @@ def glob_is_valid(glob: byte*) -> bool:
         glob++
 
 
-@public
-def find_files_for_glob(glob: byte*, dir: byte*) -> List[byte*]:
-    assert glob_is_valid(glob)
+# TODO: copy/pasta from compiler
+# --------------------------- Start of copy/pasta ---------------------------
+if WINDOWS:
+    class WIN32_FIND_DATAA:
+        # WIN32_FIND_DATAA is 320 bytes. We can't fill in the actual members
+        # here because jou adds a lot of padding.
+        # TODO: no longer true, we could try filling in the members now
+        dummy: byte[320]
 
-    next_glob = strstr(glob, "/")
-    if next_glob != NULL:
+    const INVALID_HANDLE_VALUE: int64 = -1
+
+    declare FindFirstFileA(FileName: byte*, FindFileData: WIN32_FIND_DATAA*) -> int64
+    declare FindNextFileA(hFindFile: int64, FindFileData: WIN32_FIND_DATAA*) -> int
+    declare FindClose(hFindFile: int64) -> int
+
+else:
+    class DIR:
+        pass
+    class dirent:
+        pass
+
+    # I ran the following C program to find the offset of d_name in the dirent struct:
+    #
+    #    #include <dirent.h>
+    #    #include <stddef.h>
+    #    #include <stdio.h>
+    #    int main()
+    #    {
+    #        printf("%d\n", (int) offsetof(struct dirent, d_name));
+    #        return 0;
+    #    }
+    if NETBSD:
+        const DIRENT_NAME_OFFSET: int = 13
+    elif LINUX:
+        const DIRENT_NAME_OFFSET: int = 19
+    else:
+        assert False  # unsupported system
+
+    if NETBSD:
+        # On NetBSD, "opendir" and "readdir" are legacy functions.
+        # We can't use them because they generate a linker warning.
+        # The dirent.h header magically renames them at compile time to the following names.
+        declare __opendir30(name: byte*) -> DIR*
+        declare __readdir30(dirp: DIR*) -> dirent*
+        def opendir(name: byte*) -> DIR*:
+            return __opendir30(name)
+        def readdir(dirp: DIR*) -> dirent*:
+            return __readdir30(dirp)
+    else:
+        declare opendir(name: byte*) -> DIR*
+        declare readdir(dirp: DIR*) -> dirent*
+
+    declare closedir(dirp: DIR*) -> int
+# --------------------------- End of copy/pasta ---------------------------
+
+
+assert not WINDOWS  # TODO: windows DirIterator
+class DirIterator:
+    # Inputs given by user
+    dir: byte*
+    include_dot_and_dotdot: bool
+
+    # Output
+    path: byte*
+
+    # Internal state
+    path_list: List[byte]
+    if not WINDOWS:
+        dir_ptr: DIR*
+
+    def next(self) -> bool:
+        if self.dir == NULL:
+            return False
+
+        if self.dir_ptr == NULL:
+            # This is the first time this is called
+            self.dir_ptr = opendir(self.dir)
+            if self.dir_ptr == NULL:
+                # failed, probably not a directory, user can check errno if really wants
+                return False
+
+        while True:
+            entry = readdir(self.dir_ptr)
+            if entry == NULL:
+                # End of directory
+                free(self.path_list.ptr)
+                closedir(self.dir_ptr)
+                *self = DirIterator{}
+                return False
+
+            d_name = &(entry as byte*)[DIRENT_NAME_OFFSET]
+            if (not self.include_dot_and_dotdot) and (strcmp(d_name, ".") == 0 or strcmp(d_name, "..") == 0):
+                continue
+
+            self.path_list.len = 0
+            # TODO: what does this do if you try to list empty string?
+            self.path_list.extend_from_ptr(self.dir, strlen(self.dir))
+            self.path_list.append('/')
+            self.path_list.extend_from_ptr(d_name, strlen(d_name))
+            self.path_list.append('\0')
+            self.path = self.path_list.ptr
+            return True
+
+
+# Example: "foo_*_bar/whatever", "foo_thing_bar" --> True
+def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
+    # Wildcards can never match "." or "..", that creates confusing bugs.
+    #
+    # For example, "rm -rf .*" (don't try this as is!!!) removes the current
+    # working directory in some shellls, but preserves . and .. in others.
+    if strcspn(glob, "*") < strcspn(glob, "/") and (strcmp(name, ".") == 0 or strcmp(name, "..") == 0):
+        return False
+
+    while True:
+        match *glob:
+            case '\0' | '/':
+                # End of first glob component, is it the end of name as well?
+                return *name == '\0'
+            case '*':
+                # Try to match the rest of the name anywhere recursively
+                glob++
+                for p = &name[strlen(name)]; p >= name; p--:
+                    if first_glob_component_matches(glob, p):
+                        return True
+                return False
+            case _:
+                # Plain old character
+                if *glob++ != *name++:
+                    return False
+
+
+def do_glob(glob: byte*, relative_to: byte*, out: List[byte*]*, depth_limit: int) -> None:
+    if depth_limit < 0:
+        return
+
+    if starts_with(relative_to, "./"):
+        relative_to++
+        relative_to++
+
+    if *glob == '\0':
+        # Previous iterations matched all components
+        s = strdup(relative_to)
+        assert s != NULL
+        out.append(s)
+        return
+
+    next_glob = &glob[strcspn(glob, "/")]
+    if *next_glob == '/':
         next_glob++
 
-    result = List[byte*]{}
+    if starts_with(glob, "**"):
+        # Double star can be removed at any point
+        do_glob(next_glob, relative_to, out, depth_limit)
 
-    iter = DirIterator{dir = dir}
+    iter = DirIterator{dir = relative_to, include_dot_and_dotdot = True}
     while iter.next():
-        if not first_glob_component_matches_path_component(glob, iter.name):
+        path = iter.path
+        name = strrchr(iter.path, '/')
+        assert name != NULL
+        name++
+
+        # Don't recurse into ".", ".." or ".hidden_file" unless requested explicitly
+        if name[0] == '.' and glob[0] != '.':
             continue
 
-        if next_glob == NULL:
-            # The whole glob was matched
-            result.append(strdup(iter.path))
-        elif glob.is_dir:
-            subresult = find_files_for_glob
-        if not iter.name
-    while True:
-        item_path = iter.next()
-        if item_path == NULL:
-            return result
-
-        item_name = &strrchr(item_path, '/')[1]
-        
-
-    dir_contents = listdir(dir)
-    
+        if starts_with(glob, "**"):
+            # Double star means we can recurse inside basically anything
+            do_glob(glob, path, out, depth_limit - 1)
+        else:
+            # Filter with first glob component, recurse with the rest
+            if first_glob_component_matches(glob, name):
+                do_glob(next_glob, path, out, depth_limit - 1)
 
 
-# globs = ["*.jou", "bar/*", "**/hello.jou"]
-# folders = ["."]
-#
-# prepare: **/ prefix can be consumed now
-# globs = ["*.jou", "bar/*", "**/hello.jou", "hello.jou"]
-#
-# found file "hello.jou"
-#   does not match initial component of "*.jou"
-#   bar/* contains slash, so it does not match any files
-#   **/hello.jou contains slash, so it does not match any files
-#   hello.jou matches!!!!
-#
-# found subdir "bar"
-#   does not match initial component of "*.jou"
-#   matches "bar/*" --> keep going with pattern "*"
+def main() -> int:
+#    iter = DirIterator{dir = "."}
+#    while iter.next():
+#        puts(iter.path)
+
+    out = List[byte*]{}
+    do_glob("../../.*", ".", &out, 10)
+    for p = out.ptr; p < out.end(); p++:
+        puts(*p)
+
+    return 0
