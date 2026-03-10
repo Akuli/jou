@@ -106,7 +106,6 @@ class DirIter:
             self.slash = '/'
             already_has_slash = ends_with(self.dir, "/")
 
-        # TODO: what does this do if you try to list empty string?
         self.path_list.len = 0
         self.path_list.extend_from_ptr(self.dir, strlen(self.dir))
 
@@ -120,7 +119,6 @@ class DirIter:
 
     @public
     def next(self) -> bool:
-        # TODO: do we need empty string check?
         if self.dir == NULL or self.dir[0] == '\0':
             return False
 
