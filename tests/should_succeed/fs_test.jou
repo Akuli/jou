@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"
 import "stdlib/fs.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
@@ -6,34 +7,137 @@ import "stdlib/sort.jou"
 import "stdlib/str.jou"
 
 
-def test_dir_iter() -> None:
-    paths = List[byte*]{}
+# TODO: add some kind of chdir to standard library
+if WINDOWS:
+    declare _chdir(dirname: byte*) -> int
+    def chdir(dir: byte*) -> int:
+        return _chdir(dir)
+else:
+    declare chdir(path: byte*) -> int
 
-    iter = DirIter{dir = "tests", slash = '/'}
+
+def test_dir_iter_basic() -> None:
+    result = List[byte*]{}
+
+    iter = DirIter{dir = "tests/data/folder_2files_1dir", slash = '/'}
     while iter.next():
-        paths.append(strdup(iter.path))
+        result.append(strdup(iter.path))
 
-    sort_strings(paths.ptr, paths.len)
+    sort_strings(result.ptr, result.len)
 
-    # Output: tests/404
-    # Output: tests/already_exists_error
-    # Output: tests/crash
-    # Output: tests/data
-    # Output: tests/other_errors
-    # Output: tests/should_succeed
-    # Output: tests/special
-    # Output: tests/syntax_error
-    # Output: tests/toml
-    # Output: tests/too_long
-    # Output: tests/vm
-    # Output: tests/wrong_place
-    # Output: tests/wrong_type
-    for p = paths.ptr; p < paths.end(); p++:
+    # Output: tests/data/folder_2files_1dir/file 2 with spaces.txt
+    # Output: tests/data/folder_2files_1dir/file1.txt
+    # Output: tests/data/folder_2files_1dir/subdir
+    for p = result.ptr; p < result.end(); p++:
         puts(*p)
         free(*p)
-    free(paths.ptr)
+    free(result.ptr)
+
+
+# These are easy to get wrong especially on Windows...
+def test_dir_iter_funny_paths() -> None:
+    # Paths that should be equivalent
+    test_paths = [
+        "tests/data/folder_2files_1dir",            # Output: found 3 things file3=found
+        "tests\\data/folder_2files_1dir",           # Output: found 3 things file3=found
+        "tests/data/folder_2files_1dir/",           # Output: found 3 things file3=found
+        "tests\\data/folder_2files_1dir\\",         # Output: found 3 things file3=found
+        "./tests/./data/folder_2files_1dir",        # Output: found 3 things file3=found
+        "./tests\\./data\\folder_2files_1dir",      # Output: found 3 things file3=found
+        "tests/./data/folder_2files_1dir/.",        # Output: found 3 things file3=found
+        "tests/.\\data/folder_2files_1dir\\.",      # Output: found 3 things file3=found
+        "tests/./data/folder_2files_1dir/./",       # Output: found 3 things file3=found
+        "tests/.\\data/folder_2files_1dir\\./",     # Output: found 3 things file3=found
+        "tests/.\\data/folder_2files_1dir/.\\",     # Output: found 3 things file3=found
+        "doc/../tests/data/folder_2files_1dir",     # Output: found 3 things file3=found
+        "doc\\../tests/data/folder_2files_1dir",    # Output: found 3 things file3=found
+        "tests/data/folder_2files_1dir/subdir/..",  # Output: found 3 things file3=found
+        "tests/data/folder_2files_1dir/subdir\\..", # Output: found 3 things file3=found
+
+        # This is where we cd to the folder
+        NULL,
+
+        ".",        # Output: found 3 things file3=found
+        "./",       # Output: found 3 things file3=found
+        ".\\",      # Output: found 3 things file3=found
+        "./.",      # Output: found 3 things file3=found
+        ".\\.",     # Output: found 3 things file3=found
+        "././",     # Output: found 3 things file3=found
+        ".\\.\\",   # Output: found 3 things file3=found
+
+        # Now let's cd to subdir
+        NULL,
+
+        "..",       # Output: found 3 things file3=found
+        "./..",     # Output: found 3 things file3=found
+        ".\\..",    # Output: found 3 things file3=found
+        "../",      # Output: found 3 things file3=found
+        "..\\",     # Output: found 3 things file3=found
+        "./../",    # Output: found 3 things file3=found
+        ".\\..\\",  # Output: found 3 things file3=found
+    ]
+
+    cd_folders = ["tests/data/folder_2files_1dir", "subdir"]
+    cd_folder = &cd_folders[0]
+
+    for tp = &test_paths[0]; tp < array_end(test_paths); tp++:
+        path = *tp
+        if path == NULL:
+            chdir(*cd_folder++)
+            continue
+
+        # If not on Windows, backslash is not special, so skip backslash tests
+        # and fake their output.
+        if (not WINDOWS) and strchr(path, '\\') != NULL:
+            puts("found 3 things file3=found")
+            continue
+
+        n = 0
+        file3 = "NOT FOUND"
+
+        iter = DirIter{dir = *tp}
+        while iter.next():
+            file3_path: byte[100]
+            snprintf(file3_path, sizeof(file3_path), "%s/file3.txt", iter.path)
+            f = fopen(file3_path, "rb")
+            if f != NULL:
+                file3 = "found"
+                fclose(f)
+            n++
+
+        printf("found %d things file3=%s\n", n, file3)
+
+    # cd back out of the mess for other tests in case I add more after this
+    chdir("../../../..")
+
+
+def test_dir_iter_corner_cases() -> None:
+    # Default slash
+    iter = DirIter{dir = "tests"}
+    n = 0
+    while iter.next():
+        n++
+        if WINDOWS:
+            assert starts_with(iter.path, "tests\\")
+        else:
+            assert starts_with(iter.path, "tests/")
+    printf("tests folder contains 13 things\n")  # Output: tests folder contains 13 things
+
+    # Empty string
+    iter = DirIter{dir = ""}
+    assert not iter.next()
+    assert not iter.next()
+    assert not iter.next()
+
+    # No dir given
+    iter = DirIter{}
+    assert not iter.next()
+    assert not iter.next()
+    assert not iter.next()
 
 
 def main() -> int:
-    test_dir_iter()
+    test_dir_iter_basic()
+    test_dir_iter_funny_paths()
+    test_dir_iter_corner_cases()
     return 0
