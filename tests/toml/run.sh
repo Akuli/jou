@@ -105,10 +105,6 @@ toml_test_command=(
     -toml 1.1
 
     # When we say -skip below, we actually mean "make sure this fails".
-    #
-    # This doesn't work as well as you might hope, because a different error
-    # message than expected is enough to count as worthy of skip. But this is
-    # still probably better than nothing.
     -skip-must-err
 
     # These tests contain dates and times so they don't work. We don't support
