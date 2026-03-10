@@ -200,9 +200,6 @@ class TOMLParser:
     lineno: int
     error: byte[300]
 
-    # Names of many methods are according to this:
-    # https://github.com/toml-lang/toml/blob/bcbbd1c1f03473ffe97b8bf26a0fc945efe2b4a1/toml.abnf
-
     def parse_the_whole_thing(self) -> bool:
         while *self.ptr != '\0':
             match *self.ptr:
