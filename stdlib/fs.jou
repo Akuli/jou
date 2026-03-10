@@ -28,23 +28,34 @@ if WINDOWS:
 else:
     class DIR:
         pass
-    class dirent:
-        pass
 
-    # I ran the following C program to find the offset of d_name in the dirent struct:
-    #
-    #    #include <dirent.h>
-    #    #include <stddef.h>
-    #    #include <stdio.h>
-    #    int main()
-    #    {
-    #        printf("%d\n", (int) offsetof(struct dirent, d_name));
-    #        return 0;
-    #    }
-    if NETBSD:
-        const DIRENT_NAME_OFFSET: int = 13
+    if MACOS:
+        # This struct definition was a bit painful to find. One way to find it
+        # is to run C preprocessor on '#include <dirent.h>' in GitHub Actions.
+        assert IS_64BIT
+        class dirent:
+            d_ino: uint64
+            d_seekoff: uint64
+            d_reclen: uint16
+            d_namlen: uint16
+            d_type: byte
+            d_name: byte[1024]
+
     elif LINUX:
-        const DIRENT_NAME_OFFSET: int = 19
+        class dirent:
+            d_ino: uint64
+            d_off: int64
+            d_reclen: uint16
+            d_type: byte
+            d_name: byte[256]
+
+    elif NETBSD:
+        class dirent:
+            d_ino: uint64
+            d_reclen: uint16
+            d_type: byte
+            d_name: byte[512]
+
     else:
         assert False  # unsupported system
 
@@ -165,5 +176,5 @@ class DirIter:
                     *self = DirIter{}
                     return False
 
-                if self.set_name(&(entry as byte*)[DIRENT_NAME_OFFSET]):
+                if self.set_name(entry.d_name):
                     return True
