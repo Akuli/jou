@@ -365,8 +365,7 @@ class TOMLParser:
 
         assert target_table.depth <= MAX_DEPTH
         if target_table.depth == MAX_DEPTH:
-            assert MAX_DEPTH == 64
-            self.error = "nesting more than 64 levels deep is not supported"
+            snprintf(self.error, sizeof(self.error), "nesting more than %d levels deep is not supported", MAX_DEPTH)
             free(key)
             return NULL
 
@@ -749,8 +748,7 @@ class TOMLParser:
 
             assert value_ptr.depth <= MAX_DEPTH
             if value_ptr.depth == MAX_DEPTH:
-                assert MAX_DEPTH == 64
-                self.error = "nesting more than 64 levels deep is not supported"
+                snprintf(self.error, sizeof(self.error), "nesting more than %d levels deep is not supported", MAX_DEPTH)
                 return False
 
             item: TOML
@@ -805,8 +803,7 @@ class TOMLParser:
         while *self.ptr != ']':
             assert depth_of_array <= MAX_DEPTH
             if depth_of_array == MAX_DEPTH:
-                assert MAX_DEPTH == 64
-                self.error = "nesting more than 64 levels deep is not supported"
+                snprintf(self.error, sizeof(self.error), "nesting more than %d levels deep is not supported", MAX_DEPTH)
                 result.free()
                 return False
 
