@@ -1,0 +1,40 @@
+import "stdlib/io.jou"
+import "../../tools/joutest/glob.jou"
+
+
+def test_validating() -> None:
+    # Output: valid globs: 11111111111
+    printf("valid globs: ")
+    printf("%d", glob_is_valid("a"))
+    printf("%d", glob_is_valid("*.jou"))
+    printf("%d", glob_is_valid("README.md"))
+    printf("%d", glob_is_valid("foo/bar"))
+    printf("%d", glob_is_valid("**/*"))
+    printf("%d", glob_is_valid("*/**"))
+    printf("%d", glob_is_valid("**"))
+    printf("%d", glob_is_valid("*/*"))
+    printf("%d", glob_is_valid("*/*/*"))
+    printf("%d", glob_is_valid("src/**"))
+    printf("%d", glob_is_valid("src/**/*.jou"))
+    printf("\n")
+
+    # Output: invalid globs: 000000000000
+    printf("invalid globs: ")
+    printf("%d", glob_is_valid(""))
+    printf("%d", glob_is_valid("**foo"))
+    printf("%d", glob_is_valid("foo**"))
+    printf("%d", glob_is_valid("foo/verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong/bar"))
+    printf("%d", glob_is_valid("foo//bar"))
+    printf("%d", glob_is_valid("foo/**/**/bar"))
+    printf("%d", glob_is_valid("foo/**/bar/**"))
+    printf("%d", glob_is_valid("**/**/bar"))
+    printf("%d", glob_is_valid("**/bar/**"))
+    printf("%d", glob_is_valid("**/bar/**baz"))
+    printf("%d", glob_is_valid("/usr/lib"))
+    printf("%d", glob_is_valid("some_folder/"))  # TODO: support this?
+    printf("\n")
+
+
+def main() -> int:
+    test_validating()
+    return 0

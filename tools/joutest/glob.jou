@@ -1,0 +1,89 @@
+import "stdlib/assert.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+const COMPONENT_SIZE: int = 100
+
+
+@public
+def glob_is_valid(glob: byte*) -> bool:
+    # Backslashes not allowed
+    if strchr(glob, '\\') != NULL:
+        return False
+
+    got_double_star = False
+
+    while True:
+        component: byte[COMPONENT_SIZE]
+        component_len = strcspn(glob, "/")
+
+        if component_len == 0 or component_len >= sizeof(component):
+            return False
+        memcpy(component, glob, component_len)
+        component[component_len] = '\0'
+
+        if strstr(component, "**") != NULL:
+            if component_len != 2:
+                # foo** and **bar are banned
+                return False
+            if got_double_star:
+                # foo/**/bar/**/baz is banned
+                return False
+            got_double_star = True
+
+        glob = &glob[component_len]
+        if *glob == '\0':
+            return True
+        assert *glob == '/'
+        glob++
+
+
+@public
+def find_files_for_glob(glob: byte*, dir: byte*) -> List[byte*]:
+    assert glob_is_valid(glob)
+
+    next_glob = strstr(glob, "/")
+    if next_glob != NULL:
+        next_glob++
+
+    result = List[byte*]{}
+
+    iter = DirIterator{dir = dir}
+    while iter.next():
+        if not first_glob_component_matches_path_component(glob, iter.name):
+            continue
+
+        if next_glob == NULL:
+            # The whole glob was matched
+            result.append(strdup(iter.path))
+        elif glob.is_dir:
+            subresult = find_files_for_glob
+        if not iter.name
+    while True:
+        item_path = iter.next()
+        if item_path == NULL:
+            return result
+
+        item_name = &strrchr(item_path, '/')[1]
+        
+
+    dir_contents = listdir(dir)
+    
+
+
+# globs = ["*.jou", "bar/*", "**/hello.jou"]
+# folders = ["."]
+#
+# prepare: **/ prefix can be consumed now
+# globs = ["*.jou", "bar/*", "**/hello.jou", "hello.jou"]
+#
+# found file "hello.jou"
+#   does not match initial component of "*.jou"
+#   bar/* contains slash, so it does not match any files
+#   **/hello.jou contains slash, so it does not match any files
+#   hello.jou matches!!!!
+#
+# found subdir "bar"
+#   does not match initial component of "*.jou"
+#   matches "bar/*" --> keep going with pattern "*"
