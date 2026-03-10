@@ -445,9 +445,6 @@ class TOMLParser:
                 return self.parse_inline_array(result, depth)
             case '{':
                 return self.parse_inline_table(result, depth)
-            case '\0':
-                self.error = "got end of TOML instead of a value"
-                return False
             case _:
                 pass
 
@@ -809,6 +806,10 @@ class TOMLParser:
             return False
 
         while *self.ptr != ']':
+            if *self.ptr == '\0':
+                self.error = "missing ']' to end the array"
+                return False
+
             if not self.check_depth(depth_of_array + 1):
                 return False
 
@@ -850,6 +851,10 @@ class TOMLParser:
             return False
 
         while *self.ptr != '}':
+            if *self.ptr == '\0':
+                self.error = "missing '}' to end the table"
+                return False
+
             keyval_ok = self.parse_key_equals_value(result)
 
             if not keyval_ok:
