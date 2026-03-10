@@ -23,6 +23,7 @@ if WINDOWS:
         cAlternateFileName: byte[14]
 
     declare FindFirstFileA(FileName: byte*, FindFileData: WIN32_FIND_DATAA*) -> int64
+    declare FindNextFileA(hFindFile: int64, FindFileData: WIN32_FIND_DATAA*) -> int
     declare FindClose(hFindFile: int64) -> int
 
 else:
