@@ -139,17 +139,9 @@ class TOML:
         table: List[TOMLKeyVal]     # only for TOMLType.Table
         array: List[TOML]           # only for TOMLType.Array
         ...
-
     ...
-
     lineno: int     # Line number, available on all TOML objects
-
     ...
-
-    # For debugging
-    @public
-    def print(self) -> None:
-        ...
 ```
 
 Parsing TOML with `stdlib/toml.jou` always goes something like this:
@@ -168,6 +160,24 @@ Parsing TOML with `stdlib/toml.jou` always goes something like this:
     You don't need to call `toml.free()` when parsing failed, but doing so is harmless.
 
 The rest of this documentation focuses on accessing what you need from the TOML object (step 3 above).
+
+At any point, if you are wondering what a `TOML` object contains,
+there's a `.print()` method that you can call:
+
+```python
+import "stdlib/toml.jou"
+import "stdlib/io.jou"
+
+def main() -> int:
+    toml = parse_toml("x = 123")
+
+    # Output: Table on line 1:
+    # Output:   x = Integer on line 1: 123
+    toml.print()
+
+    toml.free()
+    return 0
+```
 
 
 ## Finding values in TOML
