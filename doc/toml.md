@@ -153,7 +153,7 @@ Parsing TOML with `stdlib/toml.jou` always goes something like this:
     - If `toml.type == TOMLType.Error`, it means that parsing failed.
         You can handle the error in whatever way you want,
         perhaps using `toml.error_message` and `toml.lineno`.
-        Or you can do `toml.print()` to get it printed in a reasonable way.
+        Or you can do `toml.print()` to print it in a reasonable way.
     - Other members of the `TOMLType` [enum](enums.md) are not used for the returned `TOML` object.
 3. Access whatever you need from the `toml` object.
 4. Call `toml.free()` to free memory used in the TOML parsing.
