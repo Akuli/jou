@@ -145,7 +145,7 @@ class TOML:
 ```
 
 Parsing TOML with `stdlib/toml.jou` always goes something like this:
-1. Call the `parse_toml()` function. It returns a `TOML` object. Let's call it `toml` for now.
+1. Call the `parse_toml(string: byte*) -> TOML` function. Let's call its return value `toml`.
 2. Check if parsing succeeded.
     - If `toml.type == TOMLType.Table`, it means that parsing succeeded.
         In TOML, a "table" means a collection of key-value pairs,
@@ -153,7 +153,7 @@ Parsing TOML with `stdlib/toml.jou` always goes something like this:
     - If `toml.type == TOMLType.Error`, it means that parsing failed.
         You can handle the error in whatever way you want,
         perhaps using `toml.error_message` and `toml.lineno`.
-        Or you can call `toml.print()` to get it printed in a reasonable way.
+        Or you can do `toml.print()` to get it printed in a reasonable way.
     - Other members of the `TOMLType` [enum](enums.md) are not used for the returned `TOML` object.
 3. Access whatever you need from the `toml` object.
 4. Call `toml.free()` to free memory used in the TOML parsing.
@@ -169,6 +169,7 @@ def main() -> int:
     toml = parse_toml(some_string)
     if toml.type == TOMLType.Error:
         printf("TOML error on line %d: %s\n", toml.lineno, toml.error_message)
+        # ...or just toml.print() if you don't care how exactly it gets printed
         return 1
 
     # TODO: use the toml object
@@ -180,20 +181,20 @@ def main() -> int:
 The rest of this documentation focuses on accessing what you need from the TOML object (step 3 above).
 
 At any point, if you are wondering what a `TOML` object contains,
-there's a `.print()` method that you can call on any `TOML` object:
+you can call its `.print()` method:
 
 ```python
 import "stdlib/toml.jou"
 
 def main() -> int:
-    # Output: Table on line 1:
-    # Output:   x = Integer on line 1: 123
-    toml = parse_toml("x = 123")
+    # Output: Error on line 1: missing value
+    toml = parse_toml("x = ")
     toml.print()
     toml.free()
 
-    # Output: Error on line 1: missing value
-    toml = parse_toml("x = ")
+    # Output: Table on line 1:
+    # Output:   x = Integer on line 1: 123
+    toml = parse_toml("x = 123")
     toml.print()
     toml.free()
 
@@ -267,21 +268,6 @@ def main() -> int:
     return 0
 ```
 
-This also means that if all you don't care about showing a nice error message,
-you might not need to check whether `parse_toml()` failed:
-
-```python
-import "stdlib/toml.jou"
-import "stdlib/io.jou"
-
-def main() -> int:
-    toml = parse_toml("this is not valid toml syntax")
-    if toml_get(&toml, "foo") == NULL:
-        printf("not found\n")   # Output: not found
-    toml.free()
-    return 0
-```
-
 Once you have found the `TOML` object you want,
 you can use these functions to access its underlying value:
 
@@ -295,20 +281,18 @@ you can use these functions to access its underlying value:
     See also [the notes about numbers below](#notes-about-numbers).
 - `toml_to_int64(toml: TOML*, fallback: int64) -> int64` is exactly what you would expect:
     a 64-bit version of `toml_to_int()`.
-- `toml_to_double(toml: TOML*) -> double` gets a `double` value from a TOML value.
+- `toml_to_double(toml: TOML*) -> double` gets a `double` value from a TOML number.
     This also works if the value is a TOML integer or infinity.
     If `toml` doesn't represent a number, this function returns NaN.
     To check for NaN, you can use the `isnan()` function in [stdlib/math.jou](../stdlib/math.jou).
     See also [the notes about numbers below](#notes-about-numbers).
 - `toml_to_string(toml: TOML*) -> byte*` gets a string from a TOML value.
-    If `toml` is not a TOML string, or the TOML string contains a zero byte,
-    this function returns NULL.
+    If `toml` is not a TOML string, this function returns NULL.
     Do not `free()` the returned string yourself,
     and do not access it after calling the `.free()` method on the TOML object returned from `parse_toml()`.
     Basically, the TOML object owns the returned string.
-    Use `strdup(toml_to_string(...))` or similar
-    if you need to keep the string around longer than the TOML objects.
-    The `strdup()` function is declared in [stdlib/str.jou](../stdlib/str.jou).
+    If you need to keep the string around longer than the TOML objects,
+    you can e.g. use the `strdup()` function from [stdlib/str.jou](../stdlib/str.jou).
     See also [the notes about strings below](#notes-about-strings).
 
 If `toml` is `NULL`, these functions handle it just like any other invalid input.
@@ -453,9 +437,9 @@ then `parse_toml()` fails by returning an error with message `integer doesn't fi
 
 TOML strings can contain zero bytes anywhere in the string,
 but [Jou strings use the zero byte to mark the end](tutorial.md#more-about-strings).
-For example, the TOML string like `"foo\x00bar"` would appear as just `"foo"` in Jou.
+For example, TOML strings can look like `"foo\x00bar"`, but Jou strings cannot.
 Here's how the TOML parser handles this:
-- In a `TOML` object, the string is always stored with an extra zero byte at the end,
+- In a `TOML` object, strings are stored with an extra zero byte at the end,
     and the actual length in bytes is stored to the `.string_len` field.
 - The `toml_to_string()` function returns `NULL` for strings that contain a zero byte.
 
