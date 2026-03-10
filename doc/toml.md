@@ -88,9 +88,9 @@ Functions:
 |-----------------------------------|---------------|---------------------------------------------------|
 | `parse_toml(string)`              | `TOML`        | `.type` is `TOMLType.Table` or `TOMLType.Error`   |
 | `toml_get(toml, key)`             | `TOML*`       | pointer into value in `toml` or NULL              |
-| `toml_to_int(toml, fallback)`     | `int`         | value in `toml` or the given `fallback`           |
-| `toml_to_int64(toml, fallback)`   | `int64`       | value in `toml` or the given `fallback`           |
-| `toml_to_double(toml)`            | `double`      | value in `toml` or NaN                            |
+| `toml_to_int(toml, fallback)`     | `int`         | number in `toml` or the given `fallback`          |
+| `toml_to_int64(toml, fallback)`   | `int64`       | number in `toml` or the given `fallback`          |
+| `toml_to_double(toml)`            | `double`      | number in `toml` or NaN                           |
 | `toml_to_string(toml)`            | `byte*`       | string in `toml` or NULL                          |
 | `toml_is_true(toml)`              | `bool`        | `True` if `toml` is a TOML `true`                 |
 | `toml_is_false(toml)`             | `bool`        | `True` if `toml` is a TOML `false`                |
@@ -106,7 +106,7 @@ Here's what that means:
 - You can parse TOML 1.0 and 1.1 files with `stdlib/toml.jou`.
     However, if `stdlib/toml.jou` successfully parses a TOML file,
     it doesn't mean that any other TOML parser can also parse it,
-    because many other TOML parsers still use TOML 1.0.
+    because many other TOML parsers are still limited to TOML 1.0.
 - TOML supports dates and times natively.
     For example, `vacation_day = 2026-03-10` is valid syntax in TOML.
     If you attempt to parse a TOML file contains a date or a time with Jou's TOML parser,
@@ -152,30 +152,51 @@ Parsing TOML with `stdlib/toml.jou` always goes something like this:
         and successfully parsing a TOML file always produces such a collection.
     - If `toml.type == TOMLType.Error`, it means that parsing failed.
         You can handle the error in whatever way you want,
-        perhaps using `.error_message` and `.lineno`.
+        perhaps using `toml.error_message` and `toml.lineno`.
+        Or you can call `toml.print()` to get it printed in a reasonable way.
     - Other members of the `TOMLType` [enum](enums.md) are not used for the returned `TOML` object.
 3. Access whatever you need from the `toml` object.
 4. Call `toml.free()` to free memory used in the TOML parsing.
     This is similar to [`free(list.ptr)` for lists](lists.md#what-does-freelistptr-do).
     You don't need to call `toml.free()` when parsing failed, but doing so is harmless.
 
-The rest of this documentation focuses on accessing what you need from the TOML object (step 3 above).
-
-At any point, if you are wondering what a `TOML` object contains,
-there's a `.print()` method that you can call:
+For example:
 
 ```python
 import "stdlib/toml.jou"
-import "stdlib/io.jou"
 
 def main() -> int:
-    toml = parse_toml("x = 123")
+    toml = parse_toml(some_string)
+    if toml.type == TOMLType.Error:
+        printf("TOML error on line %d: %s\n", toml.lineno, toml.error_message)
+        return 1
 
-    # Output: Table on line 1:
-    # Output:   x = Integer on line 1: 123
-    toml.print()
+    # TODO: use the toml object
 
     toml.free()
+    return 0
+```
+
+The rest of this documentation focuses on accessing what you need from the TOML object (step 3 above).
+
+At any point, if you are wondering what a `TOML` object contains,
+there's a `.print()` method that you can call on any `TOML` object:
+
+```python
+import "stdlib/toml.jou"
+
+def main() -> int:
+    # Output: Table on line 1:
+    # Output:   x = Integer on line 1: 123
+    toml = parse_toml("x = 123")
+    toml.print()
+    toml.free()
+
+    # Output: Error on line 1: missing value
+    toml = parse_toml("x = ")
+    toml.print()
+    toml.free()
+
     return 0
 ```
 
@@ -193,6 +214,9 @@ import "stdlib/io.jou"
 
 def main() -> int:
     toml = parse_toml("foo = 123")
+    if toml.type == TOMLType.Error:
+        toml.print()
+        return 1
 
     # Output: found foo
     foo = toml_get(&toml, "foo")
@@ -223,6 +247,9 @@ import "stdlib/io.jou"
 
 def main() -> int:
     toml = parse_toml("[foo.bar]\nthing = 123")
+    if toml.type == TOMLType.Error:
+        toml.print()
+        return 1
 
     foo_bar_thing = toml_get(toml_get(toml_get(&toml, "foo"), "bar"), "thing")
     if foo_bar_thing != NULL:
