@@ -229,6 +229,18 @@ class TOMLParser:
     def init_value(self, value_ptr: TOML*, type: TOMLType, depth: int) -> None:
         *value_ptr = TOML{type = type, depth = depth, lineno = self.lineno}
 
+    def check_depth(self, depth: int) -> bool:
+        assert depth <= MAX_DEPTH + 1  # If this fails, some intermediate value was not checked
+        if depth > MAX_DEPTH:
+            snprintf(
+                self.error,
+                sizeof(self.error),
+                "nesting more than %d levels deep is not supported",
+                MAX_DEPTH,
+            )
+            return False
+        return True
+
     def skip_comment(self) -> bool:
         assert *self.ptr == '#'
         while *self.ptr != '\0' and *self.ptr != '\n':
@@ -363,9 +375,7 @@ class TOMLParser:
             free(key)
             return NULL
 
-        assert target_table.depth <= MAX_DEPTH
-        if target_table.depth == MAX_DEPTH:
-            snprintf(self.error, sizeof(self.error), "nesting more than %d levels deep is not supported", MAX_DEPTH)
+        if not self.check_depth(target_table.depth + 1):
             free(key)
             return NULL
 
@@ -746,9 +756,7 @@ class TOMLParser:
                     self.error = "cannot redefine an existing value as an array"
                     return False
 
-            assert value_ptr.depth <= MAX_DEPTH
-            if value_ptr.depth == MAX_DEPTH:
-                snprintf(self.error, sizeof(self.error), "nesting more than %d levels deep is not supported", MAX_DEPTH)
+            if not self.check_depth(value_ptr.depth + 1):
                 return False
 
             item: TOML
@@ -801,10 +809,7 @@ class TOMLParser:
             return False
 
         while *self.ptr != ']':
-            assert depth_of_array <= MAX_DEPTH
-            if depth_of_array == MAX_DEPTH:
-                snprintf(self.error, sizeof(self.error), "nesting more than %d levels deep is not supported", MAX_DEPTH)
-                result.free()
+            if not self.check_depth(depth_of_array + 1):
                 return False
 
             value: TOML
