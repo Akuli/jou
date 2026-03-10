@@ -70,8 +70,6 @@ fi
 
 # Make sure that our file specifies an error messages for every file that is
 # supposed to fail with an error.
-#
-# The language version (-toml 1.1) is specified again below in this script.
 if ! diff -u --color=always <(./toml-test list -toml 1.1 | grep ^invalid) <(grep '^"' expected_errors.toml | cut -d'"' -f2); then
     echo ""
     echo -e "Error: ${RED}expected_errors.toml is not up to date.${RESET}"
@@ -107,10 +105,6 @@ toml_test_command=(
     -toml 1.1
 
     # When we say -skip below, we actually mean "make sure this fails".
-    #
-    # This doesn't work as well as you might hope, because a different error
-    # message than expected is enough to count as worthy of skip. But this is
-    # still probably better than nothing.
     -skip-must-err
 
     # These tests contain dates and times so they don't work. We don't support
