@@ -1,6 +1,6 @@
 # TOML Test Suite
 
-This directory contains scripts and configuration to test Jou's `stdlib/toml.jou`
+This directory contains everything needed to test Jou's `stdlib/toml.jou`
 with [the `toml-test` program](https://github.com/toml-lang/toml-test/).
 To get started, run:
 

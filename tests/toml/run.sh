@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-#
-# This file uses the official TOML test suite to verify that stdlib/toml.jou is
+# This script uses the official TOML test suite to verify that stdlib/toml.jou is
 # working correctly.
-#
-# TOML test suite: https://github.com/toml-lang/toml-test
 
 set -e -o pipefail
 
@@ -12,7 +9,7 @@ cd "$(dirname "$0")"
 RED="\x1b[31m"
 RESET="\x1b[0m"
 
-if [ "$(uname)" != "Linux" ] || [ "$(uname -m)" != "x86_64" ]; then
+if [ "$(uname -sm)" != "Linux x86_64" ]; then
     echo "Currently this script assumes Linux on x86_64." >&2
     exit 1
 fi
@@ -46,7 +43,7 @@ while [ $# != 0 ]; do
             usage
             ;;
         *)
-            if [ -n "$TEST_FILTER" ]; then
+            if [ -n "$test_filter" ]; then
                 usage
             fi
             test_filter="$1"

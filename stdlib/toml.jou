@@ -77,7 +77,7 @@ class TOML:
             case TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating | TOMLType.Error:
                 pass
 
-        # In case someone frees a part of a big TOML document... but why?
+        # In case someone frees a part of a big TOML document for whatever reason
         *self = TOML{}
 
     # For debugging
@@ -327,8 +327,7 @@ class TOMLParser:
         # Go to a part within an already chosen key
         match parent_value.type:
             case TOMLType.Error:
-                # TODO: what exactly should happen here?
-                # TODO: does this ever even run????
+                # Accessing foo.bar creates foo if it doesn't exist yet
                 parent_value.type = TOMLType.Table
                 parent_value.lineno = self.lineno
                 target_table = parent_value
@@ -396,9 +395,7 @@ class TOMLParser:
             case '"' | '\'':
                 self.init_value(result, TOMLType.String, depth)
                 result.string = self.parse_string(True, &result.string_len)
-                if result.string == NULL:
-                    return False
-                return True
+                return result.string != NULL
 
             case 't':
                 if starts_with(self.ptr, "true"):
@@ -475,9 +472,8 @@ class TOMLParser:
 
         if base == 10 and starts_with(self.ptr, "inf"):
             self.ptr = &self.ptr[3]
-            f = sign * INFINITY
             self.init_value(result, TOMLType.Floating, depth)
-            result.floating = f
+            result.floating = sign * INFINITY
             return True
 
         if base == 10 and starts_with(self.ptr, "nan"):
@@ -554,10 +550,8 @@ class TOMLParser:
         assert sign == 1 or sign == -1
         start_of_float = self.ptr
 
-        # Skip integer part (underscores already validated)
-        while *self.ptr == '_' or is_ascii_digit(*self.ptr):
-            self.ptr++
-
+        if not self.skip_float_integer_part():
+            return False
         assert *self.ptr == '.' or *self.ptr == 'E' or *self.ptr == 'e'
         if *self.ptr == '.':
             self.ptr++
@@ -581,9 +575,8 @@ class TOMLParser:
         while dest < self.ptr:
             *dest++ = ' '
 
-        f = sign * atof(start_of_float)
         self.init_value(result, TOMLType.Floating, depth)
-        result.floating = f
+        result.floating = sign * atof(start_of_float)
         return True
 
     def read_unicode_escape_in_string(self, prefix_char: byte, num_hex_digits: int, out: List[byte]*) -> bool:
