@@ -481,13 +481,12 @@ It is an error if a key (as opposed to a value) contains a zero byte:
 
 ```python
 import "stdlib/toml.jou"
-import "stdlib/io.jou"
 
 def main() -> int:
     toml = parse_toml("[stuff]\n\"weird\\x00key\" = 123")
     if toml.type == TOMLType.Error:
-        # Output: error on line 2: zero bytes in keys are not supported
-        printf("error on line %d: %s\n", toml.lineno, toml.error_message)
+        # Output: Error on line 2: zero bytes in keys are not supported
+        toml.print()
 
     toml.free()
     return 0
