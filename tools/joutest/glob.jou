@@ -150,7 +150,7 @@ def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
     # Wildcards can never match "." or "..", that creates confusing bugs.
     #
     # For example, "rm -rf .*" (don't try this as is!!!) removes the current
-    # working directory in some shellls, but preserves . and .. in others.
+    # working directory in some shells, but preserves . and .. in others.
     if strcspn(glob, "*") < strcspn(glob, "/") and (strcmp(name, ".") == 0 or strcmp(name, "..") == 0):
         return False
 
@@ -172,6 +172,7 @@ def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
                     return False
 
 
+@public
 def do_glob(glob: byte*, relative_to: byte*, out: List[byte*]*, depth_limit: int) -> None:
     if depth_limit < 0:
         return
@@ -186,6 +187,8 @@ def do_glob(glob: byte*, relative_to: byte*, out: List[byte*]*, depth_limit: int
         assert s != NULL
         out.append(s)
         return
+
+    assert glob_is_valid(glob)
 
     next_glob = &glob[strcspn(glob, "/")]
     if *next_glob == '/':

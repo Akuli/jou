@@ -1,40 +1,104 @@
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
 import "../../tools/joutest/glob.jou"
 
 
 def test_validating() -> None:
-    # Output: valid globs: 11111111111
-    printf("valid globs: ")
-    printf("%d", glob_is_valid("a"))
-    printf("%d", glob_is_valid("*.jou"))
-    printf("%d", glob_is_valid("README.md"))
-    printf("%d", glob_is_valid("foo/bar"))
-    printf("%d", glob_is_valid("**/*"))
-    printf("%d", glob_is_valid("*/**"))
-    printf("%d", glob_is_valid("**"))
-    printf("%d", glob_is_valid("*/*"))
-    printf("%d", glob_is_valid("*/*/*"))
-    printf("%d", glob_is_valid("src/**"))
-    printf("%d", glob_is_valid("src/**/*.jou"))
-    printf("\n")
+    assert glob_is_valid("a")
+    assert glob_is_valid("*.jou")
+    assert glob_is_valid("README.md")
+    assert glob_is_valid("foo/bar")
+    assert glob_is_valid("**/*")
+    assert glob_is_valid("*/**")
+    assert glob_is_valid("**")
+    assert glob_is_valid("*/*")
+    assert glob_is_valid("*/*/*")
+    assert glob_is_valid("src/**")
+    assert glob_is_valid("src/**/*.jou")
 
-    # Output: invalid globs: 000000000000
-    printf("invalid globs: ")
-    printf("%d", glob_is_valid(""))
-    printf("%d", glob_is_valid("**foo"))
-    printf("%d", glob_is_valid("foo**"))
-    printf("%d", glob_is_valid("foo/verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong/bar"))
-    printf("%d", glob_is_valid("foo//bar"))
-    printf("%d", glob_is_valid("foo/**/**/bar"))
-    printf("%d", glob_is_valid("foo/**/bar/**"))
-    printf("%d", glob_is_valid("**/**/bar"))
-    printf("%d", glob_is_valid("**/bar/**"))
-    printf("%d", glob_is_valid("**/bar/**baz"))
-    printf("%d", glob_is_valid("/usr/lib"))
-    printf("%d", glob_is_valid("some_folder/"))  # TODO: support this?
-    printf("\n")
+    assert not glob_is_valid("")
+    assert not glob_is_valid("**foo")
+    assert not glob_is_valid("foo**")
+    assert not glob_is_valid("foo/verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong_verylong/bar")
+    assert not glob_is_valid("foo//bar")
+    assert not glob_is_valid("foo/**/**/bar")
+    assert not glob_is_valid("foo/**/bar/**")
+    assert not glob_is_valid("**/**/bar")
+    assert not glob_is_valid("**/bar/**")
+    assert not glob_is_valid("**/bar/**baz")
+    assert not glob_is_valid("/usr/lib")
+    assert not glob_is_valid("some_folder/")  # TODO: support this?
+
+
+def glob_and_check(glob: byte*, path: byte*) -> bool:
+    glob_result = List[byte*]{}
+    do_glob(glob, ".", &glob_result, 10)
+
+    found = False
+    for p = glob_result.ptr; p < glob_result.end(); p++:
+        if strcmp(*p, path) == 0:
+            found = True
+        free(*p)
+    free(glob_result.ptr)
+
+    return found
+
+
+def test_globbing() -> None:
+    assert glob_and_check("README.md", "README.md")
+    assert glob_and_check("*.md", "README.md")
+    assert glob_and_check("*", "README.md")
+    assert glob_and_check("examples/*o*", "examples/hello.jou")
+    assert glob_and_check("tests/*/*.txt", "tests/data/hellohellohello.txt")
+    assert glob_and_check("t*e*s*t*s/*a/hell*he*ohel*.*x*", "tests/data/hellohellohello.txt")
+
+    # '*' does not recurse
+    assert not glob_and_check("tests/*", "tests")
+    assert glob_and_check("tests/*", "tests/data")
+    assert not glob_and_check("tests/*", "tests/data/file.jou")
+
+    # '**' matches 0 or more components
+    assert glob_and_check("tests/**", "tests")
+    assert glob_and_check("tests/**", "tests/data")
+    assert glob_and_check("tests/**", "tests/data/hellohellohello.txt")
+    assert glob_and_check("tests/**/data", "tests/data")
+    assert glob_and_check("tests/**/hellohellohello.txt", "tests/data/hellohellohello.txt")
+    assert glob_and_check("tests/**/file3.txt", "tests/data/folder_2files_1dir/subdir/file3.txt")
+
+    # Hidden file is not matched unless glob starts with dot
+    assert not glob_and_check("*", ".gitignore")
+    assert not glob_and_check("*git*", ".gitignore")
+    assert glob_and_check(".git*", ".gitignore")
+    assert glob_and_check(".*git*", ".gitignore")
+
+    # The . and .. entries can be matched, but only if specified exactly
+    assert glob_and_check("./*.md", "README.md")
+    assert glob_and_check("tests/.././*.md", "tests/.././README.md")
+
+    assert not glob_and_check(".*", ".")
+    assert not glob_and_check(".*", "..")
+    assert not glob_and_check("tests/.*", "tests/.")
+    assert not glob_and_check("tests/.*", "tests/..")
+
+    assert glob_and_check(".", ".")
+    assert glob_and_check("..", "..")
+    assert glob_and_check("tests/.", "tests/.")
+    assert glob_and_check("tests/..", "tests/..")
+
+    # . and .. are not interchangeable in any way.
+    # Potential bug if both are handled with the same special-casing.
+    assert not glob_and_check(".", "..")
+    assert not glob_and_check("..", ".")
+    assert not glob_and_check("tests/.", "tests/..")
+    assert not glob_and_check("tests/..", "tests/.")
 
 
 def main() -> int:
     test_validating()
+    test_globbing()
+
+    puts("ok")  # Output: ok
     return 0
