@@ -74,8 +74,8 @@ def do_glob(glob: byte*, relative_to: byte*, out: List[byte*]*, depth_limit: int
     if *next_glob == '/':
         next_glob++
 
+    # Double star can be removed at any point
     if starts_with(glob, "**"):
-        # Double star can be removed at any point
         do_glob(next_glob, relative_to, out, depth_limit)
 
     # Wildcards can never match "." or "..", that creates confusing bugs.
