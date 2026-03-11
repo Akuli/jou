@@ -3,15 +3,15 @@
 This file documents `stdlib/fs.jou`.
 
 
-## Iterating contents of a directory
+## Iterating the contents of a directory
 
 TL;DR:
 
 ```python
 iter = DirIter{dir = "path/to/some/directory"}
 while iter.next():
-    do_something(iter.path)  # path/to/some/directory/file.txt
-    do_something(iter.name)  # file.txt
+    printf("%s\n", iter.path)  # path/to/some/directory/file.txt
+    printf("%s\n", iter.name)  # file.txt
 
 if iter.error_code != 0:
     printf("Error: %s\n", iter.error_message)
@@ -28,10 +28,11 @@ You can set the following fields:
     if you want to get the special `.` and `..` entries when iterating the directory.
     They are skipped by default.
 
-As you can see, `iter.next()` should be called repeatedly.
+You should call `iter.next()` repeatedly until it returns `False`.
 Return value `True` means that a file or subdirectory was found,
 and `iter.path` and `iter.name` were updated accordingly.
 Return value `False` means that either an error occurred or the end of the directory was reached.
+If `.next()` has already returned `False`, calling `.next()` again returns `False` without doing anything.
 
 The memory used for iterating is freed when `.next()` returns `False`.
 This means that you don't need any cleanup,
@@ -43,19 +44,19 @@ if you want to stop the iterating early.
 After calling `.next()`, you can use the following fields:
 - `path: byte*` is the path to the file or subdirectory inside the given `dir`.
     It consists of `dir`, a slash if `dir` does not already end with a slash, and a file or subdirectory name.
-    This is only valid until the following call to `.next()`,
-    so if you want to use the string in `iter.path` after the following call to `.next()`,
+    The string in `iter.path` is only valid until the following call to `.next()`,
+    so if you want to use the string after the following call to `.next()`,
     you need to make a copy of the string.
     This field is `NULL` if `iter.next()` returned `False`.
 - `name: byte*` is the file or subdirectory name without the rest of the path.
-    This field is `NULL` if `iter.next()` returned `False`.
     Similarly to `iter.path`, this is only valid until the following call to `.next()`
     and you may need to make a copy.
+    This field is `NULL` if `iter.next()` returned `False`.
 - `error_code: int` is nonzero if `iter.next()` returned `False` due to an error,
     and zero if no error has occured.
     This is [a Windows API error number](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-) on Windows
     and an [errno value](../stdlib/errno.jou) on other systems.
-- `error_message: byte[512]` is a human-readable error message generated from the error code,
+- `error_message: byte[512]` is a human-readable error message,
     or an empty string if no error has occured.
 
 The iteration order is whatever the operating system and file system happen to produce,
