@@ -33,7 +33,7 @@ if you want to stop the iterating early.
 
 The iteration order is whatever the operating system and file system happen to produce,
 and you shouldn't rely on it.
-For example, you can [sort the strings](sorting.md#sorting-strings) you get:
+For example, you can [sort the strings](sorting.md#sorting-strings):
 
 ```python
 import "stdlib/fs.jou"
