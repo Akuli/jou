@@ -15,6 +15,16 @@ if WINDOWS:
 else:
     declare chdir(path: byte*) -> int
 
+# TODO: add some kind of mkdir to standard library
+if WINDOWS:
+    declare _mkdir(path: byte*) -> int
+    def my_mkdir(path: byte*) -> None:
+        _mkdir(path)
+else:
+    declare mkdir(path: byte*, mode: int) -> int  # posix
+    def my_mkdir(path: byte*) -> None:
+        mkdir(path, 0o777)
+
 
 def test_dir_iter_basic() -> None:
     result = List[byte*]{}
@@ -131,8 +141,8 @@ def test_dir_iter_corner_cases() -> None:
             assert starts_with(iter.path, "tests/data/folder_2files_1dir\\")
         else:
             assert starts_with(iter.path, "tests/data/folder_2files_1dir/")
-    printf("%d\n", n)  # Output: 3
-    assert iter.error_code == 0
+    printf("contains %d things\n", n)  # Output: contains 3 things
+    printf("%d\n", iter.error_code)  # Output: 0
 
     # Not adding slash if not needed
     iter = DirIter{dir = "tests/data/folder_2files_1dir/"}
@@ -141,23 +151,23 @@ def test_dir_iter_corner_cases() -> None:
         n++
         assert strstr(iter.path, "//") == NULL  # no double slashes
         assert strstr(iter.path, "\\") == NULL  # no backslash added on Windows
-    printf("%d\n", n)  # Output: 3
-    assert iter.error_code == 0
+    printf("contains %d things\n", n)  # Output: contains 3 things
+    printf("%d\n", iter.error_code)  # Output: 0
 
     puts("Empty string")  # Output: Empty string
     iter = DirIter{dir = ""}
     assert not iter.next()
-    assert not iter.next()
-    assert not iter.next()
     # TODO: This behavior is weird. It might be better to fail with an error predictably.
-    assert iter.error_code == 0
+    printf("%d\n", iter.error_code)  # Output: 0
+    assert not iter.next()
+    printf("%d\n", iter.error_code)  # Output: 0
 
     puts("No dir given")  # Output: No dir given
     iter = DirIter{}
     assert not iter.next()
+    printf("%d\n", iter.error_code)  # Output: 0
     assert not iter.next()
-    assert not iter.next()
-    assert iter.error_code == 0
+    printf("%d\n", iter.error_code)  # Output: 0
 
     puts("File instead of dir")  # Output: File instead of dir
     iter = DirIter{dir = "README.md"}
@@ -178,6 +188,16 @@ def test_dir_iter_corner_cases() -> None:
         printf("%d\n", iter.error_code)
     assert iter.error_code == 2
     assert strlen(iter.error_message) >= 10  # exact message depends on system
+
+    puts("Empty directory")  # Output: Empty directory
+    my_mkdir("tmp")
+    my_mkdir("tmp/tests")
+    my_mkdir("tmp/tests/empty_dir")
+    iter = DirIter{dir = "tmp/tests/empty_dir"}
+    assert not iter.next()
+    printf("%d\n", iter.error_code)  # Output: 0
+    assert not iter.next()
+    printf("%d\n", iter.error_code)  # Output: 0
 
 
 def main() -> int:

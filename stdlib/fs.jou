@@ -27,7 +27,7 @@ if WINDOWS:
     const INVALID_HANDLE_VALUE: int64 = -1
 
     declare GetLastError() -> uint32
-    const ERROR_FILE_NOT_FOUND: uint32 = 2
+    const ERROR_NO_MORE_FILES: uint32 = 18
 
     declare FormatMessageA(
         dwFlags: uint32,
@@ -182,10 +182,14 @@ class DirIter:
                 found = (FindNextFileA(self.handle, &find_data) != 0)
 
             self.error_code = GetLastError() as int
-            FormatMessageA(
-                FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message) as uint32, NULL,
-            )
+            if self.error_code == ERROR_NO_MORE_FILES:
+                # We reached the end of the directory successfully.
+                self.error_code = 0
+            else:
+                FormatMessageA(
+                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                    NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message) as uint32, NULL,
+                )
 
             # End of directory, or error occurred. User can check
             # GetLastError if that is really needed.
