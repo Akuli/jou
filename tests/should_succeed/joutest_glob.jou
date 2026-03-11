@@ -29,7 +29,14 @@ def test_validating() -> None:
     assert not glob_is_valid("**/bar/**")
     assert not glob_is_valid("**/bar/**baz")
     assert not glob_is_valid("/usr/lib")
-    assert not glob_is_valid("some_folder/")  # TODO: support this?
+
+    # Common glob features that are currently not supported
+    assert not glob_is_valid("some_folder/")
+    assert not glob_is_valid("foo\\bar")
+    assert not glob_is_valid("foo[1-3]")
+    assert not glob_is_valid("{foo,bar}")
+
+    puts("validating ok")  # Output: validating ok
 
 
 def glob_and_check(glob: byte*, path: byte*) -> bool:
@@ -46,7 +53,7 @@ def glob_and_check(glob: byte*, path: byte*) -> bool:
     return found
 
 
-def test_globbing() -> None:
+def test_basic() -> None:
     assert glob_and_check("README.md", "README.md")
     assert glob_and_check("*.md", "README.md")
     assert glob_and_check("*", "README.md")
@@ -59,6 +66,16 @@ def test_globbing() -> None:
     assert glob_and_check("tests/*", "tests/data")
     assert not glob_and_check("tests/*", "tests/data/file.jou")
 
+    # Hidden file is not matched unless glob starts with dot
+    assert not glob_and_check("*", ".gitignore")
+    assert not glob_and_check("*git*", ".gitignore")
+    assert glob_and_check(".git*", ".gitignore")
+    assert glob_and_check(".*git*", ".gitignore")
+
+    puts("basic globbing ok")  # Output: basic globbing ok
+
+
+def test_double_star() -> None:
     # '**' matches 0 or more components
     assert glob_and_check("tests/**", "tests")
     assert glob_and_check("tests/**", "tests/data")
@@ -66,13 +83,13 @@ def test_globbing() -> None:
     assert glob_and_check("tests/**/data", "tests/data")
     assert glob_and_check("tests/**/hellohellohello.txt", "tests/data/hellohellohello.txt")
     assert glob_and_check("tests/**/file3.txt", "tests/data/folder_2files_1dir/subdir/file3.txt")
+    assert not glob_and_check("tests/data/**", "tests")
+    assert not glob_and_check("tests/data/**", "tests/data/..")
 
-    # Hidden file is not matched unless glob starts with dot
-    assert not glob_and_check("*", ".gitignore")
-    assert not glob_and_check("*git*", ".gitignore")
-    assert glob_and_check(".git*", ".gitignore")
-    assert glob_and_check(".*git*", ".gitignore")
+    puts("double star ok")  # Output: double star ok
 
+
+def test_dot_and_dotdot() -> None:
     # The . and .. entries can be matched, but only if specified exactly
     assert glob_and_check("./*.md", "README.md")
     assert glob_and_check("tests/.././*.md", "tests/.././README.md")
@@ -94,10 +111,12 @@ def test_globbing() -> None:
     assert not glob_and_check("tests/.", "tests/..")
     assert not glob_and_check("tests/..", "tests/.")
 
+    puts("dot and dotdot ok")  # Output: dot and dotdot ok
+
 
 def main() -> int:
     test_validating()
-    test_globbing()
-
-    puts("ok")  # Output: ok
+    test_basic()
+    test_double_star()
+    test_dot_and_dotdot()
     return 0

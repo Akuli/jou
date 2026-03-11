@@ -6,8 +6,8 @@ import "stdlib/str.jou"
 
 @public
 def glob_is_valid(glob: byte*) -> bool:
-    # Backslashes not allowed
-    if strchr(glob, '\\') != NULL:
+    # Disallow anything that isn't supported properly
+    if strcspn(glob, "\\?[]{}") != strlen(glob):
         return False
 
     got_double_star = False
@@ -34,13 +34,6 @@ def glob_is_valid(glob: byte*) -> bool:
 
 # Example: "foo_*_bar/whatever", "foo_thing_bar" --> True
 def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
-    # Wildcards can never match "." or "..", that creates confusing bugs.
-    #
-    # For example, "rm -rf .*" (don't try this as is!!!) removes the current
-    # working directory in some shells, but preserves . and .. in others.
-    if strcspn(glob, "*") < strcspn(glob, "/") and (strcmp(name, ".") == 0 or strcmp(name, "..") == 0):
-        return False
-
     while True:
         match *glob:
             case '\0' | '/':
@@ -85,21 +78,22 @@ def do_glob(glob: byte*, relative_to: byte*, out: List[byte*]*, depth_limit: int
         # Double star can be removed at any point
         do_glob(next_glob, relative_to, out, depth_limit)
 
-    iter = DirIter{dir = relative_to, include_dot_and_dotdot = True}
-    while iter.next():
-        path = iter.path
-        name = strrchr(iter.path, '/')
-        assert name != NULL
-        name++
+    # Wildcards can never match "." or "..", that creates confusing bugs.
+    # For example, "rm -rf .*" (don't try this as is!!!) removes the current
+    # working directory in some shells, but preserves . and .. in others.
+    first_component_has_wildcard = (strcspn(glob, "*") < strcspn(glob, "/"))
+    iter = DirIter{dir = relative_to, include_dot_and_dotdot = not first_component_has_wildcard}
 
+    while iter.next():
         # Don't recurse into ".", ".." or ".hidden_file" unless requested explicitly
-        if name[0] == '.' and glob[0] != '.':
+        if iter.name[0] == '.' and glob[0] != '.':
             continue
 
         if starts_with(glob, "**"):
             # Double star means we can recurse inside basically anything
-            do_glob(glob, path, out, depth_limit - 1)
-        else:
-            # Filter with first glob component, recurse with the rest
-            if first_glob_component_matches(glob, name):
-                do_glob(next_glob, path, out, depth_limit - 1)
+            do_glob(glob, iter.path, out, depth_limit - 1)
+            continue
+
+        # Filter with first glob component, recurse with the rest.
+        if first_glob_component_matches(glob, iter.name):
+            do_glob(next_glob, iter.path, out, depth_limit - 1)
