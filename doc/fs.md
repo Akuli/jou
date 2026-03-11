@@ -53,11 +53,11 @@ After calling `.next()`, you can use the following fields:
     and you may need to make a copy.
     This field is `NULL` if `iter.next()` returned `False`.
 - `error_code: int` is nonzero if `iter.next()` returned `False` due to an error,
-    and zero if no error has occured.
+    and zero if no error has occurred.
     This is [a Windows API error number](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-) on Windows
     and an [errno value](../stdlib/errno.jou) on other systems.
 - `error_message: byte[512]` is a human-readable error message,
-    or an empty string if no error has occured.
+    or an empty string if no error has occurred.
 
 The iteration order is whatever the operating system and file system happen to produce,
 and you shouldn't rely on it.
