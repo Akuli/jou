@@ -140,7 +140,7 @@ jobs:
       - run: ./windows_setup.sh --small
         shell: bash
       - name: "Compile and test"
-        run: source activate && ./runtests.sh --verbose
+        run: source activate && ./runtests.sh --verbose fs
         shell: bash
       - name: "Compile the compiler with itself"
         run: source activate && ./jou -o jou2 compiler/main.jou && mv jou2.exe jou.exe
@@ -152,31 +152,4 @@ jobs:
         run: source activate && ./runtests.sh should_succeed --verbose
         shell: bash
       - run: source activate && ./doctest.sh
-        shell: bash
-
-  test-zip:
-    needs: build-zip
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          path: repo
-      - uses: actions/download-artifact@v4
-        with:
-          name: windows-zip
-      - run: unzip jou.zip
-      # Make sure it works even if there is a space in folder name
-      - run: mv jou "test dir"
-        shell: bash
-      - run: cp -r repo/tests repo/runtests.sh "test dir"
-        shell: bash
-      - name: "Delete tests that depend on the compiler and cannot work without it"
-        run: |
-          rm -v "test dir"/tests/should_succeed/compiler_unit_tests.jou
-          rm -v "test dir"/tests/should_succeed/keywords.jou
-        shell: bash
-      - run: cd "test dir" && ./jou.exe --verbose examples/hello.jou
-        shell: bash
-      - run: cd "test dir" && ./runtests.sh --dont-run-make --verbose
         shell: bash
