@@ -184,7 +184,7 @@ class DirIter:
             self.error_code = GetLastError() as int
             FormatMessageA(
                 FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message), NULL,
+                NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message) as uint32, NULL,
             )
 
             # End of directory, or error occurred. User can check
