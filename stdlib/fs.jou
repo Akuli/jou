@@ -1,0 +1,232 @@
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+if WINDOWS:
+    import "stdlib/assert.jou"
+
+    # TODO: This should really use W functions, not A functions.
+    #       But then we would need a way to convert between byte* and uint16*.
+    #       I have an idea for that (WTF-8) but I haven't implemented it yet.
+    #       The rest of the standard library will need changes too.
+    class WIN32_FIND_DATAA:
+        dwFileAttributes: uint32
+        ftCreationTime: uint32[2]
+        ftLastAccessTime: uint32[2]
+        ftLastWriteTime: uint32[2]
+        nFileSizeHigh: uint32
+        nFileSizeLow: uint32
+        dwReserved0: uint32
+        dwReserved1: uint32
+        cFileName: byte[260]  # TODO: this can be quite limiting
+        cAlternateFileName: byte[14]
+
+    declare FindFirstFileA(FileName: byte*, FindFileData: WIN32_FIND_DATAA*) -> int64
+    declare FindNextFileA(hFindFile: int64, FindFileData: WIN32_FIND_DATAA*) -> int
+    declare FindClose(hFindFile: int64) -> int
+    const INVALID_HANDLE_VALUE: int64 = -1
+
+    declare GetLastError() -> uint32
+    const ERROR_PATH_NOT_FOUND: uint32 = 3
+    const ERROR_NO_MORE_FILES: uint32 = 18
+
+    declare FormatMessageA(
+        dwFlags: uint32,
+        lpSource: void*,
+        dwMessageId: uint32,
+        dwLanguageId: uint32,
+        lpBuffer: byte*,
+        nSize: uint32,
+        Arguments: void*,  # actually va_list*
+    ) -> uint32
+    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
+    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
+
+else:
+    import "stdlib/errno.jou"
+    import "stdlib/intnative.jou"
+
+    if LINUX:
+        # There are two versions of strerror_r(), and the one actually named
+        # strerror_r() is the wrong one.
+        declare __xpg_strerror_r(errnum: int, buf: byte*, buflen: intnative) -> int
+        def strerror_r(errnum: int, buf: byte*, buflen: intnative) -> int:
+            return __xpg_strerror_r(errnum, buf, buflen)
+    else:
+        declare strerror_r(errnum: int, buf: byte*, buflen: intnative) -> int
+
+    class DIR:
+        pass
+
+    if LINUX:
+        class dirent:
+            d_ino: uint64
+            d_off: int64
+            d_reclen: uint16
+            d_type: byte
+            d_name: byte[256]
+    elif MACOS:
+        # This struct definition was a bit painful to find. One way to find it
+        # is to run C preprocessor on '#include <dirent.h>' in GitHub Actions.
+        assert not IS_32BIT
+        class dirent:
+            d_ino: uint64
+            d_seekoff: uint64
+            d_reclen: uint16
+            d_namlen: uint16
+            d_type: byte
+            d_name: byte[1024]
+    elif NETBSD:
+        class dirent:
+            d_fileno: uint64
+            d_reclen: uint16
+            d_namlen: uint16
+            d_type: byte
+            d_name: byte[512]
+    else:
+        assert False  # unsupported system
+
+    if NETBSD:
+        # On NetBSD, "opendir" and "readdir" are legacy functions.
+        # We can't use them because they generate a linker warning.
+        # The dirent.h header magically renames them at compile time to the following names.
+        declare __opendir30(name: byte*) -> DIR*
+        declare __readdir30(dirp: DIR*) -> dirent*
+        def opendir(name: byte*) -> DIR*:
+            return __opendir30(name)
+        def readdir(dirp: DIR*) -> dirent*:
+            return __readdir30(dirp)
+    else:
+        declare opendir(name: byte*) -> DIR*
+        declare readdir(dirp: DIR*) -> dirent*
+
+    declare closedir(dirp: DIR*) -> int
+
+
+# Iterating directory contents
+@public
+class DirIter:
+    # Inputs given by user
+    dir: byte*
+    include_dot_and_dotdot: bool
+
+    # Output
+    path: byte*
+    name: byte*
+
+    error_code: int  # errno or GetLastError
+    error_message: byte[512]
+
+    # Internal state
+    path_list: List[byte]
+    if WINDOWS:
+        handle: int64
+    else:
+        dir_ptr: DIR*
+
+    def set_name(self, name: byte*) -> bool:
+        if (not self.include_dot_and_dotdot) and (strcmp(name, ".") == 0 or strcmp(name, "..") == 0):
+            return False
+
+        self.path_list.len = 0
+        self.path_list.extend_from_ptr(self.dir, strlen(self.dir))
+
+        if WINDOWS:
+            if not (ends_with(self.dir, "/") or ends_with(self.dir, "\\")):
+                self.path_list.append('\\')
+        else:
+            if not ends_with(self.dir, "/"):
+                self.path_list.append('/')
+
+        name_start_index = self.path_list.len
+        self.path_list.extend_from_ptr(name, strlen(name))
+        self.path_list.append('\0')
+
+        self.path = self.path_list.ptr
+        self.name = &self.path[name_start_index]
+        return True
+
+    @public
+    def next(self) -> bool:
+        if self.dir == NULL:
+            return False
+
+        if WINDOWS:
+            if self.dir[0] == '\0':
+                # "\\*" would search the root of the current drive. Let's not do that.
+                self.error_code = ERROR_PATH_NOT_FOUND as int
+                FormatMessageA(
+                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                    NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message) as uint32, NULL,
+                )
+                return False
+
+            # Jou initializes everything to zero, but INVALID_HANDLE_VALUE is
+            # more appropriate for this. Windows never uses zero as a find
+            # handle value, so this is fine.
+            if self.handle == 0:
+                self.handle = INVALID_HANDLE_VALUE
+
+            find_data: WIN32_FIND_DATAA
+            if self.handle == INVALID_HANDLE_VALUE:
+                # First file
+                pattern: byte* = NULL
+                asprintf(&pattern, "%s\\*", self.dir)
+                assert pattern != NULL
+
+                self.handle = FindFirstFileA(pattern, &find_data)
+                free(pattern)
+                found = (self.handle != INVALID_HANDLE_VALUE)
+            else:
+                # Not first file
+                found = (FindNextFileA(self.handle, &find_data) != 0)
+
+            while found:
+                if self.set_name(find_data.cFileName):
+                    return True
+                found = (FindNextFileA(self.handle, &find_data) != 0)
+
+            e = GetLastError() as int
+
+            free(self.path_list.ptr)
+            if self.handle != INVALID_HANDLE_VALUE:
+                FindClose(self.handle)
+            *self = DirIter{}
+
+            if e != ERROR_NO_MORE_FILES:
+                # It failed
+                self.error_code = e
+                FormatMessageA(
+                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                    NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message) as uint32, NULL,
+                )
+
+            return False
+
+        else:
+            if self.dir_ptr == NULL:
+                # This is the first time this is called
+                self.dir_ptr = opendir(self.dir)
+                if self.dir_ptr == NULL:
+                    # It failed
+                    *self = DirIter{error_code = get_errno()}
+                    strerror_r(self.error_code, self.error_message, sizeof(self.error_message))
+                    return False
+
+            while True:
+                set_errno(0)
+                entry = readdir(self.dir_ptr)
+                if entry == NULL:
+                    # End of directory, or error reading directory
+                    e = get_errno()
+                    free(self.path_list.ptr)
+                    closedir(self.dir_ptr)
+                    *self = DirIter{}
+                    if e != 0:
+                        # It failed
+                        self.error_code = e
+                        strerror_r(e, self.error_message, sizeof(self.error_message))
+                    return False
+
+                if self.set_name(entry.d_name):
+                    return True
