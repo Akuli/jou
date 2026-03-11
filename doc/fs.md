@@ -71,7 +71,7 @@ When you create a `DirIter`, you can set the following fields of `DirIter`:
     They are skipped by default.
 
 
-## Notes about paths
+## Windows support
 
 On Windows, not all paths work as expected,
 but if your paths are reasonably short and they only contain ASCII characters,
