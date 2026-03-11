@@ -1,7 +1,12 @@
 import "stdlib/assert.jou"
 import "stdlib/fs.jou"
+import "stdlib/intnative.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+
+
+# This was in stdlib/str.jou, but I removed it because I used it so rarely
+declare strncmp(s1: byte*, s2: byte*, n: intnative) -> int
 
 
 @public
@@ -32,66 +37,39 @@ def glob_is_valid(glob: byte*) -> bool:
         glob++
 
 
+# Compares the first "/" separated component of glob to the entire name.
 # Example: "foo_*_bar/whatever", "foo_thing_bar" --> True
-# TODO: this is vibe-coded
 def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
-    star_glob: byte* = NULL
-    star_name: byte* = NULL
+    # Skip initial segment of regular characters
+    while *glob != '\0' and *glob != '/' and *glob != '*':
+        if *glob++ != *name++:
+            return False
+
+    if *glob != '*':
+        # regular characters only
+        return *name == '\0'
 
     while True:
-        match *glob:
-            case '\0' | '/':
-                # End of glob component: if name also ended, success.
-                if *name == '\0':
-                    return True
+        assert *glob == '*'
+        glob++
 
-                # Otherwise, if we have a previous '*', let it consume one more char
-                if star_glob != NULL:
-                    # If star_name already points at '\0', we cannot advance it further
-                    if *star_name == '\0':
-                        return False
-                    star_name++
-                    name = star_name
-                    glob = star_glob
-                    continue
+        segment_len = strcspn(glob, "*/")
+        if glob[segment_len] != '*':
+            # This is the last segment.
+            consumed_by_star = strlen(name) - segment_len
+            return consumed_by_star >= 0 and starts_with(glob, &name[consumed_by_star])
 
+        # Handle the segment between two stars. We always take the first place
+        # where the segment occurs as a substring. For example:
+        #
+        #   glob = "foo*ba*.txt"
+        #   name = "foo_bar_baz.txt"
+        #           ^^^ ^^     ^^^^
+        while strncmp(name, glob, segment_len) != 0:
+            if *name++ == '\0':
                 return False
-
-            case '*':
-                # Record position after '*' for backtracking and current name pos
-                glob++
-                star_glob = glob
-                star_name = name
-                continue
-
-            case _:
-                # If name ended, try to backtrack to a previous '*'
-                if *name == '\0':
-                    if star_glob != NULL:
-                        if *star_name == '\0':
-                            return False
-                        star_name++
-                        name = star_name
-                        glob = star_glob
-                        continue
-                    return False
-
-                # Normal character match
-                if *glob == *name:
-                    glob++
-                    name++
-                    continue
-
-                # Mismatch: backtrack to last '*' if present
-                if star_glob != NULL:
-                    if *star_name == '\0':
-                        return False
-                    star_name++
-                    name = star_name
-                    glob = star_glob
-                    continue
-
-                return False
+        name = &name[segment_len]
+        glob = &glob[segment_len]
 
 
 @public
