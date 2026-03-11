@@ -208,8 +208,8 @@ class DirIter:
                 # This is the first time this is called
                 self.dir_ptr = opendir(self.dir)
                 if self.dir_ptr == NULL:
-                    # failed
-                    self.error_code = get_errno()
+                    # It failed
+                    *self = DirIter{error_code = get_errno()}
                     strerror_r(self.error_code, self.error_message, sizeof(self.error_message))
                     return False
 
@@ -221,11 +221,11 @@ class DirIter:
                     e = get_errno()
                     free(self.path_list.ptr)
                     closedir(self.dir_ptr)
-                    *self = DirIter{error_code = e}
-
-                    if self.error_code != 0:
-                        # error reading directory
-                        strerror_r(self.error_code, self.error_message, sizeof(self.error_message))
+                    *self = DirIter{}
+                    if e != 0:
+                        # It failed
+                        self.error_code = e
+                        strerror_r(e, self.error_message, sizeof(self.error_message))
                     return False
 
                 if self.set_name(entry.d_name):
