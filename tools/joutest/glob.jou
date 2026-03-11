@@ -33,23 +33,65 @@ def glob_is_valid(glob: byte*) -> bool:
 
 
 # Example: "foo_*_bar/whatever", "foo_thing_bar" --> True
+# TODO: this is vibe-coded
 def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
+    star_glob: byte* = NULL
+    star_name: byte* = NULL
+
     while True:
         match *glob:
             case '\0' | '/':
-                # End of first glob component, is it the end of name as well?
-                return *name == '\0'
-            case '*':
-                # Try to match the rest of the name anywhere recursively
-                glob++
-                for p = &name[strlen(name)]; p >= name; p--:
-                    if first_glob_component_matches(glob, p):
-                        return True
+                # End of glob component: if name also ended, success.
+                if *name == '\0':
+                    return True
+
+                # Otherwise, if we have a previous '*', let it consume one more char
+                if star_glob != NULL:
+                    # If star_name already points at '\0', we cannot advance it further
+                    if *star_name == '\0':
+                        return False
+                    star_name++
+                    name = star_name
+                    glob = star_glob
+                    continue
+
                 return False
+
+            case '*':
+                # Record position after '*' for backtracking and current name pos
+                glob++
+                star_glob = glob
+                star_name = name
+                continue
+
             case _:
-                # Plain old character
-                if *glob++ != *name++:
+                # If name ended, try to backtrack to a previous '*'
+                if *name == '\0':
+                    if star_glob != NULL:
+                        if *star_name == '\0':
+                            return False
+                        star_name++
+                        name = star_name
+                        glob = star_glob
+                        continue
                     return False
+
+                # Normal character match
+                if *glob == *name:
+                    glob++
+                    name++
+                    continue
+
+                # Mismatch: backtrack to last '*' if present
+                if star_glob != NULL:
+                    if *star_name == '\0':
+                        return False
+                    star_name++
+                    name = star_name
+                    glob = star_glob
+                    continue
+
+                return False
 
 
 @public
