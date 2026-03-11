@@ -27,6 +27,7 @@ if WINDOWS:
     const INVALID_HANDLE_VALUE: int64 = -1
 
     declare GetLastError() -> uint32
+    const ERROR_PATH_NOT_FOUND: uint32 = 3
     const ERROR_NO_MORE_FILES: uint32 = 18
 
     declare FormatMessageA(
@@ -149,13 +150,16 @@ class DirIter:
         if self.dir == NULL:
             return False
 
-        if self.dir[0] == '\0':
-            # TODO: This behavior is weird. It might be better to set an error
-            #       message. That would still require special-casing on Windows,
-            #       because "\\*" searhes the root of the current drive.
-            return False
-
         if WINDOWS:
+            if self.dir[0] == '\0':
+                # "\\*" would search the root of the current drive. Let's not do that.
+                self.error_code = ERROR_PATH_NOT_FOUND as int
+                FormatMessageA(
+                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                    NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message) as uint32, NULL,
+                )
+                return False
+
             # Jou initializes everything to zero, but INVALID_HANDLE_VALUE is
             # more appropriate for this. Windows never uses zero as a find
             # handle value, so this is fine.

@@ -154,13 +154,24 @@ def test_dir_iter_corner_cases() -> None:
     printf("contains %d things\n", n)  # Output: contains 3 things
     printf("%d\n", iter.error_code)  # Output: 0
 
+    puts("Does not exist")  # Output: Does not exist
+    iter = DirIter{dir = "does_not_exist"}
+    assert not iter.next()
+    assert iter.error_code == (3 if WINDOWS else 2)
+    assert strlen(iter.error_message) >= 10  # exact message depends on system
+    assert not iter.next()
+    assert iter.error_code == (3 if WINDOWS else 2)
+    assert strlen(iter.error_message) >= 10  # exact message depends on system
+
     puts("Empty string")  # Output: Empty string
+    # Same behavior as if dir doesn't exist
     iter = DirIter{dir = ""}
-    # TODO: This behavior is weird. It might be better to fail with an error predictably.
     assert not iter.next()
-    printf("%d\n", iter.error_code)  # Output: 0
+    assert iter.error_code == (3 if WINDOWS else 2)
+    assert strlen(iter.error_message) >= 10  # exact message depends on system
     assert not iter.next()
-    printf("%d\n", iter.error_code)  # Output: 0
+    assert iter.error_code == (3 if WINDOWS else 2)
+    assert strlen(iter.error_message) >= 10  # exact message depends on system
 
     puts("Empty directory")  # Output: Empty directory
     my_mkdir("tmp")
@@ -186,15 +197,6 @@ def test_dir_iter_corner_cases() -> None:
     assert strlen(iter.error_message) >= 10  # exact message depends on system
     assert not iter.next()
     assert iter.error_code == (267 if WINDOWS else 20)
-    assert strlen(iter.error_message) >= 10  # exact message depends on system
-
-    puts("Does not exist")  # Output: Does not exist
-    iter = DirIter{dir = "does_not_exist"}
-    assert not iter.next()
-    assert iter.error_code == (3 if WINDOWS else 2)
-    assert strlen(iter.error_message) >= 10  # exact message depends on system
-    assert not iter.next()
-    assert iter.error_code == (3 if WINDOWS else 2)
     assert strlen(iter.error_message) >= 10  # exact message depends on system
 
 
