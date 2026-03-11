@@ -131,7 +131,7 @@ def test_dir_iter_corner_cases() -> None:
             assert starts_with(iter.path, "tests/data/folder_2files_1dir\\")
         else:
             assert starts_with(iter.path, "tests/data/folder_2files_1dir/")
-    printf("tests folder contains %d things\n", n)  # Output: tests folder contains 12 things
+    printf("%d\n", n)  # Output: 3
     assert iter.error_code == 0
 
     # Not adding slash if not needed
@@ -139,9 +139,9 @@ def test_dir_iter_corner_cases() -> None:
     n = 0
     while iter.next():
         n++
-        assert strstr(iter.path, "//") == NULL
-        assert strstr(iter.path, "\\") == NULL
-    printf("tests folder contains %d things\n", n)  # Output: tests folder contains 12 things
+        assert strstr(iter.path, "//") == NULL  # no double slashes
+        assert strstr(iter.path, "\\") == NULL  # no backslash added on Windows
+    printf("%d\n", n)  # Output: 3
     assert iter.error_code == 0
 
     puts("Empty string")  # Output: Empty string
