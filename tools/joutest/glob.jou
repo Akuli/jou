@@ -89,8 +89,8 @@ def do_glob(glob: byte*, relative_to: byte*, out: List[byte*]*, depth_limit: int
         if iter.name[0] == '.' and glob[0] != '.':
             continue
 
+        # Double star means we can recurse inside basically anything
         if starts_with(glob, "**"):
-            # Double star means we can recurse inside basically anything
             do_glob(glob, iter.path, out, depth_limit - 1)
             continue
 

@@ -28,9 +28,9 @@ def test_validating() -> None:
     assert not glob_is_valid("**/**/bar")
     assert not glob_is_valid("**/bar/**")
     assert not glob_is_valid("**/bar/**baz")
-    assert not glob_is_valid("/usr/lib")
 
     # Common glob features that are currently not supported
+    assert not glob_is_valid("/usr/lib")
     assert not glob_is_valid("some_folder/")
     assert not glob_is_valid("foo\\bar")
     assert not glob_is_valid("foo[1-3]")
