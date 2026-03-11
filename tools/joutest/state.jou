@@ -1,0 +1,32 @@
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+
+
+@public
+enum Mode:
+    Unset  # first, so zero-initializes to this
+    Run
+
+@public
+global MODE_STRINGS: byte*[enum_count(Mode)] = ["(unset)", "run"]
+
+@public
+class TestFile:
+    path: byte*
+    mode: Mode
+    defining_toml_lineno: int
+
+    @public
+    def print(self) -> None:
+        printf("  TestFile \"%s\" (joutest.toml:%d)\n", self.path, self.defining_toml_lineno)
+        printf("    mode = %s\n", MODE_STRINGS[self.mode as int])
+
+@public
+class State:
+    test_files: List[TestFile]
+
+    @public
+    def print(self) -> None:
+        printf("State:\n")
+        for tf = self.test_files.ptr; tf < self.test_files.end(); tf++:
+            tf.print()

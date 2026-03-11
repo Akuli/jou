@@ -12,6 +12,9 @@ declare strncmp(s1: byte*, s2: byte*, n: intnative) -> int
 
 @public
 def glob_is_valid(glob: byte*) -> bool:
+    if glob == NULL:
+        return False
+
     # Disallow anything that isn't supported properly
     if strcspn(glob, "\\?[]{}") != strlen(glob):
         return False

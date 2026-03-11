@@ -7,12 +7,9 @@ import "stdlib/toml.jou"
 import "stdlib/errno.jou"
 
 import "./glob.jou"
-import "./joutest_toml.jou"
-import "./state.jou"
 
 
-def main() -> int:
-    state = State{}
-    read_joutest_toml(&state)
-    state.print()
-    return 0
+@public
+def fail(message: byte*) -> None:
+    fprintf(get_stderr(), "joutest error: %s\n", message)
+    exit(1)
