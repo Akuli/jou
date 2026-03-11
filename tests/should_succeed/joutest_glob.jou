@@ -61,6 +61,11 @@ def test_basic() -> None:
     assert glob_and_check("tests/*/*.txt", "tests/data/hellohellohello.txt")
     assert glob_and_check("t*e*s*t*s/*a/hell*he*ohel*.*x*", "tests/data/hellohellohello.txt")
 
+    assert glob_and_check("READ*", "README.md")
+    assert glob_and_check("*md", "README.md")
+    assert not glob_and_check("README", "README.md")
+    assert not glob_and_check("ME.md", "README.md")
+
     # '*' does not recurse
     assert not glob_and_check("tests/*", "tests")
     assert glob_and_check("tests/*", "tests/data")
