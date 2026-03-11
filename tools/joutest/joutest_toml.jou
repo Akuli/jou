@@ -5,7 +5,6 @@ import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
-import "stdlib/process.jou"
 import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
@@ -14,22 +13,15 @@ import "./state.jou"
 import "./glob.jou"
 
 
-def fail_in_toml(toml: TOML*, message: byte*) -> noreturn:
-    assert toml != NULL
-    full_message: byte[200]
-    snprintf(full_message, sizeof(full_message), "file \"joutest.toml\", line %d: %s", toml.lineno, message)
-    fail(full_message)
-
-
 def glob_from_toml(toml: TOML*) -> List[byte*]:
     assert toml != NULL
 
     if toml.type != TOMLType.String:
-        fail_in_toml(toml, "'glob' must be a string")
+        fail_in_toml(toml.lineno, "'glob' must be a string")
 
     glob = toml_to_string(toml)
     if not glob_is_valid(glob):
-        fail_in_toml(toml, "invalid or unsupported glob pattern")
+        fail_in_toml(toml.lineno, "invalid or unsupported glob pattern")
 
     result = List[byte*]{}
     # TODO: don't hard-code the glob depth limit
@@ -37,7 +29,7 @@ def glob_from_toml(toml: TOML*) -> List[byte*]:
     if result.len == 0:
         error: byte[200]
         snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
-        fail_in_toml(toml, error)
+        fail_in_toml(toml.lineno, error)
 
     # TODO: normalize . and .. components?
     # TODO: normalize case on windows?
@@ -68,17 +60,17 @@ def mode_from_toml(files_toml: TOML*) -> Mode:
             )
             message = message2
 
-    fail_in_toml(toml, message)
+    fail_in_toml(toml.lineno, message)
 
 
 def parse_one_files_config(state: State*, toml: TOML*) -> None:
     assert toml != NULL
     if toml.type != TOMLType.Table:
-        fail_in_toml(toml, "each item of 'files' must be a table")
+        fail_in_toml(toml.lineno, "each item of 'files' must be a table")
 
     toml_glob = toml_get(toml, "glob")
     if toml_glob == NULL:
-        fail_in_toml(toml, "each 'files' table must contain 'glob'")
+        fail_in_toml(toml.lineno, "each 'files' table must contain 'glob'")
     glob_paths = glob_from_toml(toml_glob)
 
     for p = glob_paths.ptr; p < glob_paths.end(); p++:
@@ -109,9 +101,9 @@ def parse_all_files_configs(state: State*, toml: TOML*) -> None:
     if toml == NULL:
         fail("joutest.toml must define an array named 'files'")
     if toml.type != TOMLType.Array:
-        fail_in_toml(toml, "'files' must be an array")
+        fail_in_toml(toml.lineno, "'files' must be an array")
     if toml.array.len == 0:
-        fail_in_toml(toml, "the 'files' array cannot be empty")
+        fail_in_toml(toml.lineno, "the 'files' array cannot be empty")
 
     # TODO: This should probably loop backwards. When multiple globs match the
     #       same file, we want to use the last settings specified for it, and
@@ -148,7 +140,7 @@ def read_joutest_toml(state: State*) -> None:
 
     toml = parse_toml(big_file_content_buffer)
     if toml.type == TOMLType.Error:
-        fail_in_toml(&toml, toml.error_message)
+        fail_in_toml(toml.lineno, toml.error_message)
 
     parse_all_files_configs(state, &toml)
     toml.free()
