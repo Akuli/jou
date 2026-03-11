@@ -40,7 +40,7 @@ function generate_expected_output()
 {
     local joufile="$1"
 
-    (grep -onH '# Warning: .*' "$joufile" || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "test.jou", line \2: '/
+    (grep -onH '# Warning: .*' "$joufile" || true) | sed -E s/'(.*):([0-9]*):# Warning: '/'compiler warning for file "\1", line \2: '/
     (grep -onH '# Error: .*' "$joufile" || true) | sed -E s/'(.*):([0-9]*):# Error: '/'compiler error in file "\1", line \2: '/
     (grep -oE '# Output:.*' "$joufile" || true) | sed -E s/'^# Output: ?'//
 }
@@ -67,14 +67,26 @@ done
 ntotal=0
 nfail=0
 
-cd tmp/doctest
-for file in */*.jou; do
+for file in tmp/doctest/*/*.jou; do
     # Print file and line number, as in "doc/foo.md:123: "
     # Newline is deleted to avoid warning on NetBSD 9.3, see issue #500
-    echo -n "$(basename "$(dirname "$file")" | tr -d '\n' | base64 -d):$(basename "$file" | cut -d'.' -f1 | sed 's/^0*//'): "
+    md_file="$(basename "$(dirname "$file")" | tr -d '\n' | base64 -d)"
+    md_lineno=$(basename "$file" | cut -d'.' -f1 | sed 's/^0*//')
+    echo -n "$md_file:$md_lineno: "
 
-    cp "$file" test.jou
-    if $diff --text -u <(generate_expected_output test.jou | tr -d '\r') <( ("$jou" test.jou 2>&1 || true) | tr -d '\r'); then
+    cp "$file" tmp/doctest/test.jou
+
+    if [[ $md_file =~ fs.md ]]; then
+        # These doctests refer files by path
+        working_dir="."
+        relative_path="tmp/doctest/test.jou"
+    else
+        # Some doctests contain assertion failures that mention "test.jou"
+        working_dir="tmp/doctest"
+        relative_path="test.jou"
+    fi
+
+    if $diff --text -u <(cd "$working_dir" && generate_expected_output "$relative_path" | tr -d '\r') <( (cd "$working_dir" && "$jou" "$relative_path" 2>&1 || true) | tr -d '\r'); then
         echo "ok"
     else
         ((nfail++)) || true

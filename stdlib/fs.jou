@@ -80,10 +80,11 @@ class DirIter:
     # Inputs given by user
     dir: byte*
     include_dot_and_dotdot: bool
-    slash: byte
+    slash: byte  # TODO: delete
 
     # Output
     path: byte*
+    name: byte*
 
     # Internal state
     path_list: List[byte]
@@ -112,9 +113,12 @@ class DirIter:
         if not already_has_slash:
             self.path_list.append(self.slash)
 
+        name_start_index = self.path_list.len
         self.path_list.extend_from_ptr(name, strlen(name))
         self.path_list.append('\0')
+
         self.path = self.path_list.ptr
+        self.name = &self.path[name_start_index]
         return True
 
     @public
