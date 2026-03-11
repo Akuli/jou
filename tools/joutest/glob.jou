@@ -2,6 +2,7 @@ import "stdlib/assert.jou"
 import "stdlib/fs.jou"
 import "stdlib/intnative.jou"
 import "stdlib/list.jou"
+import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 
@@ -57,7 +58,7 @@ def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
         if glob[segment_len] != '*':
             # This is the last segment.
             consumed_by_star = strlen(name) - segment_len
-            return consumed_by_star >= 0 and starts_with(glob, &name[consumed_by_star])
+            return consumed_by_star >= 0 and memcmp(glob, &name[consumed_by_star], segment_len) == 0
 
         # Handle the segment between two stars. We always take the first place
         # where the segment occurs as a substring. For example:
