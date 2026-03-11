@@ -23,6 +23,9 @@ def test_dir_iter_basic() -> None:
     while iter.next():
         result.append(strdup(iter.path))
 
+    if iter.error_code != 0:
+        printf("%d: %s\n", iter.error_code, iter.error_message)  # should not get printed
+
     sort_strings(result.ptr, result.len)
 
     # Output: tests/data/folder_2files_1dir/file 2 with spaces.txt
@@ -109,6 +112,8 @@ def test_dir_iter_funny_paths() -> None:
             n++
 
         printf("found %d things file3=%s\n", n, file3)
+        if iter.error_code != 0:
+            printf("%d: %s\n", iter.error_code, iter.error_message)  # should not get printed
 
     # cd back out of the mess for the remaining tests
     chdir("../../../..")
@@ -125,18 +130,45 @@ def test_dir_iter_corner_cases() -> None:
         else:
             assert starts_with(iter.path, "tests/")
     printf("tests folder contains %d things\n", n)  # Output: tests folder contains 13 things
+    if iter.error_code != 0:
+        printf("%d: %s\n", iter.error_code, iter.error_message)  # should not get printed
 
-    # Empty string
+    puts("Empty string")  # Output: Empty string
     iter = DirIter{dir = ""}
     assert not iter.next()
     assert not iter.next()
     assert not iter.next()
+    # TODO: This behavior is weird. It might be better to fail with an error predictably.
+    if iter.error_code != 0:
+        printf("%d: %s\n", iter.error_code, iter.error_message)  # should not get printed
 
-    # No dir given
+    puts("No dir given")  # Output: No dir given
     iter = DirIter{}
     assert not iter.next()
     assert not iter.next()
     assert not iter.next()
+    if iter.error_code != 0:
+        printf("%d: %s\n", iter.error_code, iter.error_message)  # should not get printed
+
+    puts("File instead of dir")  # Output: File instead of dir
+    iter = DirIter{dir = "README.md"}
+    assert not iter.next()
+    assert not iter.next()
+    assert not iter.next()
+    if iter.error_code != 20:
+        printf("%d\n", iter.error_code)
+    assert iter.error_code == 20
+    assert strlen(iter.error_message) >= 10  # exact message depends on system
+
+    puts("Does not exist")  # Output: Does not exist
+    iter = DirIter{dir = "does_not_exist"}
+    assert not iter.next()
+    assert not iter.next()
+    assert not iter.next()
+    if iter.error_code != 2:
+        printf("%d\n", iter.error_code)
+    assert iter.error_code == 2
+    assert strlen(iter.error_message) >= 10  # exact message depends on system
 
 
 def main() -> int:

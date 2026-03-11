@@ -3,8 +3,6 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 if WINDOWS:
-    const INVALID_HANDLE_VALUE: int64 = -1
-
     # TODO: This should really use W functions, not A functions.
     #       But then we would need a way to convert between byte* and uint16*.
     #       I have an idea for that (WTF-8) but I haven't implemented it yet.
@@ -24,8 +22,36 @@ if WINDOWS:
     declare FindFirstFileA(FileName: byte*, FindFileData: WIN32_FIND_DATAA*) -> int64
     declare FindNextFileA(hFindFile: int64, FindFileData: WIN32_FIND_DATAA*) -> int
     declare FindClose(hFindFile: int64) -> int
+    const INVALID_HANDLE_VALUE: int64 = -1
+
+    declare GetLastError() -> uint32
+    const ERROR_FILE_NOT_FOUND: uint32 = 2
+
+    declare FormatMessageA(
+        dwFlags: uint32,
+        lpSource: void*,
+        dwMessageId: uint32,
+        dwLanguageId: uint32,
+        lpBuffer: byte*,
+        nSize: uint32,
+        Arguments: void*,  # actually va_list*
+    ) -> uint32
+    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
+    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
 
 else:
+    import "stdlib/errno.jou"
+    import "stdlib/intnative.jou"
+
+    if LINUX:
+        # There are two versions of strerror_r(), and the one actually named
+        # strerror_r() is the wrong one.
+        declare __xpg_strerror_r(errnum: int, buf: byte*, buflen: intnative) -> int
+        def strerror_r(errnum: int, buf: byte*, buflen: intnative) -> int:
+            return __xpg_strerror_r(errnum, buf, buflen)
+    else:
+        declare strerror_r(errnum: int, buf: byte*, buflen: intnative) -> int
+
     class DIR:
         pass
 
@@ -84,6 +110,9 @@ class DirIter:
     path: byte*
     name: byte*
 
+    error_code: int  # errno or GetLastError
+    error_message: byte[512]
+
     # Internal state
     path_list: List[byte]
     if WINDOWS:
@@ -115,7 +144,13 @@ class DirIter:
 
     @public
     def next(self) -> bool:
-        if self.dir == NULL or self.dir[0] == '\0':
+        if self.dir == NULL:
+            return False
+
+        if self.dir[0] == '\0':
+            # TODO: This behavior is weird. It might be better to set an error
+            #       message. That would still require special-casing on Windows,
+            #       because "\\*" searhes the root of the current drive.
             return False
 
         if WINDOWS:
@@ -144,12 +179,19 @@ class DirIter:
                     return True
                 found = (FindNextFileA(self.handle, &find_data) != 0)
 
+            self.error_code = GetLastError()
+            FormatMessageA(
+                FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                NULL, GetLastError(), 0, self.error_message, sizeof(self.error_message), NULL,
+            )
+
             # End of directory, or error occurred. User can check
             # GetLastError if that is really needed.
             free(self.path_list.ptr)
+            self.path_list = List[byte]{}
             if self.handle != INVALID_HANDLE_VALUE:
                 FindClose(self.handle)
-            *self = DirIter{}
+                self.handle = INVALID_HANDLE_VALUE
             return False
 
         else:
@@ -157,16 +199,24 @@ class DirIter:
                 # This is the first time this is called
                 self.dir_ptr = opendir(self.dir)
                 if self.dir_ptr == NULL:
-                    # failed, probably not a directory, user can check errno if really wants
+                    # failed
+                    self.error_code = get_errno()
+                    strerror_r(self.error_code, self.error_message, sizeof(self.error_message))
                     return False
 
             while True:
+                set_errno(0)
                 entry = readdir(self.dir_ptr)
                 if entry == NULL:
-                    # End of directory, or error occurred (can check errno)
+                    # End of directory, or error reading directory
+                    self.error_code = get_errno()
+                    if self.error_code != 0:
+                        # error reading directory
+                        strerror_r(self.error_code, self.error_message, sizeof(self.error_message))
                     free(self.path_list.ptr)
+                    self.path_list = List[byte]{}
                     closedir(self.dir_ptr)
-                    *self = DirIter{}
+                    self.dir_ptr = NULL
                     return False
 
                 if self.set_name(entry.d_name):
