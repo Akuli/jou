@@ -808,6 +808,7 @@ class TOMLParser:
         while *self.ptr != ']':
             if *self.ptr == '\0':
                 self.error = "missing ']' to end the array"
+                result.free()
                 return False
 
             if not self.check_depth(depth_of_array + 1):
