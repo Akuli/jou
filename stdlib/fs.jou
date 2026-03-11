@@ -78,8 +78,9 @@ else:
             d_name: byte[1024]
     elif NETBSD:
         class dirent:
-            d_ino: uint64
+            d_fileno: uint64
             d_reclen: uint16
+            d_namlen: uint16
             d_type: byte
             d_name: byte[512]
     else:
