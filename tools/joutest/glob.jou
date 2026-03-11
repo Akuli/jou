@@ -40,6 +40,8 @@ def glob_is_valid(glob: byte*) -> bool:
 
 # Compares the first "/" separated component of glob to the entire name.
 # Example: "foo_*_bar/whatever", "foo_thing_bar" --> True
+#
+# Runtime is O(n*g), where n = strlen(name) and g = strcspn(glob, "/").
 def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
     # Skip initial segment of regular characters
     while *glob != '\0' and *glob != '/' and *glob != '*':
@@ -66,11 +68,11 @@ def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
         #   glob = "foo*ba*.txt"
         #   name = "foo_bar_baz.txt"
         #           ^^^ ^^     ^^^^
-        while strncmp(name, glob, segment_len) != 0:
+        while strncmp(glob, name, segment_len) != 0:
             if *name++ == '\0':
                 return False
-        name = &name[segment_len]
         glob = &glob[segment_len]
+        name = &name[segment_len]
 
 
 @public
