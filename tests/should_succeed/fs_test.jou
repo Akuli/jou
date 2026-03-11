@@ -19,7 +19,7 @@ else:
 def test_dir_iter_basic() -> None:
     result = List[byte*]{}
 
-    iter = DirIter{dir = "tests/data/folder_2files_1dir", slash = '/'}
+    iter = DirIter{dir = "tests/data/folder_2files_1dir"}
     while iter.next():
         result.append(strdup(iter.path))
 
@@ -29,6 +29,9 @@ def test_dir_iter_basic() -> None:
     # Output: tests/data/folder_2files_1dir/file1.txt
     # Output: tests/data/folder_2files_1dir/subdir
     for p = result.ptr; p < result.end(); p++:
+        if WINDOWS:
+            assert strrchr(p, '\\') != NULL
+            *strrchr(p, '\\') = '/'
         puts(*p)
         free(*p)
     free(result.ptr)
