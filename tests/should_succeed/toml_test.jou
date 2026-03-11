@@ -46,7 +46,7 @@ def test_basic_parsing() -> None:
     printf("%d\n", toml_get(toml_get(&toml, "languages"), "toml").lineno)
 
     # Output: 123
-    printf("%d\n", toml_get(toml_get(&toml, "languages"), "number").integer)
+    printf("%lld\n", toml_get(toml_get(&toml, "languages"), "number").integer)
     # Output: 0.000000
     printf("%f\n", toml_get(toml_get(&toml, "languages"), "number").floating)
 
