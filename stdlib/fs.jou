@@ -181,23 +181,21 @@ class DirIter:
                     return True
                 found = (FindNextFileA(self.handle, &find_data) != 0)
 
-            self.error_code = GetLastError() as int
-            if self.error_code == ERROR_NO_MORE_FILES:
-                # We reached the end of the directory successfully.
-                self.error_code = 0
-            else:
+            e = GetLastError() as int
+
+            free(self.path_list.ptr)
+            if self.handle != INVALID_HANDLE_VALUE:
+                FindClose(self.handle)
+            *self = DirIter{}
+
+            if e != ERROR_NO_MORE_FILES:
+                # It failed
+                self.error_code = e
                 FormatMessageA(
                     FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                     NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message) as uint32, NULL,
                 )
 
-            # End of directory, or error occurred. User can check
-            # GetLastError if that is really needed.
-            free(self.path_list.ptr)
-            self.path_list = List[byte]{}
-            if self.handle != INVALID_HANDLE_VALUE:
-                FindClose(self.handle)
-                self.handle = INVALID_HANDLE_VALUE
             return False
 
         else:
@@ -215,14 +213,14 @@ class DirIter:
                 entry = readdir(self.dir_ptr)
                 if entry == NULL:
                     # End of directory, or error reading directory
-                    self.error_code = get_errno()
+                    e = get_errno()
+                    free(self.path_list.ptr)
+                    closedir(self.dir_ptr)
+                    *self = DirIter{error_code = e}
+
                     if self.error_code != 0:
                         # error reading directory
                         strerror_r(self.error_code, self.error_message, sizeof(self.error_message))
-                    free(self.path_list.ptr)
-                    self.path_list = List[byte]{}
-                    closedir(self.dir_ptr)
-                    self.dir_ptr = NULL
                     return False
 
                 if self.set_name(entry.d_name):

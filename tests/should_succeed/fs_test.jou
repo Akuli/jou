@@ -156,8 +156,8 @@ def test_dir_iter_corner_cases() -> None:
 
     puts("Empty string")  # Output: Empty string
     iter = DirIter{dir = ""}
-    assert not iter.next()
     # TODO: This behavior is weird. It might be better to fail with an error predictably.
+    assert not iter.next()
     printf("%d\n", iter.error_code)  # Output: 0
     assert not iter.next()
     printf("%d\n", iter.error_code)  # Output: 0
@@ -182,7 +182,8 @@ def test_dir_iter_corner_cases() -> None:
     puts("File instead of dir")  # Output: File instead of dir
     iter = DirIter{dir = "README.md"}
     assert not iter.next()
-    assert not iter.next()
+    assert iter.error_code == (267 if WINDOWS else 20)
+    assert strlen(iter.error_message) >= 10  # exact message depends on system
     assert not iter.next()
     assert iter.error_code == (267 if WINDOWS else 20)
     assert strlen(iter.error_message) >= 10  # exact message depends on system
@@ -190,11 +191,10 @@ def test_dir_iter_corner_cases() -> None:
     puts("Does not exist")  # Output: Does not exist
     iter = DirIter{dir = "does_not_exist"}
     assert not iter.next()
+    assert iter.error_code == (3 if WINDOWS else 2)
+    assert strlen(iter.error_message) >= 10  # exact message depends on system
     assert not iter.next()
-    assert not iter.next()
-    if iter.error_code != 2:
-        printf("%d\n", iter.error_code)
-    assert iter.error_code == 2
+    assert iter.error_code == (3 if WINDOWS else 2)
     assert strlen(iter.error_message) >= 10  # exact message depends on system
 
 
