@@ -1,0 +1,100 @@
+name: "MacOS"
+
+on:
+  # MacOS is super slow in GitHub Actions for some reason, so run this every
+  # night instead of every pull request.
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:  # Can also be triggered manually from github UI
+  pull_request:  # Usually doesn't run, checks if needed below
+
+jobs:
+  # Please keep in sync with: macos.yml, valgrind.yml, linux-aarch64.yml, raspios.yml
+  check-if-needed:
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: check
+        run: |
+          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
+            echo "Triggered manually"
+            echo "run=true" >> $GITHUB_OUTPUT
+          elif [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
+            echo "Pull request, checking PR labels..."
+            if cat "$GITHUB_EVENT_PATH" | jq -r '.pull_request.labels[].name' | grep --color=always -i '^run macos tests$'; then
+              echo "Label 'run macos tests' found, let's run MacOS tests on this pull request"
+              echo "run=true" >> $GITHUB_OUTPUT
+            else
+              echo "Label 'run macos tests' not found, skipping"
+              echo "run=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "This is a nightly run..."
+            if [ "$GITHUB_REPOSITORY" != "Akuli/jou" ]; then
+              echo "This is a fork of Jou, skipping"
+              echo "run=false" >> $GITHUB_OUTPUT
+            elif git --no-pager log --oneline --since="24 hours ago" --exit-code; then
+              echo "No recent commits, skipping"
+              echo "run=false" >> $GITHUB_OUTPUT
+            else
+              echo "There are recent commits. Let's run it."
+              echo "run=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  test:
+    needs: [check-if-needed]
+    if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
+    runs-on: macos-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        # Testing all levels because there was a bug that only happened with -O1. (#224)
+        # Please keep in sync with linux.yml and valgrind.yml
+        params:
+          # Oldest version: all opt levels
+          - { llvm-version: 15, opt-level: '-O0' }
+          - { llvm-version: 15, opt-level: '-O1' }
+          - { llvm-version: 15, opt-level: '-O2' }
+          - { llvm-version: 15, opt-level: '-O3' }
+          # Most versions: just one opt level to save time
+          - { llvm-version: 16, opt-level: '-O1' }
+          - { llvm-version: 17, opt-level: '-O1' }
+          - { llvm-version: 18, opt-level: '-O1' }
+          - { llvm-version: 19, opt-level: '-O1' }
+          - { llvm-version: 20, opt-level: '-O1' }
+          # Latest version: all opt levels
+          - { llvm-version: 21, opt-level: '-O0' }
+          - { llvm-version: 21, opt-level: '-O1' }
+          - { llvm-version: 21, opt-level: '-O2' }
+          - { llvm-version: 21, opt-level: '-O3' }
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Fetch the whole Git history for bootstrapping
+      - run: brew install bash diffutils llvm@${{ matrix.params.llvm-version }}
+      - name: "Select LLVM version"
+        run: echo "LLVM_CONFIG=/opt/homebrew/opt/llvm@${{ matrix.params.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
+      - name: "Compile and test"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Compile the compiler with itself"
+        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
+      - name: "Compile and test again"
+        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+      - run: ./doctest.sh
+
+  # Please keep in sync with valgrind.yml and linux-aarch64.yml
+  create-issue-on-failure:
+    name: Create an issue if failed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [check-if-needed, test]
+    if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on MacOS failed"
