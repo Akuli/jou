@@ -184,9 +184,7 @@ def test_dir_iter_corner_cases() -> None:
     assert not iter.next()
     assert not iter.next()
     assert not iter.next()
-    if iter.error_code != 20:
-        printf("%d\n", iter.error_code)
-    assert iter.error_code == 20
+    assert iter.error_code == (267 if WINDOWS else 20)
     assert strlen(iter.error_message) >= 10  # exact message depends on system
 
     puts("Does not exist")  # Output: Does not exist
