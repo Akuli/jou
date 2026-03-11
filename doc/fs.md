@@ -2,29 +2,36 @@
 
 This file documents `stdlib/fs.jou`.
 
-In this documentation (and in general), "directory" and "folder" mean the same thing.
-
 
 ## Iterating contents of a directory
 
-The `DirIter` class can be used to loop through the files and folders in a directory
-(also known as folder).
-Here's how it's used:
+TL;DR:
 
 ```python
 iter = DirIter{dir = "path/to/some/directory"}
 while iter.next():
-    do_something(iter.path)  # joined with slash: path/to/some/directory/file.txt
-    do_something(iter.name)  # just the name: file.txt
+    do_something(iter.path)  # path/to/some/directory/file.txt
+    do_something(iter.name)  # file.txt
+
+if iter.error_code != 0:
+    printf("Error: %s\n", iter.error_message)
 ```
 
-As you can see, `.next()` returns a `bool`.
+The `DirIter` class can be used to loop through the files and folders in a directory
+(also known as folder).
+
+When creating a `DirIter`, you should set all unused fields to zero
+by e.g. using [the `ClassName{}` syntax](classes.md#instantiating-syntax) as shown above.
+You can set the following fields:
+- `dir: byte*` is a path to the directory being listed. This is the only field that you must set.
+- `include_dot_and_dotdot: bool` can be set to `True`
+    if you want to get the special `.` and `..` entries when iterating the directory.
+    They are skipped by default.
+
+As you can see, `iter.next()` should be called repeatedly.
 Return value `True` means that a file or subdirectory was found,
 and `iter.path` and `iter.name` were updated accordingly.
-
-The same memory is reused between calls to `.next()`,
-so if you want to use the string in `iter.path` or `iter.name`
-after the following call to `.next()`, you need to make a copy of it.
+Return value `False` means that either an error occurred or the end of the directory was reached.
 
 The memory used for iterating is freed when `.next()` returns `False`.
 This means that you don't need any cleanup,
@@ -32,6 +39,24 @@ but to avoid leaking memory and the underlying directory handle,
 you shouldn't stop calling `.next()` until you get the `False`.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you want to stop the iterating early.
+
+After calling `.next()`, you can use the following fields:
+- `path: byte*` is the path to the file or subdirectory inside the given `dir`.
+    It consists of `dir`, a slash if `dir` does not already end with a slash, and a file or subdirectory name.
+    This is only valid until the following call to `.next()`,
+    so if you want to use the string in `iter.path` after the following call to `.next()`,
+    you need to make a copy of the string.
+    This field is `NULL` if `iter.next()` returned `False`.
+- `name: byte*` is the file or subdirectory name without the rest of the path.
+    This field is `NULL` if `iter.next()` returned `False`.
+    Similarly to `iter.path`, this is only valid until the following call to `.next()`
+    and you may need to make a copy.
+- `error_code: int` is nonzero if `iter.next()` returned `False` due to an error,
+    and zero if no error has occured.
+    This is [a Windows API error number](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-) on Windows
+    and an [errno value](../stdlib/errno.jou) on other systems.
+- `error_message: byte[512]` is a human-readable error message generated from the error code,
+    or an empty string if no error has occured.
 
 The iteration order is whatever the operating system and file system happen to produce,
 and you shouldn't rely on it.
@@ -52,6 +77,10 @@ def main() -> int:
     while iter.next():
         results.append(strdup(iter.name))
 
+    if iter.error_code != 0:
+        printf("Error: %s\n", iter.error_message)
+        return 1
+
     sort_strings(results.ptr, results.len)
 
     # Output: 64bit-meme-small.jpg
@@ -65,21 +94,6 @@ def main() -> int:
     return 0
 ```
 
-When you create a `DirIter`, you can set the following fields of `DirIter`:
-- `dir: byte*` is the path to the folder to be listed.
-    This is the only field that must be set.
-- `include_dot_and_dotdot: bool` can be set to `True`
-    if you want to get the special `.` and `..` entries when iterating the directory.
-    They are skipped by default.
-
-Error handling is pretty bad at the moment.
-If an errors occurs while reading the directory, it causes `.next()` to return `False`,
-just like reaching the end of the directory without any errors.
-For example, an empty directory and a non-existent directory behave the same way:
-`.next()` returns `False` immediately.
-If you need to know whether an error occurred,
-please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new).
-
 
 ## Windows support
 
@@ -88,3 +102,4 @@ The reason is that `stdlib/fs.jou` uses the ANSI versions of Windows API functio
 such as `FindFirstFileA` and `FindNextFileA`.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you need to work with arbitrary Windows paths.
+A proper fix for this is planned, but not implemented.
