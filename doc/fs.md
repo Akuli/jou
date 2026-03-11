@@ -28,7 +28,8 @@ after the following call to `.next()`, you need to make a copy of it.
 
 The memory used for iterating is freed when `.next()` returns `False`.
 This means that you don't need any cleanup,
-but to avoid leaking memory, you shouldn't stop calling `.next()` until you get the `False`.
+but to avoid leaking memory and the underlying directory handle,
+you shouldn't stop calling `.next()` until you get the `False`.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you want to stop the iterating early.
 
@@ -71,17 +72,19 @@ When you create a `DirIter`, you can set the following fields of `DirIter`:
     if you want to get the special `.` and `..` entries when iterating the directory.
     They are skipped by default.
 
-If an errors occurs while reading the directory, it causes `.next()` to return `False`.
+Error handling is pretty bad at the moment.
+If an errors occurs while reading the directory, it causes `.next()` to return `False`,
+just like reaching the end of the directory without any errors.
 For example, an empty directory and a non-existent directory behave the same way:
 `.next()` returns `False` immediately.
-If you need to know why `.next()` returned `False` on operating systems other than Windows,
-you can use [stdlib/errno.jou](../stdlib/errno.jou).
-If you need to do that in a cross-platform way,
+If you need to know whether an error occurred,
 please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new).
 
 
 ## Windows support
 
 On Windows, paths containing non-ASCII characters and very long paths may not work properly.
+The reason is that `stdlib/fs.jou` uses the ANSI versions of Windows API functions,
+such as `FindFirstFileA` and `FindNextFileA`.
 Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you need to work with arbitrary Windows paths.
