@@ -33,8 +33,10 @@ def test_dir_iter_basic() -> None:
     # Output: tests/data/folder_2files_1dir/subdir
     for p = result.ptr; p < result.end(); p++:
         if WINDOWS:
-            assert strrchr(p, '\\') != NULL
-            *strrchr(p, '\\') = '/'
+            # Make the output consistent for printing it
+            slash = strchr(*p, '\\')
+            assert slash != NULL
+            *slash = '/'
         puts(*p)
         free(*p)
     free(result.ptr)
@@ -121,17 +123,26 @@ def test_dir_iter_funny_paths() -> None:
 
 def test_dir_iter_corner_cases() -> None:
     # Default slash
-    iter = DirIter{dir = "tests"}
+    iter = DirIter{dir = "tests/data/folder_2files_1dir"}
     n = 0
     while iter.next():
         n++
         if WINDOWS:
-            assert starts_with(iter.path, "tests\\")
+            assert starts_with(iter.path, "tests/data/folder_2files_1dir\\")
         else:
-            assert starts_with(iter.path, "tests/")
-    printf("tests folder contains %d things\n", n)  # Output: tests folder contains 13 things
-    if iter.error_code != 0:
-        printf("%d: %s\n", iter.error_code, iter.error_message)  # should not get printed
+            assert starts_with(iter.path, "tests/data/folder_2files_1dir/")
+    printf("tests folder contains %d things\n", n)  # Output: tests folder contains 12 things
+    assert iter.error_code == 0
+
+    # Not adding slash if not needed
+    iter = DirIter{dir = "tests/data/folder_2files_1dir/"}
+    n = 0
+    while iter.next():
+        n++
+        assert strstr(iter.path, "//") == NULL
+        assert strstr(iter.path, "\\") == NULL
+    printf("tests folder contains %d things\n", n)  # Output: tests folder contains 12 things
+    assert iter.error_code == 0
 
     puts("Empty string")  # Output: Empty string
     iter = DirIter{dir = ""}
@@ -139,16 +150,14 @@ def test_dir_iter_corner_cases() -> None:
     assert not iter.next()
     assert not iter.next()
     # TODO: This behavior is weird. It might be better to fail with an error predictably.
-    if iter.error_code != 0:
-        printf("%d: %s\n", iter.error_code, iter.error_message)  # should not get printed
+    assert iter.error_code == 0
 
     puts("No dir given")  # Output: No dir given
     iter = DirIter{}
     assert not iter.next()
     assert not iter.next()
     assert not iter.next()
-    if iter.error_code != 0:
-        printf("%d: %s\n", iter.error_code, iter.error_message)  # should not get printed
+    assert iter.error_code == 0
 
     puts("File instead of dir")  # Output: File instead of dir
     iter = DirIter{dir = "README.md"}
