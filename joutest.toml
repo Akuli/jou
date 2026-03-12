@@ -4,13 +4,12 @@
 #   "run"                run the code, don't capture output
 #   "ignore_output"      run the test, capture stdout, do nothing with it
 #   "ignore_all_output"  run the test, capture stdout and stderr, do nothing with them
-#   "check_output"       run the test, capture stdout, compare to "Output:" comments
-#   "check_all_output"   run the test, capture stdout and stderr, compare to "Output:" and "Error:" comments
+#   "check_output"       run the test, capture stdout and stderr, compare to "Output:" and "Error:" comments
 #
 # There is no default mode, you need to set it yourself because conventions
 # vary a lot among projects.
 #
-# To figure out how a file is tested, each thing in [[files]] array is applied
+# To figure out how a file is tested, each thing in [[tests]] array is applied
 # in order, overriding settings from the previous ones.
 
 
@@ -18,27 +17,31 @@
 # -------- Documentation tests (doctests) in markdown files --------
 # ------------------------------------------------------------------
 
-[[files]]
-glob = "**/*.md"
-mode = {default = "check_all_output", no_expected_output = "skip_silently", valgrind = "skip"}
+[[tests]]
+files = "**/*.md"
+mode = {
+    default = "check_output",
+    no_expected_output = "skip_silently",
+    valgrind = "skip",
+}
 
 
 # ------------------------------------
 # -------- examples directory --------
 # ------------------------------------
 
-[[files]]
-glob = "examples/*.jou"
-mode = "check_all_output"
+[[tests]]
+files = "examples/*.jou"
+mode = "check_output"
 
-[[files]]
-glob = "examples/aoc*/day*/part*.jou"
-mode = "check_all_output"
+[[tests]]
+files = "examples/aoc*/day*/part*.jou"
+mode = "check_output"
 cd_to_containing_directory = true  # needed for open("sampleinput.txt", "r") to work
 
 # This program doesn't interact nicely with automated tests at all.
-[[files]]
-glob = "examples/memory_leak.jou"
+[[tests]]
+files = "examples/memory_leak.jou"
 mode = "skip"
 
 
@@ -46,33 +49,35 @@ mode = "skip"
 # -------- tests directory --------
 # ---------------------------------
 
-[[files]]
-glob = "tests/*/*.jou"
-mode = {default = "check_all_output", valgrind = "skip"}
+[[tests]]
+files = "tests/*/*.jou"
+mode = {default = "check_output", valgrind = "skip"}
 exit_code_should_be = 1
 
-# These don't inherit exit code from above. Last matching [files."..."] is used.
-[[files]]
-glob = "tests/should_succeed/*.jou"
-mode = "check_all_output"  # Do not skip when valgrinding (overrides setting from above)
+# These don't inherit exit code from above. Last matching [[tests]] is used.
+# TODO: currently it merges rather than using the last one... what do I want?
+[[tests]]
+files = "tests/should_succeed/*.jou"
+mode = "check_output"  # Do not skip when valgrinding (overrides setting from above)
 exit_code_should_be = 0
 
-[[files]]
-glob = "tests/should_succeed/double_dotdot_import/*/*.jou"
-mode = "check_all_output"
+# TODO: set files to array to combine these two?
+[[tests]]
+files = "tests/should_succeed/double_dotdot_import/*/*.jou"
+mode = "check_output"
 
 # This test links with LLVM, and somehow just linking with LLVM leaks memory
 # when the program starts, even if it is never called.
-[[files]]
-glob = "tests/should_succeed/compiler_unit_tests.jou"
-mode = {default = "check_all_output", valgrind = "skip"}
+[[tests]]
+files = "tests/should_succeed/compiler_unit_tests.jou"
+mode = {default = "check_output", valgrind = "skip"}
 
 # Idea:
 # warning: section [files."tests/should_sucede/*.jou"] on line 123 did not apply to any files
 
 # Crashing tests are a bit special. They should fail, and output varies by platform.
-[[files]]
-glob = "tests/crash/*.jou"
+[[tests]]
+files = "tests/crash/*.jou"
 mode = {default = "skip", O0 = "ignore_all_output"}
 exit_code_should_be = 1
 
