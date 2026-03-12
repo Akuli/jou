@@ -96,6 +96,16 @@ else:
             return __opendir30(name)
         def readdir(dirp: DIR*) -> dirent*:
             return __readdir30(dirp)
+
+    elif LINUX:
+        # On x86_64, readdir() uses proper 64-bit data types by default, but
+        # on arm it uses some 32-bit fields. In C, readdir() actually calls
+        # readdir64(), and that seems to work on other architectures too.
+        declare opendir(name: byte*) -> DIR*
+        declare readdir64(dirp: DIR*) -> dirent*
+        def readdir(dirp: DIR*) -> dirent*:
+            return readdir64(dirp)
+
     else:
         declare opendir(name: byte*) -> DIR*
         declare readdir(dirp: DIR*) -> dirent*
