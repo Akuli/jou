@@ -96,21 +96,22 @@ else:
             return __opendir30(name)
         def readdir(dirp: DIR*) -> dirent*:
             return __readdir30(dirp)
-
-    elif LINUX:
-        # On x86_64, readdir() uses proper 64-bit data types by default, but
-        # on arm it uses some 32-bit fields. In C, readdir() actually calls
-        # readdir64(), and that seems to work on other architectures too.
-        declare opendir(name: byte*) -> DIR*
-        declare readdir64(dirp: DIR*) -> dirent*
-        def readdir(dirp: DIR*) -> dirent*:
-            return readdir64(dirp)
-
     else:
         declare opendir(name: byte*) -> DIR*
         declare readdir(dirp: DIR*) -> dirent*
 
     declare closedir(dirp: DIR*) -> int
+
+    if LINUX and IS_32BIT:
+        class utsname:
+            sysname: byte[65]
+            nodename: byte[65]
+            release: byte[65]
+            version: byte[65]
+            machine: byte[65]
+            the_rest: byte[512]  # if something is the wrong size, at least doesn't overflow stack
+
+        declare uname(buf: utsname*) -> int
 
 
 # Iterating directory contents
@@ -237,6 +238,27 @@ class DirIter:
                         self.error_code = e
                         strerror_r(e, self.error_message, sizeof(self.error_message))
                     return False
+
+                name: byte* = entry.d_name
+
+                if LINUX and IS_32BIT:
+                    # On 32-bit ARM, readdir() is a legacy function that uses
+                    # 32-bit values in some fields of struct dirent. If you
+                    # call readdir() in C, you actually call readddir64() due
+                    # to magic in header files.
+                    #
+                    # Ideally we would just use readdir64(). But then we would
+                    # need a compile-time way to check for ARM, because a call
+                    # to readdir64() on 32-bit x86 causes a linker error. So
+                    # instead we call the old-fashioned readdir() and hack
+                    # around the wrong layout of the struct.
+                    #
+                    # TODO: This is a mess. Just add a way to check for ARM at
+                    #       compile time.
+                    u = utsname{}
+                    uname(&u)
+                    if starts_with(u.machine, "arm") != NULL:
+                        name = &name[-8]
 
                 if self.set_name(entry.d_name):
                     return True
