@@ -6,9 +6,10 @@ import "stdlib/list.jou"
 enum Mode:
     Unset  # first, so zero-initializes to this
     Run
+    CheckOutput
 
 @public
-global MODE_STRINGS: byte*[enum_count(Mode)] = ["(unset)", "run"]
+global MODE_STRINGS: byte*[enum_count(Mode)] = ["(unset)", "run", "check_output"]
 
 @public
 class TestFile:
@@ -19,7 +20,7 @@ class TestFile:
     @public
     def print(self) -> None:
         printf("  TestFile \"%s\" (joutest.toml:%d)\n", self.path, self.defining_toml_lineno)
-        printf("    mode = %s\n", MODE_STRINGS[self.mode as int])
+        printf("    Mode: %s\n", MODE_STRINGS[self.mode as int])
 
 @public
 class State:

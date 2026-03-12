@@ -13,23 +13,23 @@ import "./state.jou"
 import "./glob.jou"
 
 
-def glob_from_toml(toml: TOML*) -> List[byte*]:
-    assert toml != NULL
+def glob_to_paths(glob: byte*, lineno: int) -> List[byte*]:
+    error: byte[200]
 
-    if toml.type != TOMLType.String:
-        fail_in_toml(toml.lineno, "'glob' must be a string")
-
-    glob = toml_to_string(toml)
     if not glob_is_valid(glob):
-        fail_in_toml(toml.lineno, "invalid or unsupported glob pattern")
+        snprintf(error, sizeof(error), "invalid path or glob pattern: %s", glob)
+        fail_in_toml(lineno, error)
 
     result = List[byte*]{}
     # TODO: don't hard-code the glob depth limit
     do_glob(glob, ".", &result, 10)
     if result.len == 0:
-        error: byte[200]
-        snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
-        fail_in_toml(toml.lineno, error)
+        if strstr(glob, "*") == NULL:
+            # not really a glob
+            snprintf(error, sizeof(error), "file not found: %s", glob)
+        else:
+            snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
+        fail_in_toml(lineno, error)
 
     # TODO: normalize . and .. components?
     # TODO: normalize case on windows?
@@ -63,54 +63,68 @@ def mode_from_toml(files_toml: TOML*) -> Mode:
     fail_in_toml(toml.lineno, message)
 
 
-def parse_one_files_config(state: State*, toml: TOML*) -> None:
+def parse_test_config(state: State*, toml: TOML*) -> None:
     assert toml != NULL
     if toml.type != TOMLType.Table:
-        fail_in_toml(toml.lineno, "each item of 'files' must be a table")
+        fail_in_toml(toml.lineno, "each item of 'tests' must be a table")
 
-    toml_glob = toml_get(toml, "glob")
-    if toml_glob == NULL:
-        fail_in_toml(toml.lineno, "each 'files' table must contain 'glob'")
-    glob_paths = glob_from_toml(toml_glob)
+    toml_files = toml_get(toml, "files")
+    if toml_files == NULL:
+        fail_in_toml(toml.lineno, "each 'tests' table must contain 'files'")
 
-    for p = glob_paths.ptr; p < glob_paths.end(); p++:
-        # This looping could be too slow. Please fix if this causes a problem.
-        test_file: TestFile* = NULL
-        for tf = state.test_files.ptr; tf < state.test_files.end(); tf++:
-            if strcmp(tf.path, *p) == 0:
-                test_file = tf
-                break
+    mode = mode_from_toml(toml)
 
-        if test_file == NULL:
-            state.test_files.append(TestFile{path = *p, defining_toml_lineno = toml_glob.lineno})
-            test_file = &state.test_files.end()[-1]
-        else:
-            free(*p)
+    # files can be a string or an array of strings
+    if toml_files.type == TOMLType.Array:
+        toml_files_ptr = toml_files.array.ptr
+        toml_files_end = toml_files.array.end()
+    else:
+        # Do not look inside it, instead trick the loop below to take it as is just once
+        toml_files_ptr = toml_files
+        toml_files_end = &toml_files_ptr[1]
 
-        mode = mode_from_toml(toml)
-        if mode != Mode.Unset:
-            test_file.mode = mode
+    for toml_glob = toml_files_ptr; toml_glob < toml_files_end; toml_glob++:
+        glob = toml_to_string(toml_glob)
+        if glob == NULL:
+            fail_in_toml(toml_glob.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
 
-    free(glob_paths.ptr)
+        paths = glob_to_paths(glob, toml_glob.lineno)
+        for p = paths.ptr; p < paths.end(); p++:
+            # This nested looping could be too slow. Please fix if this causes a problem.
+            test_file: TestFile* = NULL
+            for tf = state.test_files.ptr; tf < state.test_files.end(); tf++:
+                if strcmp(tf.path, *p) == 0:
+                    test_file = tf
+                    free(*p)
+                    break
+            if test_file == NULL:
+                state.test_files.append(TestFile{path = *p, defining_toml_lineno = toml_glob.lineno})
+                test_file = &state.test_files.end()[-1]
+
+            # Apply settings to the file
+            if mode != Mode.Unset:
+                test_file.mode = mode
+
+        free(paths.ptr)
 
 
-def parse_all_files_configs(state: State*, toml: TOML*) -> None:
+def parse_all_test_configs(state: State*, toml: TOML*) -> None:
     assert toml != NULL
 
-    toml = toml_get(toml, "files")
+    toml = toml_get(toml, "tests")
     if toml == NULL:
-        fail("joutest.toml must define an array named 'files'")
+        fail("joutest.toml must define an array named 'tests'")
     if toml.type != TOMLType.Array:
-        fail_in_toml(toml.lineno, "'files' must be an array")
+        fail_in_toml(toml.lineno, "'tests' must be an array")
     if toml.array.len == 0:
-        fail_in_toml(toml.lineno, "the 'files' array cannot be empty")
+        fail_in_toml(toml.lineno, "the 'tests' array cannot be empty")
 
     # TODO: This should probably loop backwards. When multiple globs match the
     #       same file, we want to use the last settings specified for it, and
     #       mark only those settings as used. Then we can show error message
     #       about settings that do not apply to any file.
     for p = toml.array.ptr; p < toml.array.end(); p++:
-        parse_one_files_config(state, p)
+        parse_test_config(state, p)
 
 
 global big_file_content_buffer: byte[1_000_000]
@@ -142,5 +156,5 @@ def read_joutest_toml(state: State*) -> None:
     if toml.type == TOMLType.Error:
         fail_in_toml(toml.lineno, toml.error_message)
 
-    parse_all_files_configs(state, &toml)
+    parse_all_test_configs(state, &toml)
     toml.free()
