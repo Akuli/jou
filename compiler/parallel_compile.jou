@@ -164,7 +164,7 @@ def write_llvm_ir_to_file(state: ThreadLocalCompilerState*, mod: LLVMModule*, o_
 
 def compile_to_object_file(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> None:
     if global_compiler_state.args.verbosity >= 1:
-        printf("[thread %llx] Compiling %s\n", pthread_self(), jou_file.path)
+        printf("[thread %llx] Compiling %s\n", pthread_self() as uint64, jou_file.path)
 
     mod = build_and_verify_llvm_ir(state, jou_file)
     if global_compiler_state.args.optlevel != 0:
@@ -217,7 +217,7 @@ def pthreads_callback(inputs_ptr: void*) -> void*:
         compile_to_object_file(&inputs.state, jou_file)
 
     if global_compiler_state.args.verbosity >= 2:
-        printf("[thread %llx] Done\n", pthread_self())
+        printf("[thread %llx] Done\n", pthread_self() as uint64)
 
     return NULL
 
