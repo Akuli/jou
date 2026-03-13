@@ -102,6 +102,17 @@ else:
 
     declare closedir(dirp: DIR*) -> int
 
+    if LINUX and IS_32BIT:
+        class utsname:
+            sysname: byte[65]
+            nodename: byte[65]
+            release: byte[65]
+            version: byte[65]
+            machine: byte[65]
+            the_rest: byte[512]  # if something is the wrong size, at least doesn't overflow stack
+
+        declare uname(buf: utsname*) -> int
+
 
 # Iterating directory contents
 @public
@@ -228,5 +239,26 @@ class DirIter:
                         strerror_r(e, self.error_message, sizeof(self.error_message))
                     return False
 
-                if self.set_name(entry.d_name):
+                name: byte* = entry.d_name
+
+                if LINUX and IS_32BIT:
+                    # On 32-bit ARM, readdir() is a legacy function that uses
+                    # 32-bit values in some fields of struct dirent. If you
+                    # call readdir() in C, you actually call readddir64() due
+                    # to magic in header files.
+                    #
+                    # Ideally we would just use readdir64(). But then we would
+                    # need a compile-time way to check for ARM, because a call
+                    # to readdir64() on 32-bit x86 causes a linker error. So
+                    # instead we call the old-fashioned readdir() and hack
+                    # around the wrong layout of the struct.
+                    #
+                    # TODO: This is a mess. Just add a way to check for ARM at
+                    #       compile time.
+                    u = utsname{}
+                    uname(&u)
+                    if starts_with(u.machine, "arm"):
+                        name = &name[-8]
+
+                if self.set_name(name):
                     return True
