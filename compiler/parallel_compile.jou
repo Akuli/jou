@@ -92,14 +92,6 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     LLVMDisposeMessage(llvm_ir_string)
 
 
-class LLVMMemoryBuffer:
-    pass
-
-declare LLVMWriteBitcodeToMemoryBuffer(M: LLVMModule*) -> LLVMMemoryBuffer*
-declare LLVMParseBitcodeInContext2(ContextRef: LLVMContext*, MemBuf: LLVMMemoryBuffer*, OutModule: LLVMModule**) -> int
-declare LLVMDisposeMemoryBuffer(MemBuf: LLVMMemoryBuffer*) -> None
-
-
 def build_and_verify_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMModule*:
     if global_compiler_state.args.verbosity >= 2:
         printf("[thread %zx] Building LLVM IR: %s\n", pthread_self(), jou_file.path)

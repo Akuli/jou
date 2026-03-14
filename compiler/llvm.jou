@@ -58,6 +58,9 @@ class LLVMPassBuilderOptions:
 @public
 class LLVMError:
     pass
+@public
+class LLVMMemoryBuffer:
+    pass
 
 # =========== Target.h ===========
 @public
@@ -170,6 +173,14 @@ enum LLVMVerifierFailureAction:
 
 @public
 declare LLVMVerifyModule(M: LLVMModule*, Action: LLVMVerifierFailureAction, OutMessage: byte**) -> int
+
+# =========== BitReader.h ===========
+@public
+declare LLVMParseBitcodeInContext2(ContextRef: LLVMContext*, MemBuf: LLVMMemoryBuffer*, OutModule: LLVMModule**) -> int
+
+# =========== BitWriter.h ===========
+@public
+declare LLVMWriteBitcodeToMemoryBuffer(M: LLVMModule*) -> LLVMMemoryBuffer*
 
 # =========== Core.h ===========
 @public
@@ -485,6 +496,8 @@ declare LLVMCreatePassManager() -> LLVMPassManager*
 declare LLVMRunPassManager(PM: LLVMPassManager*, M: LLVMModule*) -> int
 @public
 declare LLVMDisposePassManager(PM: LLVMPassManager*) -> None
+@public
+declare LLVMDisposeMemoryBuffer(MemBuf: LLVMMemoryBuffer*) -> None
 
 
 # =========== Transforms/PassBuilder.h ===========
