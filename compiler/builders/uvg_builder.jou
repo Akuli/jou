@@ -343,6 +343,4 @@ class UBuilder:
 def build_and_analyze_uvgs(jou_file: JouFile*, print: bool) -> None:
     builder = UBuilder{print = print}
     builder_wrapper = AnyBuilder{ubuilder = &builder}
-
-    feed_global_vars_to_builder(jou_file, &builder_wrapper)
-    feed_functions_and_methods_to_builder(jou_file, &builder_wrapper)
+    feed_file_to_builder(jou_file, &builder_wrapper)

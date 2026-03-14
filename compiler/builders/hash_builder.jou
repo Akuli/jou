@@ -476,7 +476,6 @@ def build_content_hash(jou_file: JouFile*) -> Hash:
     # See doc/lazy-recompile.md for details.
 
     builder_wrapper = AnyBuilder{hbuilder = &builder}
-    feed_global_vars_to_builder(jou_file, &builder_wrapper)
-    feed_functions_and_methods_to_builder(jou_file, &builder_wrapper)
+    feed_file_to_builder(jou_file, &builder_wrapper)
 
     return builder.hash

@@ -860,8 +860,7 @@ def build_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMM
     }
     builder_wrapper = AnyBuilder{lbuilder = &builder}
 
-    feed_global_vars_to_builder(jou_file, &builder_wrapper)
-    feed_functions_and_methods_to_builder(jou_file, &builder_wrapper)
+    feed_file_to_builder(jou_file, &builder_wrapper)
 
     LLVMDisposeBuilder(builder.llvm_builder)
     return module

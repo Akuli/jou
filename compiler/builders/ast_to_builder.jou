@@ -72,7 +72,11 @@ class AstToBuilder:
         return old
 
     def begin_function(self, signature: Signature*, locals: List[LocalVariable], location: Location, public: bool) -> None:
+        assert self.inlining_info == NULL
+
         old = self.set_location(location)
+        assert old.path == NULL
+        assert old.lineno == 0
 
         # First n local variables are the arguments
         assert signature.args.len <= locals.len
@@ -89,7 +93,12 @@ class AstToBuilder:
                 # First n local variables are the function arguments
                 self.builder.set_ptr(var_ptr, self.builder.get_argument(i, var_type))
 
-        self.set_location(old)
+    def end_function(self) -> None:
+        self.builder.end_function()
+        self.locals.len = 0
+        self.location = Location{}
+        assert self.loops.len == 0
+        assert self.inlining_info == NULL
 
     # Handles the beginning of calling an @inline function. That's always done
     # in a new builder, so that we don't accidentally access local variables
@@ -822,7 +831,6 @@ class AstToBuilder:
         free(self.loops.ptr)
 
 
-@public
 def feed_ast_to_builder(fom: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: AnyBuilder*) -> None:
     if fom.inline:
         # Calls to this function will be inlined. Pretend the function doesn't exist.
@@ -832,21 +840,15 @@ def feed_ast_to_builder(fom: AstFunctionOrMethod*, func_location: Location, is_m
     ast2ir = AstToBuilder{builder = builder}
     ast2ir.begin_function(&fom.symbol.signature, fom.locals, func_location, public)
     ast2ir.build_body(fom.body)
+    ast2ir.end_function()
     ast2ir.free()
-    builder.end_function()
 
 
-# TODO: not the nicest design, needs some cleanup
 @public
-def feed_constant_to_builder(c: Constant*, builder: AnyBuilder*) -> AnyBuilderValue:
+def feed_file_to_builder(jou_file: JouFile*, builder: AnyBuilder*) -> None:
     ast2ir = AstToBuilder{builder = builder}
-    result = ast2ir.build_constant(c)
-    ast2ir.free()
-    return result
 
-
-@public
-def feed_global_vars_to_builder(jou_file: JouFile*, builder: AnyBuilder*) -> None:
+    # Imported global variables
     for avail = jou_file.available_symbols.ptr; avail < jou_file.available_symbols.end(); avail++:
         if avail.the_import != NULL:
             symbol = avail.statement.symbol()
@@ -854,7 +856,7 @@ def feed_global_vars_to_builder(jou_file: JouFile*, builder: AnyBuilder*) -> Non
                 assert symbol.type != NULL
                 builder.declare_global_var(symbol.name, symbol.type)
 
-    # Add global variables first, so we can refer to them later.
+    # Global variables defined in the file itself
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.GlobalVariableDef:
@@ -862,7 +864,7 @@ def feed_global_vars_to_builder(jou_file: JouFile*, builder: AnyBuilder*) -> Non
                 if stmt.global_var_def.initial_value == NULL:
                     builder.define_global_var(stmt.symbol().name, stmt.symbol().type, NULL, stmt.symbol().public)
                 else:
-                    initial = feed_constant_to_builder(&stmt.global_var_def.initial_value_constant, builder)
+                    initial = ast2ir.build_constant(&stmt.global_var_def.initial_value_constant)
                     builder.define_global_var(stmt.symbol().name, stmt.symbol().type, &initial, stmt.symbol().public)
             case AstStatementKind.GlobalVariableDeclare:
                 assert stmt.symbol().type != NULL
@@ -870,9 +872,10 @@ def feed_global_vars_to_builder(jou_file: JouFile*, builder: AnyBuilder*) -> Non
             case _:
                 pass
 
-
-@public
-def feed_functions_and_methods_to_builder(jou_file: JouFile*, builder: AnyBuilder*) -> None:
+    # Functions and methods
+    #
+    # This must be after global variables, because function and method bodies
+    # can reference global variables.
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.FunctionDef:
