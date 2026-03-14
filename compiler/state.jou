@@ -51,6 +51,11 @@ class JouFile:
     # Path of .o file in jou_compiled. Includes hashes, see doc/compiler_internals/lazy-recompile.md
     object_file_path: byte*
 
+    # This is not LLVMModule*, because that refers to the LLVM context so it
+    # cannot be sent to a different thread. Main thread creates this (fast),
+    # and other threads optimize and write to .o file (slow).
+    llvm_ir: LLVMMemoryBuffer*
+
     def free(self) -> None:
         for p = self.ast.ptr; p < self.ast.end(); p++:
             p.free()
@@ -60,6 +65,8 @@ class JouFile:
         free(self.available_symbols.ptr)
         free(self.symbol_hash_table)
         free(self.object_file_path)
+        if self.llvm_ir != NULL:
+            LLVMDisposeMemoryBuffer(self.llvm_ir)
 
 
 @public

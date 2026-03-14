@@ -22,7 +22,6 @@ import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
 
-import "./builders/llvm_builder.jou"
 import "./temp.jou"
 import "./state.jou"
 import "./llvm.jou"
@@ -97,27 +96,11 @@ def build_and_verify_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile
         printf("[thread %zx] Building LLVM IR: %s\n", pthread_self(), jou_file.path)
 
     start = monotonic_ns()
-    mod = build_llvm_ir(state, jou_file)
-    end = monotonic_ns()
-    printf("Build: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
-
-    start = monotonic_ns()
-    buf = LLVMWriteBitcodeToMemoryBuffer(mod)
-    LLVMDisposeModule(mod)
-    end = monotonic_ns()
-    printf("Serialize: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
-
-    start = monotonic_ns()
-    mod = NULL
-    LLVMParseBitcodeInContext2(state.llvm_context, buf, &mod)
+    mod: LLVMModule* = NULL
+    LLVMParseBitcodeInContext2(state.llvm_context, jou_file.llvm_ir, &mod)
     end = monotonic_ns()
     assert mod != NULL
     printf("Deserialize: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
-
-    start = monotonic_ns()
-    LLVMDisposeMemoryBuffer(buf)  # <--- note!
-    end = monotonic_ns()
-    printf("Dispose Mem Buf: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
 
     if global_compiler_state.args.verbosity >= 2:
         print_llvm_ir(mod, False)
@@ -260,7 +243,7 @@ def pthreads_callback(inputs_ptr: void*) -> void*:
 
 
 @public
-def compile_to_object_files_in_parallel(files_to_compile: List[JouFile*]) -> None:
+def optimize_llvm_ir_and_write_object_files_in_parallel(files_to_compile: List[JouFile*]) -> None:
     num_threads = choose_num_threads(files_to_compile)
     assert num_threads != 1  # making just one thread would be pointless
 

@@ -290,8 +290,8 @@ enum LLVMRealPredicate:
     UNE
     AlwaysTrue
 
-# It is important to use LLVM functions that take a context when possible.
-# Otherwise compiling with multiple threads won't work.
+# Refactoring note: If you want to build LLVM IR in multiple threads, it is
+# important to use LLVM functions that take a context when possible.
 #
 # Example: LLVMVoidType bad, LLVMVoidTypeInContext good
 #
@@ -305,6 +305,8 @@ declare LLVMIsMultithreaded() -> int
 declare LLVMContextCreate() -> LLVMContext*
 @public
 declare LLVMContextDispose(C: LLVMContext*) -> None
+@public
+declare LLVMGetGlobalContext() -> LLVMContext*
 @public
 declare LLVMVoidTypeInContext(C: LLVMContext*) -> LLVMType*
 @public

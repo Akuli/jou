@@ -28,6 +28,7 @@ import "../ast.jou"
 import "../errors_and_warnings.jou"
 import "../llvm.jou"
 import "../state.jou"
+import "../temp.jou"
 import "../types.jou"
 import "./any_builder.jou"
 import "./ast_to_builder.jou"
@@ -375,7 +376,7 @@ class LBuilderValue:
 # Not named LLVMBuilder because that is the name of LLVM's thing.
 @public
 class LBuilder:
-    state: ThreadLocalCompilerState*
+    state: ThreadLocalCompilerState*  # TODO: clean up if turns out to be good idea
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
     llvm_func: LLVMValue*
@@ -846,21 +847,42 @@ class LBuilder:
 
 
 @public
-def build_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMModule*:
-    module = LLVMModuleCreateWithNameInContext(jou_file.path, state.llvm_context)
+def build_llvm_ir(jou_file: JouFile*) -> LLVMMemoryBuffer*:
+    start = monotonic_ns()
+
+    module = LLVMModuleCreateWithNameInContext(jou_file.path, LLVMGetGlobalContext())
 
     assert global_compiler_state.target.ready
     LLVMSetTarget(module, global_compiler_state.target.triple)
     LLVMSetDataLayout(module, global_compiler_state.target.data_layout)
 
+    # TODO: This is just dumb. This used to be done in a thread but it is no more.
+    stupid_state = ThreadLocalCompilerState{
+        target = global_compiler_state.target.main_thread_only,
+        llvm_context = LLVMGetGlobalContext(),
+    }
+
     builder = LBuilder{
-        state = state,
+        state = &stupid_state,
         llvm_module = module,
-        llvm_builder = LLVMCreateBuilderInContext(state.llvm_context),
+        llvm_builder = LLVMCreateBuilderInContext(LLVMGetGlobalContext()),
     }
     builder_wrapper = AnyBuilder{lbuilder = &builder}
 
     feed_file_to_builder(jou_file, &builder_wrapper)
 
     LLVMDisposeBuilder(builder.llvm_builder)
-    return module
+
+    end = monotonic_ns()
+    printf("Build: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
+
+    # Convert the LLVMModule* to basically a sequence of bytes, so that it can
+    # be safely passed to another thread that optimizes it and writes .o file.
+    start = monotonic_ns()
+    result = LLVMWriteBitcodeToMemoryBuffer(module)
+    LLVMDisposeModule(module)
+    end = monotonic_ns()
+    printf("Serialize: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
+
+    assert result != NULL
+    return result
