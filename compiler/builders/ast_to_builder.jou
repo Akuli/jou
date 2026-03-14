@@ -4,6 +4,7 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
 import "../ast.jou"
+import "../global_symbols.jou"
 import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../state.jou"
@@ -842,6 +843,32 @@ def feed_constant_to_builder(c: Constant*, builder: AnyBuilder*) -> AnyBuilderVa
     result = ast2ir.build_constant(c)
     ast2ir.free()
     return result
+
+
+@public
+def feed_global_vars_to_builder(jou_file: JouFile*, builder: AnyBuilder*) -> None:
+    for avail = jou_file.available_symbols.ptr; avail < jou_file.available_symbols.end(); avail++:
+        if avail.the_import != NULL:
+            symbol = avail.statement.symbol()
+            if symbol.kind == GlobalSymbolKind.GlobalVar:
+                assert symbol.type != NULL
+                builder.declare_global_var(symbol.name, symbol.type)
+
+    # Add global variables first, so we can refer to them later.
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+        match stmt.kind:
+            case AstStatementKind.GlobalVariableDef:
+                assert stmt.symbol().type != NULL
+                if stmt.global_var_def.initial_value == NULL:
+                    builder.define_global_var(stmt.symbol().name, stmt.symbol().type, NULL, stmt.symbol().public)
+                else:
+                    initial = feed_constant_to_builder(&stmt.global_var_def.initial_value_constant, builder)
+                    builder.define_global_var(stmt.symbol().name, stmt.symbol().type, &initial, stmt.symbol().public)
+            case AstStatementKind.GlobalVariableDeclare:
+                assert stmt.symbol().type != NULL
+                builder.declare_global_var(stmt.symbol().name, stmt.symbol().type)
+            case _:
+                pass
 
 
 @public

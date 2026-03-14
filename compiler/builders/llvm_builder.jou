@@ -386,6 +386,25 @@ class LBuilder:
     returns_a_value: bool
 
     @public
+    def declare_global_var(self, varname: byte*, type: Type*) -> None:
+        LLVMAddGlobal(self.llvm_module, type_to_llvm(self.state, type), varname)
+
+    @public
+    def define_global_var(self, varname: byte*, type: Type*, initial_value: LBuilderValue*, public: bool) -> None:
+        llvm_type = type_to_llvm(self.state, type)
+        globalptr = LLVMAddGlobal(self.llvm_module, llvm_type, varname)
+        assert globalptr != NULL
+
+        if initial_value == NULL:
+            LLVMSetInitializer(globalptr, LLVMConstNull(llvm_type))
+        else:
+            assert initial_value.type == type
+            LLVMSetInitializer(globalptr, initial_value.llvm_value)
+
+        if not public:
+            LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
+
+    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.llvm_func = declare_in_llvm(self.state, sig, self.llvm_module)
         self.returns_a_value = sig.return_type != NULL

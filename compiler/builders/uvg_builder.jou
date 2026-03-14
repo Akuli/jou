@@ -30,6 +30,14 @@ class UBuilder:
     return_value_id: int
 
     @public
+    def declare_global_var(self, varname: byte*, type: Type*) -> None:
+        pass
+
+    @public
+    def define_global_var(self, varname: byte*, type: Type*, initial_value: int*, public: bool) -> None:
+        pass
+
+    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.uvg.signature = sig
         self.current_block = self.uvg.add_block()

@@ -9,8 +9,6 @@ import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/limits.jou"
 
-import "../ast.jou"
-import "../global_symbols.jou"
 import "../errors_and_warnings.jou"
 import "../hash.jou"
 import "../paths.jou"
@@ -82,6 +80,22 @@ class HBuilderValue:
 class HBuilder:
     hash: Hash
     id_counter: int64
+
+    @public
+    def declare_global_var(self, varname: byte*, type: Type*) -> None:
+        self.hash.add_string("globaldeclare")
+        self.hash.add_string(varname)
+        hash_type(&self.hash, type)
+
+    @public
+    def define_global_var(self, varname: byte*, type: Type*, initial_value: HBuilderValue*, public: bool) -> None:
+        self.hash.add_string("globaldefine")
+        self.hash.add_string(varname)
+        self.hash.add_bool(public)
+        hash_type(&self.hash, type)
+        if initial_value != NULL:
+            assert initial_value.type == type
+            self.hash.add_int64(initial_value.id)
 
     @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
@@ -462,36 +476,7 @@ def build_content_hash(jou_file: JouFile*) -> Hash:
     # See doc/lazy-recompile.md for details.
 
     builder_wrapper = AnyBuilder{hbuilder = &builder}
-
-    for avail = jou_file.available_symbols.ptr; avail < jou_file.available_symbols.end(); avail++:
-        if avail.the_import != NULL:
-            symbol = avail.statement.symbol()
-            if symbol.kind == GlobalSymbolKind.GlobalVar:
-                builder.hash.add_string("globalimport")
-                builder.hash.add_string(symbol.name)
-                assert symbol.type != NULL
-                hash_type(&builder.hash, symbol.type)
-
-    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        builder.hash.add_int(stmt.kind as int)
-        match stmt.kind:
-            case AstStatementKind.GlobalVariableDeclare:
-                builder.hash.add_string("globaldeclare")
-                builder.hash.add_string(stmt.symbol().name)
-                builder.hash.add_bool(stmt.symbol().public)
-                assert stmt.symbol().type != NULL
-                hash_type(&builder.hash, stmt.symbol().type)
-            case AstStatementKind.GlobalVariableDef:
-                builder.hash.add_string("global")
-                builder.hash.add_string(stmt.symbol().name)
-                builder.hash.add_bool(stmt.symbol().public)
-                assert stmt.symbol().type != NULL
-                hash_type(&builder.hash, stmt.symbol().type)
-                if stmt.global_var_def.initial_value != NULL:
-                    feed_constant_to_builder(&stmt.global_var_def.initial_value_constant, &builder_wrapper)
-            case _:
-                pass
-
+    feed_global_vars_to_builder(jou_file, &builder_wrapper)
     feed_functions_and_methods_to_builder(jou_file, &builder_wrapper)
 
     return builder.hash

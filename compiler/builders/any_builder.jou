@@ -40,6 +40,26 @@ class AnyBuilder:
     ubuilder: UBuilder*
     hbuilder: HBuilder*
 
+    # Also used for imported variables, import vs declare makes no difference in LLVM
+    @public
+    def declare_global_var(self, varname: byte*, vartype: Type*) -> None:
+        if self.lbuilder != NULL:
+            self.lbuilder.declare_global_var(varname, vartype)
+        if self.ubuilder != NULL:
+            self.ubuilder.declare_global_var(varname, vartype)
+        if self.hbuilder != NULL:
+            self.hbuilder.declare_global_var(varname, vartype)
+
+    # If initial value is NULL, zero-initialization will be used.
+    @public
+    def define_global_var(self, varname: byte*, vartype: Type*, initial_value: AnyBuilderValue*, public: bool) -> None:
+        if self.lbuilder != NULL:
+            self.lbuilder.define_global_var(varname, vartype, NULL if initial_value == NULL else &initial_value.lvalue, public)
+        if self.ubuilder != NULL:
+            self.ubuilder.define_global_var(varname, vartype, NULL if initial_value == NULL else &initial_value.uvalue, public)
+        if self.hbuilder != NULL:
+            self.hbuilder.define_global_var(varname, vartype, NULL if initial_value == NULL else &initial_value.hvalue, public)
+
     @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         if self.lbuilder != NULL:
