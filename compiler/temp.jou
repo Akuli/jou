@@ -1,0 +1,14 @@
+assert LINUX
+
+class timespec:
+    tv_sec: uint64
+    tv_nsec: uint64
+
+const CLOCK_MONOTONIC: int = 1
+declare clock_gettime(clockid: int, tp: timespec*) -> int
+
+@public
+def monotonic_ns() -> uint64:
+    ts = timespec{}
+    clock_gettime(CLOCK_MONOTONIC, &ts)
+    return ts.tv_sec * (1_000_000_000 as uint64) + ts.tv_nsec
