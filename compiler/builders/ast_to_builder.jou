@@ -93,6 +93,8 @@ class AstToBuilder:
                 # First n local variables are the function arguments
                 self.builder.set_ptr(var_ptr, self.builder.get_argument(i, var_type))
 
+        self.set_location(old)  # TODO: I don't understand why this is needed.
+
     def end_function(self) -> None:
         self.builder.end_function()
         self.locals.len = 0
