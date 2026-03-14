@@ -71,17 +71,17 @@ else
     fi
 
     # TODO: don't download if file exists, just verify and tell user to delete if that fails
-    if [ -z "$offline_zip" ]; then
-        echo "Downloading $filename..."
-        curl -L -o $filename $url
-    else
+    if [ -n "$offline_zip" ]; then
         echo "Copying $offline_zip to ./$filename..."
         cp "$offline_zip" "$filename"
+    elif ! [ -f "$filename" ]; then
+        echo "Downloading $filename..."
+        curl -L -o $filename $url
     fi
 
     echo "Verifying $filename..."
     if [ "$(sha256sum $filename | cut -d' ' -f1)" != "$sha" ]; then
-        echo "Verifying $filename failed! Please try again or create an issue on GitHub." >&2
+        echo "Verifying $filename failed! Please delete $filename and try again, or if that doesn't work, create an issue on GitHub." >&2
         exit 1
     fi
 
