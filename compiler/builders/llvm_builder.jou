@@ -28,7 +28,7 @@ import "../ast.jou"
 import "../errors_and_warnings.jou"
 import "../llvm.jou"
 import "../state.jou"
-import "../temp.jou"
+import "../timing.jou"
 import "../types.jou"
 import "./any_builder.jou"
 import "./ast_to_builder.jou"
@@ -874,7 +874,8 @@ def build_llvm_ir(jou_file: JouFile*) -> LLVMMemoryBuffer*:
     LLVMDisposeBuilder(builder.llvm_builder)
 
     end = monotonic_ns()
-    printf("Build: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Build: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
 
     # Convert the LLVMModule* to basically a sequence of bytes, so that it can
     # be safely passed to another thread that optimizes it and writes .o file.
@@ -882,7 +883,8 @@ def build_llvm_ir(jou_file: JouFile*) -> LLVMMemoryBuffer*:
     result = LLVMWriteBitcodeToMemoryBuffer(module)
     LLVMDisposeModule(module)
     end = monotonic_ns()
-    printf("Serialize: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Serialize: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
 
     assert result != NULL
     return result
