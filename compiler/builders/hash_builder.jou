@@ -489,13 +489,9 @@ def build_content_hash(jou_file: JouFile*) -> Hash:
                 hash_type(&builder.hash, stmt.symbol().type)
                 if stmt.global_var_def.initial_value != NULL:
                     feed_constant_to_builder(&stmt.global_var_def.initial_value_constant, &builder_wrapper)
-            case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
-            case AstStatementKind.Class:
-                for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
-                    if inner.kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, &builder_wrapper)
             case _:
                 pass
+
+    feed_functions_and_methods_to_builder(jou_file, &builder_wrapper)
 
     return builder.hash

@@ -870,16 +870,7 @@ def build_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMM
             case _:
                 pass
 
-    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        match stmt.kind:
-            case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
-            case AstStatementKind.Class:
-                for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
-                    if inner.kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, &builder_wrapper)
-            case _:
-                pass
+    feed_functions_and_methods_to_builder(jou_file, &builder_wrapper)
 
     LLVMDisposeBuilder(builder.llvm_builder)
     return module

@@ -6,6 +6,7 @@ import "stdlib/mem.jou"
 import "../ast.jou"
 import "../constants.jou"
 import "../errors_and_warnings.jou"
+import "../state.jou"
 import "../types.jou"
 import "./any_builder.jou"
 
@@ -841,3 +842,17 @@ def feed_constant_to_builder(c: Constant*, builder: AnyBuilder*) -> AnyBuilderVa
     result = ast2ir.build_constant(c)
     ast2ir.free()
     return result
+
+
+@public
+def feed_functions_and_methods_to_builder(jou_file: JouFile*, builder: AnyBuilder*) -> None:
+    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+        match stmt.kind:
+            case AstStatementKind.FunctionDef:
+                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, builder)
+            case AstStatementKind.Class:
+                for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
+                    if inner.kind == AstStatementKind.MethodDef:
+                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, builder)
+            case _:
+                pass
