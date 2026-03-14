@@ -1,10 +1,8 @@
 import "stdlib/assert.jou"
-import "stdlib/mem.jou"
 import "stdlib/list.jou"
 
 import "../uvg_analyze.jou"
 import "../state.jou"
-import "../ast.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
 import "../uvg.jou"
@@ -23,6 +21,7 @@ const FALSE_ID: int = -3
 
 @public
 class UBuilder:
+    print: bool
     uvg: Uvg
     current_block: UvgBlock*
     location: Location
@@ -51,6 +50,12 @@ class UBuilder:
         self.ret(NULL)
         self.current_block = NULL
         self.location = Location{}
+
+        if self.print:
+            self.uvg.print()
+        uvg_analyze(&self.uvg)
+        self.uvg.free()
+        self.uvg = Uvg{}
 
     @public
     def set_location(self, location: Location, inlining_signature: Signature*) -> None:
@@ -336,30 +341,8 @@ class UBuilder:
 
 @public
 def build_and_analyze_uvgs(jou_file: JouFile*, print: bool) -> None:
-    builder = UBuilder{}
+    builder = UBuilder{print = print}
     builder_wrapper = AnyBuilder{ubuilder = &builder}
 
-    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        match stmt.kind:
-            case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
-                if builder.uvg.signature != NULL:
-                    # Not inline function, we actually produced UVG
-                    if print:
-                        builder.uvg.print()
-                    uvg_analyze(&builder.uvg)
-                    builder.uvg.free()
-                memset(&builder.uvg, 0, sizeof(builder.uvg))
-            case AstStatementKind.Class:
-                for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
-                    if inner.kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, &builder_wrapper)
-                        if builder.uvg.signature != NULL:
-                            # Not inline function, we actually produced UVG
-                            if print:
-                                builder.uvg.print()
-                            uvg_analyze(&builder.uvg)
-                            builder.uvg.free()
-                        memset(&builder.uvg, 0, sizeof(builder.uvg))
-            case _:
-                pass
+    feed_global_vars_to_builder(jou_file, &builder_wrapper)
+    feed_functions_and_methods_to_builder(jou_file, &builder_wrapper)
