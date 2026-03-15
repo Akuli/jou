@@ -27,14 +27,6 @@ numbered_commits=(
 # bootstrap_transpiler.py supports.
 bootstrap_transpiler_numbered_commit=028_cb88ac4b437db34545d1249c93ff61605ae59644
 
-if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
-    echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
-    echo "Jou commits may use different LLVM versions, and it gets confusing."
-    echo ""
-    echo "The easiest way to set LLVM_CONFIG is to run this script with 'make'."
-    exit 1
-fi
-
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
     exe_suffix=".exe"
@@ -88,7 +80,7 @@ function transpile_with_python_and_compile() {
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
         clang="$PWD/mingw64/bin/clang.exe"
     else
-        clang="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
+        clang="$(grep '^const JOU_CLANG_PATH:' config.jou | cut -d'"' -f2)"
     fi
     echo "$clang"
 
