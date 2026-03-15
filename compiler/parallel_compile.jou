@@ -91,32 +91,6 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
     LLVMDisposeMessage(llvm_ir_string)
 
 
-def build_and_verify_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMModule*:
-    if global_compiler_state.args.verbosity >= 2:
-        printf("[thread %zx] Building LLVM IR: %s\n", pthread_self(), jou_file.path)
-
-    start = monotonic_ns()
-    mod: LLVMModule* = NULL
-    LLVMParseBitcodeInContext2(state.llvm_context, jou_file.llvm_ir, &mod)
-    end = monotonic_ns()
-    assert mod != NULL
-    if global_compiler_state.args.verbosity >= 1:
-        printf("Deserialize: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
-
-    if global_compiler_state.args.verbosity >= 2:
-        print_llvm_ir(mod, False)
-
-    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
-    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
-    start = monotonic_ns()
-    LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
-    end = monotonic_ns()
-    if global_compiler_state.args.verbosity >= 1:
-        printf("Verify: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
-
-    return mod
-
-
 def optimize(state: ThreadLocalCompilerState*, module: LLVMModule*, level: int) -> None:
     if global_compiler_state.args.verbosity >= 2:
         len = 0 as int64
@@ -130,12 +104,7 @@ def optimize(state: ThreadLocalCompilerState*, module: LLVMModule*, level: int) 
     options = LLVMCreatePassBuilderOptions()
     error = LLVMRunPasses(module, passes, state.target.machine, options)
     LLVMDisposePassBuilderOptions(options)
-
-    if error != NULL:
-        msg = LLVMGetErrorMessage(error)
-        fprintf(get_stderr(), "Optimizing with LLVM failed: %s\n", msg)
-        fprintf(get_stderr(), "This is a bug. Please create an issue at https://github.com/Akuli/jou\n", msg)
-        exit(1)
+    assert error == NULL  # I've never seen this fail
 
     if global_compiler_state.args.verbosity >= 2:
         print_llvm_ir(module, True)
@@ -177,7 +146,25 @@ def compile_to_object_file(state: ThreadLocalCompilerState*, jou_file: JouFile*)
     if global_compiler_state.args.verbosity >= 1:
         printf("[thread %zx] Compiling %s\n", pthread_self(), jou_file.path)
 
-    mod = build_and_verify_llvm_ir(state, jou_file)
+    start = monotonic_ns()
+    mod: LLVMModule* = NULL
+    LLVMParseBitcodeInContext2(state.llvm_context, jou_file.llvm_ir, &mod)
+    assert mod != NULL
+    end = monotonic_ns()
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Deserialize: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
+
+    if global_compiler_state.args.verbosity >= 2:
+        print_llvm_ir(mod, False)
+
+    # If this fails, it is not just users writing dumb code, it is a bug in this compiler.
+    # This compiler should always fail with an error elsewhere, or generate valid LLVM IR.
+    start = monotonic_ns()
+    LLVMVerifyModule(mod, LLVMVerifierFailureAction.AbortProcess, NULL)
+    end = monotonic_ns()
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Verify: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
+
     if global_compiler_state.args.optlevel != 0:
         start = monotonic_ns()
         optimize(state, mod, global_compiler_state.args.optlevel)
