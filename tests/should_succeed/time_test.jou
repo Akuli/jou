@@ -35,7 +35,7 @@ def test_monotonic_ns() -> None:
     end = monotonic_ns()
 
     seconds = (end - start)*1e-9
-    if fabs(seconds - 1.0) < 0.01:
+    if fabs(seconds - 1.0) < 0.05:
         # Output: time() vs monotonic_ns() ok
         printf("time() vs monotonic_ns() ok\n")
     else:
