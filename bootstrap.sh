@@ -63,6 +63,8 @@ windows_llvm_files=(
     mingw64/lib/libLLVMX86AsmParser.dll.a
     mingw64/lib/libLLVMX86Info.dll.a
     mingw64/lib/libLLVMX86Desc.dll.a
+    mingw64/lib/libLLVMBitReader.dll.a
+    mingw64/lib/libLLVMBitWriter.dll.a
 )
 
 function transpile_with_python_and_compile() {

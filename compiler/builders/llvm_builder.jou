@@ -25,10 +25,10 @@ import "stdlib/io.jou"
 import "stdlib/list.jou"
 
 import "../ast.jou"
-import "../global_symbols.jou"
 import "../errors_and_warnings.jou"
 import "../llvm.jou"
 import "../state.jou"
+import "../timing.jou"
 import "../types.jou"
 import "./any_builder.jou"
 import "./ast_to_builder.jou"
@@ -376,7 +376,7 @@ class LBuilderValue:
 # Not named LLVMBuilder because that is the name of LLVM's thing.
 @public
 class LBuilder:
-    state: ThreadLocalCompilerState*
+    state: ThreadLocalCompilerState*  # TODO: clean up, no longer threaded
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
     llvm_func: LLVMValue*
@@ -384,6 +384,25 @@ class LBuilder:
     code_start_block: LLVMBasicBlock*
     current_block: LLVMBasicBlock*
     returns_a_value: bool
+
+    @public
+    def declare_global_var(self, varname: byte*, type: Type*) -> None:
+        LLVMAddGlobal(self.llvm_module, type_to_llvm(self.state, type), varname)
+
+    @public
+    def define_global_var(self, varname: byte*, type: Type*, initial_value: LBuilderValue*, public: bool) -> None:
+        llvm_type = type_to_llvm(self.state, type)
+        globalptr = LLVMAddGlobal(self.llvm_module, llvm_type, varname)
+        assert globalptr != NULL
+
+        if initial_value == NULL:
+            LLVMSetInitializer(globalptr, LLVMConstNull(llvm_type))
+        else:
+            assert initial_value.type == type
+            LLVMSetInitializer(globalptr, initial_value.llvm_value)
+
+        if not public:
+            LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
 
     @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
@@ -828,58 +847,45 @@ class LBuilder:
 
 
 @public
-def build_llvm_ir(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> LLVMModule*:
-    module = LLVMModuleCreateWithNameInContext(jou_file.path, state.llvm_context)
+def build_llvm_ir(jou_file: JouFile*) -> LLVMMemoryBuffer*:
+    start = monotonic_ns()
+
+    # TODO: Just use the functions that don't take an explicit context parameter. They are simpler.
+    module = LLVMModuleCreateWithNameInContext(jou_file.path, LLVMGetGlobalContext())
 
     assert global_compiler_state.target.ready
     LLVMSetTarget(module, global_compiler_state.target.triple)
     LLVMSetDataLayout(module, global_compiler_state.target.data_layout)
 
+    # TODO: This is just dumb. This used to be done in a thread but it is no more.
+    stupid_state = ThreadLocalCompilerState{
+        target = global_compiler_state.target.main_thread_only,
+        llvm_context = LLVMGetGlobalContext(),
+    }
+
     builder = LBuilder{
-        state = state,
+        state = &stupid_state,
         llvm_module = module,
-        llvm_builder = LLVMCreateBuilderInContext(state.llvm_context),
+        llvm_builder = LLVMCreateBuilderInContext(LLVMGetGlobalContext()),
     }
     builder_wrapper = AnyBuilder{lbuilder = &builder}
 
-    for avail = jou_file.available_symbols.ptr; avail < jou_file.available_symbols.end(); avail++:
-        if avail.the_import != NULL:
-            symbol = avail.statement.symbol()
-            if symbol.kind == GlobalSymbolKind.GlobalVar:
-                assert symbol.type != NULL
-                LLVMAddGlobal(module, type_to_llvm(state, symbol.type), symbol.name)
-
-    # Add global variables first, so we can refer to them later.
-    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        match stmt.kind:
-            case AstStatementKind.GlobalVariableDef:
-                assert stmt.symbol().type != NULL
-                gtype = type_to_llvm(state, stmt.symbol().type)
-                globalptr = LLVMAddGlobal(module, gtype, stmt.symbol().name)
-                assert globalptr != NULL
-                if stmt.global_var_def.initial_value == NULL:
-                    LLVMSetInitializer(globalptr, LLVMConstNull(gtype))
-                else:
-                    value = feed_constant_to_builder(&stmt.global_var_def.initial_value_constant, &builder_wrapper)
-                    LLVMSetInitializer(globalptr, value.lvalue.llvm_value)
-                if not stmt.symbol().public:
-                    LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
-            case AstStatementKind.GlobalVariableDeclare:
-                assert stmt.symbol().type != NULL
-                LLVMAddGlobal(module, type_to_llvm(state, stmt.symbol().type), stmt.symbol().name)
-            case _:
-                pass
-
-    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        match stmt.kind:
-            case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &builder_wrapper)
-            case AstStatementKind.Class:
-                for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
-                    if inner.kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, &builder_wrapper)
-            case _:
-                pass
+    feed_file_to_builder(jou_file, &builder_wrapper)
 
     LLVMDisposeBuilder(builder.llvm_builder)
-    return module
+
+    end = monotonic_ns()
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Build: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
+
+    # Convert the LLVMModule* to basically a sequence of bytes, so that it can
+    # be safely passed to another thread that optimizes it and writes .o file.
+    start = monotonic_ns()
+    result = LLVMWriteBitcodeToMemoryBuffer(module)
+    LLVMDisposeModule(module)
+    end = monotonic_ns()
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Serialize: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
+
+    assert result != NULL
+    return result
