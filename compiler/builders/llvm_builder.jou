@@ -87,7 +87,7 @@ def class_type_to_llvm(type: Type*) -> LLVMType*:
             end++
         combined[combinedlen++] = union_type_to_llvm(&flat_elems[start], end-start)
 
-    result = LLVMStructTypeInContext(LLVMGetGlobalContext(), combined, combinedlen, False as int)
+    result = LLVMStructType(combined, combinedlen, False as int)
     free(flat_elems)
     free(combined)
     return result
@@ -97,7 +97,7 @@ def type_to_llvm(type: Type*) -> LLVMType*:
     if type == NULL:
         # This is only for noreturn and None return types of functions.
         # TODO: tell llvm, if we know a function is noreturn ?
-        return LLVMVoidTypeInContext(LLVMGetGlobalContext())
+        return LLVMVoidType()
 
     match type.kind:
         case TypeKind.Array:
@@ -106,14 +106,14 @@ def type_to_llvm(type: Type*) -> LLVMType*:
             return LLVMPointerTypeInContext(LLVMGetGlobalContext(), 0)
         case TypeKind.FloatingPoint:
             if type.size_in_bits == 32:
-                return LLVMFloatTypeInContext(LLVMGetGlobalContext())
+                return LLVMFloatType()
             if type.size_in_bits == 64:
-                return LLVMDoubleTypeInContext(LLVMGetGlobalContext())
+                return LLVMDoubleType()
             assert False
         case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
-            return LLVMIntTypeInContext(LLVMGetGlobalContext(), type.size_in_bits)
+            return LLVMIntType(type.size_in_bits)
         case TypeKind.Bool:
-            return LLVMInt1TypeInContext(LLVMGetGlobalContext())
+            return LLVMInt1Type()
         case TypeKind.TypeVar:
             # This is compiler internal/temporary thing and should never end up here.
             assert False  # please create an issue on GitHub if this errors
@@ -406,8 +406,8 @@ class LBuilder:
         self.llvm_func = declare_in_llvm(sig, self.llvm_module)
         self.returns_a_value = sig.return_type != NULL
 
-        self.alloca_block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), self.llvm_func, "alloca")
-        self.code_start_block = LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), self.llvm_func, "code_start")
+        self.alloca_block = LLVMAppendBasicBlock(self.llvm_func, "alloca")
+        self.code_start_block = LLVMAppendBasicBlock(self.llvm_func, "code_start")
         LLVMPositionBuilderAtEnd(self.llvm_builder, self.code_start_block)
         self.current_block = self.code_start_block
 
@@ -577,7 +577,7 @@ class LBuilder:
     @public
     def array_of_bytes(self, bytes: List[byte]) -> LBuilderValue:
         assert bytes.len <= UINT32_MAX
-        llvm_array = LLVMConstStringInContext(LLVMGetGlobalContext(), bytes.ptr, bytes.len as uint32, True as int)
+        llvm_array = LLVMConstString(bytes.ptr, bytes.len as uint32, True as int)
         assert bytes.len <= INT32_MAX
         return LBuilderValue{type = uint_type(8).array_type(bytes.len as int), llvm_value = llvm_array}
 
@@ -597,7 +597,7 @@ class LBuilder:
     # string as '\0' terminated pointer
     @public
     def pointer_string(self, s: byte*) -> LBuilderValue:
-        llvm_array = LLVMConstStringInContext(LLVMGetGlobalContext(), s, strlen(s) as uint32, False as int)
+        llvm_array = LLVMConstString(s, strlen(s) as uint32, False as int)
         llvm_string = LLVMAddGlobal(self.llvm_module, LLVMTypeOf(llvm_array), "string_literal")
         LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
         LLVMSetInitializer(llvm_string, llvm_array)
@@ -607,7 +607,7 @@ class LBuilder:
     def boolean(self, b: bool) -> LBuilderValue:
         return LBuilderValue{
             type = bool_type(),
-            llvm_value = LLVMConstInt(LLVMInt1TypeInContext(LLVMGetGlobalContext()), b as int64, False as int),
+            llvm_value = LLVMConstInt(LLVMInt1Type(), b as int64, False as int),
         }
 
     @public
@@ -639,7 +639,7 @@ class LBuilder:
         assert int_value != -1
         return LBuilderValue{
             type = t,
-            llvm_value = LLVMConstInt(LLVMInt32TypeInContext(LLVMGetGlobalContext()), int_value, False as int),
+            llvm_value = LLVMConstInt(LLVMInt32Type(), int_value, False as int),
         }
 
     # a + b
@@ -779,7 +779,7 @@ class LBuilder:
     # not value
     @public
     def not_(self, value: LBuilderValue) -> LBuilderValue:
-        llvm_true = LLVMConstInt(LLVMInt1TypeInContext(LLVMGetGlobalContext()), 1, False as int)
+        llvm_true = LLVMConstInt(LLVMInt1Type(), 1, False as int)
         llvm_result = LLVMBuildXor(self.llvm_builder, value.llvm_value, llvm_true, "not")
         return LBuilderValue{type = bool_type(), llvm_value = llvm_result}
 
@@ -795,7 +795,7 @@ class LBuilder:
     def size_of(self, t: Type*) -> LBuilderValue:
         # LLVMSizeOf() returns a 64-bit value. Jou's sizeof(x) is 32-bit.
         size64 = LLVMSizeOf(type_to_llvm(t))
-        size32 = LLVMBuildTrunc(self.llvm_builder, size64, LLVMInt32TypeInContext(LLVMGetGlobalContext()), "sizeof")
+        size32 = LLVMBuildTrunc(self.llvm_builder, size64, LLVMInt32Type(), "sizeof")
         return LBuilderValue{type = int_type(32), llvm_value = size32}
 
     # memset(ptr, 0, sizeof(*ptr))
@@ -803,7 +803,7 @@ class LBuilder:
     def memset_to_zero(self, ptr: LBuilderValue) -> None:
         assert ptr.type.kind == TypeKind.Pointer
         size = self.size_of(ptr.type.value_type).llvm_value
-        zero_byte = LLVMConstInt(LLVMInt8TypeInContext(LLVMGetGlobalContext()), 0, False as int)
+        zero_byte = LLVMConstInt(LLVMInt8Type(), 0, False as int)
         LLVMBuildMemSet(self.llvm_builder, ptr.llvm_value, zero_byte, size, 0)
 
     # value as to
@@ -815,7 +815,7 @@ class LBuilder:
     # Blocks are used to implement e.g. if statements and loops.
     @public
     def add_block(self) -> LLVMBasicBlock*:
-        return LLVMAppendBasicBlockInContext(LLVMGetGlobalContext(), self.llvm_func, "block")
+        return LLVMAppendBasicBlock(self.llvm_func, "block")
 
     # Decide which block will contain the resulting instructions.
     @public
@@ -847,17 +847,13 @@ class LBuilder:
 def build_llvm_ir(jou_file: JouFile*) -> LLVMMemoryBuffer*:
     start = monotonic_ns()
 
-    # TODO: Just use the functions that don't take an explicit context parameter. They are simpler.
-    module = LLVMModuleCreateWithNameInContext(jou_file.path, LLVMGetGlobalContext())
+    module = LLVMModuleCreateWithName(jou_file.path)
 
     assert global_compiler_state.target.ready
     LLVMSetTarget(module, global_compiler_state.target.triple)
     LLVMSetDataLayout(module, global_compiler_state.target.data_layout)
 
-    builder = LBuilder{
-        llvm_module = module,
-        llvm_builder = LLVMCreateBuilderInContext(LLVMGetGlobalContext()),
-    }
+    builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
     builder_wrapper = AnyBuilder{lbuilder = &builder}
 
     feed_file_to_builder(jou_file, &builder_wrapper)
