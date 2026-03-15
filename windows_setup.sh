@@ -16,7 +16,8 @@ offline_zip=
 while [ $# != 0 ]; do
     case "$1" in
         --small)
-            small=yes
+            echo "WARNING: The --small flag is currently not supported! Ignoring."
+            #small=yes
             shift
             ;;
         --offline-zip)

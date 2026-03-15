@@ -5,6 +5,7 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 import "./ast.jou"
+import "./builders/llvm_builder.jou"
 import "./builders/uvg_builder.jou"
 import "./command_line_args.jou"
 import "./errors_and_warnings.jou"
@@ -407,8 +408,10 @@ def compile_to_object_files() -> None:
 
     needs_compiling = List[JouFile*]{}
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        exists: bool
         assert jou_file.object_file_path == NULL
+        assert jou_file.llvm_ir == NULL
+
+        exists: bool
         jou_file.object_file_path = get_path_to_object_file_in_jou_compiled(jou_file, &exists)
         assert jou_file.object_file_path != NULL
 
@@ -417,8 +420,10 @@ def compile_to_object_files() -> None:
                 printf("Reusing previously compiled file: %s\n", jou_file.object_file_path)
         else:
             needs_compiling.append(jou_file)
+            jou_file.llvm_ir = build_llvm_ir(jou_file)
+            assert jou_file.llvm_ir != NULL
 
-    compile_to_object_files_in_parallel(needs_compiling)
+    optimize_llvm_ir_and_write_object_files_in_parallel(needs_compiling)
     free(needs_compiling.ptr)
 
 
