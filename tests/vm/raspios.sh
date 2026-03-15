@@ -147,10 +147,13 @@ ls -la
 # Mount more file system stuff
 mount -t proc proc /proc
 mount -t sysfs sys /sys
-mount -t devtmpfs devtmpfs /dev
+#mount -t devtmpfs devtmpfs /dev  # already mounted for some reason
 mkdir -vp /dev/pts
 mount -t devpts devpts /dev/pts
 swapon /swapfile
+ln -s /proc/self/fd /dev/fd
+
+mount
 
 # Set up networking
 ip link set dev eth0 up
