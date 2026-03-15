@@ -70,10 +70,9 @@ else
         sha=5937a482247bebc2eca8c0b93fa43ddb17d94968adfff3f2e0c63c94608ee76b
     fi
 
-    # TODO: don't download if file exists, just verify and tell user to delete if that fails
     if [ -z "$offline_zip" ]; then
         echo "Downloading $filename..."
-        curl -L -o $filename $url
+        curl -L -C - -o $filename $url
     else
         echo "Copying $offline_zip to ./$filename..."
         cp "$offline_zip" "$filename"
@@ -81,7 +80,7 @@ else
 
     echo "Verifying $filename..."
     if [ "$(sha256sum $filename | cut -d' ' -f1)" != "$sha" ]; then
-        echo "Verifying $filename failed! Please try again or create an issue on GitHub." >&2
+        echo "Verifying $filename failed! Please delete $filename and try again, or if that doesn't work, create an issue on GitHub." >&2
         exit 1
     fi
 
