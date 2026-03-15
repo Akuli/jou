@@ -1,4 +1,46 @@
-# Return the number of seconds since January 1st, 1970.
+class timespec:
+    tv_sec: uint64
+    # tv_nsec is 32-bit on some of the systems we support, but that doesn't
+    # really matter because of the way we zero-initialize these.
+    tv_nsec: uint64
+
+if WINDOWS:
+    # winpthread comes with a wrapper that provides a Linux-like clock_gettime().
+    # TODO: Use QueryPerformanceCounter instead?
+    link "-pthread"  # winpthread comes with a wrapper fr
+    const CLOCK_MONOTONIC: int = 1
+    declare clock_gettime(clockid: int, tp: timespec*) -> int
+elif LINUX:
+    const CLOCK_MONOTONIC: int = 1
+    declare clock_gettime(clockid: int, tp: timespec*) -> int
+elif MACOS:
+    const CLOCK_UPTIME_RAW: int = 8
+    declare clock_gettime_nsec_np(clock_id: int) -> uint64
+elif NETBSD:
+    const CLOCK_MONOTONIC: int = 3
+    declare __clock_gettime50(clockid: int, tp: timespec*) -> int
+    def clock_gettime(clockid: int, tp: timespec*) -> int:
+        return __clock_gettime50(clockid, tp)
+else:
+    assert False  # unsupported system
+
+
+# Returns the number of nanoseconds since some fixed point in time.
+#
+# This function is intended to be used for measuring how long something took,
+# so the start point in time is irrelevant in most use cases. Please create an
+# issue on GitHub if you want to rely on it.
+@public
+def monotonic_ns() -> uint64:
+    if MACOS:
+        return clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+    else:
+        ts = timespec{}
+        clock_gettime(CLOCK_MONOTONIC, &ts)
+        return ts.tv_sec * (1_000_000_000 as uint64) + ts.tv_nsec
+
+
+# time(result_ptr) returns the number of seconds since January 1st, 1970.
 #
 # If `result_ptr` is not NULL, the returned value is also written to it. This
 # feature exists for historical reasons and is completely useless. I recommend
