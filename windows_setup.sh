@@ -74,9 +74,9 @@ else
     if [ -n "$offline_zip" ]; then
         echo "Copying $offline_zip to ./$filename..."
         cp "$offline_zip" "$filename"
-    elif ! [ -f "$filename" ]; then
+    else
         echo "Downloading $filename..."
-        curl -L -o $filename $url
+        curl -L -C - -o $filename $url
     fi
 
     echo "Verifying $filename..."
