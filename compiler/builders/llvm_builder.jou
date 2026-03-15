@@ -850,6 +850,7 @@ class LBuilder:
 def build_llvm_ir(jou_file: JouFile*) -> LLVMMemoryBuffer*:
     start = monotonic_ns()
 
+    # TODO: Just use the functions that don't take an explicit context parameter. They are simpler.
     module = LLVMModuleCreateWithNameInContext(jou_file.path, LLVMGetGlobalContext())
 
     assert global_compiler_state.target.ready
