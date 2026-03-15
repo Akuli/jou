@@ -833,17 +833,15 @@ class AstToBuilder:
         free(self.loops.ptr)
 
 
-def feed_ast_to_builder(fom: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, builder: AnyBuilder*) -> None:
+def feed_ast_to_builder(fom: AstFunctionOrMethod*, func_location: Location, is_main_file: bool, ast2ir: AstToBuilder*) -> None:
     if fom.inline:
         # Calls to this function will be inlined. Pretend the function doesn't exist.
         return
 
     public = (fom.symbol.public or fom.symbol.signature.get_self_class() != NULL)
-    ast2ir = AstToBuilder{builder = builder}
     ast2ir.begin_function(&fom.symbol.signature, fom.locals, func_location, public)
     ast2ir.build_body(fom.body)
     ast2ir.end_function()
-    ast2ir.free()
 
 
 @public
@@ -881,10 +879,12 @@ def feed_file_to_builder(jou_file: JouFile*, builder: AnyBuilder*) -> None:
     for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
         match stmt.kind:
             case AstStatementKind.FunctionDef:
-                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, builder)
+                feed_ast_to_builder(&stmt.function, stmt.location, jou_file.is_main_file, &ast2ir)
             case AstStatementKind.Class:
                 for inner = stmt.classdef.body.ptr; inner < stmt.classdef.body.end(); inner++:
                     if inner.kind == AstStatementKind.MethodDef:
-                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, builder)
+                        feed_ast_to_builder(&inner.method, inner.location, jou_file.is_main_file, &ast2ir)
             case _:
                 pass
+
+    ast2ir.free()
