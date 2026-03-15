@@ -50,6 +50,8 @@ if ! [ -f disk.img ]; then
     mv -v 2025-12-04-raspios-trixie-armhf-lite.img disk.img
     trap 'rm -v disk.img' EXIT  # Avoid leaving behind a broken disk image
 
+fi; if true; then  # TODO: temp debug!!!
+
     # We separate the main partition into a file for two reasons:
     #   - adding files to it (we could mount it, but then we need sudo)
     #   - resizing
@@ -61,78 +63,94 @@ if ! [ -f disk.img ]; then
     echo "  $size blocks at $offset"
     dd if=disk.img of=partition.img bs=512 skip=$offset count=$size
 
-    echo "Resizing disk..."
-    # Three things have to happen to get more storage:
-    #   1. Disk or disk image gets bigger (e.g. user wrote the image to a huge sd card)
-    #   2. Partition table must be updated so that second (main) partition fills rest of the disk
-    #   3. File system on the partition must be resized to fill the entire partition
-    #
-    # Usually Raspberry Pi OS would do steps 2 and 3 automatically, but it
-    # doesn't work, because we boot it in a weird/crude way that skips a bunch
-    # of things.
+#    echo "Resizing disk..."
+#    # Three things have to happen to get more storage:
+#    #   1. Disk or disk image gets bigger (e.g. user wrote the image to a huge sd card)
+#    #   2. Partition table must be updated so that second (main) partition fills rest of the disk
+#    #   3. File system on the partition must be resized to fill the entire partition
+#    #
+#    # Usually Raspberry Pi OS would do steps 2 and 3 automatically, but it
+#    # doesn't work, because we boot it in a weird/crude way that skips a bunch
+#    # of things.
+#
+#    # Step 1
+#    truncate -s +3G disk.img
+#    truncate -s +3G partition.img
+#
+#    # Step 2
+#    /sbin/parted --script disk.img resizepart 2 100%
+#
+#    # Step 3
+#    /sbin/resize2fs partition.img
+#
+#    echo "Adding ssh key..."
+#    # The user 'pi' used to have a default password 'raspberry', but that is no
+#    # longer true. Instead the password is disabled, so you cannot log in.
+#    #
+#    # The official thing to do is to add a userconf.txt file. But if we're
+#    # going to add a file, we might as well add the ssh key directly, since we
+#    # want to use ssh anyway.
+#    #
+#    # We set up ssh as root user to be consistent with other VMs.
+#    #
+#    # The mode specified in debugfs is not only permission bits but also the
+#    # inode type:
+#    #
+#    #   directory    = 0x4000 = octal  40000
+#    #   regular file = 0x8000 = octal 100000
+#    #
+#    # Extra 0 in beginning is needed for octal in debugfs (just like in C).
+#    #
+#    # If you don't specify the inode type, it becomes zero and you get some
+#    # "interesting" results...
+#    #
+#    #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $ sudo mount partition.img /mnt/
+#    #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $ sudo ls -l /mnt/root/.ssh
+#    #    ls: cannot access '/mnt/root/.ssh/authorized_keys': Structure needs cleaning
+#    #    total 0
+#    #    -????????? ? ? ? ?            ? authorized_keys
+#    #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $
+#    ../keygen.sh > key.pub
+#    echo '
+#write key.pub /root/.ssh/authorized_keys
+#set_inode_field /root/.ssh/authorized_keys mode 0100600' | /sbin/debugfs -w partition.img
+#    rm key.pub
+#
+#    echo "Adding 1GB swap file..."
+#    # I tried filling the file initially with zero bytes, but the zeros got
+#    # special-cased somewhere:
+#    #
+#    #    ~ # swapon /swapfile
+#    #    swapon: /swapfile: file has holes
+#    #
+#    head -c 1G /dev/urandom > swapfile
+#    /sbin/mkswap swapfile
+#    echo '
+#write swapfile /swapfile
+#set_inode_field /swapfile mode 0100600
+#dump /etc/fstab fstab' | /sbin/debugfs -w partition.img
+#    echo '/swapfile none swap sw 0 0' >> fstab
+#    echo '
+#rm /etc/fstab
+#write fstab /etc/fstab' | /sbin/debugfs -w partition.img
+#    rm swapfile
+#    rm fstab
 
-    # Step 1
-    truncate -s +3G disk.img
-    truncate -s +3G partition.img
+    echo "Adding minimal init..."
+#    cat > myinit<<EOF
+#!/bin/bash
+#ls -lahtr
+#/usr/bin/sshd --help
+#EOF
+#    echo '
+#write myinit /myinit
+#set_inode_field /myinit mode 0100755' | /sbin/debugfs -w partition.img
+#    rm myinit
 
-    # Step 2
-    /sbin/parted --script disk.img resizepart 2 100%
-
-    # Step 3
-    /sbin/resize2fs partition.img
-
-    echo "Adding ssh key..."
-    # The user 'pi' used to have a default password 'raspberry', but that is no
-    # longer true. Instead the password is disabled, so you cannot log in.
-    #
-    # The official thing to do is to add a userconf.txt file. But if we're
-    # going to add a file, we might as well add the ssh key directly, since we
-    # want to use ssh anyway.
-    #
-    # We set up ssh as root user to be consistent with other VMs.
-    #
-    # The mode specified in debugfs is not only permission bits but also the
-    # inode type:
-    #
-    #   directory    = 0x4000 = octal  40000
-    #   regular file = 0x8000 = octal 100000
-    #
-    # Extra 0 in beginning is needed for octal in debugfs (just like in C).
-    #
-    # If you don't specify the inode type, it becomes zero and you get some
-    # "interesting" results...
-    #
-    #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $ sudo mount partition.img /mnt/
-    #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $ sudo ls -l /mnt/root/.ssh
-    #    ls: cannot access '/mnt/root/.ssh/authorized_keys': Structure needs cleaning
-    #    total 0
-    #    -????????? ? ? ? ?            ? authorized_keys
-    #    akuli@Akuli-Desktop ~/jou/vm/raspios-armv6 $
-    ../keygen.sh > key.pub
     echo '
-write key.pub /root/.ssh/authorized_keys
-set_inode_field /root/.ssh/authorized_keys mode 0100600' | /sbin/debugfs -w partition.img
-    rm key.pub
-
-    echo "Adding 1GB swap file..."
-    # I tried filling the file initially with zero bytes, but the zeros got
-    # special-cased somewhere:
-    #
-    #    ~ # swapon /swapfile
-    #    swapon: /swapfile: file has holes
-    #
-    head -c 1G /dev/urandom > swapfile
-    /sbin/mkswap swapfile
-    echo '
-write swapfile /swapfile
-set_inode_field /swapfile mode 0100600
-dump /etc/fstab fstab' | /sbin/debugfs -w partition.img
-    echo '/swapfile none swap sw 0 0' >> fstab
-    echo '
-rm /etc/fstab
-write fstab /etc/fstab' | /sbin/debugfs -w partition.img
-    rm swapfile
-    rm fstab
+rm /myinit
+write ../myinit /myinit
+set_inode_field /myinit mode 0100755' | /sbin/debugfs -w partition.img
 
     echo "Writing main partition back to disk image..."
     dd if=partition.img of=disk.img bs=512 seek=$offset conv=notrunc
@@ -147,8 +165,6 @@ else
     rm -f pid.txt
     echo "Starting qemu..."
     mkdir -vp shared_folder
-    # Start with init=/bin/sh for now, minirootfs is so minimal it doesn't have a proper init system
-    #
     # Explanations of VM options:
     #   -M: machine model that the github repo mentioned above happens to support
     #   -cpu: basically the same CPU as in raspberry pi 0 and 1 i guess? TODO: is it? change?
@@ -171,7 +187,7 @@ else
         -drive file=disk.img,format=raw,if=none,id=disk0 \
         -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off \
         -device virtio-rng-pci \
-        -append "root=/dev/vda2 rw console=ttyAMA0 resize" \
+        -append "root=/dev/vda2 rw console=ttyAMA0 resize init=/myinit" \
         -serial tcp:localhost:4444,server=on,wait=off \
         -nic user,model=smc91c111,hostfwd=tcp:127.0.0.1:2222-:22 \
         -virtfs local,path=shared_folder,mount_tag=share,security_model=none \
