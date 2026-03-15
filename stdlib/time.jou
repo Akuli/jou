@@ -24,7 +24,6 @@ elif LINUX:
         def clock_gettime(clockid: int, tp: timespec*) -> int:
             return __clock_gettime64(clockid, tp)
     else:
-        const CLOCK_MONOTONIC: int = 1
         declare clock_gettime(clockid: int, tp: timespec*) -> int
 elif MACOS:
     const CLOCK_UPTIME_RAW: int = 8
