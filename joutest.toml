@@ -1,29 +1,11 @@
-# Modes:
-#   "skip"               don't run test, show
-#   "skip_silently"      don't even consider running the test
-#   "run"                run the code, don't capture output
-#   "ignore_output"      run the test, capture stdout, do nothing with it
-#   "ignore_all_output"  run the test, capture stdout and stderr, do nothing with them
-#   "check_output"       run the test, capture stdout and stderr, compare to "Output:" and "Error:" comments
-#
-# There is no default mode, you need to set it yourself because conventions
-# vary a lot among projects.
-#
-# To figure out how a file is tested, each thing in [[tests]] array is applied
-# in order, overriding settings from the previous ones.
-
-
 # ------------------------------------------------------------------
 # -------- Documentation tests (doctests) in markdown files --------
 # ------------------------------------------------------------------
 
 [[tests]]
 files = "**/*.md"
-mode = {
-    default = "check_output",
-    no_expected_output = "skip_silently",
-    valgrind = "skip",
-}
+markdown.languages_to_test_as_jou = ["python"]
+skip = {default = false, --valgrind = true, no_expected_output = "silent"}
 
 
 # ------------------------------------
@@ -32,17 +14,16 @@ mode = {
 
 [[tests]]
 files = "examples/*.jou"
-mode = "check_output"
 
 [[tests]]
 files = "examples/aoc*/day*/part*.jou"
-mode = "check_output"
-cd_to_containing_directory = true  # needed for open("sampleinput.txt", "r") to work
+cd_to_containing_directory = true  # needed for open("sampleinput.txt", "r")
 
-# This program doesn't interact nicely with automated tests at all.
+# BIG QUESTION: should configuration be merged or should it take the last one?
+# I think merge.
 [[tests]]
 files = "examples/memory_leak.jou"
-mode = "skip"
+skip = true  # This program doesn't interact nicely with automated tests at all.
 
 
 # ---------------------------------
@@ -50,35 +31,36 @@ mode = "skip"
 # ---------------------------------
 
 [[tests]]
-files = "tests/*/*.jou"
-mode = {default = "check_output", valgrind = "skip"}
-exit_code_should_be = 1
-
-# These don't inherit exit code from above. Last matching [[tests]] is used.
-# TODO: currently it merges rather than using the last one... what do I want?
-[[tests]]
-files = "tests/should_succeed/*.jou"
-mode = "check_output"  # Do not skip when valgrinding (overrides setting from above)
-exit_code_should_be = 0
-
-# TODO: set files to array to combine these two?
-[[tests]]
-files = "tests/should_succeed/double_dotdot_import/*/*.jou"
-mode = "check_output"
+files = [
+    "tests/should_succeed/*.jou",
+    "tests/should_succeed/double_dotdot_import/*/*.jou",
+]
 
 # This test links with LLVM, and somehow just linking with LLVM leaks memory
 # when the program starts, even if it is never called.
 [[tests]]
 files = "tests/should_succeed/compiler_unit_tests.jou"
-mode = {default = "check_output", valgrind = "skip"}
+skip = {default = false, --valgrind = true}
 
-# Idea:
-# warning: section [files."tests/should_sucede/*.jou"] on line 123 did not apply to any files
+[[tests]]
+files = [
+    "tests/404/*.jou",
+    "tests/already_exists_error/*.jou",
+    "tests/other_errors/*.jou",
+    "tests/syntax_error/*.jou",
+    "tests/too_long/*.jou",
+    "tests/wrong_place/*.jou",
+    "tests/wrong_type/*.jou",
+]
+skip = {default = false, --valgrind = true}
+expected_exit_code = 1
 
 # Crashing tests are a bit special. They should fail, and output varies by platform.
 [[tests]]
 files = "tests/crash/*.jou"
-mode = {default = "skip", O0 = "ignore_all_output"}
+skip = {default = true, -O0 = false}
+stdout = "discard"
+stderr = "discard"
 exit_code_should_be = 1
 
 
@@ -107,21 +89,21 @@ cp "$libdir/liblzma.a" tmp/tests/
 """}
 
 
-# ---------------------------------
-# -------- output handling --------
-# ---------------------------------
-
-[expected_output.substitute]
-"<joudir>" = {absolute_path = "."}
-"<jouexe>" = {default = "./jou", windows = "jou.exe"}
-"<intnative>" = {default = "int64", 32bit = "int"}
-"<pointersize>" = {default = "8", 32bit = "4"}
-
-# On MacOS, silence a linker warning that appears whenever linking
-# with LLVM. I don't know what causes the warning.
-#
-# See: https://github.com/Akuli/jou/issues/1005
-[actual_output.remove_lines]
-default = []
-[[actual_output.remove_lines.macos]]
-contains = "ld: warning: reexported library with install name"
+[defaults_for_all_tests]
+valgrind_compiler = {default = false, --valgrind = true}
+expected_output.substitute = {
+    "<joudir>" = {absolute_path = "."},
+    "<jouexe>" = {default = "./jou", windows = "jou.exe"},
+    "<intnative>" = {default = "int64", 32bit = "int"},
+    "<pointersize>" = {default = "8", 32bit = "4"},
+}
+actual_output.remove_lines = {
+    # On MacOS, silence a linker warning that appears whenever linking
+    # with LLVM. I don't know what causes the warning.
+    #
+    # See: https://github.com/Akuli/jou/issues/1005
+    default = [],
+    macos = [
+        {contains = "ld: warning: reexported library with install name"},
+    ],
+}
