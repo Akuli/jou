@@ -376,7 +376,7 @@ class LBuilderValue:
 # Not named LLVMBuilder because that is the name of LLVM's thing.
 @public
 class LBuilder:
-    state: ThreadLocalCompilerState*  # TODO: clean up if turns out to be good idea
+    state: ThreadLocalCompilerState*  # TODO: clean up, no longer threaded
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
     llvm_func: LLVMValue*
@@ -850,6 +850,7 @@ class LBuilder:
 def build_llvm_ir(jou_file: JouFile*) -> LLVMMemoryBuffer*:
     start = monotonic_ns()
 
+    # TODO: Just use the functions that don't take an explicit context parameter. They are simpler.
     module = LLVMModuleCreateWithNameInContext(jou_file.path, LLVMGetGlobalContext())
 
     assert global_compiler_state.target.ready
