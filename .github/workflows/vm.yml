@@ -51,8 +51,15 @@ jobs:
                 echo "Found the '$label' label, running all VMs"
                 printf '%s\n' $fast $slow > what_to_run.txt
               else
-                echo "Let's run only the fast VMs (no '$label' label)"
+                echo "Let's run the fast VMs (no '$label' label)"
                 printf '%s\n' $fast > what_to_run.txt
+                for vm in $slow; do
+                  script=tests/vm/$(echo $vm | cut -d- -f1).sh
+                  if ! git diff --quiet --exit-code origin/main... $script; then
+                    echo "  But also run $vm because $script changed"
+                    echo $vm >> what_to_run.txt
+                  fi
+                done
               fi
               ;;
             workflow_dispatch)
