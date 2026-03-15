@@ -68,30 +68,33 @@ expected_exit_code = 1
 # -------- availability of libraries handling --------
 # ----------------------------------------------------
 
-[library_availability.liblzma_dynamic]
-# Test if pkg-config knows where liblzma dynamically linked library is, or if
-# it's directly in /usr/lib. In either case the linker will find it.
-windows = false
-default = {run = """( pkg-config --exists liblzma || (set -- /usr/lib/liblzma.so* && [ -f "$1" ]) ) > /dev/null"""}
+# TODO
 
-[library_availability.liblzma_static]
-windows = false
-default = {run = "[ -f `pkg-config --variable=libdir liblzma 2>/dev/null`/liblzma.a ]"}
-
-[library_availability.liblzma_copied]
-# If liblzma.a exists, we also copy it to temporary folder.
-# If it doesn't exist, the copying fails and that tells the test runner to skip.
-windows = false
-default = {run = """
-mkdir -p tmp/tests
-libdir="`pkg-config --variable=libdir liblzma 2>/dev/null || echo /usr/lib`"
-cp "$libdir/liblzma.a" tmp/tests/
-"""}
+#[library_availability.liblzma_dynamic]
+## Test if pkg-config knows where liblzma dynamically linked library is, or if
+## it's directly in /usr/lib. In either case the linker will find it.
+#windows = false
+#default = {run = """( pkg-config --exists liblzma || (set -- /usr/lib/liblzma.so* && [ -f "$1" ]) ) > /dev/null"""}
+#
+#[library_availability.liblzma_static]
+#windows = false
+#default = {run = "[ -f `pkg-config --variable=libdir liblzma 2>/dev/null`/liblzma.a ]"}
+#
+#[library_availability.liblzma_copied]
+## If liblzma.a exists, we also copy it to temporary folder.
+## If it doesn't exist, the copying fails and that tells the test runner to skip.
+#windows = false
+#default = {run = """
+#mkdir -p tmp/tests
+#libdir="`pkg-config --variable=libdir liblzma 2>/dev/null || echo /usr/lib`"
+#cp "$libdir/liblzma.a" tmp/tests/
+#"""}
 
 
 [defaults_for_all_tests]
+run_compiler_under_valgrind = {default = false, --valgrind = true}
+
 # TODO: joutest doesn't understand these yet
-#run_compiler_under_valgrind = {default = false, --valgrind = true}
 #expected_output.substitute = {
 #    "<joudir>" = {absolute_path = "."},
 #    "<jouexe>" = {default = "./jou", windows = "jou.exe"},

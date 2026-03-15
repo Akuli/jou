@@ -215,35 +215,48 @@ def parse_one_item_of_tests(state: State*, template_test: Test*, toml: TOML*) ->
         add_or_update_tests_of_glob(state, template_test, toml, toml_files)
 
 
-def parse_tests(state: State*, toml: TOML*) -> None:
-    assert toml != NULL
-
+def parse_tests_and_defaults(state: State*, tests_toml: TOML*, defaults_toml: TOML*) -> None:
     # This will be copied to make more tests
     template_test = Test{}
     template_test.markdown.languages_to_test_as_jou[0] = "jou"
     template_test.markdown.num_languages_to_test_as_jou = 1
 
-    defaults_for_all_tests = toml_get(toml, "defaults_for_all_tests")
-    if defaults_for_all_tests != NULL:
-        files = toml_get(defaults_for_all_tests, "files")
+    if defaults_toml != NULL:
+        if defaults_toml.type != TOMLType.Table:
+            fail_in_toml(defaults_toml.lineno, "'defaults_for_all_tests' must be a table")
+        files = toml_get(defaults_toml, "files")
         if files != NULL:
             fail_in_toml(files.lineno, "you cannot specify 'files' inside defaults_for_all_tests")
-        apply_settings_to_test(defaults_for_all_tests, &template_test)
+        apply_settings_to_test(defaults_toml, &template_test)
 
-    toml = toml_get(toml, "tests")
-    if toml == NULL:
+    if tests_toml == NULL:
         fail("joutest.toml must define an array named 'tests'")
-    if toml.type != TOMLType.Array:
-        fail_in_toml(toml.lineno, "'tests' must be an array")
-    if toml.array.len == 0:
-        fail_in_toml(toml.lineno, "the 'tests' array cannot be empty")
+    if tests_toml.type != TOMLType.Array:
+        fail_in_toml(tests_toml.lineno, "'tests' must be an array")
+    if tests_toml.array.len == 0:
+        fail_in_toml(tests_toml.lineno, "the 'tests' array cannot be empty")
 
     # TODO: This should probably loop backwards. When multiple [[tests]]
     #       sections match the same file, we want to use the last settings
     #       specified for it, and mark only those settings as used. Then we can
     #       show error message about settings that do not apply to any file.
-    for p = toml.array.ptr; p < toml.array.end(); p++:
+    for p = tests_toml.array.ptr; p < tests_toml.array.end(); p++:
         parse_one_item_of_tests(state, &template_test, p)
+
+
+def parse_the_whole_toml(state: State*, toml: TOML*) -> None:
+    assert toml.type == TOMLType.Table
+
+    parse_tests_and_defaults(state, toml_get(toml, "tests"), toml_get(toml, "defaults_for_all_tests"))
+
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        match kv.key with strcmp:
+            case "tests" | "defaults_for_all_tests":
+                pass  # already handled
+            case _:
+                error: byte[300]
+                snprintf(error, sizeof(error), "unknown setting '%s'", kv.key)
+                fail_in_toml(kv.value.lineno, error)
 
 
 enum Condition:
@@ -377,5 +390,5 @@ def read_joutest_toml(state: State*) -> None:
         fail_in_toml(toml.lineno, toml.error_message)
 
     eliminate_condition_tables(&toml, 0)
-    parse_tests(state, &toml)
+    parse_the_whole_toml(state, &toml)
     toml.free()
