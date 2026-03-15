@@ -13,57 +13,192 @@ import "./state.jou"
 import "./glob.jou"
 
 
-def glob_to_paths(glob: byte*, lineno: int) -> List[byte*]:
+def bool_from_toml_keyval(kv: TOMLKeyVal*) -> bool:
+    if toml_is_true(&kv.value):
+        return True
+    if toml_is_false(&kv.value):
+        return False
+    error: byte[200]
+    snprintf(error, sizeof(error), "'%s' must be a boolean", kv.key)
+    fail_in_toml(kv.value.lineno, error)
+
+
+def enum_from_toml_keyval(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> int:
+    s = toml_to_string(&kv.value)
+    if s != NULL:
+        for i = 0; i < nstrings; i++:
+            if strcmp(s, strings[i]) == 0:
+                return i
+
+    surely_big_enough = strlen(kv.key) + 10*nstrings + 123
+    for i = 0; i < nstrings; i++:
+        surely_big_enough += strlen(strings[i])
+
+    error: byte* = malloc(surely_big_enough)
+    assert error != NULL
+
+    sprintf(error, "'%s' must be ", kv.key)
+    for i = 0; i < nstrings; i++:
+        if i == nstrings - 1:
+            strcat(error, " or ")
+        elif i != 0:
+            strcat(error, ", ")
+        strcat(error, "\"")
+        strcat(error, strings[i])
+        strcat(error, "\"")
+
+    fail_in_toml(kv.value.lineno, error)
+
+
+def apply_markdown_settings_to_test(toml: TOML*, test: Test*) -> None:
+    if test.type != TestType.MarkdownDocTest:
+        return  # TODO: should we still validate the stuff?
+
+    if toml.type != TOMLType.Table:
+        fail_in_toml(toml.lineno, "'markdown' must be a table")
+
+    md = &test.markdown
+
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        match kv.key with strcmp:
+            case "languages_to_test_as_jou":
+                if kv.value.type != TOMLType.Array:
+                    fail_in_toml(kv.value.lineno, "'markdown.languages_to_test_as_jou' must be an array of strings")
+                if kv.value.array.len > array_count(md.languages_to_test_as_jou):
+                    fail_in_toml(kv.value.lineno, "'markdown.languages_to_test_as_jou' is set to an array that is too long")
+                md.num_languages_to_test_as_jou = 0
+                for p = kv.value.array.ptr; p < kv.value.array.end(); p++:
+                    s = toml_to_string(p)
+                    if s == NULL:
+                        fail_in_toml(kv.value.lineno, "'markdown.languages_to_test_as_jou' must be an array of strings")
+                    snprintf(
+                        md.languages_to_test_as_jou[md.num_languages_to_test_as_jou++],
+                        sizeof(md.languages_to_test_as_jou[0]),
+                        "%s",
+                        s,
+                    )
+            case _:
+                error: byte[200]
+                snprintf(error, sizeof(error), "unknown setting 'markdown.%s' for a test", kv.key)
+                fail_in_toml(kv.value.lineno, error)
+
+
+def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
+    assert toml != NULL
+    assert toml.type == TOMLType.Table
+    assert test != NULL
+
+    error: byte[200]
+
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        match kv.key with strcmp:
+            case "files":
+                # already handled when creating the tests, we are handling one of them
+                pass
+            case "skip":
+                if toml_is_false(&kv.value):
+                    test.skip = Skip.DontSkip
+                elif toml_is_true(&kv.value):
+                    test.skip = Skip.SkipNormally
+                elif toml_to_string(&kv.value) != NULL and strcmp(toml_to_string(&kv.value), "silent") == 0:
+                    test.skip = Skip.SkipSilently
+                else:
+                    fail_in_toml(kv.value.lineno, "'skip' must be false, true or \"silent\"")
+            case "cd_to_containing_directory":
+                test.cd_to_containing_directory = bool_from_toml_keyval(kv)
+            case "run_compiler_under_valgrind":
+                test.run_compiler_under_valgrind = bool_from_toml_keyval(kv)
+            case "markdown":
+                if test.type == TestType.MarkdownDocTest:
+                    apply_markdown_settings_to_test(&kv.value, test)
+            case "expected_exit_code":
+                test.expected_exit_code = toml_to_int(&kv.value, -1)
+                # TODO: more validation? exit code 12345 does not get passed through as is on most systems
+                if test.expected_exit_code < 0:
+                    fail_in_toml(kv.value.lineno, "'expected_exit_code' must be a nonnegative integer")
+            case "stdout":
+                test.stdout = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
+            case "stderr":
+                test.stderr = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
+            case _:
+                snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
+                fail_in_toml(kv.value.lineno, error)
+
+
+def add_or_update_tests_of_file(state: State*, template_test: Test*, toml: TOML*, path: byte*, path_lineno: int) -> None:
+    assert state != NULL
+    assert template_test != NULL
+    assert toml != NULL
+    assert path != NULL
+
+    num_tests_found = 0
+    for test = state.tests.ptr; test < state.tests.end(); test++:
+        if strcmp(test.path, path) == 0:
+            apply_settings_to_test(toml, test)
+            num_tests_found++
+            break
+
+    # Currently it is not possible to have multiple tests coming from the same file.
+    # This will change in the future when we find tests from markdown.
+    assert num_tests_found <= 1
+
+    if num_tests_found == 0:
+        # Add new test for the file
+        t = *template_test
+
+        assert t.path == NULL
+        t.path = strdup(path)
+        assert t.path != NULL
+
+        if ends_with(path, ".jou"):
+            t.type = TestType.JouFile
+        elif ends_with(path, ".md"):
+            # TODO: should actually create many tests for these!!!!
+            t.type = TestType.MarkdownDocTest
+        else:
+            name_part = &path[strlen(path)]
+            while name_part > path and not (name_part[-1] == '/' or (name_part[-1] == '\\' and WINDOWS)):
+                name_part--
+            error: byte[200]
+            snprintf(error, sizeof(error), "file '%s' has unknown file extension (should be .jou or .md)", name_part)
+            fail_in_toml(path_lineno, error)
+
+        apply_settings_to_test(toml, &t)
+        state.tests.append(t)
+
+
+def add_or_update_tests_of_glob(state: State*, template_test: Test*, settings_toml: TOML*, glob_toml: TOML*) -> None:
+    glob = toml_to_string(glob_toml)
+    if glob == NULL:
+        fail_in_toml(glob_toml.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
+
     error: byte[200]
 
     if not glob_is_valid(glob):
         snprintf(error, sizeof(error), "invalid path or glob pattern: %s", glob)
-        fail_in_toml(lineno, error)
+        fail_in_toml(glob_toml.lineno, error)
 
-    result = List[byte*]{}
+    paths = List[byte*]{}
     # TODO: don't hard-code the glob depth limit
-    do_glob(glob, ".", &result, 10)
-    if result.len == 0:
+    do_glob(glob, ".", &paths, 10)
+    if paths.len == 0:
         if strstr(glob, "*") == NULL:
             # not really a glob
             snprintf(error, sizeof(error), "file not found: %s", glob)
         else:
             snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
-        fail_in_toml(lineno, error)
+        fail_in_toml(glob_toml.lineno, error)
 
     # TODO: normalize . and .. components?
     # TODO: normalize case on windows?
 
-    return result
+    for p = paths.ptr; p < paths.end(); p++:
+        add_or_update_tests_of_file(state, template_test, settings_toml, *p, glob_toml.lineno)
+        free(*p)
+    free(paths.ptr)
 
 
-def mode_from_toml(files_toml: TOML*) -> Mode:
-    toml = toml_get(files_toml, "mode")
-    if toml == NULL:
-        return Mode.Unset
-
-    mode_string = toml_to_string(toml)
-    message: byte[200] = "mode must be one of the following strings: "
-
-    for m = 0; m < enum_count(Mode); m++:
-        if (m as Mode) != Mode.Unset:
-            if mode_string != NULL and strcmp(mode_string, MODE_STRINGS[m]) == 0:
-                return m as Mode
-            message2: byte[200]
-            snprintf(
-                message2,
-                sizeof(message2),
-                "%s%s\"%s\"",
-                message,
-                ", " if ends_with(message, "\"") else "",
-                MODE_STRINGS[m],
-            )
-            message = message2
-
-    fail_in_toml(toml.lineno, message)
-
-
-def parse_test_config(state: State*, toml: TOML*) -> None:
+def parse_one_item_of_tests(state: State*, template_test: Test*, toml: TOML*) -> None:
     assert toml != NULL
     if toml.type != TOMLType.Table:
         fail_in_toml(toml.lineno, "each item of 'tests' must be a table")
@@ -72,44 +207,28 @@ def parse_test_config(state: State*, toml: TOML*) -> None:
     if toml_files == NULL:
         fail_in_toml(toml.lineno, "each 'tests' table must contain 'files'")
 
-    mode = mode_from_toml(toml)
-
     # files can be a string or an array of strings
     if toml_files.type == TOMLType.Array:
-        toml_files_ptr = toml_files.array.ptr
-        toml_files_end = toml_files.array.end()
+        for item = toml_files.array.ptr; item < toml_files.array.end(); item++:
+            add_or_update_tests_of_glob(state, template_test, toml, item)
     else:
-        # Do not look inside it, instead trick the loop below to take it as is just once
-        toml_files_ptr = toml_files
-        toml_files_end = &toml_files_ptr[1]
-
-    for toml_glob = toml_files_ptr; toml_glob < toml_files_end; toml_glob++:
-        glob = toml_to_string(toml_glob)
-        if glob == NULL:
-            fail_in_toml(toml_glob.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
-
-        paths = glob_to_paths(glob, toml_glob.lineno)
-        for p = paths.ptr; p < paths.end(); p++:
-            # This nested looping could be too slow. Please fix if this causes a problem.
-            test_file: TestFile* = NULL
-            for tf = state.test_files.ptr; tf < state.test_files.end(); tf++:
-                if strcmp(tf.path, *p) == 0:
-                    test_file = tf
-                    free(*p)
-                    break
-            if test_file == NULL:
-                state.test_files.append(TestFile{path = *p, defining_toml_lineno = toml_glob.lineno})
-                test_file = &state.test_files.end()[-1]
-
-            # Apply settings to the file
-            if mode != Mode.Unset:
-                test_file.mode = mode
-
-        free(paths.ptr)
+        add_or_update_tests_of_glob(state, template_test, toml, toml_files)
 
 
-def parse_all_test_configs(state: State*, toml: TOML*) -> None:
+def parse_tests(state: State*, toml: TOML*) -> None:
     assert toml != NULL
+
+    # This will be copied to make more tests
+    template_test = Test{}
+    template_test.markdown.languages_to_test_as_jou[0] = "jou"
+    template_test.markdown.num_languages_to_test_as_jou = 1
+
+    defaults_for_all_tests = toml_get(toml, "defaults_for_all_tests")
+    if defaults_for_all_tests != NULL:
+        files = toml_get(defaults_for_all_tests, "files")
+        if files != NULL:
+            fail_in_toml(files.lineno, "you cannot specify 'files' inside defaults_for_all_tests")
+        apply_settings_to_test(defaults_for_all_tests, &template_test)
 
     toml = toml_get(toml, "tests")
     if toml == NULL:
@@ -119,12 +238,113 @@ def parse_all_test_configs(state: State*, toml: TOML*) -> None:
     if toml.array.len == 0:
         fail_in_toml(toml.lineno, "the 'tests' array cannot be empty")
 
-    # TODO: This should probably loop backwards. When multiple globs match the
-    #       same file, we want to use the last settings specified for it, and
-    #       mark only those settings as used. Then we can show error message
-    #       about settings that do not apply to any file.
+    # TODO: This should probably loop backwards. When multiple [[tests]]
+    #       sections match the same file, we want to use the last settings
+    #       specified for it, and mark only those settings as used. Then we can
+    #       show error message about settings that do not apply to any file.
     for p = toml.array.ptr; p < toml.array.end(); p++:
-        parse_test_config(state, p)
+        parse_one_item_of_tests(state, &template_test, p)
+
+
+enum Condition:
+    FlagO0
+    FlagO1
+    FlagO2
+    FlagO3
+    FlagValgrind
+    NoExpectedOutput
+    Windows
+    MacOS
+    Is32Bit
+    Default
+
+global CONDITION_STRINGS: byte*[enum_count(Condition)] = [
+    "-O0",
+    "-O1",
+    "-O2",
+    "-O3",
+    "--valgrind",
+    "no_expected_output",
+    "windows",
+    "macos",
+    "32bit",
+    "default",
+]
+
+def condition_is_true(c: Condition) -> bool:
+    match c:
+        # TODO: Don't hard-code -O1
+        # TODO: support --valgrind
+        # TODO: actually parse the expected output
+        case Condition.FlagO0 | Condition.FlagO2 | Condition.FlagO3 | Condition.FlagValgrind | Condition.NoExpectedOutput:
+            return False
+        case Condition.FlagO1:
+            return True
+        case Condition.Windows:
+            return WINDOWS
+        case Condition.MacOS:
+            return MACOS
+        case Condition.Is32Bit:
+            return IS_32BIT
+        case Condition.Default:
+            return True
+
+def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
+    error: byte[300]
+
+    while True:
+        assert toml.depth >= depth  # may become more shallow when doing this
+        toml.depth = depth
+
+        match toml.type:
+            case TOMLType.Error:
+                assert False  # should never happen
+            case TOMLType.Table:
+                # TODO: This is probably not the best way to detect condition tables.
+                #       Or is it? It's simple and easy to document.
+                default = toml_get(toml, "default")
+                if default == NULL:
+                    # Normal table
+                    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+                        eliminate_condition_tables(&kv.value, depth + 1)
+                    return
+
+                # Condition table, pick the correct value
+                chosen: TOMLKeyVal* = NULL
+                for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+                    cond_index = -1
+                    for i = 0; i < enum_count(Condition); i++:
+                        if strcmp(CONDITION_STRINGS[i], kv.key) == 0:
+                            cond_index = i
+                            break
+                    if cond_index == -1:
+                        snprintf(error, sizeof(error), "unknown condition '%s'", kv.key)
+                        fail_in_toml(kv.value.lineno, error)
+                    cond = cond_index as Condition
+                    if cond != Condition.Default and condition_is_true(cond):
+                        if chosen != NULL:
+                            snprintf(error, sizeof(error), "conditions '%s' and '%s' are both true", chosen.key, kv.key)
+                            fail_in_toml(kv.value.lineno, error)
+                        chosen = kv
+
+                if chosen == NULL:
+                    new_value = default
+                else:
+                    new_value = &chosen.value
+                assert new_value != NULL
+
+                temp = *new_value
+                *new_value = TOML{type = TOMLType.Error}  # avoid freeing the value
+                toml.free()
+                *toml = temp
+                continue  # Repeat in case it's a nested condition table
+
+            case TOMLType.Array:
+                for p = toml.array.ptr; p < toml.array.end(); p++:
+                    eliminate_condition_tables(p, depth + 1)
+                return
+            case TOMLType.String | TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating:
+                return
 
 
 global big_file_content_buffer: byte[1_000_000]
@@ -156,5 +376,6 @@ def read_joutest_toml(state: State*) -> None:
     if toml.type == TOMLType.Error:
         fail_in_toml(toml.lineno, toml.error_message)
 
-    parse_all_test_configs(state, &toml)
+    eliminate_condition_tables(&toml, 0)
+    parse_tests(state, &toml)
     toml.free()

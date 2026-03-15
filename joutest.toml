@@ -3,9 +3,9 @@
 # ------------------------------------------------------------------
 
 [[tests]]
-files = "**/*.md"
+files = ["doc/**/*.md", "*.md"]
 markdown.languages_to_test_as_jou = ["python"]
-skip = {default = false, --valgrind = true, no_expected_output = "silent"}
+skip = {no_expected_output = "silent", default = {--valgrind = true, default = false}}
 
 
 # ------------------------------------
@@ -40,7 +40,7 @@ files = [
 # when the program starts, even if it is never called.
 [[tests]]
 files = "tests/should_succeed/compiler_unit_tests.jou"
-skip = {default = false, --valgrind = true}
+skip = {--valgrind = true, default = false}
 
 [[tests]]
 files = [
@@ -52,16 +52,16 @@ files = [
     "tests/wrong_place/*.jou",
     "tests/wrong_type/*.jou",
 ]
-skip = {default = false, --valgrind = true}
+skip = {--valgrind = true, default = false}
 expected_exit_code = 1
 
 # Crashing tests are a bit special. They should fail, and output varies by platform.
 [[tests]]
 files = "tests/crash/*.jou"
-skip = {default = true, -O0 = false}
+skip = {-O0 = false, default = true}
 stdout = "discard"
 stderr = "discard"
-exit_code_should_be = 1
+expected_exit_code = 1
 
 
 # ----------------------------------------------------
@@ -69,20 +69,20 @@ exit_code_should_be = 1
 # ----------------------------------------------------
 
 [library_availability.liblzma_dynamic]
-default = false
 # Test if pkg-config knows where liblzma dynamically linked library is, or if
 # it's directly in /usr/lib. In either case the linker will find it.
-posix = {run = """( pkg-config --exists liblzma || (set -- /usr/lib/liblzma.so* && [ -f "$1" ]) ) > /dev/null"""}
+windows = false
+default = {run = """( pkg-config --exists liblzma || (set -- /usr/lib/liblzma.so* && [ -f "$1" ]) ) > /dev/null"""}
 
 [library_availability.liblzma_static]
-default = false
-posix = {run = "[ -f `pkg-config --variable=libdir liblzma 2>/dev/null`/liblzma.a ]"}
+windows = false
+default = {run = "[ -f `pkg-config --variable=libdir liblzma 2>/dev/null`/liblzma.a ]"}
 
 [library_availability.liblzma_copied]
-default = false
 # If liblzma.a exists, we also copy it to temporary folder.
 # If it doesn't exist, the copying fails and that tells the test runner to skip.
-posix = {run = """
+windows = false
+default = {run = """
 mkdir -p tmp/tests
 libdir="`pkg-config --variable=libdir liblzma 2>/dev/null || echo /usr/lib`"
 cp "$libdir/liblzma.a" tmp/tests/
@@ -90,20 +90,21 @@ cp "$libdir/liblzma.a" tmp/tests/
 
 
 [defaults_for_all_tests]
-valgrind_compiler = {default = false, --valgrind = true}
-expected_output.substitute = {
-    "<joudir>" = {absolute_path = "."},
-    "<jouexe>" = {default = "./jou", windows = "jou.exe"},
-    "<intnative>" = {default = "int64", 32bit = "int"},
-    "<pointersize>" = {default = "8", 32bit = "4"},
-}
-actual_output.remove_lines = {
-    # On MacOS, silence a linker warning that appears whenever linking
-    # with LLVM. I don't know what causes the warning.
-    #
-    # See: https://github.com/Akuli/jou/issues/1005
-    default = [],
-    macos = [
-        {contains = "ld: warning: reexported library with install name"},
-    ],
-}
+# TODO: joutest doesn't understand these yet
+#run_compiler_under_valgrind = {default = false, --valgrind = true}
+#expected_output.substitute = {
+#    "<joudir>" = {absolute_path = "."},
+#    "<jouexe>" = {default = "./jou", windows = "jou.exe"},
+#    "<intnative>" = {default = "int64", 32bit = "int"},
+#    "<pointersize>" = {default = "8", 32bit = "4"},
+#}
+#actual_output.remove_lines = {
+#    # On MacOS, silence a linker warning that appears whenever linking
+#    # with LLVM. I don't know what causes the warning.
+#    #
+#    # See: https://github.com/Akuli/jou/issues/1005
+#    default = [],
+#    macos = [
+#        {contains = "ld: warning: reexported library with install name"},
+#    ],
+#}

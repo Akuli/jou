@@ -5,13 +5,13 @@ verbose = false
 parallel = true
 
 [defaults_for_all_tests]
-valgrind_compiler = false
+run_compiler_under_valgrind = false
 markdown.languages_to_test_as_jou = ["jou"]
 timeout_seconds = 60
-parse_comments = true
-capture_stdout = true
-capture_stderr = true
+stdout = "compare_to_comments"
+stderr = "compare_to_comments"
 cd_to_containing_directory = false
+skip = false
 ```
 
 
