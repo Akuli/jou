@@ -37,6 +37,8 @@ jobs:
       include: ${{ steps.decide.outputs.include }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Fetch the whole Git history, needed to figure out which scripts changed
       - name: "Decide which VMs run"
         id: decide
         run: |
@@ -46,7 +48,6 @@ jobs:
           case "$GITHUB_EVENT_NAME" in
             pull_request)
               echo "Pull request"
-              git fetch -q
               label='run tests on all platforms'
               if cat "$GITHUB_EVENT_PATH" | jq -r '.pull_request.labels[].name' | grep --color=always -i -x "$label"; then
                 echo "Found the '$label' label, running all VMs"
