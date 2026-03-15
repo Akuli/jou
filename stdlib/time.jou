@@ -1,3 +1,7 @@
+if not NETBSD:
+    import "stdlib/intnative.jou"
+
+
 class timespec:
     tv_sec: uint64
     # tv_nsec is 32-bit on some of the systems we support, but that doesn't
@@ -7,7 +11,7 @@ class timespec:
 if WINDOWS:
     # winpthread comes with a wrapper that provides a Linux-like clock_gettime().
     # TODO: Use QueryPerformanceCounter instead?
-    link "-pthread"  # winpthread comes with a wrapper fr
+    link "-pthread"
     const CLOCK_MONOTONIC: int = 1
     declare clock_gettime(clockid: int, tp: timespec*) -> int
 elif LINUX:
@@ -54,6 +58,6 @@ if NETBSD:
     def time(result_ptr: int64*) -> int64:
         return __time50(result_ptr)
 else:
-    import "stdlib/intnative.jou"
+    # TODO: Would be nice to provide a 64-bit function on all systems
     @public
     declare time(result_ptr: intnative*) -> intnative
