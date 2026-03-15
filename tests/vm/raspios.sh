@@ -150,6 +150,7 @@ mount -t sysfs sys /sys
 mount -t devtmpfs devtmpfs /dev
 mkdir -vp /dev/pts
 mount -t devpts devpts /dev/pts
+swapon /swapfile
 
 # Set up networking
 ip link set dev eth0 up
