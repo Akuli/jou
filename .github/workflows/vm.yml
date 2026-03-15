@@ -46,6 +46,7 @@ jobs:
           case "$GITHUB_EVENT_NAME" in
             pull_request)
               echo "Pull request"
+              git fetch -q
               label='run tests on all platforms'
               if cat "$GITHUB_EVENT_PATH" | jq -r '.pull_request.labels[].name' | grep --color=always -i -x "$label"; then
                 echo "Found the '$label' label, running all VMs"
