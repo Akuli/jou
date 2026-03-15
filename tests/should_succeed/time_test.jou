@@ -1,23 +1,23 @@
 import "stdlib/io.jou"
+import "stdlib/math.jou"
 import "stdlib/time.jou"
 
 if not NETBSD:
     import "stdlib/intnative.jou"
 
-def main() -> int:
+
+def test_time() -> None:
     # Check that `time()` function returns seconds since 1970 by calculating
     # the current year. This test will break after a few years, but I want to
     # set a maximum in tests so I know I'm not e.g. getting milliseconds.
     seconds_in_year = 31557600
     year = 1970 + time(NULL) / seconds_in_year
-
-    # Output: year ok
     if year < 2025:
         printf("year too small\n")
     elif year > 2030:
         printf("year too big\n")
     else:
-        printf("year ok\n")
+        printf("year ok\n")  # Output: year ok
 
     # Ensure that `time()` return value matches what it places in the pointer
     if NETBSD:
@@ -28,4 +28,26 @@ def main() -> int:
     if t1 != t2:
         printf("wat %lld %lld\n", t1 as int64, t2 as int64)
 
+
+def test_monotonic_ns() -> None:
+    # Wait 1 second with time(), measure with monotonic_ns()
+    t = time(NULL)
+    while time(NULL) == t:
+        pass
+    start = monotonic_ns()
+    while time(NULL) == t+1:
+        pass
+    end = monotonic_ns()
+
+    seconds = (end - start)*1e-9
+    if fabs(seconds - 1.0) < 0.01:
+        # Output: time() vs monotonic_ns() ok
+        printf("time() vs monotonic_ns() ok\n")
+    else:
+        printf("one second for time() somehow became %llu nanoseconds\n", end - start)
+
+
+def main() -> int:
+    test_time()
+    test_monotonic_ns()
     return 0
