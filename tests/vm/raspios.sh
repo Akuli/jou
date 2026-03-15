@@ -214,7 +214,7 @@ else
     disown
 
     echo "Waiting for VM to boot..."
-    until echo | ../wait_for_string.sh 'raspberrypi login:' ncat --no-shutdown localhost 4444; do
+    until echo | ../wait_for_string.sh '+ /usr/sbin/sshd -D' ncat --no-shutdown localhost 4444; do
         sleep 1
         kill -0 $qemu_pid  # Stop if qemu dies
     done
