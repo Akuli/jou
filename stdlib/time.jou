@@ -16,7 +16,16 @@ if WINDOWS:
     declare clock_gettime(clockid: int, tp: timespec*) -> int
 elif LINUX:
     const CLOCK_MONOTONIC: int = 1
-    declare clock_gettime(clockid: int, tp: timespec*) -> int
+    if IS_32BIT:
+        # If you call clock_gettime() in C, it actually calls __clock_gettime64().
+        # There is also a function that is actually called clock_gettime() but it
+        # is some 32-bit legacy time thing that doesn't really work.
+        declare __clock_gettime64(clockid: int, tp: timespec*) -> int
+        def clock_gettime(clockid: int, tp: timespec*) -> int:
+            return __clock_gettime64(clockid, tp)
+    else:
+        const CLOCK_MONOTONIC: int = 1
+        declare clock_gettime(clockid: int, tp: timespec*) -> int
 elif MACOS:
     const CLOCK_UPTIME_RAW: int = 8
     declare clock_gettime_nsec_np(clock_id: int) -> uint64
