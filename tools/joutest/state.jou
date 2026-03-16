@@ -49,6 +49,7 @@ class Test:
     expected_exit_code: int
     stdout: StdOutErr
     stderr: StdOutErr
+    error_comment_output_format: byte[200]
     command: List[byte*]  # does not contain e.g. "{file}", those are substituted out
 
     @public
@@ -68,6 +69,7 @@ class Test:
         printf("    expected_exit_code: %d\n", self.expected_exit_code)
         printf("    stdout: %s\n", STD_OUT_ERR_NAMES[self.stdout as int])
         printf("    stderr: %s\n", STD_OUT_ERR_NAMES[self.stderr as int])
+        printf("    error_comment_output_format: \"%s\"\n", self.error_comment_output_format)
         printf("    command:\n", STD_OUT_ERR_NAMES[self.stderr as int])
         for p = self.command.ptr; p < self.command.end(); p++:
             printf("      %s\n", *p)

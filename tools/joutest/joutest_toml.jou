@@ -113,6 +113,8 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
             case "cd_to_containing_directory":
                 test.cd_to_containing_directory = bool_from_toml_keyval(kv)
             case "run_compiler_under_valgrind":
+                # TODO: bake this directly into the command somehow? or not?
+                # Easy enough to prepend it whenever really...
                 test.run_compiler_under_valgrind = bool_from_toml_keyval(kv)
             case "markdown":
                 apply_markdown_settings_to_test(&kv.value, test)
@@ -125,6 +127,17 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 test.stdout = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
             case "stderr":
                 test.stderr = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
+            case "error_comment_output_format":
+                s = toml_to_string(&kv.value)
+                if s == NULL:
+                    fail_in_toml(toml.lineno, "'error_comment_output_format' must be a string")
+                if s[0] == '\0':
+                    fail_in_toml(toml.lineno, "'error_comment_output_format' cannot be empty string")
+                if strlen(s) >= sizeof(test.error_comment_output_format):
+                    fail_in_toml(toml.lineno, "'error_comment_output_format' is too long")
+                strcpy(test.error_comment_output_format, s)
+                # Format with dummy data to fail early if it doesn't work
+                free(string_format(s, StringFormatParams{file="",line="",message=""}, toml.lineno))
             case "command":
                 if not is_array_of_strings(&kv.value):
                     fail_in_toml(toml.lineno, "'command' must be an array of strings")
@@ -246,7 +259,7 @@ def finish_parsing_command(test: Test*) -> None:
 
 def parse_tests_and_defaults(state: State*, tests_toml: TOML*, defaults_toml: TOML*) -> None:
     # This will be copied to make more tests
-    template_test = Test{}
+    template_test = Test{error_comment_output_format = "compiler error in file \"{file}\", line {line}: {message}"}
     template_test.markdown.languages_to_test_as_jou[0] = "jou"
     template_test.markdown.num_languages_to_test_as_jou = 1
 
