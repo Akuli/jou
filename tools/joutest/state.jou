@@ -25,8 +25,8 @@ class TestMarkdownSettings:
 
     @public
     def print(self) -> None:
-        printf("    markdown:\n")
-        printf("      languages_to_test_as_jou: [")
+        printf("  markdown:\n")
+        printf("    languages_to_test_as_jou: [")
         for i = 0; i < self.num_languages_to_test_as_jou; i++:
             if i > 0:
                 printf(",")
@@ -50,9 +50,9 @@ class Test:
 
     @public
     def print(self) -> None:
-        printf("  Test \"%s\"\n", self.path)
-        printf("    TOML line number: %d\n", self.toml_lineno)
-        printf("    Skip: ")
+        printf("Test \"%s\"\n", self.path)
+        printf("  TOML line number: %d\n", self.toml_lineno)
+        printf("  Skip: ")
         match self.skip:
             case Skip.DontSkip:
                 printf("false (don't skip)\n")
@@ -60,13 +60,13 @@ class Test:
                 printf("true (skip normally)\n")
             case Skip.SkipSilently:
                 printf("\"silent\" (skip silently)\n")
-        printf("    cd_to_containing_directory: %s\n", "true" if self.cd_to_containing_directory else "false")
-        printf("    run_compiler_under_valgrind: %s\n", "true" if self.run_compiler_under_valgrind else "false")
-        printf("    expected_exit_code: %d\n", self.expected_exit_code)
-        printf("    stdout: %s\n", STD_OUT_ERR_NAMES[self.stdout as int])
-        printf("    stderr: %s\n", STD_OUT_ERR_NAMES[self.stderr as int])
-        printf("    error_comment_output_format: \"%s\"\n", self.error_comment_output_format)
-        printf("    command: [")
+        printf("  cd_to_containing_directory: %s\n", "true" if self.cd_to_containing_directory else "false")
+        printf("  run_compiler_under_valgrind: %s\n", "true" if self.run_compiler_under_valgrind else "false")
+        printf("  expected_exit_code: %d\n", self.expected_exit_code)
+        printf("  stdout: %s\n", STD_OUT_ERR_NAMES[self.stdout as int])
+        printf("  stderr: %s\n", STD_OUT_ERR_NAMES[self.stderr as int])
+        printf("  error_comment_output_format: \"%s\"\n", self.error_comment_output_format)
+        printf("  command: [")
         for p = self.command.ptr; p < self.command.end(); p++:
             if p > self.command.ptr:
                 printf(", ")

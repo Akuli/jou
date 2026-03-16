@@ -40,3 +40,15 @@ Processes are always invoked so that a `jou` installed in same directory with `j
 - Windows: call `CreateProcessA` (later `CreateProcessW`) with `lpApplicationName` set to NULL and `lpCommandLine` like `"jou file.jou"`
     - finds `jou.exe` before looking in PATH
     - need to implement the notorious CRT quoting rules: https://copilot.microsoft.com/shares/SKCRV4ZCxTGuP71dGLt79
+
+High level structure:
+1. discover tests
+    - do the globs
+    - figure out which configurations apply to each file
+    - do not apply the configurations yet!!!
+2. configure tests
+    - walk through TOML
+3. gather expected outputs
+    - read files and parse for comments
+4. run tests
+5. report results
