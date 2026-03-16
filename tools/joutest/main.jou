@@ -1,9 +1,10 @@
-import "./joutest_toml.jou"
+import "./step1_discover_tests.jou"
 import "./state.jou"
 
 
 def main() -> int:
     state = State{}
-    read_joutest_toml(&state)
+    step1_discover_tests(&state)
     state.print()
+    state.free()
     return 0

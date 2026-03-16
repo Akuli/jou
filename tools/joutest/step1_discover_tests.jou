@@ -143,8 +143,13 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                     fail_in_toml(toml.lineno, "'command' must be an array of strings")
                 if kv.value.array.len == 0:
                     fail_in_toml(toml.lineno, "'command' cannot be empty")
-                # This is converted to a list of strings later once other stuff is known
-                test.toml_command = &kv.value
+                test.command.len = 0
+                for p = kv.value.array.ptr; p < kv.value.array.end(); p++:
+                    s = strdup(toml_to_string(p))
+                    assert s != NULL
+                    # Format with dummy data to fail early if it doesn't work
+                    free(string_format(s, StringFormatParams{file=""}, p.lineno))
+                    test.command.append(s)
             case _:
                 snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
                 fail_in_toml(kv.value.lineno, error)
@@ -230,31 +235,30 @@ def parse_one_item_of_tests(state: State*, template_test: Test*, toml: TOML*) ->
         add_or_update_tests_of_glob(state, template_test, toml, toml_files)
 
 
-# This must be called after parsing all things that may affect the command.
-def finish_parsing_command(test: Test*) -> None:
-    assert test.command.len == 0
-    # Really slow loop, please clean up if this is too slow
-    filename = test.path
-    while strstr(filename, "/") != NULL or (WINDOWS and strstr(filename, "\\") != NULL):
-        filename++
-
-    if test.cd_to_containing_directory:
-        fmt_params = StringFormatParams{file = filename}
-    else:
-        fmt_params = StringFormatParams{file = test.path}
-
-    if test.toml_command != NULL:
-        # Get command from TOML
-        for p = test.toml_command.array.ptr; p < test.toml_command.array.end(); p++:
-            test.command.append(string_format(toml_to_string(p), fmt_params, p.lineno))
-    elif ends_with(test.path, ".jou") or ends_with(test.path, ".md"):
-        # Use a reasonable default: ["jou", "{file}"]
-        test.command.append(strdup("jou"))
-        test.command.append(strdup(fmt_params.file))
-    else:
-        error: byte[300]
-        snprintf(error, sizeof(error), "don't know which command to use for testing file '%s', please set 'command' accordingly", filename)
-        fail_in_toml(test.toml_lineno, error)
+#def finish_parsing_command(test: Test*) -> None:
+#    assert test.command.len == 0
+#    # Really slow loop, please clean up if this is too slow
+#    filename = test.path
+#    while strstr(filename, "/") != NULL or (WINDOWS and strstr(filename, "\\") != NULL):
+#        filename++
+#
+#    if test.cd_to_containing_directory:
+#        fmt_params = StringFormatParams{file = filename}
+#    else:
+#        fmt_params = StringFormatParams{file = test.path}
+#
+#    if test.toml_command != NULL:
+#        # Get command from TOML
+#        for p = test.toml_command.array.ptr; p < test.toml_command.array.end(); p++:
+#            test.command.append(string_format(toml_to_string(p), fmt_params, p.lineno))
+#    elif ends_with(test.path, ".jou") or ends_with(test.path, ".md"):
+#        # Use a reasonable default: ["jou", "{file}"]
+#        test.command.append(strdup("jou"))
+#        test.command.append(strdup(fmt_params.file))
+#    else:
+#        error: byte[300]
+#        snprintf(error, sizeof(error), "don't know which command to use for testing file '%s', please set 'command' accordingly", filename)
+#        fail_in_toml(test.toml_lineno, error)
 
 
 def parse_tests_and_defaults(state: State*, tests_toml: TOML*, defaults_toml: TOML*) -> None:
@@ -284,9 +288,6 @@ def parse_tests_and_defaults(state: State*, tests_toml: TOML*, defaults_toml: TO
     #       show error message about settings that do not apply to any file.
     for p = tests_toml.array.ptr; p < tests_toml.array.end(); p++:
         parse_one_item_of_tests(state, &template_test, p)
-
-    for t = state.tests.ptr; t < state.tests.end(); t++:
-        finish_parsing_command(t)
 
 
 def parse_the_whole_toml(state: State*, toml: TOML*) -> None:
@@ -408,7 +409,7 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
 global big_file_content_buffer: byte[1_000_000]
 
 @public
-def read_joutest_toml(state: State*) -> None:
+def step1_discover_tests(state: State*) -> None:
     error: byte[200]
 
     f = fopen("joutest.toml", "rb")

@@ -1,7 +1,6 @@
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
-import "stdlib/toml.jou"
 
 
 @public
@@ -39,9 +38,7 @@ class Test:
     path: byte*
     toml_lineno: int
 
-    # Temporary value used during TOML parsing
-    toml_command: TOML*
-
+    command: List[byte*]  # directly from TOML, contains things like {file}
     skip: Skip
     cd_to_containing_directory: bool
     run_compiler_under_valgrind: bool
@@ -50,7 +47,6 @@ class Test:
     stdout: StdOutErr
     stderr: StdOutErr
     error_comment_output_format: byte[200]
-    command: List[byte*]  # does not contain e.g. "{file}", those are substituted out
 
     @public
     def print(self) -> None:
@@ -70,15 +66,19 @@ class Test:
         printf("    stdout: %s\n", STD_OUT_ERR_NAMES[self.stdout as int])
         printf("    stderr: %s\n", STD_OUT_ERR_NAMES[self.stderr as int])
         printf("    error_comment_output_format: \"%s\"\n", self.error_comment_output_format)
-        printf("    command:\n", STD_OUT_ERR_NAMES[self.stderr as int])
+        printf("    command: [")
         for p = self.command.ptr; p < self.command.end(); p++:
-            printf("      %s\n", *p)
+            if p > self.command.ptr:
+                printf(", ")
+            printf("\"%s\"", *p)
+        printf("]\n")
 
     @public
     def free(self) -> None:
         for p = self.command.ptr; p < self.command.end(); p++:
             free(*p)
         free(self.command.ptr)
+        free(self.path)
 
 @public
 class State:
