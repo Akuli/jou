@@ -1,8 +1,9 @@
-class timespec:
-    tv_sec: uint64
-    # tv_nsec is 32-bit on some of the systems we support, but that doesn't
-    # really matter because of the way we zero-initialize these.
-    tv_nsec: uint64
+if not MACOS:
+    class timespec:
+        tv_sec: uint64
+        # tv_nsec is 32-bit on some of the systems we support, but that doesn't
+        # really matter because of the way we zero-initialize these.
+        tv_nsec: uint64
 
 if WINDOWS:
     # winpthread comes with a wrapper that provides a Linux-like clock_gettime().
