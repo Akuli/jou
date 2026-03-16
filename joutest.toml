@@ -64,6 +64,21 @@ stderr = "discard"
 expected_exit_code = 1
 
 
+# Tests of joutest itself
+#[[tests]]
+#files = "tests/tests_of_joutest/should_succeed/*/joutest.toml"
+#command = ["joutest", "{file}"]
+#cd_to_containing_directory = true
+#stdout = "discard"
+
+[[tests]]
+files = "tests/tests_of_joutest/should_fail/*/joutest.toml"
+command = ["joutest"]
+cd_to_containing_directory = true
+expected_exit_code = 1
+error_comment_output_format = "joutest error: file \"{file}\", line {line}: {message}"
+
+
 # ----------------------------------------------------
 # -------- availability of libraries handling --------
 # ----------------------------------------------------

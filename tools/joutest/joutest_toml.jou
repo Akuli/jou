@@ -9,8 +9,9 @@ import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
 import "./fail.jou"
-import "./state.jou"
 import "./glob.jou"
+import "./state.jou"
+import "./string_formatter.jou"
 
 
 def bool_from_toml_keyval(kv: TOMLKeyVal*) -> bool:
@@ -50,9 +51,17 @@ def enum_from_toml_keyval(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> in
     fail_in_toml(kv.value.lineno, error)
 
 
+def is_array_of_strings(toml: TOML*) -> bool:
+    if toml == NULL or toml.type != TOMLType.Array:
+        return False
+    for p = toml.array.ptr; p < toml.array.end(); p++:
+        if toml_to_string(p) == NULL:
+            return False
+    return True
+
+
 def apply_markdown_settings_to_test(toml: TOML*, test: Test*) -> None:
-    if test.type != TestType.MarkdownDocTest:
-        return  # TODO: should we still validate the stuff?
+    return  # TODO: this function is just bad, it should create some temporary structure for parsing the markdown
 
     if toml.type != TOMLType.Table:
         fail_in_toml(toml.lineno, "'markdown' must be a table")
@@ -62,20 +71,17 @@ def apply_markdown_settings_to_test(toml: TOML*, test: Test*) -> None:
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
         match kv.key with strcmp:
             case "languages_to_test_as_jou":
-                if kv.value.type != TOMLType.Array:
+                if not is_array_of_strings(&kv.value):
                     fail_in_toml(kv.value.lineno, "'markdown.languages_to_test_as_jou' must be an array of strings")
                 if kv.value.array.len > array_count(md.languages_to_test_as_jou):
                     fail_in_toml(kv.value.lineno, "'markdown.languages_to_test_as_jou' is set to an array that is too long")
                 md.num_languages_to_test_as_jou = 0
                 for p = kv.value.array.ptr; p < kv.value.array.end(); p++:
-                    s = toml_to_string(p)
-                    if s == NULL:
-                        fail_in_toml(kv.value.lineno, "'markdown.languages_to_test_as_jou' must be an array of strings")
                     snprintf(
                         md.languages_to_test_as_jou[md.num_languages_to_test_as_jou++],
                         sizeof(md.languages_to_test_as_jou[0]),
                         "%s",
-                        s,
+                        toml_to_string(p),
                     )
             case _:
                 error: byte[200]
@@ -109,8 +115,7 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
             case "run_compiler_under_valgrind":
                 test.run_compiler_under_valgrind = bool_from_toml_keyval(kv)
             case "markdown":
-                if test.type == TestType.MarkdownDocTest:
-                    apply_markdown_settings_to_test(&kv.value, test)
+                apply_markdown_settings_to_test(&kv.value, test)
             case "expected_exit_code":
                 test.expected_exit_code = toml_to_int(&kv.value, -1)
                 # TODO: more validation? exit code 12345 does not get passed through as is on most systems
@@ -120,6 +125,13 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 test.stdout = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
             case "stderr":
                 test.stderr = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
+            case "command":
+                if not is_array_of_strings(&kv.value):
+                    fail_in_toml(toml.lineno, "'command' must be an array of strings")
+                if kv.value.array.len == 0:
+                    fail_in_toml(toml.lineno, "'command' cannot be empty")
+                # This is converted to a list of strings later once other stuff is known
+                test.toml_command = &kv.value
             case _:
                 snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
                 fail_in_toml(kv.value.lineno, error)
@@ -144,24 +156,14 @@ def add_or_update_tests_of_file(state: State*, template_test: Test*, toml: TOML*
 
     if num_tests_found == 0:
         # Add new test for the file
+        # TODO: .md should actually create many tests!!!!
         t = *template_test
 
         assert t.path == NULL
         t.path = strdup(path)
         assert t.path != NULL
 
-        if ends_with(path, ".jou"):
-            t.type = TestType.JouFile
-        elif ends_with(path, ".md"):
-            # TODO: should actually create many tests for these!!!!
-            t.type = TestType.MarkdownDocTest
-        else:
-            name_part = &path[strlen(path)]
-            while name_part > path and not (name_part[-1] == '/' or (name_part[-1] == '\\' and WINDOWS)):
-                name_part--
-            error: byte[200]
-            snprintf(error, sizeof(error), "file '%s' has unknown file extension (should be .jou or .md)", name_part)
-            fail_in_toml(path_lineno, error)
+        t.toml_lineno = path_lineno
 
         apply_settings_to_test(toml, &t)
         state.tests.append(t)
@@ -215,6 +217,33 @@ def parse_one_item_of_tests(state: State*, template_test: Test*, toml: TOML*) ->
         add_or_update_tests_of_glob(state, template_test, toml, toml_files)
 
 
+# This must be called after parsing all things that may affect the command.
+def finish_parsing_command(test: Test*) -> None:
+    assert test.command.len == 0
+    # Really slow loop, please clean up if this is too slow
+    filename = test.path
+    while strstr(filename, "/") != NULL or (WINDOWS and strstr(filename, "\\") != NULL):
+        filename++
+
+    if test.cd_to_containing_directory:
+        fmt_params = StringFormatParams{file = filename}
+    else:
+        fmt_params = StringFormatParams{file = test.path}
+
+    if test.toml_command != NULL:
+        # Get command from TOML
+        for p = test.toml_command.array.ptr; p < test.toml_command.array.end(); p++:
+            test.command.append(string_format(toml_to_string(p), fmt_params, p.lineno))
+    elif ends_with(test.path, ".jou") or ends_with(test.path, ".md"):
+        # Use a reasonable default: ["jou", "{file}"]
+        test.command.append(strdup("jou"))
+        test.command.append(strdup(fmt_params.file))
+    else:
+        error: byte[300]
+        snprintf(error, sizeof(error), "don't know which command to use for testing file '%s', please set 'command' accordingly", filename)
+        fail_in_toml(test.toml_lineno, error)
+
+
 def parse_tests_and_defaults(state: State*, tests_toml: TOML*, defaults_toml: TOML*) -> None:
     # This will be copied to make more tests
     template_test = Test{}
@@ -242,6 +271,9 @@ def parse_tests_and_defaults(state: State*, tests_toml: TOML*, defaults_toml: TO
     #       show error message about settings that do not apply to any file.
     for p = tests_toml.array.ptr; p < tests_toml.array.end(); p++:
         parse_one_item_of_tests(state, &template_test, p)
+
+    for t = state.tests.ptr; t < state.tests.end(); t++:
+        finish_parsing_command(t)
 
 
 def parse_the_whole_toml(state: State*, toml: TOML*) -> None:
