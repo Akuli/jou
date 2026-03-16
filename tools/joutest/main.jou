@@ -1,10 +1,14 @@
-import "./step1_discover_tests.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+
 import "./state.jou"
+import "./step1_discover_tests.jou"
 
 
 def main() -> int:
-    state = State{}
-    step1_discover_tests(&state)
-    state.print()
-    state.free()
+    tests = step1_discover_tests()
+    for t = tests.ptr; t < tests.end(); t++:
+        t.print()
+        t.free()
+    free(tests.ptr)
     return 0

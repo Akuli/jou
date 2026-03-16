@@ -14,6 +14,11 @@ import "./state.jou"
 import "./string_formatter.jou"
 
 
+class Step1State:
+    tests: List[Test]
+    template_test: Test
+
+
 def bool_from_toml_keyval(kv: TOMLKeyVal*) -> bool:
     if toml_is_true(&kv.value):
         return True
@@ -155,9 +160,8 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 fail_in_toml(kv.value.lineno, error)
 
 
-def add_or_update_tests_of_file(state: State*, template_test: Test*, toml: TOML*, path: byte*, path_lineno: int) -> None:
+def add_or_update_tests_of_file(state: Step1State*, toml: TOML*, path: byte*, path_lineno: int) -> None:
     assert state != NULL
-    assert template_test != NULL
     assert toml != NULL
     assert path != NULL
 
@@ -175,7 +179,7 @@ def add_or_update_tests_of_file(state: State*, template_test: Test*, toml: TOML*
     if num_tests_found == 0:
         # Add new test for the file
         # TODO: .md should actually create many tests!!!!
-        t = *template_test
+        t = state.template_test
 
         assert t.path == NULL
         t.path = strdup(path)
@@ -187,7 +191,7 @@ def add_or_update_tests_of_file(state: State*, template_test: Test*, toml: TOML*
         state.tests.append(t)
 
 
-def add_or_update_tests_of_glob(state: State*, template_test: Test*, settings_toml: TOML*, glob_toml: TOML*) -> None:
+def add_or_update_tests_of_glob(state: Step1State*, settings_toml: TOML*, glob_toml: TOML*) -> None:
     glob = toml_to_string(glob_toml)
     if glob == NULL:
         fail_in_toml(glob_toml.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
@@ -213,12 +217,12 @@ def add_or_update_tests_of_glob(state: State*, template_test: Test*, settings_to
     # TODO: normalize case on windows?
 
     for p = paths.ptr; p < paths.end(); p++:
-        add_or_update_tests_of_file(state, template_test, settings_toml, *p, glob_toml.lineno)
+        add_or_update_tests_of_file(state, settings_toml, *p, glob_toml.lineno)
         free(*p)
     free(paths.ptr)
 
 
-def parse_one_item_of_tests(state: State*, template_test: Test*, toml: TOML*) -> None:
+def parse_one_item_of_tests(state: Step1State*, toml: TOML*) -> None:
     assert toml != NULL
     if toml.type != TOMLType.Table:
         fail_in_toml(toml.lineno, "each item of 'tests' must be a table")
@@ -230,9 +234,9 @@ def parse_one_item_of_tests(state: State*, template_test: Test*, toml: TOML*) ->
     # files can be a string or an array of strings
     if toml_files.type == TOMLType.Array:
         for item = toml_files.array.ptr; item < toml_files.array.end(); item++:
-            add_or_update_tests_of_glob(state, template_test, toml, item)
+            add_or_update_tests_of_glob(state, toml, item)
     else:
-        add_or_update_tests_of_glob(state, template_test, toml, toml_files)
+        add_or_update_tests_of_glob(state, toml, toml_files)
 
 
 #def finish_parsing_command(test: Test*) -> None:
@@ -261,11 +265,11 @@ def parse_one_item_of_tests(state: State*, template_test: Test*, toml: TOML*) ->
 #        fail_in_toml(test.toml_lineno, error)
 
 
-def parse_tests_and_defaults(state: State*, tests_toml: TOML*, defaults_toml: TOML*) -> None:
+def parse_tests_and_defaults(state: Step1State*, tests_toml: TOML*, defaults_toml: TOML*) -> None:
     # This will be copied to make more tests
-    template_test = Test{error_comment_output_format = "compiler error in file \"{file}\", line {line}: {message}"}
-    template_test.markdown.languages_to_test_as_jou[0] = "jou"
-    template_test.markdown.num_languages_to_test_as_jou = 1
+    state.template_test = Test{error_comment_output_format = "compiler error in file \"{file}\", line {line}: {message}"}
+    state.template_test.markdown.languages_to_test_as_jou[0] = "jou"
+    state.template_test.markdown.num_languages_to_test_as_jou = 1
 
     if defaults_toml != NULL:
         if defaults_toml.type != TOMLType.Table:
@@ -273,7 +277,7 @@ def parse_tests_and_defaults(state: State*, tests_toml: TOML*, defaults_toml: TO
         files = toml_get(defaults_toml, "files")
         if files != NULL:
             fail_in_toml(files.lineno, "you cannot specify 'files' inside defaults_for_all_tests")
-        apply_settings_to_test(defaults_toml, &template_test)
+        apply_settings_to_test(defaults_toml, &state.template_test)
 
     if tests_toml == NULL:
         fail("joutest.toml must define an array named 'tests'")
@@ -287,13 +291,13 @@ def parse_tests_and_defaults(state: State*, tests_toml: TOML*, defaults_toml: TO
     #       specified for it, and mark only those settings as used. Then we can
     #       show error message about settings that do not apply to any file.
     for p = tests_toml.array.ptr; p < tests_toml.array.end(); p++:
-        parse_one_item_of_tests(state, &template_test, p)
+        parse_one_item_of_tests(state, p)
 
 
-def parse_the_whole_toml(state: State*, toml: TOML*) -> None:
+def parse_the_whole_toml(toml: TOML*) -> List[Test]:
     assert toml.type == TOMLType.Table
-
-    parse_tests_and_defaults(state, toml_get(toml, "tests"), toml_get(toml, "defaults_for_all_tests"))
+    state = Step1State{}
+    parse_tests_and_defaults(&state, toml_get(toml, "tests"), toml_get(toml, "defaults_for_all_tests"))
 
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
         match kv.key with strcmp:
@@ -303,6 +307,8 @@ def parse_the_whole_toml(state: State*, toml: TOML*) -> None:
                 error: byte[300]
                 snprintf(error, sizeof(error), "unknown setting '%s'", kv.key)
                 fail_in_toml(kv.value.lineno, error)
+
+    return state.tests
 
 
 enum Condition:
@@ -409,7 +415,7 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
 global big_file_content_buffer: byte[1_000_000]
 
 @public
-def step1_discover_tests(state: State*) -> None:
+def step1_discover_tests() -> List[Test]:
     error: byte[200]
 
     f = fopen("joutest.toml", "rb")
@@ -436,5 +442,6 @@ def step1_discover_tests(state: State*) -> None:
         fail_in_toml(toml.lineno, toml.error_message)
 
     eliminate_condition_tables(&toml, 0)
-    parse_the_whole_toml(state, &toml)
+    result = parse_the_whole_toml(&toml)
     toml.free()
+    return result

@@ -79,19 +79,3 @@ class Test:
             free(*p)
         free(self.command.ptr)
         free(self.path)
-
-@public
-class State:
-    tests: List[Test]
-
-    @public
-    def print(self) -> None:
-        printf("State:\n")
-        for t = self.tests.ptr; t < self.tests.end(); t++:
-            t.print()
-
-    @public
-    def free(self) -> None:
-        for t = self.tests.ptr; t < self.tests.end(); t++:
-            t.free()
-        free(self.tests.ptr)
