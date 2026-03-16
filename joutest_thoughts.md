@@ -44,11 +44,18 @@ Processes are always invoked so that a `jou` installed in same directory with `j
 High level structure:
 1. discover tests
     - do the globs
-    - figure out which configurations apply to each file
+    - markdown files: find code block start/end byte offsets
+    - figure out which configurations apply to each test
     - do not apply the configurations yet!!!
+    - sort tests by file name and start offset
+        - offset sort is required for markdown, because `qsort()` is not stable
+    - in TOML, use:
+        - `files`
+        - `markdown.languages_to_test_as_jou`
 2. configure tests
-    - walk through TOML
+    - walk through and apply each relevant TOML section
 3. gather expected outputs
     - read files and parse for comments
+    - markdown: must seek
 4. run tests
 5. report results
