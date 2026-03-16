@@ -1,0 +1,142 @@
+import "stdlib/assert.jou"
+import "stdlib/errno.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+import "stdlib/toml.jou"
+
+import "./fail.jou"
+
+
+enum Condition:
+    FlagO0
+    FlagO1
+    FlagO2
+    FlagO3
+    FlagValgrind
+    NoExpectedOutput
+    Windows
+    MacOS
+    Is32Bit
+    Default
+
+global CONDITION_STRINGS: byte*[enum_count(Condition)] = [
+    "-O0",
+    "-O1",
+    "-O2",
+    "-O3",
+    "--valgrind",
+    "no_expected_output",
+    "windows",
+    "macos",
+    "32bit",
+    "default",
+]
+
+def condition_is_true(c: Condition) -> bool:
+    match c:
+        # TODO: Don't hard-code -O1
+        # TODO: support --valgrind
+        # TODO: actually parse the expected output
+        case Condition.FlagO0 | Condition.FlagO2 | Condition.FlagO3 | Condition.FlagValgrind | Condition.NoExpectedOutput:
+            return False
+        case Condition.FlagO1:
+            return True
+        case Condition.Windows:
+            return WINDOWS
+        case Condition.MacOS:
+            return MACOS
+        case Condition.Is32Bit:
+            return IS_32BIT
+        case Condition.Default:
+            return True
+
+def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
+    error: byte[300]
+
+    while True:
+        assert toml.depth >= depth  # may become more shallow when doing this
+        toml.depth = depth
+
+        match toml.type:
+            case TOMLType.Error:
+                assert False  # should never happen
+            case TOMLType.Table:
+                # TODO: This is probably not the best way to detect condition tables.
+                #       Or is it? It's simple and easy to document.
+                default = toml_get(toml, "default")
+                if default == NULL:
+                    # Normal table
+                    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+                        eliminate_condition_tables(&kv.value, depth + 1)
+                    return
+
+                # Condition table, pick the correct value
+                chosen: TOMLKeyVal* = NULL
+                for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+                    cond_index = -1
+                    for i = 0; i < enum_count(Condition); i++:
+                        if strcmp(CONDITION_STRINGS[i], kv.key) == 0:
+                            cond_index = i
+                            break
+                    if cond_index == -1:
+                        snprintf(error, sizeof(error), "unknown condition '%s'", kv.key)
+                        fail_in_toml(kv.value.lineno, error)
+                    cond = cond_index as Condition
+                    if cond != Condition.Default and condition_is_true(cond):
+                        if chosen != NULL:
+                            snprintf(error, sizeof(error), "conditions '%s' and '%s' are both true", chosen.key, kv.key)
+                            fail_in_toml(kv.value.lineno, error)
+                        chosen = kv
+
+                if chosen == NULL:
+                    new_value = default
+                else:
+                    new_value = &chosen.value
+                assert new_value != NULL
+
+                temp = *new_value
+                *new_value = TOML{type = TOMLType.Error}  # avoid freeing the value
+                toml.free()
+                *toml = temp
+                continue  # Repeat in case it's a nested condition table
+
+            case TOMLType.Array:
+                for p = toml.array.ptr; p < toml.array.end(); p++:
+                    eliminate_condition_tables(p, depth + 1)
+                return
+            case TOMLType.String | TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating:
+                return
+
+
+global big_file_content_buffer: byte[1_000_000]
+
+@public
+def step1_parse_joutest_toml() -> TOML:
+    error: byte[200]
+
+    f = fopen("joutest.toml", "rb")
+    if f == NULL:
+        snprintf(error, sizeof(error), "cannot open joutest.toml: %s", strerror(get_errno()))
+        fail(error)
+
+    n = fread(big_file_content_buffer, 1, sizeof(big_file_content_buffer), f)
+    if ferror(f) != 0:
+        snprintf(error, sizeof(error), "reading joutest.toml failed: %s", strerror(get_errno()))
+        fail(error)
+    fclose(f)
+
+    if n == sizeof(big_file_content_buffer):
+        fail("joutest.toml is very large, something is probably wrong with it")
+
+    assert n < sizeof(big_file_content_buffer)
+    big_file_content_buffer[n] = '\0'
+    if strlen(big_file_content_buffer) != n:
+        fail("joutest.toml contains a zero byte")
+
+    toml = parse_toml(big_file_content_buffer)
+    if toml.type == TOMLType.Error:
+        fail_in_toml(toml.lineno, toml.error_message)
+
+    eliminate_condition_tables(&toml, 0)
+    return toml

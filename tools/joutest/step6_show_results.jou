@@ -1,0 +1,11 @@
+import "stdlib/list.jou"
+
+import "./state.jou"
+
+
+@public
+def step6_show_results(tests: List[Test]) -> int:
+    for t = tests.ptr; t < tests.end(); t++:
+        if t.result != TestResult.Success:
+            return 1
+    return 0

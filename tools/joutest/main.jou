@@ -1,14 +1,17 @@
 import "stdlib/list.jou"
-import "stdlib/mem.jou"
+import "stdlib/toml.jou"
 
 import "./state.jou"
-import "./step1_discover_tests.jou"
+import "./step1_parse_joutest_toml.jou"
+import "./step2_discover_tests.jou"
+import "./step5_run_tests.jou"
+import "./step6_show_results.jou"
 
 
 def main() -> int:
-    tests = step1_discover_tests()
-    for t = tests.ptr; t < tests.end(); t++:
-        t.print()
-        t.free()
-    free(tests.ptr)
-    return 0
+    toml = step1_parse_joutest_toml()
+    tests = step2_discover_tests(&toml)
+    #step3_configure_tests(tests)  # TODO
+    #step4_gather_expected_outputs(tests)  # TODO
+    step5_run_tests(tests)
+    return step6_show_results(tests)
