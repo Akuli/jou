@@ -59,7 +59,7 @@ Here's how you would set that up in `joutest.toml`:
 files = {windows = "windows_tests/test_*.jou", default = "posix_tests/test_*.jou"}
 ```
 
-**A table anywhere in `joutest.toml` that contains a `default` key is a condition table.**
+In `joutest.toml`, **any TOML table with a `default` key is a condition table.**
 Before `joutest` looks up any settings from `joutest.toml`,
 it replaces each condition table with one of its values.
 So on Windows, the above is equivalent to:
@@ -121,7 +121,7 @@ Everything else is optional.
 
 - `tests` (required) is an array of one or more tables with the following keys:
     - `files` (required) is a glob string or an array of one or more glob strings.
-        The supported glob features are `*` (match anything within a path component)
+        The supported glob features are `*` (match zero or more characters within a path component)
         and `**` (match zero or more entire path components).
         For example, `files = ["**/*.md"]` finds all markdown files,
         including any markdown files in the same directory with `joutest.toml`.
@@ -190,8 +190,6 @@ skip = false
 The main thing to note here is `"compare_to_comments"` and `special_output_comments`.
 This means that `joutest` will look for comments like `# Output: hello` in the file it's testing,
 and ensure that `hello` is actually printed when running the file.
-A few other forms of comments are also supported,
-for example `# Error: function 'f' not found`
 
 It will be possible to pass markdown files to `joutest`,
 and `joutest` will extract code blocks from the markdown and run them as tests.
