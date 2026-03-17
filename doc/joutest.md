@@ -72,12 +72,12 @@ files = "windows_tests/test_*.jou"
 The following keys can be used in condition tables:
 
 | Key           | When is the value used?                           |
-|---------------|⨪--------------------------------------------------|
+|---------------|---------------------------------------------------|
 | `windows`     | `joutest` is running on Windows                   |
 | `macos`       | `joutest` is running on MacOS                     |
 | `linux`       | `joutest` is running on Linux                     |
 | `32bit`       | `joutest` is running on a 32-bit operating system |
-| `default`     | nothing else in the condition table applies       |
+| `default`     | nothing else matches                              |
 
 If multiple different keys match,
 `joutest` will fail with an error and refuse to run any tests.
@@ -169,18 +169,29 @@ verbose = false
 parallel = true
 
 [defaults_for_all_tests]
+command = ["jou", "{file}"]
 run_compiler_under_valgrind = false
 markdown.languages_to_test_as_jou = ["jou"]
-timeout_seconds = 60  # TODO: not implemented
+timeout_seconds = 60
 stdout = "compare_to_comments"
 stderr = "compare_to_comments"
+special_output_comments = {
+    Output = "{comment}",
+    # The following will be useful for developing the Jou compiler, but
+    # probably won't be not enabled by default.
+    #Error = 'compiler error in file "{file}", line {line}: {comment}',
+    # This will be useful for testing joutest with itself.
+    #Error = 'joutest error in file "{file}", line {line}: {message}',
+}
 cd_to_containing_directory = false
 skip = false
 ```
 
-The main thing to note here is `"compare_to_comments"`.
+The main thing to note here is `"compare_to_comments"` and `special_output_comments`.
 This means that `joutest` will look for comments like `# Output: hello` in the file it's testing,
 and ensure that `hello` is actually printed when running the file.
+A few other forms of comments are also supported,
+for example `# Error: function 'f' not found`
 
 It will be possible to pass markdown files to `joutest`,
 and `joutest` will extract code blocks from the markdown and run them as tests.
