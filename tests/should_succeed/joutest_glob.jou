@@ -43,6 +43,14 @@ def glob_and_check(glob: byte*, path: byte*) -> bool:
     glob_result = List[byte*]{}
     do_glob(glob, ".", &glob_result, 10)
 
+    if WINDOWS:
+        # Convert slashes
+        for p = glob_result.ptr; p < glob_result.end(); p++:
+            string = *p
+            assert strstr(string, "/") == NULL  # globbing shouldn't produce forward slash
+            while strstr(string, "\\") != NULL:
+                *strstr(string, "\\") = '/'
+
     found = False
     for p = glob_result.ptr; p < glob_result.end(); p++:
         if strcmp(*p, path) == 0:
