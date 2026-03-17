@@ -59,7 +59,7 @@ Here's how you would set that up in `joutest.toml`:
 files = {windows = "windows_tests/test_*.jou", default = "posix_tests/test_*.jou"}
 ```
 
-**A TOML table with a `default` key anywhere in `joutest.toml` is a condition table.**
+In `joutest.toml`, **any TOML table with a `default` key is a condition table.**
 Before `joutest` looks up any settings from `joutest.toml`,
 it replaces each condition table with one of its values.
 So on Windows, the above is equivalent to:
