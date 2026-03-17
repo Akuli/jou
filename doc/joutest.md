@@ -48,13 +48,6 @@ run: jou "tests/test_klondike.jou"
 ```
 
 
-## Location of `joutest.toml`
-
-The `joutest.toml` file must be in the same directory where you invoke `joutest`.
-There is no hidden file finding logic: `joutest` literally does `fopen("joutest.toml", "rb")`,
-and the content of `joutest.toml` specifies where to find the files to be tested.
-
-
 ## Condition Tables
 
 Let's say that for whatever reason, you have separate test files
@@ -78,11 +71,13 @@ files = "windows_tests/test_*.jou"
 
 The following keys can be used in condition tables:
 
-- `windows = ...` is used if `joutest` is running on Windows.
-- `macos = ...` is used if `joutest` is running on MacOS.
-- `linux = ...` is used if `joutest` is running on Linux.
-- `32bit = ...` is used if `joutest` is running on a 32-bit operating system.
-- `default = ...` is used if nothing else applies.
+| Key           | When is the value used?                           |
+|---------------|⨪--------------------------------------------------|
+| `windows`     | `joutest` is running on Windows                   |
+| `macos`       | `joutest` is running on MacOS                     |
+| `linux`       | `joutest` is running on Linux                     |
+| `32bit        | `joutest` is running on a 32-bit operating system |
+| `default`     | nothing else in the condition table applies       |
 
 If multiple different keys match,
 `joutest` will fail with an error and refuse to run any tests.
@@ -153,6 +148,13 @@ skip = true   # TODO: this option doesn't exist yet, sorry :(
 ```
 
 
+## Location of `joutest.toml`
+
+The `joutest.toml` file must be in the same directory where you invoke `joutest`.
+There is no hidden file finding logic: `joutest` literally does `fopen("joutest.toml", "rb")`,
+and the content of `joutest.toml` specifies where to find the files to be tested.
+
+
 ## Unimplemented features
 
 These will be documented better as they are implemented.
@@ -176,11 +178,18 @@ cd_to_containing_directory = false
 skip = false
 ```
 
-Processes will be always invoked so that a `jou` installed in same directory with `joutest` is found:
-- POSIX: insert directory containing `joutest` to start of `$PATH`
-    - finds `jou` before anything else in PATH
-- Windows: call `CreateProcessA` (later `CreateProcessW`) with `lpApplicationName` set to NULL and `lpCommandLine` like `"jou file.jou"`
-    - finds `jou.exe` before looking in PATH
+The main thing to note here is `"compare_to_comments"`.
+This means that `joutest` will look for comments like `# Output: hello` in the file it's testing,
+and ensure that `hello` is actually printed when running the file.
+
+It will be possible to pass markdown files to `joutest`,
+and `joutest` will extract code blocks from the markdown and run them as tests.
+This is useful to ensure that your documentation stays up to date.
+
+The Jou project itself already has scripts for doing these things,
+and they will eventually be replaced by `joutest`:
+- [`runtests.sh`](../runtests.sh) runs tests with `# Output:` comment handling
+- [`doctest.sh`](../doctest.sh) runs tests in markdown files, also with `# Output:` comment handling
 
 Plan and status:
 1. parse arguments
