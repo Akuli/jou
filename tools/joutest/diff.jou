@@ -1,0 +1,64 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+import "./ansi_colors.jou"
+
+
+class DiffPrinter:
+    def unchanged(self, line: byte*) -> None:
+        printf(" %s", line)
+        if not ends_with(line, "\n"):
+            printf("\n\\ No newline at end of file\n")
+
+    def addition(self, line: byte*) -> None:
+        printf("%s+%s%s", GREEN, line, RESET)
+        if not ends_with(line, "\n"):
+            printf("\n\\ No newline at end of file\n")
+
+    def removal(self, line: byte*) -> None:
+        printf("%s-%s%s", RED, line, RESET)
+        if not ends_with(line, "\n"):
+            printf("\n\\ No newline at end of file\n")
+
+
+# Line arrays must be NULL terminated.
+# Lines must contain newline characters.
+# Lines are C/Jou strings, so they cannot contain zero bytes.
+@public
+def print_diff(old: byte**, new: byte**) -> None:
+    printer = DiffPrinter{}
+
+    # TODO: implement a proper diff algorithm
+
+    # Print common prefix
+    while *old != NULL and *new != NULL and strcmp(*old, *new) == 0:
+        printer.unchanged(*old++)
+        new++
+
+    # Find changed part
+    old_end = old
+    while *old_end != NULL:
+        old_end++
+    new_end = new
+    while *new_end != NULL:
+        new_end++
+    while old_end > old and new_end > new and strcmp(old_end[-1], new_end[-1]) == 0:
+        old_end--
+        new_end--
+
+    # Print changed part (really bad...)
+    while old < old_end:
+        printer.removal(*old++)
+    while new < new_end:
+        printer.addition(*new++)
+
+    # Print common part at the end
+    while *new != NULL:
+        printer.unchanged(*new++)
+
+
+def main() -> int:
+    old = ["Hello\n", "World\n", "Thing\n", NULL]
+    new = ["Hello\n", "World\n", "Test\n", "Thing\n", NULL]
+    print_diff(old, new)
+    return 0
