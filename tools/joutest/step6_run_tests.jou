@@ -31,17 +31,13 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
                 printf(" %sok%s  %s\n", GREEN, RESET, command)
             case TestResult.Failed:
                 printf("%sFAIL%s %s\n", RED, RESET, command)
-            case TestResult.TimedOut:
-                timeout_seconds = 1234  # TODO
-                printf("%sFAIL%s %s (timed out after %d seconds)\n", RED, RESET, command, timeout_seconds)
-                assert False  # TODO
             case TestResult.Skipped:
                 printf("%sskip%s %s\n", YELLOW, RESET, command)
     else:
         match test.result:
             case TestResult.Success:
                 printf("%s.%s", GREEN, RESET, command)
-            case TestResult.Failed | TestResult.TimedOut:
+            case TestResult.Failed:
                 printf("%sF%s", RED, RESET, command)
             case TestResult.Skipped:
                 printf("%ss%s", YELLOW, RESET, command)

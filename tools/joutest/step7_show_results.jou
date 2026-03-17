@@ -23,7 +23,7 @@ def step7_show_results(tests: List[Test]) -> noreturn:
         match t.result:
             case TestResult.Success:
                 succeeded++
-            case TestResult.Failed | TestResult.TimedOut:
+            case TestResult.Failed:
                 failed++
             case TestResult.Skipped:
                 skipped++
