@@ -7,7 +7,7 @@ jou.exe: jou_bootstrap.exe $(wildcard compiler/*.jou compiler/*/*.jou)
 	./jou_bootstrap.exe -o jou.exe compiler/main.jou
 
 joutest.exe: jou_bootstrap.exe $(wildcard tools/joutest/*.jou)
-        ./jou_bootstrap.exe -o joutest.exe tools/joutest/main.jou
+	./jou_bootstrap.exe -o joutest.exe tools/joutest/main.jou
 
 # Does not delete tmp/bootstrap_cache because bootstrapping is slow.
 .PHONY: clean
