@@ -76,7 +76,7 @@ The following keys can be used in condition tables:
 | `windows`     | `joutest` is running on Windows                   |
 | `macos`       | `joutest` is running on MacOS                     |
 | `linux`       | `joutest` is running on Linux                     |
-| `32bit        | `joutest` is running on a 32-bit operating system |
+| `32bit`       | `joutest` is running on a 32-bit operating system |
 | `default`     | nothing else in the condition table applies       |
 
 If multiple different keys match,
