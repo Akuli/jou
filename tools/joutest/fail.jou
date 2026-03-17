@@ -11,6 +11,5 @@ def fail(message: byte*) -> None:
 
 @public
 def fail_in_toml(toml_lineno: int, message: byte*) -> noreturn:
-    full_message: byte[200]
-    snprintf(full_message, sizeof(full_message), "file \"joutest.toml\", line %d: %s", toml_lineno, message)
-    fail(full_message)
+    fprintf(get_stderr(), "joutest error in file \"joutest.toml\", line %d: %s\n", toml_lineno, message)
+    exit(1)
