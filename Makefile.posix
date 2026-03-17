@@ -27,7 +27,7 @@ LLVM_CONFIG != \
 	|| command -v /opt/homebrew/opt/llvm@15/bin/llvm-config \
 	|| command -v llvm-config
 
-all: jou
+all: jou joutest
 
 config.jou: Makefile.posix
 	@v=`$(LLVM_CONFIG) --version`; case "$$v" in 15.*|16.*|17.*|18.*|19.*|20.*|21.*) ;; *) echo "Error: Found unsupported LLVM version $$v. Only LLVM 15,16,17,18,19,20,21 are supported."; exit 1; esac
@@ -57,10 +57,14 @@ config.jou: Makefile.posix
 jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou
 	./bootstrap.sh
 
-COMPILER_JOU_FILES != echo compiler/*.jou compiler/*/*.jou
+COMPILER_SOURCES != echo compiler/*.jou compiler/*/*.jou
+JOUTEST_SOURCES != echo tools/joutest/*.jou
 
-jou: jou_bootstrap config.jou $(COMPILER_JOU_FILES)
+jou: jou_bootstrap config.jou $(COMPILER_SOURCES)
 	./jou_bootstrap -o jou compiler/main.jou
+
+joutest: jou_bootstrap $(JOUTEST_SOURCES)
+	./jou_bootstrap -o joutest tools/joutest/main.jou
 
 # Does not delete tmp/bootstrap_cache because bootstrapping is slow.
 .PHONY: clean

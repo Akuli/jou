@@ -1,0 +1,125 @@
+import "stdlib/assert.jou"
+import "stdlib/fs.jou"
+import "stdlib/intnative.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+
+# This was in stdlib/str.jou, but I removed it because I used it so rarely
+declare strncmp(s1: byte*, s2: byte*, n: intnative) -> int
+
+
+@public
+def glob_is_valid(glob: byte*) -> bool:
+    if glob == NULL:
+        return False
+
+    # Disallow anything that isn't supported properly
+    if strcspn(glob, "\\?[]{}") != strlen(glob):
+        return False
+
+    got_double_star = False
+
+    while True:
+        component_len = strcspn(glob, "/")
+        if component_len == 0:
+            return False
+
+        for i = 0; i+1 < component_len; i++:
+            if glob[i] == '*' and glob[i+1] == '*':
+                # It contains **. It should be the whole component, as in
+                # foo/**/bar, and it cannot be repeated like foo/**/bar/**/baz.
+                if component_len != 2 or got_double_star:
+                    return False
+                got_double_star = True
+
+        glob = &glob[component_len]
+        if *glob == '\0':
+            return True
+        assert *glob == '/'
+        glob++
+
+
+# Compares the first "/" separated component of glob to the entire name.
+# Example: "foo_*_bar/whatever", "foo_thing_bar" --> True
+#
+# Runtime is O(n*g), where n = strlen(name) and g = strcspn(glob, "/").
+def first_glob_component_matches(glob: byte*, name: byte*) -> bool:
+    # Skip initial segment of regular characters
+    while *glob != '\0' and *glob != '/' and *glob != '*':
+        if *glob++ != *name++:
+            return False
+
+    if *glob != '*':
+        # regular characters only
+        return *name == '\0'
+
+    while True:
+        assert *glob == '*'
+        glob++
+
+        segment_len = strcspn(glob, "*/")
+        if glob[segment_len] != '*':
+            # This is the last segment.
+            consumed_by_star = strlen(name) - segment_len
+            return consumed_by_star >= 0 and memcmp(glob, &name[consumed_by_star], segment_len) == 0
+
+        # Handle the segment between two stars. We always take the first place
+        # where the segment occurs as a substring. For example:
+        #
+        #   glob = "foo*ba*.txt"
+        #   name = "foo_bar_baz.txt"
+        #           ^^^ ^^     ^^^^
+        while strncmp(glob, name, segment_len) != 0:
+            if *name++ == '\0':
+                return False
+        glob = &glob[segment_len]
+        name = &name[segment_len]
+
+
+@public
+def do_glob(glob: byte*, relative_to: byte*, out: List[byte*]*, depth_limit: int) -> None:
+    if depth_limit < 0:
+        return
+
+    if starts_with(relative_to, "./") or (starts_with(relative_to, ".\\") and WINDOWS):
+        relative_to++
+        relative_to++
+
+    if *glob == '\0':
+        # Previous iterations matched all components
+        s = strdup(relative_to)
+        assert s != NULL
+        out.append(s)
+        return
+
+    assert glob_is_valid(glob)
+
+    next_glob = &glob[strcspn(glob, "/")]
+    if *next_glob == '/':
+        next_glob++
+
+    # Double star can be removed at any point
+    if starts_with(glob, "**"):
+        do_glob(next_glob, relative_to, out, depth_limit)
+
+    # Wildcards can never match "." or "..", that creates confusing bugs.
+    # For example, "rm -rf .*" (don't try this as is!!!) removes the current
+    # working directory in some shells, but preserves . and .. in others.
+    first_component_has_wildcard = (strcspn(glob, "*") < strcspn(glob, "/"))
+    iter = DirIter{dir = relative_to, include_dot_and_dotdot = not first_component_has_wildcard}
+
+    while iter.next():
+        # Don't recurse into ".", ".." or ".hidden_file" unless requested explicitly
+        if iter.name[0] == '.' and glob[0] != '.':
+            continue
+
+        # Double star means we can recurse inside basically anything
+        if starts_with(glob, "**"):
+            do_glob(glob, iter.path, out, depth_limit - 1)
+            continue
+
+        # Filter with first glob component, recurse with the rest.
+        if first_glob_component_matches(glob, iter.name):
+            do_glob(next_glob, iter.path, out, depth_limit - 1)

@@ -1,0 +1,54 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+import "stdlib/process.jou"
+
+import "./ansi_colors.jou"
+
+
+@public
+class CommandLineArgs:
+    verbose: bool
+
+
+def print_help(argv0: byte*) -> None:
+    printf("Usage: %s [--verbose] [--no-colors]\n", argv0)
+    printf("\n")
+    printf("Options:\n")
+    printf("  -v / --verbose    show more output than by default\n")
+    printf("  --no-colors       do not print with colors\n")
+
+
+@public
+def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
+    # Set default optimize to O1, user sets optimize will overwrite the default flag
+    args = CommandLineArgs{}
+
+    if argc == 2 and strcmp(argv[1], "--help") == 0:
+        print_help(argv[0])
+        exit(0)
+
+    optlevel_set = False
+    i = 1
+    while i < argc:
+        match argv[i] with strcmp:
+            case "--help":
+                print_help(argv[0])
+                exit(0)
+
+            case "-v" | "--verbose":
+                args.verbose = True
+                i++
+
+            case "--no-colors":
+                disable_colors()
+                i++
+
+            case _:
+                if argv[i][0] == '-':
+                    fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
+                    exit(2)
+                else:
+                    fprintf(get_stderr(), "%s: filtering which tests to run is not supported yet, sorry :(\n")
+                    exit(2)
+
+    return args

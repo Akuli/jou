@@ -1,0 +1,14 @@
+import "stdlib/io.jou"
+import "stdlib/process.jou"
+
+
+@public
+def fail(message: byte*) -> None:
+    fprintf(get_stderr(), "joutest error: %s\n", message)
+    exit(1)
+
+
+@public
+def fail_in_toml(toml_lineno: int, message: byte*) -> noreturn:
+    fprintf(get_stderr(), "joutest error in file \"joutest.toml\", line %d: %s\n", toml_lineno, message)
+    exit(1)

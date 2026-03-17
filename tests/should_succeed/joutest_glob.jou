@@ -1,0 +1,135 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "../../tools/joutest/glob.jou"
+
+
+def test_validating() -> None:
+    assert glob_is_valid("a")
+    assert glob_is_valid("*.jou")
+    assert glob_is_valid("README.md")
+    assert glob_is_valid("foo/bar")
+    assert glob_is_valid("**/*")
+    assert glob_is_valid("*/**")
+    assert glob_is_valid("**")
+    assert glob_is_valid("*/*")
+    assert glob_is_valid("*/*/*")
+    assert glob_is_valid("src/**")
+    assert glob_is_valid("src/**/*.jou")
+
+    assert not glob_is_valid("")
+    assert not glob_is_valid("**foo")
+    assert not glob_is_valid("foo**")
+    assert not glob_is_valid("foo//bar")
+    assert not glob_is_valid("foo/**/**/bar")
+    assert not glob_is_valid("foo/**/bar/**")
+    assert not glob_is_valid("**/**/bar")
+    assert not glob_is_valid("**/bar/**")
+    assert not glob_is_valid("**/bar/**baz")
+
+    # Common glob features that are currently not supported
+    assert not glob_is_valid("/usr/lib")
+    assert not glob_is_valid("some_folder/")
+    assert not glob_is_valid("foo\\bar")
+    assert not glob_is_valid("foo[1-3]")
+    assert not glob_is_valid("{foo,bar}")
+
+    puts("validating ok")  # Output: validating ok
+
+
+def glob_and_check(glob: byte*, path: byte*) -> bool:
+    glob_result = List[byte*]{}
+    do_glob(glob, ".", &glob_result, 10)
+
+    if WINDOWS:
+        # Convert slashes
+        for p = glob_result.ptr; p < glob_result.end(); p++:
+            string = *p
+            assert strstr(string, "/") == NULL  # globbing shouldn't produce forward slash
+            while strstr(string, "\\") != NULL:
+                *strstr(string, "\\") = '/'
+
+    found = False
+    for p = glob_result.ptr; p < glob_result.end(); p++:
+        if strcmp(*p, path) == 0:
+            found = True
+        free(*p)
+    free(glob_result.ptr)
+
+    return found
+
+
+def test_basic() -> None:
+    assert glob_and_check("README.md", "README.md")
+    assert glob_and_check("*.md", "README.md")
+    assert glob_and_check("*", "README.md")
+    assert glob_and_check("examples/*o*", "examples/hello.jou")
+    assert glob_and_check("tests/*/*.txt", "tests/data/hellohellohello.txt")
+    assert glob_and_check("t*e*s*t*s/*a/hell*he*ohel*.*x*", "tests/data/hellohellohello.txt")
+
+    assert glob_and_check("READ*", "README.md")
+    assert glob_and_check("*md", "README.md")
+    assert not glob_and_check("README", "README.md")
+    assert not glob_and_check("ME.md", "README.md")
+
+    # '*' does not recurse
+    assert not glob_and_check("tests/*", "tests")
+    assert glob_and_check("tests/*", "tests/data")
+    assert not glob_and_check("tests/*", "tests/data/file.jou")
+
+    # Hidden file is not matched unless glob starts with dot
+    assert not glob_and_check("*", ".gitignore")
+    assert not glob_and_check("*git*", ".gitignore")
+    assert glob_and_check(".git*", ".gitignore")
+    assert glob_and_check(".*git*", ".gitignore")
+
+    puts("basic globbing ok")  # Output: basic globbing ok
+
+
+def test_double_star() -> None:
+    # '**' matches 0 or more components
+    assert glob_and_check("tests/**", "tests")
+    assert glob_and_check("tests/**", "tests/data")
+    assert glob_and_check("tests/**", "tests/data/hellohellohello.txt")
+    assert glob_and_check("tests/**/data", "tests/data")
+    assert glob_and_check("tests/**/hellohellohello.txt", "tests/data/hellohellohello.txt")
+    assert glob_and_check("tests/**/file3.txt", "tests/data/folder_2files_1dir/subdir/file3.txt")
+    assert not glob_and_check("tests/data/**", "tests")
+    assert not glob_and_check("tests/data/**", "tests/data/..")
+
+    puts("double star ok")  # Output: double star ok
+
+
+def test_dot_and_dotdot() -> None:
+    # The . and .. entries can be matched, but only if specified exactly
+    assert glob_and_check("./*.md", "README.md")
+    assert glob_and_check("tests/.././*.md", "tests/.././README.md")
+
+    assert not glob_and_check(".*", ".")
+    assert not glob_and_check(".*", "..")
+    assert not glob_and_check("tests/.*", "tests/.")
+    assert not glob_and_check("tests/.*", "tests/..")
+
+    assert glob_and_check(".", ".")
+    assert glob_and_check("..", "..")
+    assert glob_and_check("tests/.", "tests/.")
+    assert glob_and_check("tests/..", "tests/..")
+
+    # . and .. are not interchangeable in any way.
+    # Potential bug if both are handled with the same special-casing.
+    assert not glob_and_check(".", "..")
+    assert not glob_and_check("..", ".")
+    assert not glob_and_check("tests/.", "tests/..")
+    assert not glob_and_check("tests/..", "tests/.")
+
+    puts("dot and dotdot ok")  # Output: dot and dotdot ok
+
+
+def main() -> int:
+    test_validating()
+    test_basic()
+    test_double_star()
+    test_dot_and_dotdot()
+    return 0

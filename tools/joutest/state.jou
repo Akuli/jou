@@ -1,0 +1,16 @@
+import "stdlib/list.jou"
+import "stdlib/toml.jou"
+
+
+@public
+enum TestResult:
+    Success
+    Failed
+    Skipped
+
+@public
+class Test:
+    path: byte*
+    glob_toml: TOML*
+    relevant_toml_tables: List[TOML*]
+    result: TestResult
