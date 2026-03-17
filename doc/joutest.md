@@ -132,7 +132,7 @@ Everything else is optional.
     when an item of the `tests` array does not specify something.
 
 If the `tests` array contains multiple tables whose `files` glob matches the same file,
-then values in the last matching table are preffered.
+then values in the last matching table are preferred.
 This way you can specify something general first and special cases afterwards.
 For example:
 
