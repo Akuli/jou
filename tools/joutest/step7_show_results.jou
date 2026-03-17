@@ -1,0 +1,42 @@
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+
+import "./ansi_colors.jou"
+import "./state.jou"
+
+
+@public
+def step7_show_results(tests: List[Test]) -> noreturn:
+    if tests.len == 0:
+        # TODO: This should also show the file filter used, if any
+        fprintf(get_stderr(), "%sfound no tests%s\n", RED, RESET)
+        exit(1)
+
+    printf("\n\n")
+
+    succeeded = 0
+    failed = 0
+    skipped = 0
+
+    for t = tests.ptr; t < tests.end(); t++:
+        match t.result:
+            case TestResult.Success:
+                succeeded++
+            case TestResult.Failed | TestResult.TimedOut:
+                failed++
+            case TestResult.Skipped:
+                skipped++
+
+    printf("%s%d succeeded", GREEN, succeeded)
+    if failed != 0:
+        printf(", %s%d failed", RED, failed)
+    if skipped != 0:
+        printf(", %s%d skipped", YELLOW, skipped)
+    printf("\n")
+
+    if failed == 0:
+        exit(0)
+    else:
+        exit(1)

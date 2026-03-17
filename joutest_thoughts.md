@@ -42,10 +42,17 @@ Processes are always invoked so that a `jou` installed in same directory with `j
     - need to implement the notorious CRT quoting rules: https://copilot.microsoft.com/shares/SKCRV4ZCxTGuP71dGLt79
 
 High level structure:
-1. [DONE] parse joutest.toml
+1. parse arguments
+    - `-v` / `--verbose`
+    - `-O0` / `-O1` / `-O2` / `-O3` (jou opt level)
+    - `--valgrind`
+    - `--jou-flags`
+    - `--no-colors`
+    - test name filter
+2. [DONE] parse joutest.toml
     - [DONE] eliminate condition tables
     - [DONE] don't validate everything or place into nice data structures just yet
-2. discover tests
+3. discover tests
     - [DONE] do the globs
     - markdown files: find code block start/end byte offsets
     - [DONE] figure out which configurations apply to each test
@@ -56,18 +63,20 @@ High level structure:
     - in TOML, use:
         - [DONE] `files`
         - `markdown.languages_to_test_as_jou`
-3. configure tests
+4. configure tests
     - walk through and apply each relevant TOML section
-4. gather expected outputs
+5. gather expected outputs
     - read files and parse for comments
     - markdown: must seek
-5. run tests
+6. run tests
+    - pre-test command like `make`
+        - TODO: how about `./runtests.sh --dont-run-make`?
     - POSIX: prepend dirname of executable to PATH
     - Windows: implement the CRT quoting rules
     - if configured, capture stdout/stderr
     - if configured, discard stdout/stderr
     - run in parallel
-6. show results
+7. show results
     - show diffs (need that algorithm.......)
     - show how many succeeded and failed
     - [DONE] exit 0 or 1

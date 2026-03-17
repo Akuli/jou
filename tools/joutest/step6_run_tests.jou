@@ -1,0 +1,56 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
+import "stdlib/str.jou"
+
+import "./ansi_colors.jou"
+import "./state.jou"
+import "./step1_parse_command_line_args.jou"
+
+
+def run_test(test: Test*, args: CommandLineArgs*) -> None:
+    # TODO: rewrite this entirely
+    command: byte* = NULL
+    asprintf(&command, "jou \"%s\"", test.path)  # TODO: fix up PATH
+    assert command != NULL
+
+    if args.verbose:
+        printf("run: %s\n", command)
+        fflush(get_stdout())
+
+    if system(command) == 0:
+        test.result = TestResult.Success
+    else:
+        test.result = TestResult.Failed
+
+    if args.verbose:
+        match test.result:
+            case TestResult.Success:
+                printf(" %sok%s  %s\n", GREEN, RESET, command)
+            case TestResult.Failed:
+                printf("%sFAIL%s %s\n", RED, RESET, command)
+            case TestResult.TimedOut:
+                timeout_seconds = 1234  # TODO
+                printf("%sFAIL%s %s (timed out after %d seconds)\n", RED, RESET, command, timeout_seconds)
+                assert False  # TODO
+            case TestResult.Skipped:
+                printf("%sskip%s %s\n", YELLOW, RESET, command)
+    else:
+        match test.result:
+            case TestResult.Success:
+                printf("%s.%s", GREEN, RESET, command)
+            case TestResult.Failed | TestResult.TimedOut:
+                printf("%sF%s", RED, RESET, command)
+            case TestResult.Skipped:
+                printf("%ss%s", YELLOW, RESET, command)
+    fflush(get_stdout())
+
+    free(command)
+
+
+@public
+def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
+    for t = tests.ptr; t < tests.end(); t++:
+        run_test(t, args)
