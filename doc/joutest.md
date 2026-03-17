@@ -2,15 +2,15 @@
 
 Jou comes with a test runner named `joutest`.
 It is currently very incomplete, and more features will be added soon,
-but it is already usable enough for small projects.
+but it is already usable for some Jou projects.
 
 
 ## Getting started
 
 The most common way to test a Jou project is to
-just put files named `test_foo.jou` into a `tests` folder and run each one with Jou.
-The test files can [import other files] in your project normally,
-with for example `import "../src/thing.jou"`.
+just put files named `test_foo.jou` into a `tests` directory and run each one with Jou.
+The test files can [import other files](imports.md) of your project
+with imports like `import "../src/thing.jou"`.
 For example, the tests of [my curses-klondike project](https://github.com/Akuli/curses-klondike)
 are like this.
 
@@ -21,8 +21,8 @@ To use `joutest` this way, create a file `joutest.toml` that contains just these
 files = "tests/test_*.jou"
 ```
 
-Now you can simply run `joutest` inside your project folder.
-It should run your tests:
+Now you can simply run `joutest` inside your project directory.
+It should run the tests:
 
 ```
 akuli@Akuli-Desktop ~/curses-klondike $ joutest
@@ -31,8 +31,8 @@ akuli@Akuli-Desktop ~/curses-klondike $ joutest
 3 succeeded
 ```
 
-Each dot means a file that ran successfully.
-You can also use `--verbose` to see more details:
+Each dot means that a file ran successfully.
+You can also try `--verbose` (or `-v`, that does the same thing):
 
 ```
 akuli@Akuli-Desktop ~/curses-klondike $ joutest --verbose
@@ -51,10 +51,106 @@ run: jou "tests/test_klondike.jou"
 ## Location of `joutest.toml`
 
 The `joutest.toml` file must be in the same directory where you invoke `joutest`.
-On the one hand, this makes `joutest` simpler: it can literally do `fopen("joutest.toml", "rb")`.
-But on the other hand, this means that if you `cd` to a subdirectory within your project,
-you must `cd` back out of it before running the tests.
-If you find this annoying, please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new).
+There is no hidden file finding logic: `joutest` literally does `fopen("joutest.toml", "rb")`,
+and the content of `joutest.toml` specifies where to find the files to be tested.
+
+
+## Condition Tables
+
+Let's say that for whatever reason, you have separate test files
+for Windows and for other operating systems.
+Here's how you would set that up in `joutest.toml`:
+
+```toml
+[[tests]]
+files = {windows = "windows_tests/test_*.jou", default = "posix_tests/test_*.jou"}
+```
+
+**A table anywhere in `joutest.toml` that contains a `default` key is a condition table.**
+Before `joutest` looks up any settings from `joutest.toml`,
+it replaces each condition table with one of its values.
+So on Windows, the above is equivalent to:
+
+```toml
+[[tests]]
+files = "windows_tests/test_*.jou"
+```
+
+The following keys can be used in condition tables:
+
+- `windows = ...` is used if `joutest` is running on Windows.
+- `macos = ...` is used if `joutest` is running on MacOS.
+- `linux = ...` is used if `joutest` is running on Linux.
+- `32bit = ...` is used if `joutest` is running on a 32-bit operating system.
+- `default = ...` is used if nothing else applies.
+
+If multiple different keys match,
+`joutest` will fail with an error and refuse to run any tests.
+For example, the following is probably a bad idea,
+because it does not work at all on 32-bit Linux systems:
+
+```toml
+files = {linux = "linux_tests.jou", 32bit = "32bit_tests.jou", default = "fallback_tests.jou"}
+```
+
+You can instead use nested condition tables to explicitly define
+which value is considered more important:
+
+```toml
+# This uses linux_tests.jou on 32-bit linux
+files = {
+    linux = "linux_tests.jou",
+    default = {
+        32bit = "32bit_tests.jou",
+        default = "fallback_tests.jou",
+    },
+}
+
+# This uses 32bit_tests.jou on 32-bit linux
+files = {
+    32bit = "32bit_tests.jou",
+    default = {
+        linux = "linux_tests.jou",
+        default = "fallback_tests.jou",
+    },
+}
+```
+
+
+## Content of `joutest.toml`
+
+Note that any value can be specified as a condition table (see above).
+
+The only required things are the `tests` array, and `files` inside each table of the `tests` array.
+Everything else is optional.
+
+- `tests` (required) is an array of one or more tables with the following keys:
+    - `files` (required) is a glob string or an array of one or more glob strings.
+        The supported glob features are `*` (match anything within a path component)
+        and `**` (match zero or more entire path components).
+        For example, `files = ["**/*.md"]` finds all markdown files,
+        including any markdown files in the same directory with `joutest.toml`.
+    - More will be added in the future...
+- `defaults_for_all_tests` is just like each table of the `tests` array,
+    except that you cannot specify `files`.
+    As the name suggests, these settings are used
+    when an item of the `tests` array does not specify something.
+
+If the `tests` array contains multiple tables whose `files` glob matches the same file,
+then values in the last matching table are preffered.
+This way you can specify something general first and special cases afterwards.
+For example:
+
+```toml
+# Run all example files
+[[tests]]
+files = "examples/*.jou"
+
+# ...except this example file
+[[tests]]
+files = "examples/dont_do_this.jou"
+skip = true   # TODO: this option doesn't exist yet, sorry :(
+```
 
 
 ## Unimplemented features
@@ -86,7 +182,7 @@ Processes will be always invoked so that a `jou` installed in same directory wit
 - Windows: call `CreateProcessA` (later `CreateProcessW`) with `lpApplicationName` set to NULL and `lpCommandLine` like `"jou file.jou"`
     - finds `jou.exe` before looking in PATH
 
-Plan and status (completed things are marked as [DONE]):
+Plan and status:
 1. parse arguments
     - [DONE] `-v` / `--verbose`
     - `-O0` / `-O1` / `-O2` / `-O3` (jou opt level)

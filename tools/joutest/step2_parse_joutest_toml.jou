@@ -17,6 +17,7 @@ enum Condition:
     NoExpectedOutput
     Windows
     MacOS
+    Linux
     Is32Bit
     Default
 
@@ -29,6 +30,7 @@ global CONDITION_STRINGS: byte*[enum_count(Condition)] = [
     "no_expected_output",
     "windows",
     "macos",
+    "linux",
     "32bit",
     "default",
 ]
@@ -46,6 +48,8 @@ def condition_is_true(c: Condition) -> bool:
             return WINDOWS
         case Condition.MacOS:
             return MACOS
+        case Condition.Linux:
+            return LINUX
         case Condition.Is32Bit:
             return IS_32BIT
         case Condition.Default:
