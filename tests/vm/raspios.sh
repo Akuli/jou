@@ -134,6 +134,45 @@ write fstab /etc/fstab' | /sbin/debugfs -w partition.img
     rm swapfile
     rm fstab
 
+    echo "Adding minimal init..."
+    cat > myinit <<'EOF'
+#!/bin/bash
+
+# Show what commands we run
+set -x
+
+# Confirm the file system is working
+ls -la
+
+# Mount more file system stuff
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+#mount -t devtmpfs devtmpfs /dev  # already mounted for some reason
+mkdir -vp /dev/pts
+mount -t devpts devpts /dev/pts
+swapon /swapfile
+ln -s /proc/self/fd /dev/fd
+
+mount
+
+# Set up networking
+ip link set dev eth0 up
+dhclient -v eth0
+cat /etc/resolv.conf
+
+# Set hostname: (none) --> raspberrypi
+hostname $(cat /etc/hostname)
+
+# Set up and run sshd
+[ -f /etc/ssh/ssh_host_ed25519_key ] || ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
+/usr/sbin/sshd -D  # runs forever
+
+EOF
+    echo '
+write myinit /myinit
+set_inode_field /myinit mode 0100755' | /sbin/debugfs -w partition.img
+    rm myinit
+
     echo "Writing main partition back to disk image..."
     dd if=partition.img of=disk.img bs=512 seek=$offset conv=notrunc
     rm partition.img
@@ -147,8 +186,6 @@ else
     rm -f pid.txt
     echo "Starting qemu..."
     mkdir -vp shared_folder
-    # Start with init=/bin/sh for now, minirootfs is so minimal it doesn't have a proper init system
-    #
     # Explanations of VM options:
     #   -M: machine model that the github repo mentioned above happens to support
     #   -cpu: basically the same CPU as in raspberry pi 0 and 1 i guess? TODO: is it? change?
@@ -171,7 +208,7 @@ else
         -drive file=disk.img,format=raw,if=none,id=disk0 \
         -device virtio-blk-pci,drive=disk0,disable-modern=on,disable-legacy=off \
         -device virtio-rng-pci \
-        -append "root=/dev/vda2 rw console=ttyAMA0 resize" \
+        -append "root=/dev/vda2 rw console=ttyAMA0 resize init=/myinit" \
         -serial tcp:localhost:4444,server=on,wait=off \
         -nic user,model=smc91c111,hostfwd=tcp:127.0.0.1:2222-:22 \
         -virtfs local,path=shared_folder,mount_tag=share,security_model=none \
@@ -181,7 +218,7 @@ else
     disown
 
     echo "Waiting for VM to boot..."
-    until echo | ../wait_for_string.sh 'raspberrypi login:' ncat --no-shutdown localhost 4444; do
+    until echo | ../wait_for_string.sh '+ /usr/sbin/sshd -D' ncat --no-shutdown localhost 4444; do
         sleep 1
         kill -0 $qemu_pid  # Stop if qemu dies
     done

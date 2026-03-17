@@ -26,8 +26,10 @@ else:
 
 @public
 class GlobalTarget:
-    # Stuff that LLVM wants to share among all threads
     ready: bool
+    main_thread_only: ThreadLocalTarget  # As name says, to be accessed only from main thread
+
+    # Stuff that LLVM wants to share among all threads
     triple: byte[100]
     target: LLVMTarget*
     data_layout: byte[500]
@@ -53,7 +55,6 @@ def init_global_target() -> None:
     # there's no cleanup to some of the things this does.
     assert not global_compiler_state.target.ready
     global_compiler_state.target.ready = True
-
 
     dummy = LLVM_HAS_X86  # Workaround for useless compiler warning
     if dummy:
@@ -106,17 +107,17 @@ def init_global_target() -> None:
     assert error == NULL
     assert global_compiler_state.target.target != NULL
 
+    global_compiler_state.target.main_thread_only = init_thread_local_target()
+
     # The data layout is a string, hence always the same in all threads. But to
     # create it, we need an LLVMTargetData which is usually thread specific.
     #
     # LLVM is awesome, isn't it? All this just to get things to work without
     # corner cases where either the compiler or the program crashes...
-    dummy_target = init_thread_local_target()
-    tmp = LLVMCopyStringRepOfTargetData(dummy_target.data)
+    tmp = LLVMCopyStringRepOfTargetData(global_compiler_state.target.main_thread_only.data)
     assert strlen(tmp) < sizeof(global_compiler_state.target.data_layout)
     strcpy(global_compiler_state.target.data_layout, tmp)
     LLVMDisposeMessage(tmp)
-    dummy_target.free()
 
     if global_compiler_state.args.verbosity >= 2:
         printf("Target triple: %s\n", global_compiler_state.target.triple)

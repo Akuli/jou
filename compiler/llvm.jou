@@ -18,6 +18,8 @@ if WINDOWS:
     link "../mingw64/lib/libLLVMX86AsmParser.dll.a"
     link "../mingw64/lib/libLLVMX86Info.dll.a"
     link "../mingw64/lib/libLLVMX86Desc.dll.a"
+    link "../mingw64/lib/libLLVMBitReader.dll.a"
+    link "../mingw64/lib/libLLVMBitWriter.dll.a"
 else:
     # Linker commands are defined in config.jou, which is auto-generated.
     pass
@@ -57,6 +59,9 @@ class LLVMPassBuilderOptions:
     pass
 @public
 class LLVMError:
+    pass
+@public
+class LLVMMemoryBuffer:
     pass
 
 # =========== Target.h ===========
@@ -171,6 +176,14 @@ enum LLVMVerifierFailureAction:
 @public
 declare LLVMVerifyModule(M: LLVMModule*, Action: LLVMVerifierFailureAction, OutMessage: byte**) -> int
 
+# =========== BitReader.h ===========
+@public
+declare LLVMParseBitcodeInContext2(ContextRef: LLVMContext*, MemBuf: LLVMMemoryBuffer*, OutModule: LLVMModule**) -> int
+
+# =========== BitWriter.h ===========
+@public
+declare LLVMWriteBitcodeToMemoryBuffer(M: LLVMModule*) -> LLVMMemoryBuffer*
+
 # =========== Core.h ===========
 @public
 enum LLVMTypeKind:
@@ -279,10 +292,12 @@ enum LLVMRealPredicate:
     UNE
     AlwaysTrue
 
-# It is important to use LLVM functions that take a context when possible.
-# Otherwise compiling with multiple threads won't work.
+# Refactoring note: If you want to build LLVM IR in multiple threads, it is
+# important to use LLVM functions that take a context when possible.
 #
-# Example: LLVMVoidType bad, LLVMVoidTypeInContext good
+# Example:
+#   - LLVMVoidType is usable only in main thread
+#   - LLVMVoidTypeInContext can be used from any thread
 #
 # If there's no InContext version of some LLVM function, it means that the
 # function gets the context from one of its arguments. For example, there's no
@@ -295,23 +310,27 @@ declare LLVMContextCreate() -> LLVMContext*
 @public
 declare LLVMContextDispose(C: LLVMContext*) -> None
 @public
-declare LLVMVoidTypeInContext(C: LLVMContext*) -> LLVMType*
+declare LLVMGetGlobalContext() -> LLVMContext*
 @public
-declare LLVMFloatTypeInContext(C: LLVMContext*) -> LLVMType*
+declare LLVMVoidType() -> LLVMType*
 @public
-declare LLVMDoubleTypeInContext(C: LLVMContext*) -> LLVMType*
+declare LLVMFloatType() -> LLVMType*
+@public
+declare LLVMDoubleType() -> LLVMType*
 @public
 declare LLVMFunctionType(ReturnType: LLVMType*, ParamTypes: LLVMType**, ParamCount: int, IsVarArg: int) -> LLVMType*
 @public
-declare LLVMStructTypeInContext(C: LLVMContext*, ElementTypes: LLVMType**, ElementCount: int, Packed: int) -> LLVMType*
+declare LLVMStructType(ElementTypes: LLVMType**, ElementCount: int, Packed: int) -> LLVMType*
 @public
 declare LLVMArrayType(ElementType: LLVMType*, ElementCount: int) -> LLVMType*
+# There is LLVMPointerType() but it's kind of dumb, it takes a type that it
+# uses only to get its context. That is for legacy reasons.
 @public
 declare LLVMPointerTypeInContext(C: LLVMContext*, AddressSpace: uint32) -> LLVMType*
 @public
 declare LLVMDisposeMessage(Message: byte*) -> None
 @public
-declare LLVMModuleCreateWithNameInContext(ModuleID: byte*, C: LLVMContext*) -> LLVMModule*
+declare LLVMModuleCreateWithName(ModuleID: byte*) -> LLVMModule*
 @public
 declare LLVMDisposeModule(M: LLVMModule*) -> None
 @public
@@ -331,15 +350,13 @@ declare LLVMGetNamedFunction(M: LLVMModule*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMGetTypeKind(Ty: LLVMType*) -> LLVMTypeKind
 @public
-declare LLVMInt1TypeInContext(C: LLVMContext*) -> LLVMType*
+declare LLVMInt1Type() -> LLVMType*
 @public
-declare LLVMInt8TypeInContext(C: LLVMContext*) -> LLVMType*
+declare LLVMInt8Type() -> LLVMType*
 @public
-declare LLVMInt32TypeInContext(C: LLVMContext*) -> LLVMType*
+declare LLVMInt32Type() -> LLVMType*
 @public
-declare LLVMInt64TypeInContext(C: LLVMContext*) -> LLVMType*
-@public
-declare LLVMIntTypeInContext(C: LLVMContext*, NumBits: int) -> LLVMType*
+declare LLVMIntType(NumBits: int) -> LLVMType*
 @public
 declare LLVMGetReturnType(FunctionTy: LLVMType*) -> LLVMType*
 @public
@@ -359,7 +376,7 @@ declare LLVMConstReal(RealTy: LLVMType*, N: double) -> LLVMValue*
 @public
 declare LLVMConstRealOfString(RealTy: LLVMType*, Text: byte*) -> LLVMValue*
 @public
-declare LLVMConstStringInContext(C: LLVMContext*, Str: byte*, Length: uint32, DontNullTerminate: int) -> LLVMValue*
+declare LLVMConstString(Str: byte*, Length: uint32, DontNullTerminate: int) -> LLVMValue*
 # TODO: Use LLVMConstArray2 (new in LLVM 17) when we no longer support LLVM 16 and older
 @public
 declare LLVMConstArray(ElementTy: LLVMType*, ConstantVals: LLVMValue**, Length: uint32) -> LLVMValue*
@@ -374,9 +391,9 @@ declare LLVMGetNamedGlobal(M: LLVMModule*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> None
 @public
-declare LLVMAppendBasicBlockInContext(C: LLVMContext*, Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
+declare LLVMAppendBasicBlock(Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
 @public
-declare LLVMCreateBuilderInContext(C: LLVMContext*) -> LLVMBuilder*
+declare LLVMCreateBuilder() -> LLVMBuilder*
 @public
 declare LLVMPositionBuilderAtEnd(Builder: LLVMBuilder*, Block: LLVMBasicBlock*) -> None
 @public
@@ -485,6 +502,8 @@ declare LLVMCreatePassManager() -> LLVMPassManager*
 declare LLVMRunPassManager(PM: LLVMPassManager*, M: LLVMModule*) -> int
 @public
 declare LLVMDisposePassManager(PM: LLVMPassManager*) -> None
+@public
+declare LLVMDisposeMemoryBuffer(MemBuf: LLVMMemoryBuffer*) -> None
 
 
 # =========== Transforms/PassBuilder.h ===========

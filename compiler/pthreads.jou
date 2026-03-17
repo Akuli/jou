@@ -3,17 +3,14 @@
 import "stdlib/intnative.jou"
 link "-pthread"
 
-@public
-typedef pthread_t = intnative  # size of pointer
-
 # Returns an ID describing the current thread. Useful for debug printing.
 @public
-declare pthread_self() -> pthread_t
+declare pthread_self() -> intnative
 
 # Creates and starts a new thread.
 @public
 declare pthread_create(
-    thread: pthread_t*,
+    thread: intnative*,
     attr: void*,  # Please pass NULL, or create an issue on GitHub if that won't work for you
     callback_function: funcptr(void*) -> void*,  # return value goes to pthread_join()
     callback_arg: void*,  # This is passed to callback function as argument.
@@ -25,7 +22,7 @@ declare pthread_create(
 # can be NULL if you don't care about the return value.
 @public
 declare pthread_join(
-    thread: pthread_t,
+    thread: intnative,
     pointer_to_retval: void*  # Either NULL or &retval. If not NULL, value returned by thread function goes there.
 ) -> int
 

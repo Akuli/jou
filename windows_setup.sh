@@ -56,13 +56,13 @@ else
     if [ $small = yes ]; then
         # User has slow internet and doesn't want to download the whole mingw64.
         # Instead, download a release of Jou, and extract mingw and Jou compiler from there.
-        url=https://github.com/Akuli/jou/releases/download/2025-12-23-0400/jou_windows_64bit_2025-12-23-0400.zip
-        filename=jou_windows_64bit_2025-12-23-0400.zip
-        sha=2dcfe26a7bb127f436f0df193387a1ecaaf7a83b15833928810ae8ebe0633cd4
+        url=https://github.com/Akuli/jou/releases/download/2026-03-16-0500/jou_windows_64bit_2026-03-16-0500.zip
+        filename=jou_windows_64bit_2026-03-16-0500.zip
+        sha=e1d62b64fac1798c41077f8b97902947d3430cc4b9b8cb988c7b56a75df7d697
         # This is the folder where the downloaded Jou compiler (jou.exe) will go.
         # Placing it here makes bootstrap.sh use our downloaded Jou compiler
         # instead of starting from scratch.
-        jou_exe_folder=tmp/bootstrap_cache/026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d
+        jou_exe_folder=tmp/bootstrap_cache/030_bb3dc7d925fa28ce405fda5a4fc3c428f6f7c2b1
     else
         # This is a mingw64 version that comes with LLVM 19.
         url=https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-llvm-19.1.7-mingw-w64msvcrt-12.0.0-r3.zip
@@ -70,10 +70,9 @@ else
         sha=5937a482247bebc2eca8c0b93fa43ddb17d94968adfff3f2e0c63c94608ee76b
     fi
 
-    # TODO: don't download if file exists, just verify and tell user to delete if that fails
     if [ -z "$offline_zip" ]; then
         echo "Downloading $filename..."
-        curl -L -o $filename $url
+        curl -L -C - -o $filename $url
     else
         echo "Copying $offline_zip to ./$filename..."
         cp "$offline_zip" "$filename"
@@ -81,7 +80,7 @@ else
 
     echo "Verifying $filename..."
     if [ "$(sha256sum $filename | cut -d' ' -f1)" != "$sha" ]; then
-        echo "Verifying $filename failed! Please try again or create an issue on GitHub." >&2
+        echo "Verifying $filename failed! Please delete $filename and try again, or if that doesn't work, create an issue on GitHub." >&2
         exit 1
     fi
 

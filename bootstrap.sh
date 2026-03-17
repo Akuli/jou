@@ -17,23 +17,14 @@ set -e -o pipefail
 # The numbering does not start from 0 for historical reasons. Commit 001 was
 # just before the original compiler written in C was deleted.
 numbered_commits=(
-    026_eeb1a89b82c9bdee5c8942604b3f8b2b9a2e786d  # <--- "./windows_setup.sh --small" starts from here! (release 2025-12-23-0400)
-    027_3f878188ab2f5784514bb0c19057bee37c98bd60  # accept @public decorator on methods
     028_cb88ac4b437db34545d1249c93ff61605ae59644  # <--- bootstrap_transpiler.py starts here!
     029_95e29106b13cda7ef33c7e934ed67158463a88e9  # support for INFINITY and NAN constants, array_end() built-in
+    030_bb3dc7d925fa28ce405fda5a4fc3c428f6f7c2b1  # <--- "./windows_setup.sh --small" starts from here! (release 2026-03-16-0500)
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
 bootstrap_transpiler_numbered_commit=028_cb88ac4b437db34545d1249c93ff61605ae59644
-
-if [ -z "$LLVM_CONFIG" ] && ! [[ "$OS" =~ Windows ]]; then
-    echo "Please set the LLVM_CONFIG environment variable. Otherwise different"
-    echo "Jou commits may use different LLVM versions, and it gets confusing."
-    echo ""
-    echo "The easiest way to set LLVM_CONFIG is to run this script with 'make'."
-    exit 1
-fi
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
@@ -63,6 +54,8 @@ windows_llvm_files=(
     mingw64/lib/libLLVMX86AsmParser.dll.a
     mingw64/lib/libLLVMX86Info.dll.a
     mingw64/lib/libLLVMX86Desc.dll.a
+    mingw64/lib/libLLVMBitReader.dll.a
+    mingw64/lib/libLLVMBitWriter.dll.a
 )
 
 function transpile_with_python_and_compile() {
@@ -86,7 +79,7 @@ function transpile_with_python_and_compile() {
     if [[ "${OS:=$(uname)}" =~ Windows ]]; then
         clang="$PWD/mingw64/bin/clang.exe"
     else
-        clang="$(command -v $($LLVM_CONFIG --bindir)/clang || command -v clang)"
+        clang="$(grep '^const JOU_CLANG_PATH:' config.jou | cut -d'"' -f2)"
     fi
     echo "$clang"
 
