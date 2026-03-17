@@ -83,7 +83,7 @@ def do_glob(glob: byte*, relative_to: byte*, out: List[byte*]*, depth_limit: int
     if depth_limit < 0:
         return
 
-    if starts_with(relative_to, "./"):
+    if starts_with(relative_to, "./") or (WINDOWS and starts_with(relative_to, ".\\")):
         relative_to++
         relative_to++
 
