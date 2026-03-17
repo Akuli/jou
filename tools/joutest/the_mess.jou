@@ -1,4 +1,4 @@
-# This file parses joutest.toml
+# This file is currently not used.
 
 import "stdlib/assert.jou"
 import "stdlib/errno.jou"
@@ -239,30 +239,30 @@ def parse_one_item_of_tests(state: Step1State*, toml: TOML*) -> None:
         add_or_update_tests_of_glob(state, toml, toml_files)
 
 
-#def finish_parsing_command(test: Test*) -> None:
-#    assert test.command.len == 0
-#    # Really slow loop, please clean up if this is too slow
-#    filename = test.path
-#    while strstr(filename, "/") != NULL or (WINDOWS and strstr(filename, "\\") != NULL):
-#        filename++
-#
-#    if test.cd_to_containing_directory:
-#        fmt_params = StringFormatParams{file = filename}
-#    else:
-#        fmt_params = StringFormatParams{file = test.path}
-#
-#    if test.toml_command != NULL:
-#        # Get command from TOML
-#        for p = test.toml_command.array.ptr; p < test.toml_command.array.end(); p++:
-#            test.command.append(string_format(toml_to_string(p), fmt_params, p.lineno))
-#    elif ends_with(test.path, ".jou") or ends_with(test.path, ".md"):
-#        # Use a reasonable default: ["jou", "{file}"]
-#        test.command.append(strdup("jou"))
-#        test.command.append(strdup(fmt_params.file))
-#    else:
-#        error: byte[300]
-#        snprintf(error, sizeof(error), "don't know which command to use for testing file '%s', please set 'command' accordingly", filename)
-#        fail_in_toml(test.toml_lineno, error)
+def finish_parsing_command(test: Test*) -> None:
+    assert test.command.len == 0
+    # Really slow loop, please clean up if this is too slow
+    filename = test.path
+    while strstr(filename, "/") != NULL or (WINDOWS and strstr(filename, "\\") != NULL):
+        filename++
+
+    if test.cd_to_containing_directory:
+        fmt_params = StringFormatParams{file = filename}
+    else:
+        fmt_params = StringFormatParams{file = test.path}
+
+    if test.toml_command != NULL:
+        # Get command from TOML
+        for p = test.toml_command.array.ptr; p < test.toml_command.array.end(); p++:
+            test.command.append(string_format(toml_to_string(p), fmt_params, p.lineno))
+    elif ends_with(test.path, ".jou") or ends_with(test.path, ".md"):
+        # Use a reasonable default: ["jou", "{file}"]
+        test.command.append(strdup("jou"))
+        test.command.append(strdup(fmt_params.file))
+    else:
+        error: byte[300]
+        snprintf(error, sizeof(error), "don't know which command to use for testing file '%s', please set 'command' accordingly", filename)
+        fail_in_toml(test.toml_lineno, error)
 
 
 def parse_tests_and_defaults(state: Step1State*, tests_toml: TOML*, defaults_toml: TOML*) -> None:
@@ -309,139 +309,3 @@ def parse_the_whole_toml(toml: TOML*) -> List[Test]:
                 fail_in_toml(kv.value.lineno, error)
 
     return state.tests
-
-
-enum Condition:
-    FlagO0
-    FlagO1
-    FlagO2
-    FlagO3
-    FlagValgrind
-    NoExpectedOutput
-    Windows
-    MacOS
-    Is32Bit
-    Default
-
-global CONDITION_STRINGS: byte*[enum_count(Condition)] = [
-    "-O0",
-    "-O1",
-    "-O2",
-    "-O3",
-    "--valgrind",
-    "no_expected_output",
-    "windows",
-    "macos",
-    "32bit",
-    "default",
-]
-
-def condition_is_true(c: Condition) -> bool:
-    match c:
-        # TODO: Don't hard-code -O1
-        # TODO: support --valgrind
-        # TODO: actually parse the expected output
-        case Condition.FlagO0 | Condition.FlagO2 | Condition.FlagO3 | Condition.FlagValgrind | Condition.NoExpectedOutput:
-            return False
-        case Condition.FlagO1:
-            return True
-        case Condition.Windows:
-            return WINDOWS
-        case Condition.MacOS:
-            return MACOS
-        case Condition.Is32Bit:
-            return IS_32BIT
-        case Condition.Default:
-            return True
-
-def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
-    error: byte[300]
-
-    while True:
-        assert toml.depth >= depth  # may become more shallow when doing this
-        toml.depth = depth
-
-        match toml.type:
-            case TOMLType.Error:
-                assert False  # should never happen
-            case TOMLType.Table:
-                # TODO: This is probably not the best way to detect condition tables.
-                #       Or is it? It's simple and easy to document.
-                default = toml_get(toml, "default")
-                if default == NULL:
-                    # Normal table
-                    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-                        eliminate_condition_tables(&kv.value, depth + 1)
-                    return
-
-                # Condition table, pick the correct value
-                chosen: TOMLKeyVal* = NULL
-                for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-                    cond_index = -1
-                    for i = 0; i < enum_count(Condition); i++:
-                        if strcmp(CONDITION_STRINGS[i], kv.key) == 0:
-                            cond_index = i
-                            break
-                    if cond_index == -1:
-                        snprintf(error, sizeof(error), "unknown condition '%s'", kv.key)
-                        fail_in_toml(kv.value.lineno, error)
-                    cond = cond_index as Condition
-                    if cond != Condition.Default and condition_is_true(cond):
-                        if chosen != NULL:
-                            snprintf(error, sizeof(error), "conditions '%s' and '%s' are both true", chosen.key, kv.key)
-                            fail_in_toml(kv.value.lineno, error)
-                        chosen = kv
-
-                if chosen == NULL:
-                    new_value = default
-                else:
-                    new_value = &chosen.value
-                assert new_value != NULL
-
-                temp = *new_value
-                *new_value = TOML{type = TOMLType.Error}  # avoid freeing the value
-                toml.free()
-                *toml = temp
-                continue  # Repeat in case it's a nested condition table
-
-            case TOMLType.Array:
-                for p = toml.array.ptr; p < toml.array.end(); p++:
-                    eliminate_condition_tables(p, depth + 1)
-                return
-            case TOMLType.String | TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating:
-                return
-
-
-global big_file_content_buffer: byte[1_000_000]
-
-@public
-def step1_discover_tests() -> List[Test]:
-    error: byte[200]
-
-    f = fopen("joutest.toml", "rb")
-    if f == NULL:
-        snprintf(error, sizeof(error), "cannot open joutest.toml: %s", strerror(get_errno()))
-        fail(error)
-
-    n = fread(big_file_content_buffer, 1, sizeof(big_file_content_buffer), f)
-    if ferror(f) != 0:
-        snprintf(error, sizeof(error), "reading joutest.toml failed: %s", strerror(get_errno()))
-        fail(error)
-    fclose(f)
-
-    if n == sizeof(big_file_content_buffer):
-        fail("joutest.toml is very large, something is probably wrong with it")
-
-    assert n < sizeof(big_file_content_buffer)
-    big_file_content_buffer[n] = '\0'
-    if strlen(big_file_content_buffer) != n:
-        fail("joutest.toml contains a zero byte")
-
-    toml = parse_toml(big_file_content_buffer)
-    if toml.type == TOMLType.Error:
-        fail_in_toml(toml.lineno, toml.error_message)
-
-    eliminate_condition_tables(&toml, 0)
-    result = parse_the_whole_toml(&toml)
-    toml.free()
-    return result

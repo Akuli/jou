@@ -17,7 +17,7 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     assert command != NULL
 
     if args.verbose:
-        printf("run: %s\n", command)
+        printf("%srun:%s %s\n", BLUE, RESET, command)
         fflush(get_stdout())
 
     if system(command) == 0:
