@@ -9,12 +9,6 @@ import "./fail.jou"
 
 
 enum Condition:
-    FlagO0
-    FlagO1
-    FlagO2
-    FlagO3
-    FlagValgrind
-    NoExpectedOutput
     Windows
     MacOS
     Linux
@@ -22,12 +16,6 @@ enum Condition:
     Default
 
 global CONDITION_STRINGS: byte*[enum_count(Condition)] = [
-    "-O0",
-    "-O1",
-    "-O2",
-    "-O3",
-    "--valgrind",
-    "no_expected_output",
     "windows",
     "macos",
     "linux",
@@ -37,13 +25,6 @@ global CONDITION_STRINGS: byte*[enum_count(Condition)] = [
 
 def condition_is_true(c: Condition) -> bool:
     match c:
-        # TODO: Don't hard-code -O1
-        # TODO: support --valgrind
-        # TODO: actually parse the expected output
-        case Condition.FlagO0 | Condition.FlagO2 | Condition.FlagO3 | Condition.FlagValgrind | Condition.NoExpectedOutput:
-            return False
-        case Condition.FlagO1:
-            return True
         case Condition.Windows:
             return WINDOWS
         case Condition.MacOS:
