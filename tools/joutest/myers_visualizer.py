@@ -2,6 +2,7 @@
 # named "An O(ND) Difference Algorithm and Its Variations" and can easily be
 # found online.
 
+import time
 import tkinter
 
 # We want to compute the diff that represents changing a to b.
@@ -29,7 +30,18 @@ for i, letter in enumerate(a):
 for i, letter in enumerate(b):
     canvas.create_text(point_to_canvas(-0.2, i + 0.5), text=letter, fill="#444")
 
-def draw_arrow(x1, y1, x2, y2, highlight=False) -> None:
+# Draws diagonal line x-y = k
+# The line is tagged with "diagline", so canvas.delete("diagline") removes it.
+def draw_diagline(k):
+    canvas.delete("diagline")  # Only one can exist at a time
+    canvas.create_line(
+        # Line equation can be rewritten as y = x-k
+        *point_to_canvas(-100, -100 - k), *point_to_canvas(100, 100 - k),
+        fill="#ff0", tags="diagline")
+
+# Draws an arrow from (x1,y1) to (x2,y2)
+# Returns canvas item ID so arrow color can be changed later.
+def draw_arrow(x1, y1, x2, y2) -> None:
     # Don't go all the way to (x2,y2) so there's room for text
     dx = x2 - x1
     dy = y2 - y1
@@ -55,9 +67,15 @@ MAX = len(a) + len(b)
 V = [None] * (2*MAX + 1)  # Python's negative indexing will be used
 arrows = []
 
+def pause() -> None:
+    end = time.monotonic() + 0.5
+    while time.monotonic() < end:
+        canvas.update()
+
 # D is the number of non-diagonal arrows
 for D in range(MAX + 1):
     for k in range(-D, D + 1, 2):
+        draw_diagline(k)
         if D == 0:
             # No arrows yet
             x = y = 0
@@ -75,6 +93,7 @@ for D in range(MAX + 1):
             y = x-k
             draw_text(x, y, D)
             arrows.append((x, y, '-', draw_arrow(x-1, y, x, y)))
+        pause()
 
         while x < len(a) and y < len(b) and a[x] == b[y]:
             # Diagonal arrow (x increases, y increases, k=x-y doesn't change)
@@ -82,9 +101,16 @@ for D in range(MAX + 1):
             (x, y) = (x+1, y+1)
             draw_text(x, y, D)
             arrows.append((x, y, ' ', draw_arrow(x-1, y-1, x, y)))
+            pause()
 
         V[k] = x
         if x == len(a) and y == len(b):
+            print("End found!!!")
+            pause()
+            canvas.delete("diagline")
+            pause()
+            pause()
+
             # Now we need to backtrack through the algorithm to figure out
             # the optimal path from top left corner to bottom right corner.
             #
@@ -103,6 +129,7 @@ for D in range(MAX + 1):
                     arrows.pop()
                 letter, arrow_id = arrows.pop()[2:]
                 canvas.itemconfig(arrow_id, fill="cyan")
+                pause()
                 match letter:
                     case '+':
                         y -= 1
