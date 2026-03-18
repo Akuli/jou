@@ -11,10 +11,10 @@ import tkinter
 a = "abcabba"
 b = "cbabac"
 
-# Typical situation in joutest. Expected output is long, actual output is a
-# short error message.
-a = "javascriptwebdev"
-b = "py"
+## Typical situation in joutest. Expected output is long, actual output is a
+## short error message.
+#a = "javascriptwebdev"
+#b = "py"
 
 ## Random sequences
 #import random
