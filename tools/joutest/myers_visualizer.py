@@ -6,11 +6,15 @@ import time
 import tkinter
 
 # We want to compute the diff that represents changing a to b.
+
 # This is the example from the Myers paper.
 #a = "abcabba"
 #b = "cbabac"
+
+# Typical situation in joutest. Expected output is long, actual output is a
+# short error message.
 a = "javascript"
-b = "python"
+b = "py"
 
 scale = 50
 
@@ -71,7 +75,7 @@ V = [None] * (2*MAX + 1)  # Python's negative indexing will be used
 arrows = []
 
 def pause() -> None:
-    end = time.monotonic() + 0.1
+    end = time.monotonic() + 0.5
     while time.monotonic() < end:
         canvas.update()
 
@@ -102,7 +106,7 @@ for D in range(MAX + 1):
             # Diagonal arrow (x increases, y increases, k=x-y doesn't change)
             # These are unchanged lines because they consume both strings.
             (x, y) = (x+1, y+1)
-            draw_text(x, y, f"{D=}")
+            draw_text(x, y, D)
             arrows.append((x, y, ' ', draw_arrow(x-1, y-1, x, y)))
             pause()
 
@@ -136,14 +140,17 @@ for D in range(MAX + 1):
                     case '+':
                         y -= 1
                         print(f"+{b[y]}")
+                        draw_text(x+0.25, y+0.5, f"+{b[y]}")
                     case '-':
                         x -= 1
                         print(f"-{a[x]}")
+                        draw_text(x+0.5, y+0.2, f"-{a[x]}")
                     case ' ':
                         x -= 1
                         y -= 1
                         assert a[x] == b[y]
                         print(f" {a[x]}")
+                        draw_text(x+0.5, y+0.2, f"{a[x]}")
                     case _:
                         raise ValueError("oh no")
                 pause()
