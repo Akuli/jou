@@ -8,17 +8,22 @@ import tkinter
 # We want to compute the diff that represents changing a to b.
 
 # This is the example from the Myers paper.
-#a = "abcabba"
-#b = "cbabac"
+a = "abcabba"
+b = "cbabac"
 
-# Typical situation in joutest. Expected output is long, actual output is a
-# short error message.
-a = "javascript"
-b = "py"
+## Typical situation in joutest. Expected output is long, actual output is a
+## short error message.
+#a = "javascriptwebdev"
+#b = "py"
+
+## Random sequences
+#import random
+#a = "".join(random.choices('abc', k=random.randint(3, 10)))
+#b = "".join(random.choices('abc', k=random.randint(3, 10)))
 
 scale = 50
 
-canvas = tkinter.Canvas(width=(len(a) + 4)*scale, height=(len(b) + 4)*scale, bg="black")
+canvas = tkinter.Canvas(width=(len(a) + 5)*scale, height=(len(b) + 5)*scale, bg="black")
 canvas.pack(fill="both", expand=True)
 
 def point_to_canvas(x, y):
@@ -75,7 +80,7 @@ V = [None] * (2*MAX + 1)  # Python's negative indexing will be used
 arrows = []
 
 def pause() -> None:
-    end = time.monotonic() + 0.5
+    end = time.monotonic() + 0.1
     while time.monotonic() < end:
         canvas.update()
 
