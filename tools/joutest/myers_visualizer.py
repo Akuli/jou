@@ -7,8 +7,10 @@ import tkinter
 
 # We want to compute the diff that represents changing a to b.
 # This is the example from the Myers paper.
-a = "abcabba"
-b = "cbabac"
+#a = "abcabba"
+#b = "cbabac"
+a = "javascript"
+b = "python"
 
 scale = 50
 
@@ -60,19 +62,20 @@ def draw_text(x, y, text) -> None:
 
 # This is the code from the original Myers paper (FIGURE 2) with the
 # following modifications:
+#   - Added comments
 #   - Less clever and more explicit way to start the algorithm
-#   - Arrow drawing added
-#   - Backtracking to find out the diff by keeping track of arrows drawn
+#   - Added arrow drawing and animating
+#   - Backtracking to find the diff by keeping track of arrows drawn
 MAX = len(a) + len(b)
 V = [None] * (2*MAX + 1)  # Python's negative indexing will be used
 arrows = []
 
 def pause() -> None:
-    end = time.monotonic() + 0.5
+    end = time.monotonic() + 0.1
     while time.monotonic() < end:
         canvas.update()
 
-# D is the number of non-diagonal arrows
+# D is the number of non-diagonal (right or down) arrows at the end of the iteration.
 for D in range(MAX + 1):
     for k in range(-D, D + 1, 2):
         draw_diagline(k)
@@ -99,7 +102,7 @@ for D in range(MAX + 1):
             # Diagonal arrow (x increases, y increases, k=x-y doesn't change)
             # These are unchanged lines because they consume both strings.
             (x, y) = (x+1, y+1)
-            draw_text(x, y, D)
+            draw_text(x, y, f"{D=}")
             arrows.append((x, y, ' ', draw_arrow(x-1, y-1, x, y)))
             pause()
 
@@ -129,7 +132,6 @@ for D in range(MAX + 1):
                     arrows.pop()
                 letter, arrow_id = arrows.pop()[2:]
                 canvas.itemconfig(arrow_id, fill="cyan")
-                pause()
                 match letter:
                     case '+':
                         y -= 1
@@ -144,5 +146,6 @@ for D in range(MAX + 1):
                         print(f" {a[x]}")
                     case _:
                         raise ValueError("oh no")
+                pause()
             tkinter.mainloop()
             exit()
