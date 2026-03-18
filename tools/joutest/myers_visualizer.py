@@ -21,6 +21,11 @@ b = "cbabac"
 #a = "".join(random.choices('abc', k=random.randint(10, 20)))
 #b = "".join(random.choices('abc', k=random.randint(3, 5)))
 
+## This example shows that the matching is not always ideal.
+## The first i of liitin gets matched with the first i of keitin.
+#a = "keitin"
+#b = "liitin"
+
 scale = 50
 
 canvas = tkinter.Canvas(width=(len(a) + 5)*scale, height=(len(b) + 5)*scale, bg="black")
