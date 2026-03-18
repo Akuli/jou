@@ -11,15 +11,15 @@ import tkinter
 a = "abcabba"
 b = "cbabac"
 
-## Typical situation in joutest. Expected output is long, actual output is a
-## short error message.
-#a = "javascriptwebdev"
-#b = "py"
+# Typical situation in joutest. Expected output is long, actual output is a
+# short error message.
+a = "javascriptwebdev"
+b = "py"
 
 ## Random sequences
 #import random
-#a = "".join(random.choices('abc', k=random.randint(3, 10)))
-#b = "".join(random.choices('abc', k=random.randint(3, 10)))
+#a = "".join(random.choices('abc', k=random.randint(10, 20)))
+#b = "".join(random.choices('abc', k=random.randint(3, 5)))
 
 scale = 50
 
@@ -69,24 +69,54 @@ def draw_arrow(x1, y1, x2, y2) -> None:
 def draw_text(x, y, text) -> None:
     canvas.create_text(point_to_canvas(x, y), text=text, fill="white")
 
+def pause() -> None:
+    end = time.monotonic() + 0.5
+    while time.monotonic() < end:
+        canvas.update()
+
 # This is the code from the original Myers paper (FIGURE 2) with the
 # following modifications:
 #   - Added comments
 #   - Less clever and more explicit way to start the algorithm
 #   - Added arrow drawing and animating
 #   - Backtracking to find the diff by keeping track of arrows drawn
+#   - k_min and k_max bounds --> diffing short and long sequence is O(N), not O(N^2)
 MAX = len(a) + len(b)
 V = [None] * (2*MAX + 1)  # Python's negative indexing will be used
 arrows = []
 
-def pause() -> None:
-    end = time.monotonic() + 0.1
-    while time.monotonic() < end:
-        canvas.update()
+# On the first iteration, inner loop runs only once, for k=0.
+next_k_min = 0
+next_k_max = 0
 
 # D is the number of non-diagonal (right or down) arrows at the end of the iteration.
 for D in range(MAX + 1):
-    for k in range(-D, D + 1, 2):
+    # k is the offset from diagonal: k = x-y
+    #
+    # The original algorithm is slow when you have a lot (n lines) of expected
+    # output, and instead of getting any of that, you get a short compiler
+    # error message. So we're talking about comparing a short sequence with a
+    # sequence of length N. In that case:
+    #   - runtime of original algorithm is O(N^2) (that is, O(ND) with D=N+small)
+    #   - runtime with my fix is O(N)
+    #
+    # Here's how my fix works. The inner loop in the original algorithm is
+    # k = -D,-D+2,-D+4,...,D, because with exactly D non-diagonal steps, that's
+    # how far off diagonal you can be. Instead of -D and D, my version uses
+    # k_min and k_max that represent where you could go next from the arrows of
+    # the previous iteration, but ignoring arrows outside the grid.
+    #
+    # The fix is probably easiest to understand by visualizing with and
+    # without it.
+    #
+    # Better variants of the algorithm exist, but they all seem to be more
+    # complicated than this.
+    k_min = next_k_min
+    k_max = next_k_max
+    next_k_min = 1000000000000
+    next_k_max = -1000000000000
+
+    for k in range(k_min, k_max + 1, 2):
         draw_diagline(k)
         if D == 0:
             # No arrows yet
@@ -106,6 +136,11 @@ for D in range(MAX + 1):
             draw_text(x, y, D)
             arrows.append((x, y, '-', draw_arrow(x-1, y, x, y)))
         pause()
+
+        if x <= len(a) and y <= len(b):
+            # This k value is actually useful, not just running off the grid.
+            next_k_min = min(next_k_min, k-1)
+            next_k_max = max(next_k_max, k+1)
 
         while x < len(a) and y < len(b) and a[x] == b[y]:
             # Diagonal arrow (x increases, y increases, k=x-y doesn't change)
@@ -161,3 +196,5 @@ for D in range(MAX + 1):
                 pause()
             tkinter.mainloop()
             exit()
+
+raise RuntimeError("NOT FOUND!!!")
