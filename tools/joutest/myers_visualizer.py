@@ -81,13 +81,14 @@ def pause() -> None:
 
 # This is the code from the original Myers paper (FIGURE 2) with the
 # following modifications:
+#   - Renamed V to k_to_x
 #   - Added comments
 #   - Less clever and more explicit way to start the algorithm
 #   - Added arrow drawing and animating
 #   - Backtracking to find the diff by keeping track of arrows drawn
 #   - k_min and k_max bounds --> diffing short and long sequence is O(N), not O(N^2)
 MAX = len(a) + len(b)
-V = [None] * (2*MAX + 1)  # Python's negative indexing will be used
+k_to_x = [None] * (2*MAX + 1)  # Python's negative indexing will be used
 arrows = []
 
 # On the first iteration, inner loop runs only once, for k=0.
@@ -126,17 +127,17 @@ for D in range(MAX + 1):
         if D == 0:
             # No arrows yet
             x = y = 0
-        elif k == -D or (k != D and V[k-1] < V[k+1]):
+        elif k == -D or (k != D and k_to_x[k-1] < k_to_x[k+1]):
             # Arrow down (x doesn't change, y increases, k=x-y decreases)
             # This is an addition because it consumes b without consuming a.
-            x = V[k+1]
+            x = k_to_x[k+1]
             y = x-k
             draw_text(x, y, D)
             arrows.append((x, y, '+', draw_arrow(x, y-1, x, y)))
         else:
             # Arrow right (x increases, y doesn't change, k=x-y increases)
             # This is a removal because it consumes a without consuming b.
-            x = V[k-1] + 1
+            x = k_to_x[k-1] + 1
             y = x-k
             draw_text(x, y, D)
             arrows.append((x, y, '-', draw_arrow(x-1, y, x, y)))
@@ -155,7 +156,7 @@ for D in range(MAX + 1):
             arrows.append((x, y, ' ', draw_arrow(x-1, y-1, x, y)))
             pause()
 
-        V[k] = x
+        k_to_x[k] = x
         if x == len(a) and y == len(b):
             print("End found!!!")
             pause()
