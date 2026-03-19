@@ -122,7 +122,8 @@ for D in range(MAX + 1):
     next_k_min = 1000000000000
     next_k_max = -1000000000000
 
-    for k in range(k_min, k_max + 1, 2):
+    #for k in range(-D, D + 1, 2):  # original Myers loop
+    for k in range(k_min, k_max + 1, 2):  # my version
         draw_diagline(k)
         if D == 0:
             # No arrows yet
