@@ -1,24 +1,103 @@
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/process.jou"
 import "stdlib/str.jou"
 
 import "./ansi_colors.jou"
 
 
+def print_line(prefix: byte, line: byte*) -> None:
+    match prefix:
+        case '+':
+            printf("%s+%s%s", GREEN, line, RESET)
+        case '-':
+            printf("%s-%s%s", RED, line, RESET)
+        case ' ':
+            printf(" %s", line)
+        case _:
+            assert False
+
+    if not ends_with(line, "\n"):
+        printf("\n\\ No newline at end of file\n")
+
+
+# This class handles showing context around the diff. You call it when a line
+# was added/removed/unchanged, and it prints the added and removed lines with
+# a few lines of context around them.
 class DiffPrinter:
+    context_buf: byte*[3]
+
+    # Values are between 0 and array_count(context_buf) inclusive. For example:
+    #   0   Unchanged lines will be buffered. They may be printed later.
+    #   1   The next unchanged line will be printed directly. If more, they get buffered.
+    #   2   Two unchanged lines will be printed directly. If more, they get buffered.
+    context_to_print_before_buffering: int
+
+    # How many lines were not printed because they did not fit in the context buffer?
+    skip_count: int
+
+    # This is used to ensure you never get "@@ 1 line not shown @@"
+    last_discarded_line: byte*
+
+    def print_skip(self) -> None:
+        match self.skip_count:
+            case 0:
+                pass
+            case 1:
+                # Do not print "@@ 1 line not shown @@". That looks dumb and
+                # makes the user wonder why we aren't just printing the line.
+                # So let's just print the line.
+                assert self.last_discarded_line != NULL
+                print_line(' ', self.last_discarded_line)
+            case _:
+                printf("%s@@ %d lines not shown @@%s\n", CYAN, self.skip_count, RESET)
+        self.skip_count = 0
+
+    def print_context_from_buffer(self) -> None:
+        for i = 0; i < array_count(self.context_buf); i++:
+            line = self.context_buf[i]
+            if line != NULL:
+                print_line(' ', line)
+
+        memset(self.context_buf, 0, sizeof(self.context_buf))
+        self.context_to_print_before_buffering = array_count(self.context_buf)
+
     def unchanged(self, line: byte*) -> None:
-        printf(" %s", line)
-        if not ends_with(line, "\n"):
-            printf("\n\\ No newline at end of file\n")
+        if self.context_to_print_before_buffering > 0:
+            # We recently showed an addition or removal. This is part of the
+            # context for that and printed immediately.
+            print_line(' ', line)
+            self.context_to_print_before_buffering--
+        else:
+            # It's been a while since an addition or removal was shown. We may
+            # need to show this line for context later, but not right now.
+            if self.context_buf[0] != NULL:
+                self.last_discarded_line = self.context_buf[0]
+                self.skip_count++
+            memmove(
+                &self.context_buf[0],
+                &self.context_buf[1],
+                sizeof(self.context_buf[0]) * (array_count(self.context_buf) - 1),
+            )
+            array_end(self.context_buf)[-1] = line
 
     def addition(self, line: byte*) -> None:
-        printf("%s+%s%s", GREEN, line, RESET)
-        if not ends_with(line, "\n"):
-            printf("\n\\ No newline at end of file\n")
+        self.print_skip()
+        self.print_context_from_buffer()
+        print_line('+', line)
 
     def removal(self, line: byte*) -> None:
-        printf("%s-%s%s", RED, line, RESET)
-        if not ends_with(line, "\n"):
-            printf("\n\\ No newline at end of file\n")
+        self.print_skip()
+        self.print_context_from_buffer()
+        print_line('-', line)
+
+    def finish(self) -> None:
+        for i = 0; i < array_count(self.context_buf); i++:
+            if self.context_buf[i] != NULL:
+                self.skip_count++
+        self.print_skip()
 
 
 # Line arrays must be NULL terminated.
@@ -56,9 +135,129 @@ def print_diff(old: byte**, new: byte**) -> None:
     while *new != NULL:
         printer.unchanged(*new++)
 
+    printer.finish()
+
+
+def join(lines: byte**) -> byte*:
+    result = List[byte]{}
+    while *lines != NULL:
+        result.extend_from_ptr(*lines, strlen(*lines))
+        lines++
+    result.append('\0')
+    return result.ptr
+
+
+def print_diff_with_posix_shell(old: byte**, new: byte**) -> None:
+    assert not WINDOWS
+    old_string = join(old)
+    new_string = join(new)
+    setenv("old", old_string, True as int)
+    setenv("new", new_string, True as int)
+    system("bash -c 'diff -u --color=always <(printf %s \"$old\") <(printf %s \"$new\")'")
+    free(old_string)
+    free(new_string)
+
+
+# AI generated function
+def test_diffprinter_corner_cases() -> None:
+    printer = DiffPrinter{}
+
+    # --- 1. A few unchanged lines (within context) ---
+    printer.unchanged("A1\n")
+    printer.unchanged("A2\n")
+
+    # --- 2. Overflow unchanged lines (forces buffering + skipping) ---
+    printer.unchanged("A3\n")
+    printer.unchanged("A4\n")  # should enter buffer
+    printer.unchanged("A5\n")  # buffer rotates, skip_count increments
+
+    # --- 3. An addition after buffered context + skip ---
+    printer.addition("NEW1\n")
+
+    # --- 4. More unchanged lines
+    printer.unchanged("B1\n")
+    printer.unchanged("B2\n")
+    printer.unchanged("B3\n")
+    printer.unchanged("B4\n")
+    printer.unchanged("B5\n")
+    printer.unchanged("B6\n")
+    printer.unchanged("B7\n")   # should overflow buffer again
+
+    # --- 5. A removal after buffered context + skip ---
+    printer.removal("OLD1\n")
+
+    # --- 6. Alternating add/remove sequences ---
+    printer.addition("NEW2\n")
+    printer.removal("OLD2\n")
+    printer.addition("NEW3\n")
+    printer.removal("OLD3\n")
+
+    # --- 7. Long unchanged tail to test final skip printing ---
+    printer.unchanged("C1\n")
+    printer.unchanged("C2\n")
+    printer.unchanged("C3\n")
+
+    # --- 8. Finish (should flush remaining skip or buffer) ---
+    printer.finish()
+
+
+declare setenv(name: byte*, value: byte*, overwrite: int) -> int
 
 def main() -> int:
-    old = ["Hello\n", "World\n", "Thing\n", NULL]
-    new = ["Hello\n", "World\n", "Test\n", "Thing\n", NULL]
+    old = [
+        "Hello\n",
+        "World\n",
+        "Bla1\n",
+        "Bla2\n",
+        "Bla3\n",
+        "Bla4\n",
+        "Bla5\n",
+        "Bla6\n",
+        "Bla7\n",
+        "Bla8\n",
+        "Bla9\n",
+        "LegacyTest\n",
+        "Thing\n",
+        "Lol1\n",
+        "Lol2\n",
+        "Lol3\n",
+        "Lol4\n",
+        "Lol5\n",
+        "Lol6\n",
+        "Lol7\n",
+        "Lol8\n",
+        "Lol9\n",
+        NULL,
+    ]
+
+    new = [
+        "Hello\n",
+        "World\n",
+        "Bla1\n",
+        "Bla2\n",
+        "Bla3\n",
+        "Bla4\n",
+        "Bla5\n",
+        "Bla6\n",
+        "Bla7\n",
+        "Bla8\n",
+        "Bla9\n",
+        "Test\n",
+        "Thing\n",
+        "Lol1\n",
+        "Lol2\n",
+        "Lol3\n",
+        "Lol4\n",
+        "Lol5\n",
+        "Lol6\n",
+        "Lol7\n",
+        "Lol8\n",
+        "Lol9\n",
+        NULL,
+    ]
+
     print_diff(old, new)
+#    print_diff_with_posix_shell(old, new)
+    #test_diffprinter_corner_cases()
+
     return 0
