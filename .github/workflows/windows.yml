@@ -155,6 +155,9 @@ jobs:
         shell: bash
       - run: source activate && ./doctest.sh
         shell: bash
+      - name: "Run the new test runner"
+        run: source activate && mingw32-make joutest.exe && ./joutest.exe --verbose
+        shell: bash
 
   test-zip:
     needs: build-zip
