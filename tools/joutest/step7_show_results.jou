@@ -33,9 +33,9 @@ def step7_show_results(tests: List[Test]) -> noreturn:
         printf(", %s%d failed", RED, failed)
     if skipped != 0:
         printf(", %s%d skipped", YELLOW, skipped)
-    printf("\n")
+    printf("%s\n", RESET)
 
-    if failed == 0:
+    if succeeded > 0 and failed == 0:
         exit(0)
     else:
         exit(1)

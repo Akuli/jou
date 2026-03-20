@@ -10,78 +10,6 @@ import "./fail.jou"
 import "./state.jou"
 
 
-declare posix_spawnp(
-    pid: int*,
-    file: byte*,
-    file_actions: void*,  # actually posix_spawn_file_actions_t*
-    attrp: void*,  # actually posix_spawnattr_t*
-    argv: byte**,
-    envp: byte**,
-) -> int
-
-declare waitpid(pid: int, wstatus: int*, options: int) -> int
-
-declare global environ: byte**
-
-# Returns True if the process terminated with a signal
-def WIFSIGNALED(s: int) -> bool:
-    # 127 means "stopped", see WIFSTOPPED(). We should never get that value.
-    return WTERMSIG(s) != 0 and WTERMSIG(s) != 127
-
-# Returns True if the process exited normally.
-def WIFEXITED(s: int) -> bool:
-    return WTERMSIG(s) == 0
-
-# If the process terminated by exiting normally, returns the exit code.
-def WEXITSTATUS(s: int) -> int:
-    return (s >> 8) & 0xff
-
-# If the process terminated with a signal, returns the signal number.
-def WTERMSIG(s: int) -> int:
-    return s & 0x7f
-
-
-# TODO: capture the output
-# TODO: make it optional whether output is captured or not
-def run_command(args: List[byte*]) -> DetailResult:
-    assert args.len > 0
-
-    argv: byte** = malloc(sizeof(argv[0]) * args.len)
-    assert argv != NULL
-    memcpy(argv, args.ptr, sizeof(argv[0]) * args.len)
-    argv[args.len] = NULL
-
-    pid = 0
-    errno_code = posix_spawnp(&pid, argv[0], NULL, NULL, argv, environ)
-    free(argv)
-
-    if errno_code != 0:
-        return DetailResult{start_error = errno_code}
-
-    message: byte[300]
-
-    wstatus = 0
-    ret = waitpid(pid, &wstatus, 0)
-    if ret == -1:
-        # Should not happen regardless of what the process being tested does.
-        # Let's stop the entire test runner if it does happen, so I hopefully
-        # get a bug report on github.
-        snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
-        fail(message)
-
-    if WIFEXITED(wstatus):
-        return DetailResult{exit_code = WEXITSTATUS(wstatus)}
-    elif WIFSIGNALED(wstatus):
-        assert WTERMSIG(wstatus) != 0
-        return DetailResult{terminating_signal = WTERMSIG(wstatus)}
-    else:
-        # I'm not quite sure whether this can ever happen.
-        # Let's stop the entire test runner if it does happen, so I hopefully
-        # get a bug report on github.
-        snprintf(message, sizeof(message), "waitpid() gave a status that is neither exit nor signal: %#08x", wstatus)
-        fail(message)
-
-
 def command_to_string(command: List[byte*]) -> byte*:
     result = List[byte]{}
 
@@ -114,6 +42,78 @@ def command_to_string(command: List[byte*]) -> byte*:
 
     result.append('\0')
     return result.ptr
+
+
+if WINDOWS:
+    assert False  # TODO
+else:
+    declare posix_spawnp(
+        pid: int*,
+        file: byte*,
+        file_actions: void*,  # actually posix_spawn_file_actions_t*
+        attrp: void*,  # actually posix_spawnattr_t*
+        argv: byte**,
+        envp: byte**,
+    ) -> int
+    declare waitpid(pid: int, wstatus: int*, options: int) -> int
+    declare global environ: byte**
+
+    # Returns True if the process terminated with a signal
+    def WIFSIGNALED(s: int) -> bool:
+        # 127 means "stopped", see WIFSTOPPED(). We should never get that value.
+        return WTERMSIG(s) != 0 and WTERMSIG(s) != 127
+
+    # Returns True if the process exited normally.
+    def WIFEXITED(s: int) -> bool:
+        return WTERMSIG(s) == 0
+
+    # If the process terminated by exiting normally, returns the exit code.
+    def WEXITSTATUS(s: int) -> int:
+        return (s >> 8) & 0xff
+
+    # If the process terminated with a signal, returns the signal number.
+    def WTERMSIG(s: int) -> int:
+        return s & 0x7f
+
+    # TODO: capture the output
+    # TODO: make it optional whether output is captured or not
+    def run_command(args: List[byte*]) -> DetailResult:
+        assert args.len > 0
+
+        argv: byte** = malloc(sizeof(argv[0]) * (args.len + 1))
+        assert argv != NULL
+        memcpy(argv, args.ptr, sizeof(argv[0]) * args.len)
+        argv[args.len] = NULL
+
+        pid = 0
+        errno_code = posix_spawnp(&pid, argv[0], NULL, NULL, argv, environ)
+        free(argv)
+
+        if errno_code != 0:
+            return DetailResult{start_error = errno_code}
+
+        message: byte[300]
+
+        wstatus = 0
+        ret = waitpid(pid, &wstatus, 0)
+        if ret == -1:
+            # Should not happen regardless of what the process being tested does.
+            # Let's stop the entire test runner if it does happen, so I hopefully
+            # get a bug report on github.
+            snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
+            fail(message)
+
+        if WIFEXITED(wstatus):
+            return DetailResult{exit_code = WEXITSTATUS(wstatus)}
+        elif WIFSIGNALED(wstatus):
+            assert WTERMSIG(wstatus) != 0
+            return DetailResult{terminating_signal = WTERMSIG(wstatus)}
+        else:
+            # I'm not quite sure whether this can ever happen.
+            # Let's stop the entire test runner if it does happen, so I hopefully
+            # get a bug report on github.
+            snprintf(message, sizeof(message), "waitpid() gave a status that is neither exit nor signal: %#08x", wstatus)
+            fail(message)
 
 
 def run_test(test: Test*, args: CommandLineArgs*) -> None:
