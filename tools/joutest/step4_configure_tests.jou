@@ -1,0 +1,13 @@
+import "stdlib/assert.jou"
+import "stdlib/list.jou"
+
+import "./state.jou"
+
+
+@public
+def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
+    # TODO: do this properly
+    for t = tests.ptr; t < tests.end(); t++:
+        assert t.actual_arguments.len == 0
+        t.actual_arguments.append("jou")
+        t.actual_arguments.append(t.path)
