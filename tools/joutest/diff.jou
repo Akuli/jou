@@ -3,7 +3,6 @@ import "stdlib/math.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
-import "stdlib/process.jou"
 import "stdlib/str.jou"
 import "stdlib/limits.jou"
 
@@ -18,7 +17,13 @@ import "./ansi_colors.jou"
 #   "hello\nworld\ntest\n"
 #    ^      ^      ^
 #
-# The result is an empty list of the given string is empty.
+#   "hello\n"
+#    ^
+#
+#   "hello"
+#    ^
+#
+# The result is an empty list if the given string is empty.
 def string_to_lines(s: byte*) -> List[byte*]:
     result = List[byte*]{}
     while *s != '\0':
@@ -35,6 +40,7 @@ def string_to_lines(s: byte*) -> List[byte*]:
 #   "foo\nbar\n", "foo\n" --> True          (same as: strcmp("foo\n", "foo\n") == 0)
 #   "foo\nbar\n", "foo" --> False           (same as: strcmp("foo\n", "foo") == 0)
 #   "whatever", "whatever\ntest" --> False  (same as: strcmp("whatever", "whatever\n") == 0)
+#   "foo", "foobar" --> False               (same as: strcmp("foo", "foobar") == 0)
 #
 # Used with pointers to starts of lines within multi-line strings.
 def lines_equal(line1: byte*, line2: byte*) -> bool:
@@ -45,21 +51,18 @@ def lines_equal(line1: byte*, line2: byte*) -> bool:
             return False
 
 # Prints a line of diff. Does not access the line beyond \n (if any).
-def print_line(prefix: byte, line: byte*) -> None:
+def print_line(color: byte*, prefix: byte, line: byte*) -> None:
     line_len = strcspn(line, "\n")
-    match prefix:
-        case '+':
-            printf("%s+%.*s%s", GREEN, line_len as int, line, RESET)
-        case '-':
-            printf("%s-%.*s%s", RED, line_len as int, line, RESET)
-        case ' ':
-            printf(" %.*s", line_len as int, line)
-        case _:
-            assert False
+    assert line_len <= INT32_MAX
+
+    if color == NULL:
+        printf("%c%.*s\n", prefix, line_len as int, line)
+    else:
+        printf("%s%c%.*s%s\n", color, prefix, line_len as int, line, RESET)
 
     assert line[line_len] == '\0' or line[line_len] == '\n'
     if line[line_len] == '\0':
-        printf("\n\\ No newline at end of file\n")
+        printf("\\ No newline at end of file\n")
 
 
 # This class handles showing context around the diff. You call it when a line
@@ -89,7 +92,7 @@ class DiffPrinter:
                 # makes the user wonder why we aren't just printing the line.
                 # So let's just print the line.
                 assert self.last_discarded_line != NULL
-                print_line(' ', self.last_discarded_line)
+                print_line(NULL, ' ', self.last_discarded_line)
             case _:
                 printf("%s@@ %d lines not shown @@%s\n", CYAN, self.skip_count, RESET)
         self.skip_count = 0
@@ -98,7 +101,7 @@ class DiffPrinter:
         for i = 0; i < array_count(self.context_buf); i++:
             line = self.context_buf[i]
             if line != NULL:
-                print_line(' ', line)
+                print_line(NULL, ' ', line)
 
         memset(self.context_buf, 0, sizeof(self.context_buf))
         self.context_to_print_before_buffering = array_count(self.context_buf)
@@ -107,7 +110,7 @@ class DiffPrinter:
         if self.context_to_print_before_buffering > 0:
             # We recently showed an addition or removal. This is part of the
             # context for that and printed immediately.
-            print_line(' ', line)
+            print_line(NULL, ' ', line)
             self.context_to_print_before_buffering--
         else:
             # It's been a while since an addition or removal was shown. We may
@@ -122,15 +125,15 @@ class DiffPrinter:
             )
             array_end(self.context_buf)[-1] = line
 
-    def (self, line: byte*) -> None:
+    def addition(self, line: byte*) -> None:
         self.print_skip()
         self.print_context_from_buffer()
-        print_line('+', line)
+        print_line(GREEN, '+', line)
 
     def removal(self, line: byte*) -> None:
         self.print_skip()
         self.print_context_from_buffer()
-        print_line('-', line)
+        print_line(RED, '-', line)
 
     def finish(self) -> None:
         for i = 0; i < array_count(self.context_buf); i++:
@@ -141,15 +144,14 @@ class DiffPrinter:
 
 @public
 def print_diff(old_string: byte*, new_string: byte*) -> None:
-    # See myers_visualizer.py to understand the diff algorithm used here.
+    # See diff_visualizer.py to understand the diff algorithm used here.
 
     a = string_to_lines(old_string)
     b = string_to_lines(new_string)
-    MAX = a.len + b.len
 
-    k_to_x_memory: int* = malloc(sizeof(k_to_x_memory[0]) * (2*MAX + 1))
+    k_to_x_memory: int* = malloc(sizeof(k_to_x_memory[0]) * (2*(a.len + b.len) + 1))
     assert k_to_x_memory != NULL
-    k_to_x = &k_to_x_memory[MAX]  # Allow negative indexing
+    k_to_x = &k_to_x_memory[a.len + b.len]  # Allow negative indexing
 
     arrows = List[int[4]]{}  # each arrow is [start_x, start_y, end_x, end_y]
     next_k_min = 0
@@ -228,8 +230,10 @@ def print_diff(old_string: byte*, new_string: byte*) -> None:
                             printer.unchanged(a[x1])
                 printer.finish()
 
-                free(arrows.ptr)
                 free(k_to_x_memory)
+                free(arrows.ptr)
+                free(a.ptr)
+                free(b.ptr)
                 return
 
 
