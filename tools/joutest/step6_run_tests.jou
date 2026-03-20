@@ -3,7 +3,6 @@ import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
-import "stdlib/process.jou"
 import "stdlib/str.jou"
 
 import "./ansi_colors.jou"
@@ -44,7 +43,7 @@ def WTERMSIG(s: int) -> int:
 
 # TODO: capture the output
 # TODO: make it optional whether output is captured or not
-def run_command(args: List[byte*]) -> RunResult:
+def run_command(args: List[byte*]) -> DetailResult:
     assert args.len > 0
 
     argv: byte** = malloc(sizeof(argv[0]) * args.len)
@@ -57,7 +56,7 @@ def run_command(args: List[byte*]) -> RunResult:
     free(argv)
 
     if errno_code != 0:
-        return RunResult{kind = RunResultKind.FailedToStart, number = errno_code}
+        return DetailResult{start_error = errno_code}
 
     message: byte[300]
 
@@ -71,9 +70,10 @@ def run_command(args: List[byte*]) -> RunResult:
         fail(message)
 
     if WIFEXITED(wstatus):
-        return RunResult{kind = RunResultKind.ExitedNormally, number = WEXITSTATUS(wstatus)}
+        return DetailResult{exit_code = WEXITSTATUS(wstatus)}
     elif WIFSIGNALED(wstatus):
-        return RunResult{kind = RunResultKind.TerminatedBySignal, number = WTERMSIG(wstatus)}
+        assert WTERMSIG(wstatus) != 0
+        return DetailResult{terminating_signal = WTERMSIG(wstatus)}
     else:
         # I'm not quite sure whether this can ever happen.
         # Let's stop the entire test runner if it does happen, so I hopefully
@@ -89,29 +89,39 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     assert command != NULL
 
     if args.verbose:
-        printf("%srun:%s %s\n", BLUE, RESET, command)
+        printf("%srun:%s", BLUE, RESET)
+        for arg = test.actual_command.ptr; arg < test.actual_command.end(); arg++:
+            # TODO: quote each argument properly
+            printf(" %s", *arg)
+        printf("\n")
         fflush(get_stdout())
 
-    if system(command) == 0:
-        test.result = TestResult.Success
+    test.detail_result = run_command(test.actual_command)
+
+    if (
+        test.detail_result.start_error == 0
+        and test.detail_result.terminating_signal == 0
+        and test.detail_result.exit_code == 0
+    ):
+        test.simple_result = SimpleResult.Success
     else:
-        test.result = TestResult.Failed
+        test.simple_result = SimpleResult.Failed
 
     if args.verbose:
-        match test.result:
-            case TestResult.Success:
+        match test.simple_result:
+            case SimpleResult.Success:
                 printf(" %sok%s  %s\n", GREEN, RESET, command)
-            case TestResult.Failed:
+            case SimpleResult.Failed:
                 printf("%sFAIL%s %s\n", RED, RESET, command)
-            case TestResult.Skipped:
+            case SimpleResult.Skipped:
                 printf("%sskip%s %s\n", YELLOW, RESET, command)
     else:
-        match test.result:
-            case TestResult.Success:
+        match test.simple_result:
+            case SimpleResult.Success:
                 printf("%s.%s", GREEN, RESET, command)
-            case TestResult.Failed:
+            case SimpleResult.Failed:
                 printf("%sF%s", RED, RESET, command)
-            case TestResult.Skipped:
+            case SimpleResult.Skipped:
                 printf("%ss%s", YELLOW, RESET, command)
     fflush(get_stdout())
 
@@ -122,18 +132,3 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
 def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     for t = tests.ptr; t < tests.end(); t++:
         run_test(t, args)
-
-
-def main() -> int:
-    args = List[byte*]{}
-    args.append("sleep")
-    args.append("17")
-    result = run_command(args)
-    match result.kind:
-        case RunResultKind.FailedToStart:
-            printf("failed to start %d\n", result.number)
-        case RunResultKind.ExitedNormally:
-            printf("exited with %d\n", result.number)
-        case RunResultKind.TerminatedBySignal:
-            printf("terminated by signal %d\n", result.number)
-    return 0

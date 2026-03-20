@@ -8,6 +8,6 @@ import "./state.jou"
 def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     # TODO: do this properly
     for t = tests.ptr; t < tests.end(); t++:
-        assert t.actual_arguments.len == 0
-        t.actual_arguments.append("jou")
-        t.actual_arguments.append(t.path)
+        assert t.actual_command.len == 0
+        t.actual_command.append("jou")
+        t.actual_command.append(t.path)
