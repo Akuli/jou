@@ -203,11 +203,12 @@ def print_diff(old_string: byte*, new_string: byte*) -> None:
                 # Reached end, backtrack to find the diff
                 for i = arrows.len - 1; i >= 0; i--:
                     if arrows.ptr[i][2] == x and arrows.ptr[i][3] == y:
+                        # Follow the arrow backwards
                         x = arrows.ptr[i][0]
                         y = arrows.ptr[i][1]
                     else:
                         # Mark this arrow as not needed
-                        arrows.ptr[i][0] = -1
+                        arrows.ptr[i] = [-1, -1, -1, -1]
 
                 assert x == 0
                 assert y == 0
@@ -221,13 +222,13 @@ def print_diff(old_string: byte*, new_string: byte*) -> None:
                         y2 = arrows.ptr[i][3]
                         if x1 == x2:
                             # Arrow down. This is an addition because it consumes b without consuming a.
-                            printer.addition(b[y1])
-                        elif y == end_y:
+                            printer.addition(b.ptr[y1])
+                        elif y1 == y2:
                             # Arrow right. This is a removal because it consumes a without consuming b.
-                            printer.removal(a[x1])
+                            printer.removal(a.ptr[x1])
                         else:
-                            assert lines_equal(a[x1], b[y1])
-                            printer.unchanged(a[x1])
+                            assert lines_equal(a.ptr[x1], b.ptr[y1])
+                            printer.unchanged(a.ptr[x1])
                 printer.finish()
 
                 free(k_to_x_memory)
