@@ -7,7 +7,19 @@ import "stdlib/process.jou"
 import "./ansi_colors.jou"
 import "./state.jou"
 
-if not WINDOWS:
+if WINDOWS:
+    declare FormatMessageA(
+        dwFlags: uint32,
+        lpSource: void*,
+        dwMessageId: uint32,
+        dwLanguageId: uint32,
+        lpBuffer: byte*,
+        nSize: uint32,
+        Arguments: void*,  # actually va_list*
+    ) -> uint32
+    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
+    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
+else:
     declare strsignal(sig: int) -> byte*
 
 
@@ -22,7 +34,12 @@ def show_failures(tests: List[Test]) -> None:
         if t.detail_result.start_error != 0:
             printf("Process failed to start: ")
             if WINDOWS:
-                assert False  # TODO: GetLastError + FormatMessageA
+                message: byte[300] = ""
+                FormatMessageA(
+                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                    NULL, GetLastError(), 0, message, sizeof(message) as uint32, NULL,
+                )
+                puts(message)
             else:
                 puts(strerror(t.detail_result.start_error))
         elif t.detail_result.terminating_signal != 0:
