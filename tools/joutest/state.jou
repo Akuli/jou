@@ -8,35 +8,24 @@ class CommandLineArgs:
 
 
 @public
-enum TestResult:
+enum SimpleResult:
     Success
     Failed
     Skipped
+
+@public
+class DetailResult:
+    start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
+    terminating_signal: int  # (POSIX only) signal number that killed the test while running
+    exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
+    output: List[byte]
 
 @public
 class Test:
     path: byte*
     glob_toml: TOML*
     relevant_toml_tables: List[TOML*]
-    actual_arguments: List[byte*]
+    actual_command: List[byte*]
     expected_output: byte*
-    result: TestResult
-
-
-@public
-enum RunResultKind:
-    FailedToStart
-    ExitedNormally
-    TerminatedBySignal
-
-@public
-class RunResult:
-    kind: RunResultKind
-
-    # This is one of several different things...
-    #   RunResultKind.FailedToStart: errno on posix, GetLastError() on windows
-    #   RunResultKind.ExitedNormally: exit code
-    #   RunResultKind.TerminatedBySignal: signal number (never happens on Windows)
-    number: int
-
-    output: List[byte]
+    simple_result: SimpleResult
+    detail_result: DetailResult

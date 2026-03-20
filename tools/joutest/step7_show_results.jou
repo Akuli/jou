@@ -20,12 +20,12 @@ def step7_show_results(tests: List[Test]) -> noreturn:
     skipped = 0
 
     for t = tests.ptr; t < tests.end(); t++:
-        match t.result:
-            case TestResult.Success:
+        match t.simple_result:
+            case SimpleResult.Success:
                 succeeded++
-            case TestResult.Failed:
+            case SimpleResult.Failed:
                 failed++
-            case TestResult.Skipped:
+            case SimpleResult.Skipped:
                 skipped++
 
     printf("%s%d succeeded", GREEN, succeeded)
