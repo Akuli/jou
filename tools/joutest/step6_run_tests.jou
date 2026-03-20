@@ -10,40 +10,6 @@ import "./fail.jou"
 import "./state.jou"
 
 
-def command_to_string(command: List[byte*]) -> byte*:
-    result = List[byte]{}
-
-    for i = 0; i < command.len; i++:
-        if i != 0:
-            result.append(' ')
-        arg = command.ptr[i]
-
-        if WINDOWS:
-            assert False  # TODO
-        else:
-            # The string below is ASCII characters that are safe to include in
-            # commands without quoting, in ASCII order (doesn't really matter).
-            #
-            # I was unsure about '%' and '^' so I left them out.
-            if *arg != '\0' and strspn(arg, "+,-./0123456789:=@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz") == strlen(arg):
-                result.extend_from_ptr(arg, strlen(arg))
-            else:
-                result.append('\'')
-                for ; *arg != '\0'; arg++:
-                    if *arg == '\'':
-                        result.append('\'')  # End single quotes
-                        result.append('"')  # Begin double quotes
-                        result.append('\'')  # Put the single quote inside the double quotes
-                        result.append('"')  # End double quotes
-                        result.append('\'')  # Begin single quotes
-                    else:
-                        result.append(*arg)
-                result.append('\'')
-
-    result.append('\0')
-    return result.ptr
-
-
 if WINDOWS:
     assert False  # TODO
 else:
@@ -117,13 +83,11 @@ else:
 
 
 def run_test(test: Test*, args: CommandLineArgs*) -> None:
-    command_string = command_to_string(test.actual_command)
-
     if args.verbose:
-        printf("%srun:%s %s\n", BLUE, RESET, command_string)
+        printf("%srun:%s %s\n", BLUE, RESET, test.actual_command_string)
         fflush(get_stdout())
 
-    test.detail_result = run_command(test.actual_command)
+    test.detail_result = run_command(test.actual_command_list)
 
     if (
         test.detail_result.start_error == 0
@@ -137,22 +101,20 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if args.verbose:
         match test.simple_result:
             case SimpleResult.Success:
-                printf("%s ok %s %s\n", GREEN, RESET, command_string)
+                printf("%s ok %s %s\n", GREEN, RESET, test.actual_command_string)
             case SimpleResult.Failed:
-                printf("%sFAIL%s %s\n", RED, RESET, command_string)
+                printf("%sFAIL%s %s\n", RED, RESET, test.actual_command_string)
             case SimpleResult.Skipped:
-                printf("%sskip%s %s\n", YELLOW, RESET, command_string)
+                printf("%sskip%s %s\n", YELLOW, RESET, test.actual_command_string)
     else:
         match test.simple_result:
             case SimpleResult.Success:
-                printf("%s.%s", GREEN, RESET, command_string)
+                printf("%s.%s", GREEN, RESET)
             case SimpleResult.Failed:
-                printf("%sF%s", RED, RESET, command_string)
+                printf("%sF%s", RED, RESET)
             case SimpleResult.Skipped:
-                printf("%ss%s", YELLOW, RESET, command_string)
+                printf("%ss%s", YELLOW, RESET)
     fflush(get_stdout())
-
-    free(command_string)
 
 
 @public

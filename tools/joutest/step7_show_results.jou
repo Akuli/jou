@@ -1,3 +1,5 @@
+import "stdlib/assert.jou"
+import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/process.jou"
@@ -5,20 +7,47 @@ import "stdlib/process.jou"
 import "./ansi_colors.jou"
 import "./state.jou"
 
+if not WINDOWS:
+    declare strsignal(sig: int) -> byte*
+
+
+def show_failures(tests: List[Test]) -> None:
+    printf("------- FAILURES -------\n\n\n")
+
+    for t = tests.ptr; t < tests.end(); t++:
+        if t.simple_result != SimpleResult.Failed:
+            continue
+
+        printf("*** Command: %s ***\n", t.actual_command_string)
+        if t.detail_result.start_error != 0:
+            printf("Process failed to start: ")
+            if WINDOWS:
+                assert False  # TODO: GetLastError + FormatMessageA
+            else:
+                puts(strerror(t.detail_result.start_error))
+        elif t.detail_result.terminating_signal != 0:
+            printf(
+                "Process was killed by signal %d: %s\n",
+                t.detail_result.terminating_signal,
+                strsignal(t.detail_result.terminating_signal),
+            )
+        elif t.detail_result.exit_code != 0:
+            # TODO: make the correct exit code configurable
+            printf(
+                "Process exited with code %d. The correct exit code would be 0.\n",
+                t.detail_result.exit_code,
+            )
+        else:
+            assert False  # There seems to be nothing wrong?...
+
 
 @public
 def step7_show_results(tests: List[Test]) -> noreturn:
-    if tests.len == 0:
-        # TODO: This should also show the file filter used, if any
-        fprintf(get_stderr(), "%sfound no tests%s\n", RED, RESET)
-        exit(1)
-
     printf("\n\n")
 
     succeeded = 0
     failed = 0
     skipped = 0
-
     for t = tests.ptr; t < tests.end(); t++:
         match t.simple_result:
             case SimpleResult.Success:
@@ -27,6 +56,9 @@ def step7_show_results(tests: List[Test]) -> noreturn:
                 failed++
             case SimpleResult.Skipped:
                 skipped++
+
+    if failed != 0:
+        show_failures(tests)
 
     printf("%s%d succeeded", GREEN, succeeded)
     if failed != 0:
