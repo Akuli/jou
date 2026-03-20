@@ -3,11 +3,15 @@ import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
+import "stdlib/process.jou"
 import "stdlib/str.jou"
 
 import "./ansi_colors.jou"
 import "./fail.jou"
 import "./state.jou"
+
+if not WINDOWS:
+    import "stdlib/intnative.jou"
 
 
 if WINDOWS:
@@ -117,7 +121,98 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     fflush(get_stdout())
 
 
+if not WINDOWS:
+    declare dirname(path: byte*) -> byte*
+    declare setenv(name: byte*, value: byte*, overwrite: int) -> int
+    if MACOS:
+        declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
+    elif NETBSD:
+        declare sysctl(
+            name: int*,
+            namelen: uint32,
+            oldp: void*,
+            oldlenp: intnative*,
+            newp: void*,  # NULL if not setting a new value
+            newlen: intnative,  # 0 if not setting a new value
+        ) -> int
+        const CTL_KERN: int = 1
+        const KERN_PROC_ARGS: int = 48
+        const KERN_PROC_PATHNAME: int = 5
+        const ENOSPC: int = 28  # No space left on this device
+    else:
+        declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
+
+    # TODO: This function is copy/pasted from Jou compiler, move to stdlib?
+    #       I removed the Windows branches because we don't need them here.
+    def find_current_executable() -> byte*:
+        if MACOS:
+            n = 1
+            result: byte* = malloc(n)
+            ret = _NSGetExecutablePath(result, &n)  # sets n to desired size
+            assert ret < 0  # didn't fit
+            result = realloc(result, n)
+            ret = _NSGetExecutablePath(result, &n)
+            if ret == 0:
+                # success
+                return result
+        else:
+            buf: byte* = NULL
+            for size = 2; True; size *= 2:
+                buf = realloc(buf, size)
+                memset(buf, 0, size)
+                if NETBSD:
+                    sysctl_name: int[4] = [CTL_KERN, KERN_PROC_ARGS, -1, KERN_PROC_PATHNAME]
+                    n: intnative = size
+                    ret = sysctl(sysctl_name, array_count(sysctl_name) as uint32, buf, &n, NULL, 0)
+                    if ret < 0 and get_errno() != ENOSPC:
+                        break  # error
+                    if n < size:
+                        return buf  # success, it fits
+                else:
+                    ret = readlink("/proc/self/exe", buf, size)
+                    success = 0 <= ret and ret < size
+                    if ret < 0:
+                        break  # error
+                    if ret < size:
+                        buf[ret] = '\0'  # Work around valgrind bug: https://bugs.kde.org/show_bug.cgi?id=514094
+                        return buf  # success, it fits
+
+        # TODO: show os error message? (GetLastError / errno)
+        fail("cannot locate currently running executable, needed for finding the Jou compiler")
+
+    # Adds the directory containing joutest to PATH. It usually contains the
+    # Jou compiler.
+    #
+    # This is not needed on Windows, because Windowslooks at the directory
+    # containing joutest.exe before even considering PATH. Windows is weird,
+    # but in this case the Windows behavior is what we want.
+    def add_joutest_dir_to_PATH() -> None:
+        joutest_exe = find_current_executable()
+        joutest_dir = dirname(joutest_exe)
+        if strstr(joutest_exe, ":") != NULL:
+            fail("directory containing joutest contains ':' and hence cannot be added to PATH")
+
+        new_path: byte* = NULL
+        asprintf(&new_path, "%s:%s", joutest_dir, getenv("PATH"))
+        assert new_path != NULL
+        free(joutest_exe)
+
+        setenv("PATH", new_path, True as int)
+        free(new_path)
+
+
 @public
 def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
+    if not WINDOWS:
+        old_path = getenv("PATH")
+        if old_path == NULL:
+            fail("no PATH environment variable")
+        old_path = strdup(old_path)
+        add_joutest_dir_to_PATH()
+
     for t = tests.ptr; t < tests.end(); t++:
         run_test(t, args)
+
+    if not WINDOWS:
+        setenv("PATH", old_path, True as int)
+        free(old_path)

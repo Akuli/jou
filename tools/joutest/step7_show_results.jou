@@ -12,13 +12,13 @@ if not WINDOWS:
 
 
 def show_failures(tests: List[Test]) -> None:
-    printf("------- FAILURES -------\n\n\n")
+    printf("------- FAILURES -------\n\n")
 
     for t = tests.ptr; t < tests.end(); t++:
         if t.simple_result != SimpleResult.Failed:
             continue
 
-        printf("*** Command: %s ***\n", t.actual_command_string)
+        printf("%s*** Command: %s ***%s\n", YELLOW, t.actual_command_string, RESET)
         if t.detail_result.start_error != 0:
             printf("Process failed to start: ")
             if WINDOWS:
@@ -39,6 +39,9 @@ def show_failures(tests: List[Test]) -> None:
             )
         else:
             assert False  # There seems to be nothing wrong?...
+
+        printf("\n")
+    printf("\n")
 
 
 @public
