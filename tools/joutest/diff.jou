@@ -10,18 +10,55 @@ import "stdlib/limits.jou"
 import "./ansi_colors.jou"
 
 
+# Finds pointers into the starts of lines. For example:
+#
+#   "hello\nworld\ntest"
+#    ^      ^      ^
+#
+#   "hello\nworld\ntest\n"
+#    ^      ^      ^
+#
+# The result is an empty list of the given string is empty.
+def string_to_lines(s: byte*) -> List[byte*]:
+    result = List[byte*]{}
+    while *s != '\0':
+        result.append(s)
+        while *s != '\n' and *s != '\0':
+            s++
+        if *s == '\n':
+            s++
+    return result
+
+# Checks if two strings would be equal if both were truncated after their first '\n' (if any).
+#
+# Examples:
+#   "foo\nbar\n", "foo\n" --> True          (same as: strcmp("foo\n", "foo\n") == 0)
+#   "foo\nbar\n", "foo" --> False           (same as: strcmp("foo\n", "foo") == 0)
+#   "whatever", "whatever\ntest" --> False  (same as: strcmp("whatever", "whatever\n") == 0)
+#
+# Used with pointers to starts of lines within multi-line strings.
+def lines_equal(line1: byte*, line2: byte*) -> bool:
+    while True:
+        if (*line1 == '\n' and *line2 == '\n') or (*line1 == '\0' and *line2 == '\0'):
+            return True
+        if *line1++ != *line2++:
+            return False
+
+# Prints a line of diff. Does not access the line beyond \n (if any).
 def print_line(prefix: byte, line: byte*) -> None:
+    line_len = strcspn(line, "\n")
     match prefix:
         case '+':
-            printf("%s+%s%s", GREEN, line, RESET)
+            printf("%s+%.*s%s", GREEN, line_len as int, line, RESET)
         case '-':
-            printf("%s-%s%s", RED, line, RESET)
+            printf("%s-%.*s%s", RED, line_len as int, line, RESET)
         case ' ':
-            printf(" %s", line)
+            printf(" %.*s", line_len as int, line)
         case _:
             assert False
 
-    if not ends_with(line, "\n"):
+    assert line[line_len] == '\0' or line[line_len] == '\n'
+    if line[line_len] == '\0':
         printf("\n\\ No newline at end of file\n")
 
 
@@ -85,7 +122,7 @@ class DiffPrinter:
             )
             array_end(self.context_buf)[-1] = line
 
-    def addition(self, line: byte*) -> None:
+    def (self, line: byte*) -> None:
         self.print_skip()
         self.print_context_from_buffer()
         print_line('+', line)
@@ -102,26 +139,6 @@ class DiffPrinter:
         self.print_skip()
 
 
-class DiffPair:
-    prefix: byte
-    line: byte*
-
-def string_to_lines(s: byte*) -> List[byte*]:
-    result = List[byte*]{}
-    while *s != '\0':
-        line_len = strcspn(s, "\n")
-        if s[line_len] == '\n':
-            line_len++
-        line: byte* = NULL
-        asprintf(&line, "%*s", line_len as int, s)
-        assert line != NULL
-        result.append(line)
-        s = &s[line_len]
-    return result
-
-# Line arrays must be NULL terminated.
-# Lines must contain newline characters.
-# Lines are C/Jou strings, so they cannot contain zero bytes.
 @public
 def print_diff(old_string: byte*, new_string: byte*) -> None:
     # See myers_visualizer.py to understand the diff algorithm used here.
@@ -134,17 +151,20 @@ def print_diff(old_string: byte*, new_string: byte*) -> None:
     assert k_to_x_memory != NULL
     k_to_x = &k_to_x_memory[MAX]  # Allow negative indexing
 
-    arrows = List[int[3]]{}
+    arrows = List[int[4]]{}  # each arrow is [start_x, start_y, end_x, end_y]
     next_k_min = 0
     next_k_max = 0
 
-    for D = 0; D <= a.len + b.len; D++:
+    for D = 0; ; D++:
+        assert D <= a.len + b.len
+
         # Limit inner loop iterations to make this O(N) instead of O(N^2) when
         # one file has N lines and the other file is short.
         k_min = next_k_min
         k_max = next_k_max
         next_k_min = INT32_MAX
         next_k_max = INT32_MIN
+
         for k = k_min; k <= k_max; k += 2:
             if D == 0:
                 # No arrows yet
@@ -155,104 +175,63 @@ def print_diff(old_string: byte*, new_string: byte*) -> None:
                 # This is an addition because it consumes b without consuming a.
                 x = k_to_x[k+1]
                 y = x-k
-                arrows.append([x, y, '+'])
+                arrows.append([x, y-1, x, y])
             else:
                 # Arrow right (x increases, y doesn't change, k=x-y increases)
                 # This is a removal because it consumes a without consuming b.
                 x = k_to_x[k-1] + 1
                 y = x-k
-                arrows.append([x, y, '-'])
+                arrows.append([x-1, y, x, y])
 
-        if x <= a.len and y <= b.len:
-            # This k value is actually useful, not just running off the grid.
-            next_k_min = min(next_k_min, k-1)
-            next_k_max = max(next_k_max, k+1)
+            if x <= a.len and y <= b.len:
+                # This arrow is actually useful, not just running beyond the grid.
+                # On the next iteration we will check the diagonals surrounding it.
+                next_k_min = min(next_k_min, k-1)
+                next_k_max = max(next_k_max, k+1)
 
-        while x < a.len and y < b.len and strcmp(a.ptr[x], b.ptr[y]) == 0:
-            # Diagonal arrow (x increases, y increases, k=x-y doesn't change)
-            # These are unchanged lines because they consume both strings.
-            arrows.append([++x, ++y, ' '])
+            while x < a.len and y < b.len and lines_equal(a.ptr[x], b.ptr[y]):
+                # Diagonal arrow (x increases, y increases, k=x-y doesn't change)
+                # These are unchanged lines because they consume both strings.
+                x++
+                y++
+                arrows.append([x-1, y-1, x, y])
 
-        k_to_x[k] = x
-        if x == a.len and y == b.len:
-            # Reached end, backtrack to find the diff
-            reversed_diff = List[DiffPair]{}
-            while x != 0 or y != 0:
-                while True:
-                    arrow: int[3] = arrows.pop()
-                    if arrow[0] == x and arrow[1] == y:
-                        break
-                match arrow[2]:
-                    case '+':
-                        reversed_diff.append(DiffPair{prefix = '+', line = b.ptr[--y]})
-                    case '-':
-                        reversed_diff.append(DiffPair{prefix = '-', line = a.ptr[--x]})
-                    case ' ':
-                        x--
-                        y--
-                        assert strcmp(a.ptr[x], b.ptr[y]) == 0
-                        reversed_diff.append(DiffPair{prefix = ' ', line = a.ptr[x]})
-                    case _:
-                        assert False
-            return
+            k_to_x[k] = x
+            if x == a.len and y == b.len:
+                # Reached end, backtrack to find the diff
+                for i = arrows.len - 1; i >= 0; i--:
+                    if arrows.ptr[i][2] == x and arrows.ptr[i][3] == y:
+                        x = arrows.ptr[i][0]
+                        y = arrows.ptr[i][1]
+                    else:
+                        # Mark this arrow as not needed
+                        arrows.ptr[i][0] = -1
 
-    # Should never fall off the loop
-    assert False
+                assert x == 0
+                assert y == 0
 
+                printer = DiffPrinter{}
+                for i = 0; i < arrows.len; i++:
+                    if arrows.ptr[i][0] != -1:
+                        x1 = arrows.ptr[i][0]
+                        y1 = arrows.ptr[i][1]
+                        x2 = arrows.ptr[i][2]
+                        y2 = arrows.ptr[i][3]
+                        if x1 == x2:
+                            # Arrow down. This is an addition because it consumes b without consuming a.
+                            printer.addition(b[y1])
+                        elif y == end_y:
+                            # Arrow right. This is a removal because it consumes a without consuming b.
+                            printer.removal(a[x1])
+                        else:
+                            assert lines_equal(a[x1], b[y1])
+                            printer.unchanged(a[x1])
+                printer.finish()
 
-def join(lines: byte**) -> byte*:
-    result = List[byte]{}
-    while *lines != NULL:
-        result.extend_from_ptr(*lines, strlen(*lines))
-        lines++
-    result.append('\0')
-    return result.ptr
+                free(arrows.ptr)
+                free(k_to_x_memory)
+                return
 
-
-# AI generated function
-def test_diffprinter_corner_cases() -> None:
-    printer = DiffPrinter{}
-
-    # --- 1. A few unchanged lines (within context) ---
-    printer.unchanged("A1\n")
-    printer.unchanged("A2\n")
-
-    # --- 2. Overflow unchanged lines (forces buffering + skipping) ---
-    printer.unchanged("A3\n")
-    printer.unchanged("A4\n")  # should enter buffer
-    printer.unchanged("A5\n")  # buffer rotates, skip_count increments
-
-    # --- 3. An addition after buffered context + skip ---
-    printer.addition("NEW1\n")
-
-    # --- 4. More unchanged lines
-    printer.unchanged("B1\n")
-    printer.unchanged("B2\n")
-    printer.unchanged("B3\n")
-    printer.unchanged("B4\n")
-    printer.unchanged("B5\n")
-    printer.unchanged("B6\n")
-    printer.unchanged("B7\n")   # should overflow buffer again
-
-    # --- 5. A removal after buffered context + skip ---
-    printer.removal("OLD1\n")
-
-    # --- 6. Alternating add/remove sequences ---
-    printer.addition("NEW2\n")
-    printer.removal("OLD2\n")
-    printer.addition("NEW3\n")
-    printer.removal("OLD3\n")
-
-    # --- 7. Long unchanged tail to test final skip printing ---
-    printer.unchanged("C1\n")
-    printer.unchanged("C2\n")
-    printer.unchanged("C3\n")
-
-    # --- 8. Finish (should flush remaining skip or buffer) ---
-    printer.finish()
-
-
-declare setenv(name: byte*, value: byte*, overwrite: int) -> int
 
 def main() -> int:
     old = "\
@@ -303,7 +282,5 @@ Lol8\n\
 Lol9\n"
 
     print_diff(old, new)
-#    print_diff_with_posix_shell(old, new)
-    #test_diffprinter_corner_cases()
 
     return 0

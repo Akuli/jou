@@ -75,7 +75,7 @@ def draw_text(x, y, text) -> None:
     canvas.create_text(point_to_canvas(x, y), text=text, fill="white")
 
 def pause() -> None:
-    end = time.monotonic() + 0.5
+    end = time.monotonic() + 0.05
     while time.monotonic() < end:
         canvas.update()
 
@@ -130,22 +130,21 @@ for D in range(MAX + 1):
             x = y = 0
         elif k == -D or (k != D and k_to_x[k-1] < k_to_x[k+1]):
             # Arrow down (x doesn't change, y increases, k=x-y decreases)
-            # This is an addition because it consumes b without consuming a.
             x = k_to_x[k+1]
             y = x-k
             draw_text(x, y, D)
-            arrows.append((x, y, '+', draw_arrow(x, y-1, x, y)))
+            arrows.append((x, y-1, x, y, draw_arrow(x, y-1, x, y)))
         else:
             # Arrow right (x increases, y doesn't change, k=x-y increases)
-            # This is a removal because it consumes a without consuming b.
             x = k_to_x[k-1] + 1
             y = x-k
             draw_text(x, y, D)
-            arrows.append((x, y, '-', draw_arrow(x-1, y, x, y)))
+            arrows.append((x-1, y, x, y, draw_arrow(x-1, y, x, y)))
         pause()
 
         if x <= len(a) and y <= len(b):
-            # This k value is actually useful, not just running off the grid.
+            # This arrow is actually useful, not just running beyond the grid.
+            # On the next iteration we will check the diagonals surrounding it.
             next_k_min = min(next_k_min, k-1)
             next_k_max = max(next_k_max, k+1)
 
@@ -154,7 +153,7 @@ for D in range(MAX + 1):
             # These are unchanged lines because they consume both strings.
             (x, y) = (x+1, y+1)
             draw_text(x, y, D)
-            arrows.append((x, y, ' ', draw_arrow(x-1, y-1, x, y)))
+            arrows.append((x-1, y-1, x, y, draw_arrow(x-1, y-1, x, y)))
             pause()
 
         k_to_x[k] = x
@@ -179,27 +178,22 @@ for D in range(MAX + 1):
             # by going through the list backwards.
             print("Diff in reverse order:")
             while x != 0 or y != 0:
-                while arrows[-1][:2] != (x, y):
+                while arrows[-1][2:4] != (x, y):
                     arrows.pop()
-                letter, arrow_id = arrows.pop()[2:]
+                x, y, end_x, end_y, arrow_id = arrows.pop()
                 canvas.itemconfig(arrow_id, fill="cyan")
-                match letter:
-                    case '+':
-                        y -= 1
-                        print(f"+{b[y]}")
-                        draw_text(x+0.25, y+0.5, f"+{b[y]}")
-                    case '-':
-                        x -= 1
-                        print(f"-{a[x]}")
-                        draw_text(x+0.5, y+0.2, f"-{a[x]}")
-                    case ' ':
-                        x -= 1
-                        y -= 1
-                        assert a[x] == b[y]
-                        print(f" {a[x]}")
-                        draw_text(x+0.5, y+0.2, f"{a[x]}")
-                    case _:
-                        raise ValueError("oh no")
+                if x == end_x:
+                    # Arrow down. This is an addition because it consumes b without consuming a.
+                    print(f"+{b[y]}")
+                    draw_text(x+0.25, y+0.5, f"+{b[y]}")
+                elif y == end_y:
+                    # Arrow right. This is a removal because it consumes a without consuming b.
+                    print(f"-{a[x]}")
+                    draw_text(x+0.5, y+0.2, f"-{a[x]}")
+                else:
+                    assert a[x] == b[y]
+                    print(f" {a[x]}")
+                    draw_text(x+0.5, y+0.2, f"{a[x]}")
                 pause()
             tkinter.mainloop()
             exit()
