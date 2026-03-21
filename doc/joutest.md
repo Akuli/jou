@@ -21,8 +21,7 @@ To use `joutest` this way, create a file `joutest.toml` that contains just these
 files = "tests/test_*.jou"
 ```
 
-Now you can simply run `joutest` inside your project directory.
-It should run the tests:
+Now you can simply run `joutest`. It should run the tests:
 
 ```
 akuli@Akuli-Desktop ~/curses-klondike $ joutest
@@ -30,6 +29,10 @@ akuli@Akuli-Desktop ~/curses-klondike $ joutest
 
 3 succeeded
 ```
+
+The `joutest.toml` file must be in the same directory where you invoke `joutest`.
+There is no hidden file finding logic: `joutest` literally does `fopen("joutest.toml", "rb")`,
+and the content of `joutest.toml` specifies where to find the files to be tested.
 
 Each dot means that a file ran successfully.
 You can also try `--verbose` (or `-v`, that does the same thing):
@@ -83,8 +86,6 @@ For example, changing `printf("Bla4\n")` to `printf("Baa4\n")` above produces th
 ```diff
 F
 
-------- FAILURES -------
-
 *** Command: jou test.jou ***
 @@ 3 lines not shown @@
  Bla1
@@ -98,9 +99,13 @@ F
 0 succeeded, 1 failed
 ```
 
-So red `-` lines are the expected output, and green `+` lines are the actual output.
-Note that this is backwards from "red is bad and green is good" thinking,
-but consistent with the "red was changed to green" coloring that is very common with diffs.
+The colors that joutest actually uses are slightly different than what's shown above,
+because this documentation is limited to GitHub's syntax highlighting.
+
+The important thing to note is that red `-` lines are the expected output,
+and green `+` lines are the actual output.
+This is backwards from the usual "red is bad and green is good" thinking,
+but consistent with the "red was changed to green" coloring that is almost always used with diffs.
 
 
 ## Condition Tables
@@ -169,7 +174,7 @@ files = {
 
 ## Content of `joutest.toml`
 
-Note that any value can be specified as a condition table (see above).
+Note that any value can be specified as a [condition table](#condition-tables).
 
 The only required things are the `tests` array, and `files` inside each table of the `tests` array.
 Everything else is optional.
@@ -180,7 +185,11 @@ Everything else is optional.
         and `**` (match zero or more entire path components).
         For example, `files = ["**/*.md"]` finds all markdown files,
         including any markdown files in the same directory with `joutest.toml`.
-    - More will be added in the future...
+    - `stdout` and `stderr` define what happens to text printed by the test. The valid values are:
+        - `"compare_to_comments"` (default for both `stdout` and `stderr`) means that
+            `joutest` captures the output and compares it to [output comments](#output-comments).
+        - `"do_not_capture"` passes the output (if any) to the terminal as is among all the things that `joutest` itself prints.
+            Output comments are ignored entirely if both `stdout` and `stderr` are set to `"do_not_capture"`.
 - `defaults_for_all_tests` is just like each table of the `tests` array,
     except that you cannot specify `files`.
     As the name suggests, these settings are used
@@ -192,22 +201,16 @@ This way you can specify something general first and special cases afterwards.
 For example:
 
 ```toml
-# Run all example files
+# Run tests normally
 [[tests]]
-files = "examples/*.jou"
+files = "tests/*.jou"
 
-# ...except this example file
+# ...except that for some reason, you want to see what this file prints when
+# you run the tests
 [[tests]]
-files = "examples/dont_do_this.jou"
-skip = true   # TODO: this option doesn't exist yet, sorry :(
+files = "tests/special.jou"
+stdout = "do_not_capture"
 ```
-
-
-## Location of `joutest.toml`
-
-The `joutest.toml` file must be in the same directory where you invoke `joutest`.
-There is no hidden file finding logic: `joutest` literally does `fopen("joutest.toml", "rb")`,
-and the content of `joutest.toml` specifies where to find the files to be tested.
 
 
 ## Unimplemented features

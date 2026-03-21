@@ -45,4 +45,8 @@ def find_expected_output(path: byte*) -> byte*:
 @public
 def step5_gather_expected_outputs(tests: List[Test]) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        test.expected_output = find_expected_output(test.path)
+        if (
+            test.stdout_capture_mode != CaptureMode.DoNotCapture
+            or test.stderr_capture_mode != CaptureMode.DoNotCapture
+        ):
+           test.expected_output = find_expected_output(test.path)
