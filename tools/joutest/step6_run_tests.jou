@@ -24,6 +24,20 @@ import "./fail.jou"
 import "./state.jou"
 
 
+def add_output_byte(out: List[byte]*, b: byte) -> None:
+    match b:
+        case '\0':
+            # TODO: Escaping similar to this could be good for other weird bytes too.
+            out.extend_from_ptr("<\\0>", 4)
+        case '\n':
+            # Windows line endings handling: \r\n --> \n
+            if out.len > 0 and out.end()[-1] == '\r':
+                out.pop()
+            out.append('\n')
+        case _:
+            out.append(b)
+
+
 if WINDOWS:
     class STARTUPINFOA:
         cb: uint32
@@ -259,11 +273,7 @@ else:
                 if n == 0:
                     break
                 for i = 0; i < n; i++:
-                    if buf[i] == '\0':
-                        # TODO: test this, document this etc
-                        output.extend_from_ptr("<\\0>", 4)
-                    else:
-                        output.append(buf[i])
+                    add_output_byte(&output, buf[i])
             close(pipe_read)
             output.append('\0')
             test.actual_output = output.ptr

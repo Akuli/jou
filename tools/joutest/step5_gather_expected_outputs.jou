@@ -1,9 +1,49 @@
+import "stdlib/errno.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+
+import "./fail.jou"
 import "./state.jou"
+
+
+def find_expected_output(path: byte*) -> byte*:
+    message: byte[300]
+
+    f = fopen(path, "rb")
+    if f == NULL:
+        snprintf(message, sizeof(message), "reading expected output from '%s' failed: %s", strerror(get_errno()))
+        fail(message)
+
+    result = List[byte]{}
+    line: byte[4096]
+    while fgets(line, sizeof(line), f) != NULL:
+        if ends_with(line, "\n"):
+            line[strlen(line) - 1] = '\0'
+            if ends_with(line, "\r"):
+                line[strlen(line) - 1] = '\0'
+
+        marker = "# Output:"
+        p = strstr(line, marker)
+        if p == NULL:
+            continue
+
+        # Find the last occurrence
+        while p != NULL and strstr(&p[1], marker) != NULL:
+            p = strstr(&p[1], marker)
+
+        p = &p[strlen(marker)]
+        if *p == ' ':
+            p++
+        result.extend_from_ptr(p, strlen(p))
+        result.append('\n')
+
+    result.append('\0')
+    return result.ptr
+
 
 @public
 def step5_gather_expected_outputs(tests: List[Test]) -> None:
     # TODO: do this properly
     for test = tests.ptr; test < tests.end(); test++:
-        test.expected_output = strdup("")
+        test.expected_output = find_expected_output(test.path)
