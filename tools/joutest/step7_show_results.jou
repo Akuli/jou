@@ -37,7 +37,7 @@ def show_failures(tests: List[Test]) -> None:
                 message: byte[300] = ""
                 FormatMessageA(
                     FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                    NULL, GetLastError(), 0, message, sizeof(message) as uint32, NULL,
+                    NULL, t.detail_result.start_error as uint32, 0, message, sizeof(message) as uint32, NULL,
                 )
                 puts(message)
             else:
@@ -55,7 +55,7 @@ def show_failures(tests: List[Test]) -> None:
                 t.detail_result.exit_code,
             )
         else:
-            assert False  # There seems to be nothing wrong?...
+            assert False  # There seems to be nothing wrong, but it failed?...
 
         printf("\n")
     printf("\n")
