@@ -54,7 +54,7 @@ def show_failures(tests: List[Test]) -> None:
         else:
             # The process completed, perhaps not successfully but it did something.
             # Output can be wrong, exit code can be wrong, both can be wrong.
-            if strcmp(t.expected_output, t.actual_output) != 0:
+            if t.uses_output_capturing and strcmp(t.expected_output, t.actual_output) != 0:
                 print_diff(t.expected_output, t.actual_output)
 
             if t.detail_result.exit_code != 0:

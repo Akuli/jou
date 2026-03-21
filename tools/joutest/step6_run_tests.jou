@@ -195,10 +195,7 @@ else:
         message: byte[300]
 
         actions: posix_spawn_file_actions_t
-        if (
-            test.stdout_capture_mode != CaptureMode.DoNotCapture
-            or test.stderr_capture_mode != CaptureMode.DoNotCapture
-        ):
+        if test.uses_output_capturing:
             pipefd: int[2]
             if pipe(&pipefd) != 0:
                 snprintf(message, sizeof(message), "pipe() failed: %s", strerror(get_errno()))
@@ -261,7 +258,7 @@ else:
             return
 
         assert test.actual_output == NULL
-        if pipe_read != -1:
+        if test.uses_output_capturing:
             output = List[byte]{}
             buf: byte[4096]
             while True:
