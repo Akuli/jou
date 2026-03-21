@@ -135,8 +135,6 @@ For example, commenting out or removing `test_minus()` from `main()` in the abov
 ```diff
 F
 
-------- FAILURES -------
-
 *** Command: jou a.jou ***
 +compiler warning for file "a.jou", line 7: function 'test_minus' defined but not used
  3
