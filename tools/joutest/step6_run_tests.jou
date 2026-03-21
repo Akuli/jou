@@ -121,7 +121,7 @@ if WINDOWS:
 
         error: byte[300]
 
-        if WaitForSingleObject(pi.hProcess, INFINITE) != 0:
+        if WaitForSingleObject(process_info.hProcess, INFINITE) != 0:
             # Cannot be caused by the program being tested, something else is wrong
             # Basically, this should never
             gle = get_last_error_string()
@@ -129,13 +129,13 @@ if WINDOWS:
             fail(error)
 
         exit_code: uint32 = 0
-        if GetExitCodeProcess(pi.hProcess, &exit_code) == 0:
+        if GetExitCodeProcess(process_info.hProcess, &exit_code) == 0:
             gle = get_last_error_string()
             snprintf(error, sizeof(error), "GetExitCodeProcess() failed: %s", gle)
             fail(error)
 
-        CloseHandle(pi.hProcess)
-        CloseHandle(pi.hThread)
+        CloseHandle(process_info.hProcess)
+        CloseHandle(process_info.hThread)
         return DetailResult{exit_code = exit_code as int}
 
 else:
