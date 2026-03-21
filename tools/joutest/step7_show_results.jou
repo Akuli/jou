@@ -43,11 +43,15 @@ def show_failures(tests: List[Test]) -> None:
             else:
                 puts(strerror(t.detail_result.start_error))
         elif t.detail_result.terminating_signal != 0:
-            printf(
-                "Process was killed by signal %d: %s\n",
-                t.detail_result.terminating_signal,
-                strsignal(t.detail_result.terminating_signal),
-            )
+            if WINDOWS:
+                # This shouldn't be possible. Windows doesn't have signals.
+                assert False
+            else:
+                printf(
+                    "Process was killed by signal %d: %s\n",
+                    t.detail_result.terminating_signal,
+                    strsignal(t.detail_result.terminating_signal),
+                )
         elif t.detail_result.exit_code != 0:
             # TODO: make the correct exit code configurable
             printf(
