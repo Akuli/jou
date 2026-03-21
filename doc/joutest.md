@@ -325,26 +325,26 @@ Plan and status:
     - walk through and apply each relevant TOML section
     - this is where most of the validation should happen
 5. gather expected outputs
-    - read files and parse for comments
+    - [DONE] read files and parse for comments
     - markdown: must seek
 6. run tests
     - pre-test command like `make`
         - TODO: how about `./runtests.sh --dont-run-make`?
-    - Windows:
-        - use `CreateProcessA` (maybe later `CreateProcessW`)
-        - set `lpApplicationName` to NULL and `lpCommandLine` like `"jou file.jou"`,
+    - [DONE] Windows:
+        - [DONE] use `CreateProcessA` (maybe later `CreateProcessW`)
+        - [DONE] set `lpApplicationName` to NULL and `lpCommandLine` like `"jou file.jou"`,
             so that `joutest.exe` will always prefer a `jou.exe`
             in the same directory with `joutest.exe` over anything that might be in `%PATH%`
-        - implement the notorious CRT quoting rules
+        - [DONE] implement the notorious CRT quoting rules
             to construct the string of arguments that no shell will ever see
-    - POSIX:
-        - use `posix_spawnp()`
-        - prepend dirname of joutest executable to `$PATH`,
+    - [DONE] POSIX:
+        - [DONE] use `posix_spawnp()`
+        - [DONE] prepend dirname of joutest executable to `$PATH`,
             so that `joutest.exe` will always prefer a `jou` in the same directory with `joutest`
-    - if configured, capture stdout/stderr
+    - [DONE] if configured, capture stdout/stderr
     - if configured, discard stdout/stderr
     - run in parallel
 7. show results
-    - show diffs (need that algorithm.......)
-    - show how many succeeded and failed
+    - [DONE] show diffs (need that algorithm.......)
+    - [DONE] show how many succeeded and failed
     - [DONE] exit 0 or 1
