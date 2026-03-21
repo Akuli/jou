@@ -95,7 +95,7 @@ if WINDOWS:
     # The OS does not have a concept of separate arguments.
     #
     # This does not pass the given string to a shell.
-    def run_command(string: byte*) -> DetailResult:
+    def run_command(string: byte*) -> None:
         startup_info = STARTUPINFOA{}
         startup_info.cb = sizeof(startup_info) as uint32
         process_info = PROCESS_INFORMATION{}
@@ -117,7 +117,8 @@ if WINDOWS:
         free(string)
 
         if ret == 0:
-            return DetailResult{start_error = GetLastError() as int}
+            test.detail_result.start_error = GetLastError() as int
+            return
 
         error: byte[300]
 
@@ -134,7 +135,7 @@ if WINDOWS:
 
         CloseHandle(process_info.hProcess)
         CloseHandle(process_info.hThread)
-        return DetailResult{exit_code = exit_code as int}
+        test.detail_result.exit_code = exit_code as int
 
 else:
     declare posix_spawnp(
@@ -146,6 +147,8 @@ else:
         envp: byte**,
     ) -> int
     declare waitpid(pid: int, wstatus: int*, options: int) -> int
+    declare pipe(pipefd: int[2]*) -> int
+    declare close(fd: int) -> int
     declare global environ: byte**
 
     # Returns True if the process terminated with a signal
@@ -165,22 +168,23 @@ else:
     def WTERMSIG(s: int) -> int:
         return s & 0x7f
 
-    # TODO: capture the output
-    # TODO: make it optional whether output is captured or not
-    def run_command(args: List[byte*]) -> DetailResult:
-        assert args.len > 0
-
-        argv: byte** = malloc(sizeof(argv[0]) * (args.len + 1))
-        assert argv != NULL
-        memcpy(argv, args.ptr, sizeof(argv[0]) * args.len)
-        argv[args.len] = NULL
+    def run_command(test: Test*) -> None:
+        assert test.actual_command_list.len > 0
 
         pid = 0
-        errno_code = posix_spawnp(&pid, argv[0], NULL, NULL, argv, environ)
-        free(argv)
+        test.actual_command_list.append(NULL)
+        test.detail_result.start_error = posix_spawnp(
+            &pid,
+            test.actual_command_list.ptr[0],
+            NULL,
+            NULL,
+            test.actual_command_list.ptr,
+            environ,
+        )
+        test.actual_command_list.pop()
 
-        if errno_code != 0:
-            return DetailResult{start_error = errno_code}
+        if test.detail_result.start_error != 0:
+            return
 
         message: byte[300]
 
@@ -191,10 +195,10 @@ else:
             fail(message)
 
         if WIFEXITED(wstatus):
-            return DetailResult{exit_code = WEXITSTATUS(wstatus)}
+            test.detail_result.exit_code = WEXITSTATUS(wstatus)
         elif WIFSIGNALED(wstatus):
             assert WTERMSIG(wstatus) != 0
-            return DetailResult{terminating_signal = WTERMSIG(wstatus)}
+            test.detail_result.terminating_signal = WTERMSIG(wstatus)
         else:
             # I'm not quite sure whether this can ever happen.
             snprintf(message, sizeof(message), "waitpid() gave a status that is neither exit nor signal: %#08x", wstatus)
@@ -202,14 +206,12 @@ else:
 
 
 def run_test(test: Test*, args: CommandLineArgs*) -> None:
+    printf("BLAA %s stdout=%d stderr=%d\n", test.path, test.stdout_capture_mode as int, test.stderr_capture_mode as int)
     if args.verbose:
         printf("%srun:%s %s\n", BLUE, RESET, test.actual_command_string)
         fflush(get_stdout())
 
-    if WINDOWS:
-        test.detail_result = run_command(test.actual_command_string)
-    else:
-        test.detail_result = run_command(test.actual_command_list)
+    run_command(test)
 
     if (
         test.detail_result.start_error == 0

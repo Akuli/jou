@@ -2,7 +2,6 @@ import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/toml.jou"
-import "stdlib/mem.jou"
 
 import "./fail.jou"
 import "./state.jou"
@@ -119,9 +118,9 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 # Already handled in previous step that created the test
                 pass
             case "stdout":
-                test.stdout = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
+                test.stdout_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
             case "stderr":
-                test.stderr = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
+                test.stderr_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
             case _:
                 snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
                 fail_in_toml(kv.value.lineno, error)
@@ -131,6 +130,13 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
 def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     # TODO: do this properly
     for test = tests.ptr; test < tests.end(); test++:
+        # TODO: It might be better to loop backwards and explicitly ignore
+        #       settings that have been already set. This way we can mark the
+        #       used parts of TOML and later show warning about stuff that was
+        #       ignored entirely.
+        for toml = test.relevant_toml_tables.ptr; toml < test.relevant_toml_tables.end(); toml++:
+            apply_settings_to_test(*toml, test)
+
         assert test.actual_command_list.len == 0
         test.actual_command_list.append("jou")
         test.actual_command_list.append(test.path)
