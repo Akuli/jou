@@ -1,7 +1,10 @@
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+import "stdlib/toml.jou"
+import "stdlib/mem.jou"
 
+import "./fail.jou"
 import "./state.jou"
 
 
@@ -76,6 +79,52 @@ if not WINDOWS:
 
         result.append('\0')
         return result.ptr
+
+
+def enum_from_toml_keyval(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> int:
+    # Sanity checks, so that creating the error message below is simpler
+    # This ensures that the strings themselves take up much less than 1kB.
+    assert strlen(kv.key) < 100
+    assert nstrings > 0
+    assert nstrings <= 10
+    for i = 0; i < nstrings; i++:
+        assert strlen(strings[i]) < 100
+
+    s = toml_to_string(&kv.value)
+    if s != NULL:
+        for i = 0; i < nstrings; i++:
+            if strcmp(s, strings[i]) == 0:
+                return i
+
+    error: byte[2000]  # surely big enough, see above
+    sprintf(error, "'%s' must be \"%s\"", kv.key, strings[0])
+    for i = 1; i < nstrings; i++:
+        if i == nstrings - 1:
+            sprintf(&error[strlen(error)], " or \"%s\"", strings[i])
+        else:
+            sprintf(&error[strlen(error)], ", \"%s\"", strings[i])
+    fail_in_toml(kv.value.lineno, error)
+
+
+def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
+    assert toml != NULL
+    assert toml.type == TOMLType.Table
+    assert test != NULL
+
+    error: byte[200]
+
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        match kv.key with strcmp:
+            case "files":
+                # Already handled in previous step that created the test
+                pass
+            case "stdout":
+                test.stdout = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
+            case "stderr":
+                test.stderr = enum_from_toml_keyval(kv, STD_OUT_ERR_NAMES, enum_count(StdOutErr)) as StdOutErr
+            case _:
+                snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
+                fail_in_toml(kv.value.lineno, error)
 
 
 @public
