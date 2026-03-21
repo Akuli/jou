@@ -54,7 +54,6 @@ def main() -> int:
         assert json_is_valid(line)
 
         for j = json_array_first(json_get(line, "args")); j != NULL; j = json_array_next(j):
-            puts(j)
             arg = json_to_string(j)
             assert arg != NULL
             args.append(arg)
@@ -75,7 +74,6 @@ def main() -> int:
             print_string_with_some_very_basic_escaping(got)
             printf("  JSON data: ")
             puts(line)
-            printf("\n")
 
         free(expected)
         free(got)
