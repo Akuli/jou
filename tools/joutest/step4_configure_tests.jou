@@ -17,6 +17,13 @@ def command_to_string_windows(command: List[byte*]) -> byte*:
         quoting = arg[0] == '\0' or strstr(arg, " ") != NULL
         if quoting:
             result.append('"')
+        while *arg != '\0':
+            match *arg:
+                case '"':
+                    result.append('\\')
+                    result.append(*arg++)
+                case _:
+                    result.append(*arg++)
         result.extend_from_ptr(arg, strlen(arg))
         if quoting:
             result.append('"')
