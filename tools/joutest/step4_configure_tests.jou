@@ -14,7 +14,7 @@ def command_to_string_windows(command: List[byte*]) -> byte*:
             result.append(' ')
         arg = command.ptr[i]
 
-        quoting = arg[0] == '\0'
+        quoting = arg[0] == '\0' or strstr(arg, " ") != NULL
         if quoting:
             result.append('"')
         result.extend_from_ptr(arg, strlen(arg))
