@@ -54,7 +54,8 @@ run: jou "tests/test_klondike.jou"
 ## Output Comments
 
 By default, `joutest` checks that your test files print exactly what they are supposed to print.
-It determines the expected output from for comments like `# Output: foo` in the file being tested.
+To determine the expected output, `joutest` collects all `# Output: foo` comments from the file being tested
+in the order they appear in the file.
 The space after `:` is required, but as a special case,
 `# Output:` at the end of a line means an empty line of output.
 
@@ -66,7 +67,7 @@ import "stdlib/io.jou"
 def main() -> int:
     # Output: Hello
     # Output: World
-    printf("Hello\nWorld\n")   
+    printf("Hello\nWorld\n")
 
     # Empty line
     printf("\n")    # Output:
@@ -102,10 +103,50 @@ F
 The colors that joutest actually uses are slightly different than what's shown above,
 because this documentation is limited to GitHub's syntax highlighting.
 
-The important thing to note is that red `-` lines are the expected output,
+In `joutest` diffs, red `-` lines are the expected output,
 and green `+` lines are the actual output.
-This is backwards from the usual "red is bad and green is good" thinking,
+This is backwards compared to the usual "red is bad and green is good" thinking,
 but consistent with the "red was changed to green" coloring that is almost always used with diffs.
+
+If you want to split up a test file into multiple pieces,
+just make functions and call them from `main()` in the order they are defined. For example:
+
+```python
+import "stdlib/io.jou"
+
+def test_plus() -> None:
+    printf("%d\n", 1 + 2)  # Output: 3
+    printf("%d\n", 123 + 456)  # Output: 579
+
+def test_minus() -> None:
+    printf("%d\n", 1 - 2)  # Output: -1
+    printf("%d\n", 456 - 123)  # Output: 333
+
+def main() -> int:
+    test_plus()
+    test_minus()
+    return 0
+```
+
+If you forget to call one of the functions in `main()`,
+you will get a compiler warning that will show up in the diff.
+For example, commenting out or removing `test_minus()` from `main()` in the above example produces:
+
+```diff
+F
+
+------- FAILURES -------
+
+*** Command: jou a.jou ***
++compiler warning for file "a.jou", line 7: function 'test_minus' defined but not used
+ 3
+ 579
+--1
+-333
+
+
+0 succeeded, 1 failed
+```
 
 
 ## Condition Tables
