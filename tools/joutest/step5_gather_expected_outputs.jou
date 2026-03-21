@@ -44,6 +44,5 @@ def find_expected_output(path: byte*) -> byte*:
 
 @public
 def step5_gather_expected_outputs(tests: List[Test]) -> None:
-    # TODO: do this properly
     for test = tests.ptr; test < tests.end(); test++:
         test.expected_output = find_expected_output(test.path)
