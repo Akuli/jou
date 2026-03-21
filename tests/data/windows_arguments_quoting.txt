@@ -8,7 +8,9 @@
 #
 #    print("# This file was generated with the following Python script:")
 #    print("#")
-#    print("#    " + open(__file__).read().replace("\n", "\n#    ").replace("    \n", "\n").strip())
+#    for line in open(__file__).readlines():
+#        print(("#    " + line).rstrip())
+#    print("#")
 #
 #    def md5(string):
 #        return hashlib.md5(string.encode()).hexdigest()

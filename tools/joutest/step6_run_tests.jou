@@ -1,7 +1,7 @@
 # This actually runs the tests.
 #
-# Most of the result reporting happens later, but a little bit of output is
-# printed as the tests run.
+# Most of the result reporting happens later, but some output is printed as the
+# tests run.
 #
 # Note about error handling
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -122,8 +122,6 @@ if WINDOWS:
         error: byte[300]
 
         if WaitForSingleObject(process_info.hProcess, INFINITE) != 0:
-            # Cannot be caused by the program being tested, something else is wrong
-            # Basically, this should never
             gle = get_last_error_string()
             snprintf(error, sizeof(error), "WaitForSingleObject() failed: %s", gle)
             fail(error)
@@ -189,9 +187,6 @@ else:
         wstatus = 0
         ret = waitpid(pid, &wstatus, 0)
         if ret == -1:
-            # Should not happen regardless of what the process being tested does.
-            # Let's stop the entire test runner if it does happen, so I hopefully
-            # get a bug report on github.
             snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
             fail(message)
 
@@ -202,8 +197,6 @@ else:
             return DetailResult{terminating_signal = WTERMSIG(wstatus)}
         else:
             # I'm not quite sure whether this can ever happen.
-            # Let's stop the entire test runner if it does happen, so I hopefully
-            # get a bug report on github.
             snprintf(message, sizeof(message), "waitpid() gave a status that is neither exit nor signal: %#08x", wstatus)
             fail(message)
 
@@ -308,7 +301,7 @@ if not WINDOWS:
     # Adds the directory containing joutest to PATH. It usually contains the
     # Jou compiler.
     #
-    # This is not needed on Windows, because Windowslooks at the directory
+    # This is not needed on Windows, because Windows looks at the directory
     # containing joutest.exe before even considering PATH. Windows is weird,
     # but in this case the Windows behavior is what we want.
     def add_joutest_dir_to_PATH() -> None:
