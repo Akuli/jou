@@ -5,7 +5,9 @@ import "stdlib/str.jou"
 import "./state.jou"
 
 
-@public  # public for tests
+# This is public and available on all platforms, because there's a test that
+# imports this.
+@public
 def command_to_string_windows(command: List[byte*]) -> byte*:
     result = List[byte]{}
 
@@ -19,19 +21,19 @@ def command_to_string_windows(command: List[byte*]) -> byte*:
             result.append('"')
 
         backslash_count = 0
-        while *arg != '\0':
-            match *arg:
+        for p = arg; *p != '\0'; p++:
+            match *p:
                 case '\\':
-                    result.append(*arg++)
+                    result.append('\\')
                     backslash_count++
                 case '"':
                     # Put double backslashes before quote
                     for ; backslash_count > 0; backslash_count--:
                         result.append('\\')
                     result.append('\\')
-                    result.append(*arg++)
+                    result.append('"')
                 case _:
-                    result.append(*arg++)
+                    result.append(*p)
                     backslash_count = 0
 
         if quoting:
