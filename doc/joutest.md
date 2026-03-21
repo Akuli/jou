@@ -48,6 +48,61 @@ run: jou "tests/test_klondike.jou"
 ```
 
 
+## Output Comments
+
+By default, `joutest` checks that your test files print exactly what they are supposed to print.
+It determines the expected output from for comments like `# Output: foo` in the file being tested.
+The space after `:` is required, but as a special case,
+`# Output:` at the end of a line means an empty line of output.
+
+For example, the following test passes:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    # Output: Hello
+    # Output: World
+    printf("Hello\nWorld\n")   
+
+    # Empty line
+    printf("\n")    # Output:
+
+    printf("Bla1\n")    # Output: Bla1
+    printf("Bla2\n")    # Output: Bla2
+    printf("Bla3\n")    # Output: Bla3
+    printf("Bla4\n")    # Output: Bla4
+    printf("Bla5\n")    # Output: Bla5
+
+    return 0
+```
+
+If the expected and actual output do not match, `joutest` shows a diff.
+For example, changing `printf("Bla4\n")` to `printf("Baa4\n")` above produces the following output:
+
+```diff
+F
+
+------- FAILURES -------
+
+*** Command: jou test.jou ***
+@@ 3 lines not shown @@
+ Bla1
+ Bla2
+ Bla3
+-Bla4
++Baa4
+ Bla5
+
+
+0 succeeded, 1 failed
+```
+
+So red `-` lines are the expected output, and green `+` lines are the actual output.
+Note that this is backwards from "red is bad and green is good" thinking,
+but consistent with the "red was changed to green" coloring that is very common with diffs.
+
+
 ## Condition Tables
 
 Let's say that for whatever reason, you have separate test files
