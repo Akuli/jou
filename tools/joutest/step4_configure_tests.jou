@@ -17,15 +17,28 @@ def command_to_string_windows(command: List[byte*]) -> byte*:
         quoting = arg[0] == '\0' or strstr(arg, " ") != NULL or strstr(arg, "\t") != NULL
         if quoting:
             result.append('"')
+
+        backslash_count = 0
         while *arg != '\0':
+            backslash_count = 0
             match *arg:
+                case '\\':
+                    result.append(*arg++)
+                    backslash_count++
                 case '"':
+                    # Put double backslashes before quote
+                    for ; backslash_count > 0; backslash_count--:
+                        result.append('\\')
                     result.append('\\')
                     result.append(*arg++)
                 case _:
                     result.append(*arg++)
-        result.extend_from_ptr(arg, strlen(arg))
+                    backslash_count = 0
+
         if quoting:
+            # Put double backslashes before quote
+            for ; backslash_count > 0; backslash_count--:
+                result.append('\\')
             result.append('"')
 
     result.append('\0')
