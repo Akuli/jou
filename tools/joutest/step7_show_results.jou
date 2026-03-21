@@ -1,10 +1,12 @@
 import "stdlib/assert.jou"
+import "stdlib/str.jou"
 import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/process.jou"
 
 import "./ansi_colors.jou"
+import "./diff.jou"
 import "./state.jou"
 
 if WINDOWS:
@@ -52,14 +54,18 @@ def show_failures(tests: List[Test]) -> None:
                     t.detail_result.terminating_signal,
                     strsignal(t.detail_result.terminating_signal),
                 )
-        elif t.detail_result.exit_code != 0:
-            # TODO: make the correct exit code configurable
-            printf(
-                "Process exited with code %d. The correct exit code would be 0.\n",
-                t.detail_result.exit_code,
-            )
         else:
-            assert False  # There seems to be nothing wrong, but it failed?...
+            # The process completed, perhaps not successfully but it did something.
+            # Output can be wrong, exit code can be wrong, both can be wrong.
+            if strcmp(t.expected_output, t.actual_output) != 0:
+                print_diff(t.expected_output, t.actual_output)
+
+            if t.detail_result.exit_code != 0:
+                # TODO: make the correct exit code configurable
+                printf(
+                    "Process exited with code %d. The correct exit code would be 0.\n",
+                    t.detail_result.exit_code,
+                )
 
         printf("\n")
     printf("\n")

@@ -16,11 +16,10 @@ enum SimpleResult:
 @public
 enum CaptureMode:
     CompareToComments   # (default) expected output comes from comments like "# Output: hello"
-    Discard             # > /dev/null
     DoNotCapture        # do nothing with the output, let it go to console
 
 @public
-global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comments", "discard", "do_not_capture"]
+global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comments", "do_not_capture"]
 
 @public
 class DetailResult:
@@ -45,6 +44,6 @@ class Test:
     expected_output: byte*
 
     # These are set in step 6 (run tests)
-    actual_output: List[byte]
+    actual_output: byte*
     simple_result: SimpleResult
     detail_result: DetailResult
