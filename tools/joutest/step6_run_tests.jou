@@ -213,7 +213,10 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
         printf("%srun:%s %s\n", BLUE, RESET, test.actual_command_string)
         fflush(get_stdout())
 
-    test.detail_result = run_command(test.actual_command_list)
+    if WINDOWS:
+        test.detail_result = run_command(test.actual_command_string)
+    else:
+        test.detail_result = run_command(test.actual_command_list)
 
     if (
         test.detail_result.start_error == 0

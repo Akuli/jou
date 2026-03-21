@@ -5,7 +5,8 @@ import "stdlib/str.jou"
 import "./state.jou"
 
 
-def command_to_string(command: List[byte*]) -> byte*:
+@public  # public for tests
+def command_to_string_windows(command: List[byte*]) -> byte*:
     result = List[byte]{}
 
     for i = 0; i < command.len; i++:
@@ -13,9 +14,22 @@ def command_to_string(command: List[byte*]) -> byte*:
             result.append(' ')
         arg = command.ptr[i]
 
-        if WINDOWS:
-            assert False  # TODO
-        else:
+        # TODO: actually implement this
+        result.extend_from_ptr(arg, strlen(arg))
+
+    result.append('\0')
+    return result.ptr
+
+
+if not WINDOWS:
+    def command_to_string_posix(command: List[byte*]) -> byte*:
+        result = List[byte]{}
+
+        for i = 0; i < command.len; i++:
+            if i != 0:
+                result.append(' ')
+            arg = command.ptr[i]
+
             # The string below is ASCII characters that are safe to include in
             # commands without quoting, in ASCII order (doesn't really matter).
             #
@@ -35,8 +49,8 @@ def command_to_string(command: List[byte*]) -> byte*:
                         result.append(*arg)
                 result.append('\'')
 
-    result.append('\0')
-    return result.ptr
+        result.append('\0')
+        return result.ptr
 
 
 @public
@@ -48,4 +62,7 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         test.actual_command_list.append(test.path)
 
         assert test.actual_command_string == NULL
-        test.actual_command_string = command_to_string(test.actual_command_list)
+        if WINDOWS:
+            test.actual_command_string = command_to_string_windows(test.actual_command_list)
+        else:
+            test.actual_command_string = command_to_string_posix(test.actual_command_list)
