@@ -128,7 +128,6 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
 
 @public
 def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
-    # TODO: do this properly
     for test = tests.ptr; test < tests.end(); test++:
         # TODO: It might be better to loop backwards and explicitly ignore
         #       settings that have been already set. This way we can mark the
@@ -146,3 +145,8 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             test.actual_command_string = command_to_string_windows(test.actual_command_list)
         else:
             test.actual_command_string = command_to_string_posix(test.actual_command_list)
+
+        test.uses_output_capturing = (
+            test.stdout_capture_mode != CaptureMode.DoNotCapture
+            or test.stderr_capture_mode != CaptureMode.DoNotCapture
+        )

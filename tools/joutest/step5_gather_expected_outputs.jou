@@ -18,25 +18,18 @@ def find_expected_output(path: byte*) -> byte*:
     result = List[byte]{}
     line: byte[4096]
     while fgets(line, sizeof(line), f) != NULL:
-        if ends_with(line, "\n"):
-            line[strlen(line) - 1] = '\0'
-            if ends_with(line, "\r"):
-                line[strlen(line) - 1] = '\0'
+        if ends_with(line, "\r\n"):
+            strcpy(&line[strlen(line) - 2], "\n")
 
         marker = "# Output:"
-        p = strstr(line, marker)
-        if p == NULL:
-            continue
-
-        # Find the last occurrence
-        while p != NULL and strstr(&p[1], marker) != NULL:
-            p = strstr(&p[1], marker)
-
-        p = &p[strlen(marker)]
-        if *p == ' ':
-            p++
-        result.extend_from_ptr(p, strlen(p))
-        result.append('\n')
+        for p = &line[strlen(line)]; p >= &line[0]; p--:
+            if starts_with(p, marker):
+                after_marker = &p[strlen(marker)]
+                if *after_marker == ' ' or *after_marker == '\n':
+                    if *after_marker == ' ':
+                        after_marker++
+                    result.extend_from_ptr(after_marker, strlen(after_marker))
+                    break
 
     result.append('\0')
     return result.ptr
@@ -45,8 +38,5 @@ def find_expected_output(path: byte*) -> byte*:
 @public
 def step5_gather_expected_outputs(tests: List[Test]) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        if (
-            test.stdout_capture_mode != CaptureMode.DoNotCapture
-            or test.stderr_capture_mode != CaptureMode.DoNotCapture
-        ):
-           test.expected_output = find_expected_output(test.path)
+        if test.uses_output_capturing:
+            test.expected_output = find_expected_output(test.path)
