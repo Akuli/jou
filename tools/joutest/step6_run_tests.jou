@@ -96,7 +96,8 @@ if WINDOWS:
     #
     # This does not pass the given string to a shell.
     def run_command(string: byte*) -> DetailResult:
-        startup_info = STARTUPINFOA{cb = sizeof(startup_info)}
+        startup_info = STARTUPINFOA{}
+        startup_info.cb = sizeof(startup_info)
         process_info = PROCESS_INFORMATION{}
 
         string = strdup(string)  # Apparently windows may modify it, don't know why...
