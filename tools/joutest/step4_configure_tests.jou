@@ -20,7 +20,6 @@ def command_to_string_windows(command: List[byte*]) -> byte*:
 
         backslash_count = 0
         while *arg != '\0':
-            backslash_count = 0
             match *arg:
                 case '\\':
                     result.append(*arg++)
