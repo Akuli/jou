@@ -1,0 +1,87 @@
+# Quoting command-line arguments is quite complicated on Windows. And also more
+# important to get right, because command-line arguments are given to the
+# program as a string, and the program splits them up with the rules.
+#
+# This test ensures that Jou's argument handling behaves just like Python's
+# argument handling. The test doesn't depend on Python, because it reads a
+# bunch of deterministically generated test cases from a file.
+
+import "stdlib/ascii.jou"
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/json.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+# This is where the quoting function currently lives
+import "../../tools/joutest/step4_configure_tests.jou"
+
+
+def print_string_with_some_very_basic_escaping(s: byte*) -> None:
+    while *s != '\0':
+        c = *s++
+        match c:
+            case '\r':
+                printf("(the \\r byte)")
+            case '\n':
+                printf("(the \\n byte)")
+            case '\t':
+                printf("(the \\t byte)")
+            case _:
+                putchar(c)
+    printf("\n")
+
+
+def main() -> int:
+    f = fopen("tests/data/windows_arguments_quoting.txt", "rb")
+    if f == NULL:
+        # probably running the file in the directory that contains it
+        f = fopen("../../tests/data/windows_arguments_quoting.txt", "rb")
+    assert f != NULL
+
+    ok = 0
+    total = 0
+    line: byte[1000]
+    args = List[byte*]{}
+
+    while fgets(line, sizeof(line), f) != NULL:
+        trim_ascii_whitespace(line)
+        if line[0] == '\0' or line[0] == '#':
+            continue
+        total++
+
+        assert json_is_valid(line)
+
+        for j = json_array_first(json_get(line, "args")); j != NULL; j = json_array_next(j):
+            arg = json_to_string(j)
+            assert arg != NULL
+            args.append(arg)
+
+        expected = json_to_string(json_get(line, "string"))
+        assert expected != NULL
+
+        got = command_to_string_windows(args)
+        assert got != NULL
+
+        if strcmp(expected, got) == 0:
+            ok++
+        else:
+            printf("Quoting command-line arguments for Windows doesn't work right.\n")
+            printf("  Expected:  ")
+            print_string_with_some_very_basic_escaping(expected)
+            printf("  Got:       ")
+            print_string_with_some_very_basic_escaping(got)
+            printf("  JSON data: ")
+            puts(line)
+
+        free(expected)
+        free(got)
+        while args.len > 0:
+            free(args.pop())
+
+    printf("%d/%d ok\n", ok, total)  # Output: 1000/1000 ok
+
+    free(args.ptr)
+    fclose(f)
+    return 0

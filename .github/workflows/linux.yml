@@ -56,3 +56,10 @@ jobs:
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
       - run: ./doctest.sh
       - run: tests/toml/run.sh --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Run the new test runner"
+        run: make joutest && ./joutest --verbose
+      - name: "Run the new test runner with valgrind"
+        # No leak checking flags here, currently joutest is a bit leaky and I'm
+        # not sure if I want to fix it. The OS frees all memory anyway when
+        # joutest exits.
+        run: valgrind --error-exitcode=1 ./joutest --verbose

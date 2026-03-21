@@ -1,4 +1,18 @@
+# This actually runs the tests.
+#
+# Most of the result reporting happens later, but some output is printed as the
+# tests run.
+#
+# Note about error handling
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# If a test crashes in any way (wrong exit code, wrong output, dies with signal),
+# we should report the failure and keep going to run other tests. However, if
+# something else seems to be wrong, then the test runner process or the OS is
+# broken in some way, and you should use fail() to stop the test runner.
+
 import "stdlib/assert.jou"
+import "stdlib/errno.jou"
+import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
@@ -6,47 +20,317 @@ import "stdlib/process.jou"
 import "stdlib/str.jou"
 
 import "./ansi_colors.jou"
+import "./fail.jou"
 import "./state.jou"
-import "./step1_parse_command_line_args.jou"
+
+
+if WINDOWS:
+    class STARTUPINFOA:
+        cb: uint32
+        lpReserved: byte*
+        lpDesktop: byte*
+        lpTitle: byte*
+        dwX: uint32
+        dwY: uint32
+        dwXSize: uint32
+        dwYSize: uint32
+        dwXCountChars: uint32
+        dwYCountChars: uint32
+        dwFillAttribute: uint32
+        dwFlags: uint32
+        wShowWindow: uint16
+        cbReserved2: uint16
+        lpReserved2: byte*
+        hStdInput: intnative
+        hStdOutput: intnative
+        hStdError: intnative
+
+    class PROCESS_INFORMATION:
+        hProcess: intnative
+        hThread: intnative
+        dwProcessId: uint32
+        dwThreadId: uint32
+
+    declare FormatMessageA(
+        dwFlags: uint32,
+        lpSource: void*,
+        dwMessageId: uint32,
+        dwLanguageId: uint32,
+        lpBuffer: byte*,
+        nSize: uint32,
+        Arguments: void*,  # actually va_list*
+    ) -> uint32
+    declare CreateProcessA(
+        lpApplicationName: byte*,
+        lpCommandLine: byte*,  # may be modified! at least in the W version. Windows is weird...
+        lpProcessAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+        lpThreadAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+        bInheritHandles: int,
+        dwCreationFlags: uint32,
+        lpEnvironment: void*,
+        lpCurrentDirectory: byte*,
+        lpStartupInfo: STARTUPINFOA*,
+        lpProcessInformation: PROCESS_INFORMATION*,
+    ) -> int
+    declare GetLastError() -> uint32
+    declare WaitForSingleObject(handle: intnative, dwMilliseconds: uint32) -> uint32
+    declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
+    declare CloseHandle(hObject: intnative) -> int
+
+    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
+    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
+    const INFINITE: uint32 = 0xffff_ffff
+
+    def get_last_error_string() -> byte[300]:
+        result: byte[300] = ""
+        FormatMessageA(
+            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            NULL, GetLastError(), 0, result, sizeof(result) as uint32, NULL,
+        )
+        return result
+
+    # This takes a string because that's how windows works. The command line of
+    # a Windows process is a string at the lowest level. The process itself
+    # (typically libc) splits it into argc and argv or similar, if it wants.
+    # The OS does not have a concept of separate arguments.
+    #
+    # This does not pass the given string to a shell.
+    def run_command(string: byte*) -> DetailResult:
+        startup_info = STARTUPINFOA{}
+        startup_info.cb = sizeof(startup_info) as uint32
+        process_info = PROCESS_INFORMATION{}
+
+        string = strdup(string)  # Apparently windows may modify it, don't know why...
+        # Note for future refactoring: bInheritHandles should be TRUE when output is redirected
+        ret = CreateProcessA(
+            NULL,  # Program name is a part of our arguments string
+            string,
+            NULL,
+            NULL,
+            False as int,  # Should be TRUE when we need output redirecting
+            0,
+            NULL,
+            NULL,
+            &startup_info,
+            &process_info,
+        )
+        free(string)
+
+        if ret == 0:
+            return DetailResult{start_error = GetLastError() as int}
+
+        error: byte[300]
+
+        if WaitForSingleObject(process_info.hProcess, INFINITE) != 0:
+            gle = get_last_error_string()
+            snprintf(error, sizeof(error), "WaitForSingleObject() failed: %s", gle)
+            fail(error)
+
+        exit_code: uint32 = 0
+        if GetExitCodeProcess(process_info.hProcess, &exit_code) == 0:
+            gle = get_last_error_string()
+            snprintf(error, sizeof(error), "GetExitCodeProcess() failed: %s", gle)
+            fail(error)
+
+        CloseHandle(process_info.hProcess)
+        CloseHandle(process_info.hThread)
+        return DetailResult{exit_code = exit_code as int}
+
+else:
+    declare posix_spawnp(
+        pid: int*,
+        file: byte*,
+        file_actions: void*,  # actually posix_spawn_file_actions_t*
+        attrp: void*,  # actually posix_spawnattr_t*
+        argv: byte**,
+        envp: byte**,
+    ) -> int
+    declare waitpid(pid: int, wstatus: int*, options: int) -> int
+    declare global environ: byte**
+
+    # Returns True if the process terminated with a signal
+    def WIFSIGNALED(s: int) -> bool:
+        # 127 means "stopped", see WIFSTOPPED(). We should never get that value.
+        return WTERMSIG(s) != 0 and WTERMSIG(s) != 127
+
+    # Returns True if the process exited normally.
+    def WIFEXITED(s: int) -> bool:
+        return WTERMSIG(s) == 0
+
+    # If the process terminated by exiting normally, returns the exit code.
+    def WEXITSTATUS(s: int) -> int:
+        return (s >> 8) & 0xff
+
+    # If the process terminated with a signal, returns the signal number.
+    def WTERMSIG(s: int) -> int:
+        return s & 0x7f
+
+    # TODO: capture the output
+    # TODO: make it optional whether output is captured or not
+    def run_command(args: List[byte*]) -> DetailResult:
+        assert args.len > 0
+
+        argv: byte** = malloc(sizeof(argv[0]) * (args.len + 1))
+        assert argv != NULL
+        memcpy(argv, args.ptr, sizeof(argv[0]) * args.len)
+        argv[args.len] = NULL
+
+        pid = 0
+        errno_code = posix_spawnp(&pid, argv[0], NULL, NULL, argv, environ)
+        free(argv)
+
+        if errno_code != 0:
+            return DetailResult{start_error = errno_code}
+
+        message: byte[300]
+
+        wstatus = 0
+        ret = waitpid(pid, &wstatus, 0)
+        if ret == -1:
+            snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
+            fail(message)
+
+        if WIFEXITED(wstatus):
+            return DetailResult{exit_code = WEXITSTATUS(wstatus)}
+        elif WIFSIGNALED(wstatus):
+            assert WTERMSIG(wstatus) != 0
+            return DetailResult{terminating_signal = WTERMSIG(wstatus)}
+        else:
+            # I'm not quite sure whether this can ever happen.
+            snprintf(message, sizeof(message), "waitpid() gave a status that is neither exit nor signal: %#08x", wstatus)
+            fail(message)
 
 
 def run_test(test: Test*, args: CommandLineArgs*) -> None:
-    # TODO: rewrite this entirely
-    command: byte* = NULL
-    asprintf(&command, "jou \"%s\"", test.path)  # TODO: fix up PATH
-    assert command != NULL
-
     if args.verbose:
-        printf("%srun:%s %s\n", BLUE, RESET, command)
+        printf("%srun:%s %s\n", BLUE, RESET, test.actual_command_string)
         fflush(get_stdout())
 
-    if system(command) == 0:
-        test.result = TestResult.Success
+    if WINDOWS:
+        test.detail_result = run_command(test.actual_command_string)
     else:
-        test.result = TestResult.Failed
+        test.detail_result = run_command(test.actual_command_list)
+
+    if (
+        test.detail_result.start_error == 0
+        and test.detail_result.terminating_signal == 0
+        and test.detail_result.exit_code == 0
+    ):
+        test.simple_result = SimpleResult.Success
+    else:
+        test.simple_result = SimpleResult.Failed
 
     if args.verbose:
-        match test.result:
-            case TestResult.Success:
-                printf(" %sok%s  %s\n", GREEN, RESET, command)
-            case TestResult.Failed:
-                printf("%sFAIL%s %s\n", RED, RESET, command)
-            case TestResult.Skipped:
-                printf("%sskip%s %s\n", YELLOW, RESET, command)
+        match test.simple_result:
+            case SimpleResult.Success:
+                printf("%s ok %s %s\n", GREEN, RESET, test.actual_command_string)
+            case SimpleResult.Failed:
+                printf("%sFAIL%s %s\n", RED, RESET, test.actual_command_string)
+            case SimpleResult.Skipped:
+                printf("%sskip%s %s\n", YELLOW, RESET, test.actual_command_string)
     else:
-        match test.result:
-            case TestResult.Success:
-                printf("%s.%s", GREEN, RESET, command)
-            case TestResult.Failed:
-                printf("%sF%s", RED, RESET, command)
-            case TestResult.Skipped:
-                printf("%ss%s", YELLOW, RESET, command)
+        match test.simple_result:
+            case SimpleResult.Success:
+                printf("%s.%s", GREEN, RESET)
+            case SimpleResult.Failed:
+                printf("%sF%s", RED, RESET)
+            case SimpleResult.Skipped:
+                printf("%ss%s", YELLOW, RESET)
     fflush(get_stdout())
 
-    free(command)
+
+if not WINDOWS:
+    declare dirname(path: byte*) -> byte*
+    declare setenv(name: byte*, value: byte*, overwrite: int) -> int
+    if MACOS:
+        declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
+    elif NETBSD:
+        declare sysctl(
+            name: int*,
+            namelen: uint32,
+            oldp: void*,
+            oldlenp: intnative*,
+            newp: void*,  # NULL if not setting a new value
+            newlen: intnative,  # 0 if not setting a new value
+        ) -> int
+        const CTL_KERN: int = 1
+        const KERN_PROC_ARGS: int = 48
+        const KERN_PROC_PATHNAME: int = 5
+        const ENOSPC: int = 28  # No space left on this device
+    else:
+        declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
+
+    # TODO: This function is copy/pasted from Jou compiler, move to stdlib?
+    #       I removed the Windows branches because we don't need them here.
+    def find_current_executable() -> byte*:
+        if MACOS:
+            n = 1
+            result: byte* = malloc(n)
+            ret = _NSGetExecutablePath(result, &n)  # sets n to desired size
+            assert ret < 0  # didn't fit
+            result = realloc(result, n)
+            ret = _NSGetExecutablePath(result, &n)
+            if ret == 0:
+                # success
+                return result
+        else:
+            buf: byte* = NULL
+            for size = 2; True; size *= 2:
+                buf = realloc(buf, size)
+                memset(buf, 0, size)
+                if NETBSD:
+                    sysctl_name: int[4] = [CTL_KERN, KERN_PROC_ARGS, -1, KERN_PROC_PATHNAME]
+                    n: intnative = size
+                    ret = sysctl(sysctl_name, array_count(sysctl_name) as uint32, buf, &n, NULL, 0)
+                    if ret < 0 and get_errno() != ENOSPC:
+                        break  # error
+                    if n < size:
+                        return buf  # success, it fits
+                else:
+                    ret = readlink("/proc/self/exe", buf, size)
+                    success = 0 <= ret and ret < size
+                    if ret < 0:
+                        break  # error
+                    if ret < size:
+                        buf[ret] = '\0'  # Work around valgrind bug: https://bugs.kde.org/show_bug.cgi?id=514094
+                        return buf  # success, it fits
+
+        # TODO: show os error message? (GetLastError / errno)
+        fail("cannot locate currently running executable, needed for finding the Jou compiler")
+
+    # Adds the directory containing joutest to PATH. It usually contains the
+    # Jou compiler.
+    #
+    # This is not needed on Windows, because Windows looks at the directory
+    # containing joutest.exe before even considering PATH. Windows is weird,
+    # but in this case the Windows behavior is what we want.
+    def add_joutest_dir_to_PATH() -> None:
+        joutest_exe = find_current_executable()
+        joutest_dir = dirname(joutest_exe)
+        if strstr(joutest_exe, ":") != NULL:
+            fail("directory containing joutest contains ':' and hence cannot be added to PATH")
+
+        new_path: byte* = NULL
+        asprintf(&new_path, "%s:%s", joutest_dir, getenv("PATH"))
+        assert new_path != NULL
+        free(joutest_exe)
+
+        setenv("PATH", new_path, True as int)
+        free(new_path)
 
 
 @public
 def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
+    if not WINDOWS:
+        old_path = getenv("PATH")
+        if old_path == NULL:
+            fail("no PATH environment variable")
+        old_path = strdup(old_path)
+        add_joutest_dir_to_PATH()
+
     for t = tests.ptr; t < tests.end(); t++:
         run_test(t, args)
+
+    if not WINDOWS:
+        setenv("PATH", old_path, True as int)
+        free(old_path)

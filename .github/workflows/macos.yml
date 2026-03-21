@@ -84,6 +84,8 @@ jobs:
       - name: "Compile and test again"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
       - run: ./doctest.sh
+      - name: "Run the new test runner"
+        run: make joutest && ./joutest --verbose
 
   # Please keep in sync with valgrind.yml and linux-aarch64.yml
   create-issue-on-failure:

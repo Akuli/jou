@@ -1,0 +1,93 @@
+import "stdlib/assert.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+
+import "./state.jou"
+
+
+# This is public and available on all platforms, because there's a test that
+# imports this.
+@public
+def command_to_string_windows(command: List[byte*]) -> byte*:
+    result = List[byte]{}
+
+    for i = 0; i < command.len; i++:
+        if i != 0:
+            result.append(' ')
+        arg = command.ptr[i]
+
+        quoting = arg[0] == '\0' or strstr(arg, " ") != NULL or strstr(arg, "\t") != NULL
+        if quoting:
+            result.append('"')
+
+        backslash_count = 0
+        for p = arg; *p != '\0'; p++:
+            match *p:
+                case '\\':
+                    result.append('\\')
+                    backslash_count++
+                case '"':
+                    # Put double backslashes before quote
+                    for ; backslash_count > 0; backslash_count--:
+                        result.append('\\')
+                    result.append('\\')
+                    result.append('"')
+                case _:
+                    result.append(*p)
+                    backslash_count = 0
+
+        if quoting:
+            # Put double backslashes before quote
+            for ; backslash_count > 0; backslash_count--:
+                result.append('\\')
+            result.append('"')
+
+    result.append('\0')
+    return result.ptr
+
+
+if not WINDOWS:
+    def command_to_string_posix(command: List[byte*]) -> byte*:
+        result = List[byte]{}
+
+        for i = 0; i < command.len; i++:
+            if i != 0:
+                result.append(' ')
+            arg = command.ptr[i]
+
+            # The string below is ASCII characters that are safe to include in
+            # commands without quoting, in ASCII order (doesn't really matter).
+            #
+            # I was unsure about '%' and '^' so I left them out.
+            if *arg != '\0' and strspn(arg, "+,-./0123456789:=@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz") == strlen(arg):
+                result.extend_from_ptr(arg, strlen(arg))
+            else:
+                result.append('\'')
+                for ; *arg != '\0'; arg++:
+                    if *arg == '\'':
+                        result.append('\'')  # End single quotes
+                        result.append('"')  # Begin double quotes
+                        result.append('\'')  # Put the single quote inside the double quotes
+                        result.append('"')  # End double quotes
+                        result.append('\'')  # Begin single quotes
+                    else:
+                        result.append(*arg)
+                result.append('\'')
+
+        result.append('\0')
+        return result.ptr
+
+
+@public
+def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
+    # TODO: do this properly
+    for test = tests.ptr; test < tests.end(); test++:
+        assert test.actual_command_list.len == 0
+        test.actual_command_list.append("jou")
+        test.actual_command_list.append(test.path)
+
+        assert test.actual_command_string == NULL
+        if WINDOWS:
+            test.actual_command_string = command_to_string_windows(test.actual_command_list)
+        else:
+            test.actual_command_string = command_to_string_posix(test.actual_command_list)

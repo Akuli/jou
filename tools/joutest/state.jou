@@ -3,14 +3,29 @@ import "stdlib/toml.jou"
 
 
 @public
-enum TestResult:
+class CommandLineArgs:
+    verbose: bool
+
+
+@public
+enum SimpleResult:
     Success
     Failed
     Skipped
+
+@public
+class DetailResult:
+    start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
+    terminating_signal: int  # (POSIX only) signal number that killed the test while running
+    exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
+    #output: List[byte]  # TODO
 
 @public
 class Test:
     path: byte*
     glob_toml: TOML*
     relevant_toml_tables: List[TOML*]
-    result: TestResult
+    actual_command_list: List[byte*]
+    actual_command_string: byte*
+    simple_result: SimpleResult
+    detail_result: DetailResult
