@@ -229,6 +229,11 @@ Everything else is optional.
             `joutest` captures the output and compares it to [output comments](#output-comments).
         - `"do_not_capture"` passes the output (if any) to the terminal as is among all the things that `joutest` itself prints.
             Output comments are ignored entirely if both `stdout` and `stderr` are set to `"do_not_capture"`.
+    - `command` is the command that `joutest` invokes to run the test.
+        It is an array of strings like `["jou", "{file}"]`.
+        Inside each string, `{file}` is replaced by the path to the test file as specified in `files`.
+        Use `{{` or `}}` if you need a command-line argument that includes a curly brace character.
+        If not specified, the default is `["jou", "{file}"]`.
 - `defaults_for_all_tests` is just like each table of the `tests` array,
     except that you cannot specify `files`.
     As the name suggests, these settings are used
