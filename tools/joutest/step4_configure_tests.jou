@@ -82,7 +82,7 @@ if not WINDOWS:
 
 def enum_from_toml_keyval(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> int:
     # Sanity checks, so that creating the error message below is simpler
-    # This ensures that the strings themselves take up much less than 1kB.
+    # This ensures that the strings themselves take up less than 1.1kB.
     assert strlen(kv.key) < 100
     assert nstrings > 0
     assert nstrings <= 10

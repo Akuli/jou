@@ -44,11 +44,10 @@ def string_to_lines(s: byte*) -> List[byte*]:
 #
 # Used with pointers to starts of lines within multi-line strings.
 def lines_equal(line1: byte*, line2: byte*) -> bool:
-    while True:
-        if (*line1 == '\n' and *line2 == '\n') or (*line1 == '\0' and *line2 == '\0'):
-            return True
+    while not ((*line1 == '\n' and *line2 == '\n') or (*line1 == '\0' and *line2 == '\0')):
         if *line1++ != *line2++:
             return False
+    return True
 
 # Prints a line of diff. Does not access the line beyond \n (if any).
 def print_line(color: byte*, prefix: byte, line: byte*) -> None:
@@ -149,14 +148,17 @@ def print_diff(old_string: byte*, new_string: byte*) -> None:
     a = string_to_lines(old_string)
     b = string_to_lines(new_string)
 
+    # k = x-y identifies a diagonal line. For example, if all arrows go along
+    # the line k=0, it means that the old and new strings are equal.
     k_to_x_memory: int* = malloc(sizeof(k_to_x_memory[0]) * (2*(a.len + b.len) + 1))
     assert k_to_x_memory != NULL
-    k_to_x = &k_to_x_memory[a.len + b.len]  # Allow negative indexing
+    k_to_x = &k_to_x_memory[a.len + b.len]  # This is indexed from -D to D, where 0 <= D <= a.len + b.len
 
     arrows = List[int[4]]{}  # each arrow is [start_x, start_y, end_x, end_y]
     next_k_min = 0
     next_k_max = 0
 
+    # D is the number of non-diagonal (right or down) arrows used so far.
     for D = 0; ; D++:
         assert D <= a.len + b.len
 
@@ -172,6 +174,7 @@ def print_diff(old_string: byte*, new_string: byte*) -> None:
                 # No arrows yet
                 x = 0
                 y = 0
+            # The condition below is taken directly from the Myers 1986 paper.
             elif k == -D or (k != D and k_to_x[k-1] < k_to_x[k+1]):
                 # Arrow down (x doesn't change, y increases, k=x-y decreases)
                 # This is an addition because it consumes b without consuming a.
@@ -231,6 +234,7 @@ def print_diff(old_string: byte*, new_string: byte*) -> None:
                             assert 0 <= x1 and x1 < a.len
                             printer.removal(a.ptr[x1])
                         else:
+                            # Diagonal arrow, unchanged line
                             assert 0 <= x1 and x1 < a.len
                             assert 0 <= y1 and y1 < b.len
                             assert lines_equal(a.ptr[x1], b.ptr[y1])

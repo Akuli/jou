@@ -123,12 +123,6 @@ if WINDOWS:
         )
         return result
 
-    # This takes a string because that's how windows works. The command line of
-    # a Windows process is a string at the lowest level. The process itself
-    # (typically libc) splits it into argc and argv or similar, if it wants.
-    # The OS does not have a concept of separate arguments.
-    #
-    # This does not pass the given string to a shell.
     def run_command(test: Test*) -> None:
         error: byte[300]
 
@@ -158,6 +152,13 @@ if WINDOWS:
                 startup_info.hStdError = pipe_write
         process_info = PROCESS_INFORMATION{}
 
+        # This takes a string because that's how windows works. The command
+        # line of a Windows process is a string at the lowest level. The
+        # process itself (typically libc) splits it into argc and argv or
+        # similar, if it wants. The OS does not have a concept of separate
+        # arguments.
+        #
+        # This does not pass the given string to a shell.
         string = strdup(test.actual_command_string)  # Apparently windows may modify it, don't know why...
         ret = CreateProcessA(
             NULL,  # Program name is a part of our arguments string
@@ -178,7 +179,7 @@ if WINDOWS:
             CloseHandle(pipe_write)
 
         if ret == 0:
-            test.detail_result.start_error = GetLastError() as int
+            test.start_error = GetLastError() as int
             if test.uses_output_capturing:
                 CloseHandle(pipe_write)
             return
@@ -217,7 +218,7 @@ if WINDOWS:
 
         CloseHandle(process_info.hProcess)
         CloseHandle(process_info.hThread)
-        test.detail_result.exit_code = exit_code as int
+        test.exit_code = exit_code as int
 
 else:
     # This is 80 bytes on my linux system, doubling that so it's hopefully big
@@ -307,7 +308,7 @@ else:
 
         pid = 0
         test.actual_command_list.append(NULL)
-        test.detail_result.start_error = posix_spawnp(
+        test.start_error = posix_spawnp(
             &pid,
             test.actual_command_list.ptr[0],
             actions_ptr,
@@ -321,7 +322,7 @@ else:
             posix_spawn_file_actions_destroy(actions_ptr)
         close(pipe_write)  # Parent process is not going to write to the pipe
 
-        if test.detail_result.start_error != 0:
+        if test.start_error != 0:
             close(pipe_read)
             return
 
@@ -350,10 +351,10 @@ else:
             fail(message)
 
         if WIFEXITED(wstatus):
-            test.detail_result.exit_code = WEXITSTATUS(wstatus)
+            test.exit_code = WEXITSTATUS(wstatus)
         elif WIFSIGNALED(wstatus):
             assert WTERMSIG(wstatus) != 0
-            test.detail_result.terminating_signal = WTERMSIG(wstatus)
+            test.terminating_signal = WTERMSIG(wstatus)
         else:
             # I'm not quite sure whether this can ever happen.
             snprintf(message, sizeof(message), "waitpid() gave a status that is neither exit nor signal: %#08x", wstatus)
@@ -368,10 +369,13 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     run_command(test)
 
     if (
-        test.detail_result.start_error == 0
-        and test.detail_result.terminating_signal == 0
-        and test.detail_result.exit_code == 0
-        and (test.actual_output == NULL or strcmp(test.expected_output, test.actual_output) == 0)
+        test.start_error == 0
+        and test.terminating_signal == 0
+        and test.exit_code == 0
+        and (
+            (not test.uses_output_capturing)
+            or strcmp(test.expected_output, test.actual_output) == 0
+        )
     ):
         test.simple_result = SimpleResult.Success
     else:

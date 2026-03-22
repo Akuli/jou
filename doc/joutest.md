@@ -101,7 +101,7 @@ F
 ```
 
 The colors that joutest actually uses are slightly different than what's shown above,
-because this documentation is limited to GitHub's syntax highlighting.
+because this documentation is limited by GitHub's syntax highlighting.
 
 In `joutest` diffs, red `-` lines are the expected output,
 and green `+` lines are the actual output.

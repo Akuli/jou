@@ -22,12 +22,6 @@ enum CaptureMode:
 global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comments", "do_not_capture"]
 
 @public
-class DetailResult:
-    start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
-    terminating_signal: int  # (POSIX only) signal number that killed the test while running
-    exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
-
-@public
 class Test:
     # These are set in step 3 (discover tests)
     path: byte*
@@ -45,6 +39,8 @@ class Test:
     expected_output: byte*
 
     # These are set in step 6 (run tests)
+    start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
+    terminating_signal: int  # (POSIX only) signal number that killed the test while running
+    exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
     actual_output: byte*
     simple_result: SimpleResult
-    detail_result: DetailResult
