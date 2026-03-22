@@ -113,12 +113,13 @@ if WINDOWS:
     const INVALID_HANDLE_VALUE: intnative = -1
     const HANDLE_FLAG_INHERIT: uint32 = 0x00000001
     const STARTF_USESTDHANDLES: uint32 = 0x00000100
+    const ERROR_BROKEN_PIPE: uint32 = 109
 
-    def get_last_error_string() -> byte[300]:
+    def windows_error_to_string(error: uint32) -> byte[300]:
         result: byte[300] = ""
         FormatMessageA(
             FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, GetLastError(), 0, result, sizeof(result) as uint32, NULL,
+            NULL, error, 0, result, sizeof(result) as uint32, NULL,
         )
         return result
 
@@ -136,14 +137,14 @@ if WINDOWS:
 
         if test.uses_output_capturing:
             if CreatePipe(&pipe_read, &pipe_write, NULL, 0) == 0:
-                gle = get_last_error_string()
+                gle = windows_error_to_string(GetLastError())
                 snprintf(error, sizeof(error), "CreatePipe() failed: %s", gle)
                 fail(error)
 
             # Mark the write end of the pipe as inheritable so the child
             # process can write to it.
             if SetHandleInformation(pipe_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
-                gle = get_last_error_string()
+                gle = windows_error_to_string(GetLastError())
                 snprintf(error, sizeof(error), "SetHandleInformation() failed: %s", gle)
                 fail(error)
 
@@ -186,12 +187,15 @@ if WINDOWS:
         if test.uses_output_capturing:
             output = List[byte]{}
             buf: byte[4096]
-            n: uint32 = 0
             while True:
+                n: uint32 = 0
                 if ReadFile(pipe_read, buf, sizeof(buf) as uint32, &n, NULL) == 0:
-                    gle = get_last_error_string()
-                    snprintf(error, sizeof(error), "ReadFile() failed: %s", gle)
-                    fail(error)
+                    e = GetLastError()
+                    # This "error" happens at end of output when everything goes fine.
+                    if e != ERROR_BROKEN_PIPE:
+                        gle = windows_error_to_string(e)
+                        snprintf(error, sizeof(error), "ReadFile() failed: %s", gle)
+                        fail(error)
                 if n == 0:
                     break
                 for i = 0; i < n; i++:
@@ -201,13 +205,13 @@ if WINDOWS:
             test.actual_output = output.ptr
 
         if WaitForSingleObject(process_info.hProcess, INFINITE) != 0:
-            gle = get_last_error_string()
+            gle = windows_error_to_string(GetLastError())
             snprintf(error, sizeof(error), "WaitForSingleObject() failed: %s", gle)
             fail(error)
 
         exit_code: uint32 = 0
         if GetExitCodeProcess(process_info.hProcess, &exit_code) == 0:
-            gle = get_last_error_string()
+            gle = windows_error_to_string(GetLastError())
             snprintf(error, sizeof(error), "GetExitCodeProcess() failed: %s", gle)
             fail(error)
 
