@@ -2,9 +2,11 @@ import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/toml.jou"
+import "stdlib/mem.jou"
 
 import "./fail.jou"
 import "./state.jou"
+import "./string_formatter.jou"
 
 
 # This is public and available on all platforms, because there's a test that
@@ -117,6 +119,19 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
             case "files":
                 # Already handled in previous step that created the test
                 pass
+            case "command":
+                test.specified_command_list.len = 0
+                if kv.value.type != TOMLType.Array:
+                    snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
+                    fail_in_toml(kv.value.lineno, error)
+                for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
+                    if toml_to_string(item) == NULL:
+                        snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
+                        fail_in_toml(item.lineno, error)
+                    test.specified_command_list.append(item)
+                if test.specified_command_list.len == 0:
+                    snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
+                    fail_in_toml(kv.value.lineno, error)
             case "stdout":
                 test.stdout_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
             case "stderr":
@@ -137,8 +152,12 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             apply_settings_to_test(*toml, test)
 
         assert test.actual_command_list.len == 0
-        test.actual_command_list.append("jou")
-        test.actual_command_list.append(test.path)
+        if test.specified_command_list.len == 0:
+            test.actual_command_list.append(strdup("jou"))
+            test.actual_command_list.append(strdup(test.path))
+        else:
+            for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
+                test.actual_command_list.append(string_format(*arg, StringFormatParams{file = test.path}))
 
         assert test.actual_command_string == NULL
         if WINDOWS:
