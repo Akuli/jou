@@ -15,3 +15,8 @@ clean:
 	bash -O extglob -c "rm -rvf tmp/!(bootstrap_cache)"
 	rm -vf *.exe
 	find . -name jou_compiled -print -exec rm -rf '{}' +
+
+# Show an error message if someone attempts "make install"
+install:
+	@echo "To install Jou, please download a zip file from GitHub Releases and extract it."
+	@false
