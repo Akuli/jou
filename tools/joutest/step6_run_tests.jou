@@ -188,7 +188,7 @@ if WINDOWS:
             buf: byte[4096]
             n: uint32 = 0
             while True:
-                if ReadFile(pipe_read, buf, sizeof(buf) as uint32, &n, NULL) != 0:
+                if ReadFile(pipe_read, buf, sizeof(buf) as uint32, &n, NULL) == 0:
                     gle = get_last_error_string()
                     snprintf(error, sizeof(error), "ReadFile() failed: %s", gle)
                     fail(error)
