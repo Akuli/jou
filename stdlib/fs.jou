@@ -1,10 +1,9 @@
+import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 if WINDOWS:
-    import "stdlib/assert.jou"
-
     # TODO: This should really use W functions, not A functions.
     #       But then we would need a way to convert between byte* and uint16*.
     #       I have an idea for that (WTF-8) but I haven't implemented it yet.
@@ -262,3 +261,78 @@ class DirIter:
 
                 if self.set_name(name):
                     return True
+
+
+if WINDOWS:
+    declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
+elif MACOS:
+    declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
+elif NETBSD:
+    declare sysctl(
+        name: int*,
+        namelen: uint32,
+        oldp: void*,
+        oldlenp: intnative*,
+        newp: void*,  # NULL if not setting a new value
+        newlen: intnative,  # 0 if not setting a new value
+    ) -> int
+    const CTL_KERN: int = 1
+    const KERN_PROC_ARGS: int = 48
+    const KERN_PROC_PATHNAME: int = 5
+    const ENOSPC: int = 28  # No space left on this device
+else:
+    declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
+
+
+@public
+def find_current_executable() -> byte*:
+    if MACOS:
+        n: uint32 = 0
+        ret = _NSGetExecutablePath(NULL, &n)  # sets n to desired size
+        assert ret == -1  # didn't fit
+
+        result: byte* = malloc(n)
+        assert result != NULL
+        ret = _NSGetExecutablePath(result, &n)
+        if ret == 0:
+            # success
+            return result
+
+        free(result)
+        return NULL
+
+    else:
+        buf: byte* = NULL
+        for size = 2; True; size *= 2:
+            buf = realloc(buf, size)
+            assert buf != NULL
+            memset(buf, 0, size)
+
+            if WINDOWS:
+                ret = GetModuleFileNameA(NULL, buf, size)
+                if ret == 0:
+                    # error
+                    free(buf)
+                    return NULL
+                if ret < size:
+                    return buf  # success, it fits
+            elif NETBSD:
+                sysctl_name: int[4] = [CTL_KERN, KERN_PROC_ARGS, -1, KERN_PROC_PATHNAME]
+                n: intnative = size
+                ret = sysctl(sysctl_name, array_count(sysctl_name) as uint32, buf, &n, NULL, 0)
+                if ret < 0 and get_errno() != ENOSPC:
+                    # error
+                    free(buf)
+                    return NULL
+                if n < size:
+                    return buf  # success, it fits
+            else:
+                ret = readlink("/proc/self/exe", buf, size)
+                success = 0 <= ret and ret < size
+                if ret < 0:
+                    # error
+                    free(buf)
+                    return NULL
+                if ret < size:
+                    buf[ret] = '\0'  # Work around valgrind bug: https://bugs.kde.org/show_bug.cgi?id=514094
+                    return buf  # success, it fits

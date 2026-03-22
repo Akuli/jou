@@ -96,6 +96,34 @@ def main() -> int:
 ```
 
 
+## Finding the current executable
+
+Use `find_current_executable()` to get a path to your executable as a string.
+The return value should be freed.
+
+For example, if I save the following file to `/home/akuli/thing.jou` and I run it with `jou thing.jou`,
+it prints `/home/akuli/jou_compiled/thing/thing`:
+
+```python
+import "stdlib/fs.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+def main() -> int:
+    path = find_current_executable()
+    if path != NULL:
+        puts(path)
+        free(path)
+    return 0
+```
+
+The `find_current_executable()` function returns `NULL` if any error occurs.
+There is currently no cross-platform way to get information about *why* it failed,
+and I recommend printing an error message similar to "cannot locate the currently running executable".
+This is by design: if this fails on someone's system,
+the system is likely in a weird enough state that whoever is running
+
+
 ## Windows support
 
 On Windows, paths containing non-ASCII characters and very long paths may not work properly.
