@@ -87,3 +87,8 @@ kcachegrind: callgrind.out
 .PHONY: hyperfine
 hyperfine: jou
 	hyperfine -w2 -m20 'jou --check compiler/main.jou' 'oldjou --check compiler/main.jou'
+
+# Show an error message if someone attempts "make install"
+install:
+	@echo "To install Jou, please run make without the 'install' and add `pwd` to your PATH."
+	@false
