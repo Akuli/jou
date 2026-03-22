@@ -1,13 +1,15 @@
-import "stdlib/assert.jou"
+import "stdlib/str.jou"
 import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/process.jou"
 
 import "./ansi_colors.jou"
+import "./diff.jou"
 import "./state.jou"
 
 if WINDOWS:
+    import "stdlib/assert.jou"
     declare FormatMessageA(
         dwFlags: uint32,
         lpSource: void*,
@@ -24,42 +26,44 @@ else:
 
 
 def show_failures(tests: List[Test]) -> None:
-    printf("------- FAILURES -------\n\n")
-
     for t = tests.ptr; t < tests.end(); t++:
         if t.simple_result != SimpleResult.Failed:
             continue
 
         printf("%s*** Command: %s ***%s\n", YELLOW, t.actual_command_string, RESET)
-        if t.detail_result.start_error != 0:
+        if t.start_error != 0:
             printf("Process failed to start: ")
             if WINDOWS:
                 message: byte[300] = ""
                 FormatMessageA(
                     FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                    NULL, t.detail_result.start_error as uint32, 0, message, sizeof(message) as uint32, NULL,
+                    NULL, t.start_error as uint32, 0, message, sizeof(message) as uint32, NULL,
                 )
                 puts(message)
             else:
-                puts(strerror(t.detail_result.start_error))
-        elif t.detail_result.terminating_signal != 0:
+                puts(strerror(t.start_error))
+        elif t.terminating_signal != 0:
             if WINDOWS:
                 # This shouldn't be possible. Windows doesn't have signals.
                 assert False
             else:
                 printf(
                     "Process was killed by signal %d: %s\n",
-                    t.detail_result.terminating_signal,
-                    strsignal(t.detail_result.terminating_signal),
+                    t.terminating_signal,
+                    strsignal(t.terminating_signal),
                 )
-        elif t.detail_result.exit_code != 0:
-            # TODO: make the correct exit code configurable
-            printf(
-                "Process exited with code %d. The correct exit code would be 0.\n",
-                t.detail_result.exit_code,
-            )
         else:
-            assert False  # There seems to be nothing wrong, but it failed?...
+            # The process completed, perhaps not successfully but it did something.
+            # Output can be wrong, exit code can be wrong, both can be wrong.
+            if t.uses_output_capturing and strcmp(t.expected_output, t.actual_output) != 0:
+                print_diff(t.expected_output, t.actual_output)
+
+            if t.exit_code != 0:
+                # TODO: make the correct exit code configurable
+                printf(
+                    "Process exited with code %d. The correct exit code would be 0.\n",
+                    t.exit_code,
+                )
 
         printf("\n")
     printf("\n")

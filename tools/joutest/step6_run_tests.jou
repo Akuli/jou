@@ -11,7 +11,6 @@
 # broken in some way, and you should use fail() to stop the test runner.
 
 import "stdlib/assert.jou"
-import "stdlib/errno.jou"
 import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
@@ -22,6 +21,23 @@ import "stdlib/str.jou"
 import "./ansi_colors.jou"
 import "./fail.jou"
 import "./state.jou"
+
+if not WINDOWS:
+    import "stdlib/errno.jou"
+
+
+def add_output_byte(out: List[byte]*, b: byte) -> None:
+    match b:
+        case '\0':
+            # TODO: Escaping similar to this could be good for other weird bytes too.
+            out.extend_from_ptr("<\\0>", 4)
+        case '\n':
+            # Windows line endings handling: \r\n --> \n
+            if out.len > 0 and out.end()[-1] == '\r':
+                out.pop()
+            out.append('\n')
+        case _:
+            out.append(b)
 
 
 if WINDOWS:
@@ -76,38 +92,80 @@ if WINDOWS:
     declare WaitForSingleObject(handle: intnative, dwMilliseconds: uint32) -> uint32
     declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
     declare CloseHandle(hObject: intnative) -> int
+    declare CreatePipe(
+        hReadPipe: intnative*,
+        hWritePipe: intnative*,
+        lpPipeAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+        nSize: uint32,
+    ) -> int
+    declare SetHandleInformation(hObject: intnative, dwMask: uint32, dwFlags: uint32) -> int
+    declare ReadFile(
+        hFile: intnative,
+        lpBuffer: void*,
+        nNumberOfBytesToRead: uint32,
+        lpNumberOfBytesRead: uint32*,
+        lpOverlapped: void*,  # actually OVERLAPPED*
+    ) -> int
 
     const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
     const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
     const INFINITE: uint32 = 0xffff_ffff
+    const INVALID_HANDLE_VALUE: intnative = -1
+    const HANDLE_FLAG_INHERIT: uint32 = 0x00000001
+    const STARTF_USESTDHANDLES: uint32 = 0x00000100
+    const ERROR_BROKEN_PIPE: uint32 = 109
 
-    def get_last_error_string() -> byte[300]:
+    def windows_error_to_string(error: uint32) -> byte[300]:
         result: byte[300] = ""
         FormatMessageA(
             FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, GetLastError(), 0, result, sizeof(result) as uint32, NULL,
+            NULL, error, 0, result, sizeof(result) as uint32, NULL,
         )
         return result
 
-    # This takes a string because that's how windows works. The command line of
-    # a Windows process is a string at the lowest level. The process itself
-    # (typically libc) splits it into argc and argv or similar, if it wants.
-    # The OS does not have a concept of separate arguments.
-    #
-    # This does not pass the given string to a shell.
-    def run_command(string: byte*) -> DetailResult:
+    def run_command(test: Test*) -> None:
+        error: byte[300]
+
+        pipe_read: intnative = INVALID_HANDLE_VALUE
+        pipe_write: intnative = INVALID_HANDLE_VALUE
+
+        if test.uses_output_capturing:
+            if CreatePipe(&pipe_read, &pipe_write, NULL, 0) == 0:
+                gle = windows_error_to_string(GetLastError())
+                snprintf(error, sizeof(error), "CreatePipe() failed: %s", gle)
+                fail(error)
+
+            # Mark the write end of the pipe as inheritable so the child
+            # process can write to it.
+            if SetHandleInformation(pipe_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
+                gle = windows_error_to_string(GetLastError())
+                snprintf(error, sizeof(error), "SetHandleInformation() failed: %s", gle)
+                fail(error)
+
         startup_info = STARTUPINFOA{}
         startup_info.cb = sizeof(startup_info) as uint32
+        if test.uses_output_capturing:
+            startup_info.dwFlags = STARTF_USESTDHANDLES
+            if test.stdout_capture_mode != CaptureMode.DoNotCapture:
+                startup_info.hStdOutput = pipe_write
+            if test.stderr_capture_mode != CaptureMode.DoNotCapture:
+                startup_info.hStdError = pipe_write
         process_info = PROCESS_INFORMATION{}
 
-        string = strdup(string)  # Apparently windows may modify it, don't know why...
-        # Note for future refactoring: bInheritHandles should be TRUE when output is redirected
+        # This takes a string because that's how windows works. The command
+        # line of a Windows process is a string at the lowest level. The
+        # process itself (typically libc) splits it into argc and argv or
+        # similar, if it wants. The OS does not have a concept of separate
+        # arguments.
+        #
+        # This does not pass the given string to a shell.
+        string = strdup(test.actual_command_string)  # Apparently windows may modify it, don't know why...
         ret = CreateProcessA(
             NULL,  # Program name is a part of our arguments string
             string,
             NULL,
             NULL,
-            False as int,  # Should be TRUE when we need output redirecting
+            test.uses_output_capturing as int,
             0,
             NULL,
             NULL,
@@ -116,36 +174,73 @@ if WINDOWS:
         )
         free(string)
 
-        if ret == 0:
-            return DetailResult{start_error = GetLastError() as int}
+        # From now on, child is going to write and parent is going to read
+        if test.uses_output_capturing:
+            CloseHandle(pipe_write)
 
-        error: byte[300]
+        if ret == 0:
+            test.start_error = GetLastError() as int
+            if test.uses_output_capturing:
+                CloseHandle(pipe_write)
+            return
+
+        assert test.actual_output == NULL
+        if test.uses_output_capturing:
+            output = List[byte]{}
+            buf: byte[4096]
+            while True:
+                n: uint32 = 0
+                if ReadFile(pipe_read, buf, sizeof(buf) as uint32, &n, NULL) == 0:
+                    e = GetLastError()
+                    # This "error" happens at end of output when everything goes fine.
+                    if e != ERROR_BROKEN_PIPE:
+                        gle = windows_error_to_string(e)
+                        snprintf(error, sizeof(error), "ReadFile() failed: %s", gle)
+                        fail(error)
+                if n == 0:
+                    break
+                for i = 0; i < n; i++:
+                    add_output_byte(&output, buf[i])
+            CloseHandle(pipe_read)
+            output.append('\0')
+            test.actual_output = output.ptr
 
         if WaitForSingleObject(process_info.hProcess, INFINITE) != 0:
-            gle = get_last_error_string()
+            gle = windows_error_to_string(GetLastError())
             snprintf(error, sizeof(error), "WaitForSingleObject() failed: %s", gle)
             fail(error)
 
         exit_code: uint32 = 0
         if GetExitCodeProcess(process_info.hProcess, &exit_code) == 0:
-            gle = get_last_error_string()
+            gle = windows_error_to_string(GetLastError())
             snprintf(error, sizeof(error), "GetExitCodeProcess() failed: %s", gle)
             fail(error)
 
         CloseHandle(process_info.hProcess)
         CloseHandle(process_info.hThread)
-        return DetailResult{exit_code = exit_code as int}
+        test.exit_code = exit_code as int
 
 else:
+    # This is 80 bytes on my linux system, doubling that so it's hopefully big
+    # enough everywhere.
+    typedef posix_spawn_file_actions_t = uint64[20]
+
     declare posix_spawnp(
         pid: int*,
         file: byte*,
-        file_actions: void*,  # actually posix_spawn_file_actions_t*
+        actions: posix_spawn_file_actions_t*,
         attrp: void*,  # actually posix_spawnattr_t*
         argv: byte**,
         envp: byte**,
     ) -> int
     declare waitpid(pid: int, wstatus: int*, options: int) -> int
+    declare pipe(pipefd: int[2]*) -> int
+    declare close(fd: int) -> int
+    declare read(fd: int, buf: void*, count: intnative) -> intnative
+    declare posix_spawn_file_actions_init(actions: posix_spawn_file_actions_t*) -> int
+    declare posix_spawn_file_actions_adddup2(actions: posix_spawn_file_actions_t*, fd: int, newfd: int) -> int
+    declare posix_spawn_file_actions_addclose(actions: posix_spawn_file_actions_t*, fd: int) -> int
+    declare posix_spawn_file_actions_destroy(file_actions: posix_spawn_file_actions_t*) -> int
     declare global environ: byte**
 
     # Returns True if the process terminated with a signal
@@ -165,24 +260,89 @@ else:
     def WTERMSIG(s: int) -> int:
         return s & 0x7f
 
-    # TODO: capture the output
-    # TODO: make it optional whether output is captured or not
-    def run_command(args: List[byte*]) -> DetailResult:
-        assert args.len > 0
+    def run_command(test: Test*) -> None:
+        message: byte[300]
 
-        argv: byte** = malloc(sizeof(argv[0]) * (args.len + 1))
-        assert argv != NULL
-        memcpy(argv, args.ptr, sizeof(argv[0]) * args.len)
-        argv[args.len] = NULL
+        actions: posix_spawn_file_actions_t
+        if test.uses_output_capturing:
+            pipefd: int[2]
+            if pipe(&pipefd) != 0:
+                snprintf(message, sizeof(message), "pipe() failed: %s", strerror(get_errno()))
+                fail(message)
+            pipe_read = pipefd[0]
+            pipe_write = pipefd[1]
+
+            err = posix_spawn_file_actions_init(&actions)
+            if err != 0:
+                snprintf(message, sizeof(message), "posix_spawn_file_actions_init() failed: %s", strerror(err))
+                fail(message)
+
+            if test.stdout_capture_mode != CaptureMode.DoNotCapture:
+                # Write end of the pipe becomes stdout in the child process
+                err = posix_spawn_file_actions_adddup2(&actions, pipe_write, 1)
+                if err != 0:
+                    snprintf(message, sizeof(message), "posix_spawn_file_actions_adddup2() failed: %s", strerror(err))
+                    fail(message)
+
+            if test.stderr_capture_mode != CaptureMode.DoNotCapture:
+                # Write end of the pipe becomes stderr in the child process
+                err = posix_spawn_file_actions_adddup2(&actions, pipe_write, 2)
+                if err != 0:
+                    snprintf(message, sizeof(message), "posix_spawn_file_actions_adddup2() failed: %s", strerror(err))
+                    fail(message)
+
+            # Child process is not going to read from the pipe, so it closes
+            # its read end of the pipe.
+            ret = posix_spawn_file_actions_addclose(&actions, pipe_read)
+            if err != 0:
+                snprintf(message, sizeof(message), "posix_spawn_file_actions_addclose() failed: %s", strerror(err))
+                fail(message)
+
+            actions_ptr = &actions
+        else:
+            pipe_read = -1
+            pipe_write = -1
+            actions_ptr = NULL
+
+        assert test.actual_command_list.len > 0
 
         pid = 0
-        errno_code = posix_spawnp(&pid, argv[0], NULL, NULL, argv, environ)
-        free(argv)
+        test.actual_command_list.append(NULL)
+        test.start_error = posix_spawnp(
+            &pid,
+            test.actual_command_list.ptr[0],
+            actions_ptr,
+            NULL,
+            test.actual_command_list.ptr,
+            environ,
+        )
+        test.actual_command_list.pop()
 
-        if errno_code != 0:
-            return DetailResult{start_error = errno_code}
+        if actions_ptr != NULL:
+            posix_spawn_file_actions_destroy(actions_ptr)
+        close(pipe_write)  # Parent process is not going to write to the pipe
 
-        message: byte[300]
+        if test.start_error != 0:
+            close(pipe_read)
+            return
+
+        assert test.actual_output == NULL
+        if test.uses_output_capturing:
+            output = List[byte]{}
+            buf: byte[4096]
+            while True:
+                n = read(pipe_read, buf, sizeof(buf))
+                if n < 0:
+                    snprintf(message, sizeof(message), "reading output failed: %s", strerror(get_errno()))
+                    fail(message)
+                assert n >= 0  # TODO
+                if n == 0:
+                    break
+                for i = 0; i < n; i++:
+                    add_output_byte(&output, buf[i])
+            close(pipe_read)
+            output.append('\0')
+            test.actual_output = output.ptr
 
         wstatus = 0
         ret = waitpid(pid, &wstatus, 0)
@@ -191,10 +351,10 @@ else:
             fail(message)
 
         if WIFEXITED(wstatus):
-            return DetailResult{exit_code = WEXITSTATUS(wstatus)}
+            test.exit_code = WEXITSTATUS(wstatus)
         elif WIFSIGNALED(wstatus):
             assert WTERMSIG(wstatus) != 0
-            return DetailResult{terminating_signal = WTERMSIG(wstatus)}
+            test.terminating_signal = WTERMSIG(wstatus)
         else:
             # I'm not quite sure whether this can ever happen.
             snprintf(message, sizeof(message), "waitpid() gave a status that is neither exit nor signal: %#08x", wstatus)
@@ -206,15 +366,16 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
         printf("%srun:%s %s\n", BLUE, RESET, test.actual_command_string)
         fflush(get_stdout())
 
-    if WINDOWS:
-        test.detail_result = run_command(test.actual_command_string)
-    else:
-        test.detail_result = run_command(test.actual_command_list)
+    run_command(test)
 
     if (
-        test.detail_result.start_error == 0
-        and test.detail_result.terminating_signal == 0
-        and test.detail_result.exit_code == 0
+        test.start_error == 0
+        and test.terminating_signal == 0
+        and test.exit_code == 0
+        and (
+            (not test.uses_output_capturing)
+            or strcmp(test.expected_output, test.actual_output) == 0
+        )
     ):
         test.simple_result = SimpleResult.Success
     else:
