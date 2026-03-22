@@ -19,13 +19,12 @@ fi
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate
-    mingw32-make
     jou="$PWD/jou.exe"
 else
-    make
     jou="$PWD/jou"
 fi
 
+make
 
 if [[ "${OS:=$(uname)}" =~ NetBSD ]] && command -v gdiff >/dev/null; then
     diff="gdiff"

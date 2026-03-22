@@ -24,7 +24,7 @@ jobs:
       # Do not use --small because it relies on a previously built zip
       - run: source activate && ./windows_setup.sh
         shell: bash
-      - run: source activate && mingw32-make
+      - run: source activate && make
         shell: bash
       # We don't need to copy all of mingw64. We only need the GNU linker.
       # The less we copy, the smaller the resulting zip becomes.
@@ -156,7 +156,7 @@ jobs:
       - run: source activate && ./doctest.sh
         shell: bash
       - name: "Run the new test runner"
-        run: source activate && mingw32-make joutest.exe && ./joutest.exe --verbose
+        run: source activate && make joutest.exe && ./joutest.exe --verbose
         shell: bash
 
   test-zip:
