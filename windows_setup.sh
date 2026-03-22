@@ -99,6 +99,9 @@ else
     rm $filename
 fi
 
+# For convenience, "make" does the same thing as "mingw32-make"
+[ -f mingw64/bin/make.exe ] || cp -v mingw64/bin/mingw32-make.exe mingw64/bin/make.exe
+
 echo ""
 echo ""
 echo ""
@@ -107,6 +110,6 @@ echo "Your Jou development environment is now ready."
 echo "Next you can compile the Jou compiler and run hello world:"
 echo ""
 echo "    source activate"
-echo "    mingw32-make"
+echo "    make"
 echo "    ./jou.exe examples/hello.jou"
 echo ""

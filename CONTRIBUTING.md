@@ -39,15 +39,14 @@ Following the [instructions in the README](README.md#setup) is enough.
 6. Compile Jou:
     ```
     source activate
-    mingw32-make
+    make
     ```
     The `source activate` command adds `C:\Users\YourName\Desktop\jou\mingw64\bin` to your PATH,
     where `C:\Users\YourName\Desktop` is the folder where you cloned Jou.
     If you don't want to run it every time you open a Git Bash window to work on Jou,
     you can instead add it to your PATH permanently with Control Panel.
 
-    When you run `mingw32-make` for the first time, it
-    [bootstraps Jou from Git history](README.md#bootstrapping).
+    When you run `make` for the first time, it [bootstraps Jou from Git history](README.md#bootstrapping).
 7. Compile and run hello world:
     ```
     ./jou.exe examples/hello.jou
@@ -63,8 +62,7 @@ Following the [instructions in the README](README.md#setup) is enough.
 
 </details>
 
-After making changes to the compiler,
-run `mingw32-make` (Windows) or `make` (other systems) to recompile the compiler.
+After making changes to the compiler, run `make` to recompile the compiler.
 
 
 ## How does the compiler work?
