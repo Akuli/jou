@@ -11,7 +11,6 @@
 # broken in some way, and you should use fail() to stop the test runner.
 
 import "stdlib/assert.jou"
-import "stdlib/errno.jou"
 import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
@@ -22,6 +21,9 @@ import "stdlib/str.jou"
 import "./ansi_colors.jou"
 import "./fail.jou"
 import "./state.jou"
+
+if not WINDOWS:
+    import "stdlib/errno.jou"
 
 
 def add_output_byte(out: List[byte]*, b: byte) -> None:
@@ -90,10 +92,27 @@ if WINDOWS:
     declare WaitForSingleObject(handle: intnative, dwMilliseconds: uint32) -> uint32
     declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
     declare CloseHandle(hObject: intnative) -> int
+    declare CreatePipe(
+        hReadPipe: intnative*,
+        hWritePipe: intnative*,
+        lpPipeAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+        nSize: uint32,
+    ) -> int
+    declare SetHandleInformation(hObject: intnative, dwMask: uint32, dwFlags: uint32) -> int
+    declare ReadFile(
+        hFile: intnative,
+        lpBuffer: void*,
+        nNumberOfBytesToRead: uint32,
+        lpNumberOfBytesRead: uint32*,
+        lpOverlapped: void*,  # actually OVERLAPPED*
+    ) -> int
 
     const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
     const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
     const INFINITE: uint32 = 0xffff_ffff
+    const INVALID_HANDLE_VALUE: intnative = -1
+    const HANDLE_FLAG_INHERIT: uint32 = 0x00000001
+    const STARTF_USESTDHANDLES: uint32 = 0x00000100
 
     def get_last_error_string() -> byte[300]:
         result: byte[300] = ""
@@ -109,19 +128,42 @@ if WINDOWS:
     # The OS does not have a concept of separate arguments.
     #
     # This does not pass the given string to a shell.
-    def run_command(string: byte*) -> None:
+    def run_command(test: Test*) -> None:
+        error: byte[300]
+
+        pipe_read: intnative = INVALID_HANDLE_VALUE
+        pipe_write: intnative = INVALID_HANDLE_VALUE
+
+        if test.uses_output_capturing:
+            if CreatePipe(&pipe_read, &pipe_write, NULL, 0) == 0:
+                gle = get_last_error_string()
+                snprintf(error, sizeof(error), "CreatePipe() failed: %s", gle)
+                fail(error)
+
+            # Mark the write end of the pipe as inheritable so the child
+            # process can write to it.
+            if SetHandleInformation(pipe_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
+                gle = get_last_error_string()
+                snprintf(error, sizeof(error), "SetHandleInformation() failed: %s", gle)
+                fail(error)
+
         startup_info = STARTUPINFOA{}
         startup_info.cb = sizeof(startup_info) as uint32
+        if test.uses_output_capturing:
+            startup_info.dwFlags = STARTF_USESTDHANDLES
+            if test.stdout_capture_mode != CaptureMode.DoNotCapture:
+                startup_info.hStdOutput = pipe_write
+            if test.stderr_capture_mode != CaptureMode.DoNotCapture:
+                startup_info.hStdError = pipe_write
         process_info = PROCESS_INFORMATION{}
 
-        string = strdup(string)  # Apparently windows may modify it, don't know why...
-        # Note for future refactoring: bInheritHandles should be TRUE when output is redirected
+        string = strdup(test.actual_command_string)  # Apparently windows may modify it, don't know why...
         ret = CreateProcessA(
             NULL,  # Program name is a part of our arguments string
             string,
             NULL,
             NULL,
-            False as int,  # Should be TRUE when we need output redirecting
+            test.uses_output_capturing as int,
             0,
             NULL,
             NULL,
@@ -130,11 +172,33 @@ if WINDOWS:
         )
         free(string)
 
+        # From now on, child is going to write and parent is going to read
+        if test.uses_output_capturing:
+            CloseHandle(pipe_write)
+
         if ret == 0:
             test.detail_result.start_error = GetLastError() as int
+            if test.uses_output_capturing:
+                CloseHandle(pipe_write)
             return
 
-        error: byte[300]
+        assert test.actual_output == NULL
+        if test.uses_output_capturing:
+            output = List[byte]{}
+            buf: byte[4096]
+            n: uint32 = 0
+            while True:
+                if ReadFile(pipe_read, buf, sizeof(buf) as uint32, &n, NULL) != 0:
+                    gle = get_last_error_string()
+                    snprintf(error, sizeof(error), "ReadFile() failed: %s", gle)
+                    fail(error)
+                if n == 0:
+                    break
+                for i = 0; i < n; i++:
+                    add_output_byte(&output, buf[i])
+            CloseHandle(pipe_read)
+            output.append('\0')
+            test.actual_output = output.ptr
 
         if WaitForSingleObject(process_info.hProcess, INFINITE) != 0:
             gle = get_last_error_string()
