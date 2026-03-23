@@ -163,6 +163,13 @@ if WINDOWS:
                 startup_info.hStdError = pipe_write
         process_info = PROCESS_INFORMATION{}
 
+        if test.cd_to_containing_directory:
+            working_dir_memory = strdup(test.path)
+            working_dir = dirname(working_dir_memory)
+        else:
+            working_dir_memory = NULL
+            working_dir = NULL
+
         # This takes a string because that's how windows works. The command
         # line of a Windows process is a string at the lowest level. The
         # process itself (typically libc) splits it into argc and argv or
@@ -179,11 +186,12 @@ if WINDOWS:
             test.uses_output_capturing as int,
             0,
             NULL,
-            NULL,
+            working_dir,
             &startup_info,
             &process_info,
         )
         free(string)
+        free(working_dir_memory)
 
         # From now on, child is going to write and parent is going to read.
         #
