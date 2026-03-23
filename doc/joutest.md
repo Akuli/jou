@@ -234,6 +234,13 @@ Everything else is optional.
         Inside each string, `{file}` is replaced by the path to the test file as specified in `files`.
         Use `{{` or `}}` if you need a command-line argument that includes a curly brace character.
         If not specified, the default is `["jou", "{file}"]`.
+    - `cd_to_containing_directory` is a boolean that determines the current working directory
+        that will be used when running the test:
+        `true` means the directory where the test file is, and
+        `false` means the directory that contains `joutest.toml`.
+        This affects the `{file}` substition in `command`:
+        if `cd_to_containing_directory` is `true`, then `{file}` is
+        only the file name rather than a path, e.g. `test_foo.jou` instead of `tests/test_foo.jou`.
 - `defaults_for_all_tests` is just like each table of the `tests` array,
     except that you cannot specify `files`.
     As the name suggests, these settings are used

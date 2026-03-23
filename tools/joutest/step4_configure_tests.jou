@@ -135,9 +135,20 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 test.stdout_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
             case "stderr":
                 test.stderr_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
+            case "cd_to_containing_directory":
+                if toml_is_true(&kv.value):
+                    test.cd_to_containing_directory = True
+                elif toml_is_false(&kv.value):
+                    test.cd_to_containing_directory = False
+                else:
+                    fail_in_toml(kv.value.lineno, "'cd_to_containing_directory' must be a boolean")
             case _:
                 snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
                 fail_in_toml(kv.value.lineno, error)
+
+
+def is_slash(b: byte) -> bool:
+    return b == '/' or (b == '\\' and WINDOWS)
 
 
 @public
@@ -155,8 +166,15 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             test.actual_command_list.append(strdup("jou"))
             test.actual_command_list.append(strdup(test.path))
         else:
+            params = StringFormatParams{file = test.path}
+            if test.cd_to_containing_directory:
+                # {file} is just the file name, e.g. "hello.jou"
+                while *params.file != '\0':
+                    params.file++
+                while params.file > test.path and not is_slash(params.file[-1]):
+                    params.file--
             for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
-                test.actual_command_list.append(string_format(*arg, StringFormatParams{file = test.path}))
+                test.actual_command_list.append(string_format(*arg, params))
 
         assert test.actual_command_string == NULL
         if WINDOWS:

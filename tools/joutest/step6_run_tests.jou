@@ -244,6 +244,7 @@ else:
     declare read(fd: int, buf: void*, count: intnative) -> intnative
     declare write(fd: int, buf: void*, count: intnative) -> intnative
     declare _exit(status: int) -> noreturn
+    declare chdir(path: byte*) -> int
 
     if LINUX:
         const O_CLOEXEC: int = 0x80000
@@ -314,44 +315,56 @@ else:
         assert test.actual_command_list.len > 0
 
         pid = fork()
-        match pid:
-            case -1:
-                snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
-                fail(message)
+        if pid < 0:
+            snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
+            fail(message)
 
-            case 0:
-                # This is the child process. We should do the bare minimum we
-                # can here. For example, no printing.
+        if test.cd_to_containing_directory:
+            working_dir_memory = strdup(test.path)
+            working_dir = dirname(working_dir_memory)
+        else:
+            working_dir_memory = NULL
+            working_dir = NULL
 
-                # Child process is not going to read from either pipe
-                close(error_pipe_read)
-                if output_pipe_read != -1:
-                    close(output_pipe_read)
+        if pid == 0:
+            # This is the child process. We should do the bare minimum we
+            # can here. For example, no printing.
 
-                e: int
-                if stdout_goes_to_pipe:
-                    if dup2(output_pipe_write, 1) == -1:
-                        e = get_errno()
-                        write(error_pipe_write, &e, sizeof(e))
-                        _exit(127)
-                if stderr_goes_to_pipe:
-                    if dup2(output_pipe_write, 2) == -1:
-                        e = get_errno()
-                        write(error_pipe_write, &e, sizeof(e))
-                        _exit(127)
-                execvp(test.actual_command_list.ptr[0], test.actual_command_list.ptr)
-                # We get here only if exec failed
-                e = get_errno()
-                write(error_pipe_write, &e, sizeof(e))
-                _exit(127)
-            case _:
-                # This is the parent process
-                pass
+            # Child process is not going to read from either pipe
+            close(error_pipe_read)
+            if output_pipe_read != -1:
+                close(output_pipe_read)
+
+            e: int
+            if stdout_goes_to_pipe:
+                if dup2(output_pipe_write, 1) == -1:
+                    e = get_errno()
+                    write(error_pipe_write, &e, sizeof(e))
+                    _exit(127)
+            if stderr_goes_to_pipe:
+                if dup2(output_pipe_write, 2) == -1:
+                    e = get_errno()
+                    write(error_pipe_write, &e, sizeof(e))
+                    _exit(127)
+            if working_dir != NULL:
+                if chdir(working_dir) != 0:
+                    e = get_errno()
+                    write(error_pipe_write, &e, sizeof(e))
+                    _exit(127)
+
+            execvp(test.actual_command_list.ptr[0], test.actual_command_list.ptr)
+
+            # We get here only if exec failed
+            e = get_errno()
+            write(error_pipe_write, &e, sizeof(e))
+            _exit(127)
 
         # Parent process is not going to write to the pipes
         close(error_pipe_write)
         if output_pipe_write != -1:
             close(output_pipe_write)
+
+        free(working_dir_memory)
 
         assert test.actual_output == NULL
         if test.uses_output_capturing:
