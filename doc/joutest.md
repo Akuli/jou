@@ -241,6 +241,9 @@ Everything else is optional.
         This affects the `{file}` substition in `command`:
         if `cd_to_containing_directory` is `true`, then `{file}` is
         only the file name rather than a path, e.g. `test_foo.jou` instead of `tests/test_foo.jou`.
+    - `expected_exit_code` is the correct [exit code](tutorial.md#main-function-and-binaries) for the test as an integer.
+        The default is `0`, which means that there should be no errors.
+        If errors are expected, you probably want to set this to `1`.
 - `defaults_for_all_tests` is just like each table of the `tests` array,
     except that you cannot specify `files`.
     As the name suggests, these settings are used

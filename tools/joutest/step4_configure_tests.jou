@@ -142,6 +142,10 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                     test.cd_to_containing_directory = False
                 else:
                     fail_in_toml(kv.value.lineno, "'cd_to_containing_directory' must be a boolean")
+            case "expected_exit_code":
+                test.expected_exit_code = toml_to_int(&kv.value, -1)
+                if test.expected_exit_code < 0 or test.expected_exit_code > 255:
+                    fail_in_toml(kv.value.lineno, "'expected_exit_code' must be an integer between 0 and 255")
             case _:
                 snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
                 fail_in_toml(kv.value.lineno, error)

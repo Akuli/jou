@@ -417,7 +417,7 @@ else:
         if e != 0:
             test.start_error = e
         elif WIFEXITED(wstatus):
-            test.exit_code = WEXITSTATUS(wstatus)
+            test.actual_exit_code = WEXITSTATUS(wstatus)
         elif WIFSIGNALED(wstatus):
             assert WTERMSIG(wstatus) != 0
             test.terminating_signal = WTERMSIG(wstatus)
@@ -437,7 +437,7 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if (
         test.start_error == 0
         and test.terminating_signal == 0
-        and test.exit_code == 0
+        and test.expected_exit_code == test.actual_exit_code
         and (
             (not test.uses_output_capturing)
             or strcmp(test.expected_output, test.actual_output) == 0
