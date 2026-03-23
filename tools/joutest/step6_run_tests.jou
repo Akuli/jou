@@ -3,6 +3,11 @@
 # Most of the result reporting happens later, but some output is printed as the
 # tests run.
 #
+# This uses the traditional fork()+exec() instead of posix_spawn(), because
+# there is no standard way to add a chdir() that runs in the child process of
+# posix_spawn(). Some platforms have posix_spawn_file_actions_addchdir_np(),
+# but others do not.
+#
 # Note about error handling
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 # If a test crashes in any way (wrong exit code, wrong output, dies with signal),
@@ -142,6 +147,12 @@ if WINDOWS:
                 snprintf(error, sizeof(error), "SetHandleInformation() failed: %s", gle)
                 fail(error)
 
+            # Threading note: If this code ever needs to be multi-threaded, it
+            # needs some changes. At this point we have an inheritable handle,
+            # and ANY process started now would inherit it, which is bad.
+            # Instead, the handle should be inheritable only for the process
+            # being launched here.
+
         startup_info = STARTUPINFOA{}
         startup_info.cb = sizeof(startup_info) as uint32
         if test.uses_output_capturing:
@@ -174,7 +185,10 @@ if WINDOWS:
         )
         free(string)
 
-        # From now on, child is going to write and parent is going to read
+        # From now on, child is going to write and parent is going to read.
+        #
+        # This is an inheritable handle, so it's important to close it before
+        # launching more processes.
         if test.uses_output_capturing:
             CloseHandle(pipe_write)
 
@@ -221,27 +235,15 @@ if WINDOWS:
         test.exit_code = exit_code as int
 
 else:
-    # This is 80 bytes on my linux system, doubling that so it's hopefully big
-    # enough everywhere.
-    typedef posix_spawn_file_actions_t = uint64[20]
-
-    declare posix_spawnp(
-        pid: int*,
-        file: byte*,
-        actions: posix_spawn_file_actions_t*,
-        attrp: void*,  # actually posix_spawnattr_t*
-        argv: byte**,
-        envp: byte**,
-    ) -> int
+    declare fork() -> int
+    declare execvp(file: byte*, argv: byte**) -> int
+    declare dup2(oldfd: int, newfd: int) -> int
     declare waitpid(pid: int, wstatus: int*, options: int) -> int
     declare pipe(pipefd: int[2]*) -> int
     declare close(fd: int) -> int
     declare read(fd: int, buf: void*, count: intnative) -> intnative
-    declare posix_spawn_file_actions_init(actions: posix_spawn_file_actions_t*) -> int
-    declare posix_spawn_file_actions_adddup2(actions: posix_spawn_file_actions_t*, fd: int, newfd: int) -> int
-    declare posix_spawn_file_actions_addclose(actions: posix_spawn_file_actions_t*, fd: int) -> int
-    declare posix_spawn_file_actions_destroy(file_actions: posix_spawn_file_actions_t*) -> int
-    declare global environ: byte**
+    declare write(fd: int, buf: void*, count: intnative) -> intnative
+    declare _exit(status: int) -> noreturn
 
     # Returns True if the process terminated with a signal
     def WIFSIGNALED(s: int) -> bool:
@@ -262,77 +264,79 @@ else:
 
     def run_command(test: Test*) -> None:
         message: byte[300]
+        pipefd: int[2]
 
-        actions: posix_spawn_file_actions_t
+        if pipe(&pipefd) != 0:
+            snprintf(message, sizeof(message), "pipe() failed: %s", strerror(get_errno()))
+            fail(message)
+        error_pipe_read = pipefd[0]
+        error_pipe_write = pipefd[1]
+
         if test.uses_output_capturing:
-            pipefd: int[2]
             if pipe(&pipefd) != 0:
                 snprintf(message, sizeof(message), "pipe() failed: %s", strerror(get_errno()))
                 fail(message)
-            pipe_read = pipefd[0]
-            pipe_write = pipefd[1]
-
-            err = posix_spawn_file_actions_init(&actions)
-            if err != 0:
-                snprintf(message, sizeof(message), "posix_spawn_file_actions_init() failed: %s", strerror(err))
-                fail(message)
-
-            if test.stdout_capture_mode != CaptureMode.DoNotCapture:
-                # Write end of the pipe becomes stdout in the child process
-                err = posix_spawn_file_actions_adddup2(&actions, pipe_write, 1)
-                if err != 0:
-                    snprintf(message, sizeof(message), "posix_spawn_file_actions_adddup2() failed: %s", strerror(err))
-                    fail(message)
-
-            if test.stderr_capture_mode != CaptureMode.DoNotCapture:
-                # Write end of the pipe becomes stderr in the child process
-                err = posix_spawn_file_actions_adddup2(&actions, pipe_write, 2)
-                if err != 0:
-                    snprintf(message, sizeof(message), "posix_spawn_file_actions_adddup2() failed: %s", strerror(err))
-                    fail(message)
-
-            # Child process is not going to read from the pipe, so it closes
-            # its read end of the pipe.
-            ret = posix_spawn_file_actions_addclose(&actions, pipe_read)
-            if err != 0:
-                snprintf(message, sizeof(message), "posix_spawn_file_actions_addclose() failed: %s", strerror(err))
-                fail(message)
-
-            actions_ptr = &actions
+            output_pipe_read = pipefd[0]
+            output_pipe_write = pipefd[1]
         else:
-            pipe_read = -1
-            pipe_write = -1
-            actions_ptr = NULL
+            output_pipe_read = -1
+            output_pipe_write = -1
 
+        stdout_goes_to_pipe = (test.stdout_capture_mode != CaptureMode.DoNotCapture)
+        stderr_goes_to_pipe = (test.stderr_capture_mode != CaptureMode.DoNotCapture)
+
+        # Make sure the argument list ends with a NULL, needed for execvp()
+        test.actual_command_list.append(NULL)
+        test.actual_command_list.pop()  # does not free allocated memory
         assert test.actual_command_list.len > 0
 
-        pid = 0
-        test.actual_command_list.append(NULL)
-        test.start_error = posix_spawnp(
-            &pid,
-            test.actual_command_list.ptr[0],
-            actions_ptr,
-            NULL,
-            test.actual_command_list.ptr,
-            environ,
-        )
-        test.actual_command_list.pop()
+        pid = fork()
+        match pid:
+            case -1:
+                snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
+                fail(message)
 
-        if actions_ptr != NULL:
-            posix_spawn_file_actions_destroy(actions_ptr)
-        close(pipe_write)  # Parent process is not going to write to the pipe
+            case 0:
+                # This is the child process. We should do the bare minimum we
+                # can here. For example, no printing.
 
-        if test.start_error != 0:
-            close(pipe_read)
-            return
+                # Child process is not going to read from either pipe
+                close(error_pipe_read)
+                if output_pipe_read != -1:
+                    close(output_pipe_read)
+
+                e: int
+                if stdout_goes_to_pipe:
+                    if dup2(output_pipe_write, 1) == -1:
+                        e = get_errno()
+                        write(error_pipe_write, &e, sizeof(e))
+                        _exit(127)
+                if stderr_goes_to_pipe:
+                    if dup2(output_pipe_write, 2) == -1:
+                        e = get_errno()
+                        write(error_pipe_write, &e, sizeof(e))
+                        _exit(127)
+                execvp(test.actual_command_list.ptr[0], test.actual_command_list.ptr)
+                # We get here only if exec failed
+                e = get_errno()
+                write(error_pipe_write, &e, sizeof(e))
+                _exit(127)
+            case _:
+                # This is the parent process
+                pass
+
+        # Parent process is not going to write to the pipes
+        close(error_pipe_write)
+        if output_pipe_write != -1:
+            close(output_pipe_write)
 
         assert test.actual_output == NULL
         if test.uses_output_capturing:
             output = List[byte]{}
             buf: byte[4096]
             while True:
-                n = read(pipe_read, buf, sizeof(buf))
-                if n < 0:
+                n = read(output_pipe_read, buf, sizeof(buf))
+                if n < 0:  # TODO: retry on EINTR
                     snprintf(message, sizeof(message), "reading output failed: %s", strerror(get_errno()))
                     fail(message)
                 assert n >= 0  # TODO
@@ -340,17 +344,34 @@ else:
                     break
                 for i = 0; i < n; i++:
                     add_output_byte(&output, buf[i])
-            close(pipe_read)
+            close(output_pipe_read)
             output.append('\0')
             test.actual_output = output.ptr
 
+        # Wait until it dies, either with exit code or with a signal
         wstatus = 0
         ret = waitpid(pid, &wstatus, 0)
+        while ret != -1 and not WIFEXITED(wstatus) and not WIFSIGNALED(wstatus); ret = waitpid(pid, &wstatus, 0):
+            ret = waitpid(pid, &wstatus, 0)
         if ret == -1:
             snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
             fail(message)
 
-        if WIFEXITED(wstatus):
+        # Detect errors before exec in child process
+        #
+        # Note: This assumes that the whole error fits into the OS default pipe
+        #       buffer size. Otherwise the child process would get stuck
+        #       writing to the pipe while the parent is waiting for it.
+        e = 0
+        if read(error_pipe_read, &e, sizeof(e)) < 0:
+            snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
+            fail(message)
+
+        close(error_pipe_read)
+
+        if e != 0:
+            test.start_error = e
+        elif WIFEXITED(wstatus):
             test.exit_code = WEXITSTATUS(wstatus)
         elif WIFSIGNALED(wstatus):
             assert WTERMSIG(wstatus) != 0
