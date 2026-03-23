@@ -239,11 +239,20 @@ else:
     declare execvp(file: byte*, argv: byte**) -> int
     declare dup2(oldfd: int, newfd: int) -> int
     declare waitpid(pid: int, wstatus: int*, options: int) -> int
-    declare pipe(pipefd: int[2]*) -> int
+    declare pipe2(pipefd: int[2]*, flags: int) -> int
     declare close(fd: int) -> int
     declare read(fd: int, buf: void*, count: intnative) -> intnative
     declare write(fd: int, buf: void*, count: intnative) -> intnative
     declare _exit(status: int) -> noreturn
+
+    if LINUX:
+        const O_CLOEXEC: int = 0x80000
+    elif MACOS:
+        const O_CLOEXEC: int = 0x01000000
+    elif NETBSD:
+        const O_CLOEXEC: int = 0x00400000
+    else:
+        assert False  # unsupported system
 
     # Returns True if the process terminated with a signal
     def WIFSIGNALED(s: int) -> bool:
@@ -266,14 +275,28 @@ else:
         message: byte[300]
         pipefd: int[2]
 
-        if pipe(&pipefd) != 0:
+        # O_CLOEXEC means that a sucessful exec closes the pipe instead of
+        # sharing it to the child. It is basically the reasonable thing to do,
+        # but not the default behavior for historical reasons.
+        #
+        # If this code was multi-threaded, creating file descriptors with
+        # O_CLOEXEC would be even more important essential, because all child
+        # processes inherit all currently open non-O_CLOEXEC file descriptors.
+        # Basically, if you have threads that run processes, then having a file
+        # open at any time without O_CLOEXEC is bad.
+        #
+        # Here O_CLOEXEC means that the command we run cannot access our error
+        # pipe, and it is closed when exec succeeds. For example, if the
+        # command starts some background job, it cannot keep the pipe open,
+        # which would cause joutest to wait until the background job is done.
+        if pipe2(&pipefd, O_CLOEXEC) != 0:
             snprintf(message, sizeof(message), "pipe() failed: %s", strerror(get_errno()))
             fail(message)
         error_pipe_read = pipefd[0]
         error_pipe_write = pipefd[1]
 
         if test.uses_output_capturing:
-            if pipe(&pipefd) != 0:
+            if pipe2(&pipefd, O_CLOEXEC) != 0:
                 snprintf(message, sizeof(message), "pipe() failed: %s", strerror(get_errno()))
                 fail(message)
             output_pipe_read = pipefd[0]
@@ -349,9 +372,10 @@ else:
             test.actual_output = output.ptr
 
         # Wait until it dies, either with exit code or with a signal
+        # TODO: retry if we get EINTR
         wstatus = 0
         ret = waitpid(pid, &wstatus, 0)
-        while ret != -1 and not WIFEXITED(wstatus) and not WIFSIGNALED(wstatus); ret = waitpid(pid, &wstatus, 0):
+        while ret != -1 and not WIFEXITED(wstatus) and not WIFSIGNALED(wstatus):
             ret = waitpid(pid, &wstatus, 0)
         if ret == -1:
             snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
