@@ -224,27 +224,27 @@ Everything else is optional.
         and `**` (match zero or more entire path components).
         For example, `files = ["**/*.md"]` finds all markdown files,
         including any markdown files in the same directory with `joutest.toml`.
-    - `stdout` and `stderr` define what happens to text printed by the test. The valid values are:
-        - `"compare_to_comments"` (default for both `stdout` and `stderr`) means that
+    - `stdout` and `stderr` (default: `"compare_to_comments"`) define what happens to text printed by the test. The valid values are:
+        - `"compare_to_comments"` means that
             `joutest` captures the output and compares it to [output comments](#output-comments).
         - `"do_not_capture"` passes the output (if any) to the terminal as is among all the things that `joutest` itself prints.
             Output comments are ignored entirely if both `stdout` and `stderr` are set to `"do_not_capture"`.
-    - `command` is the command that `joutest` invokes to run the test.
+    - `command` (default: `["jou", "{file}"]`) is the command that `joutest` invokes to run the test.
         It is an array of strings like `["jou", "{file}"]`.
-        Inside each string, `{file}` is replaced by the path to the test file as specified in `files`.
-        Use `{{` or `}}` if you need a command-line argument that includes a curly brace character.
-        If not specified, the default is `["jou", "{file}"]`.
-    - `cd_to_containing_directory` is a boolean that determines the current working directory
+        Inside each string, `{file}` is replaced by a relative path to the test file.
+        The relative path uses backslashes on Windows and forward slashes on other operating system.
+        Use `{{` or `}}` if you need a command-line argument that includes a curly brace.
+    - `cd_to_containing_directory` (default: `false`) is a boolean that determines the current working directory
         that will be used when running the test:
         `true` means the directory where the test file is, and
         `false` means the directory that contains `joutest.toml`.
         This affects the `{file}` substitution in `command`:
         if `cd_to_containing_directory` is `true`, then `{file}` is
         only the file name rather than a path, e.g. `test_foo.jou` instead of `tests/test_foo.jou`.
-    - `expected_exit_code` is the correct [exit code](tutorial.md#main-function-and-binaries) for the test as an integer.
-        The default is `0`, which means that there should be no errors.
+    - `expected_exit_code` (default: `0`) is the correct
+        [exit code](tutorial.md#main-function-and-binaries) for the test as an integer.
         If errors are expected, you probably want to set this to `1`.
-- `defaults_for_all_tests` is just like each table of the `tests` array,
+- `defaults_for_all_tests` (default: empty table) is just like each table of the `tests` array,
     except that you cannot specify `files`.
     As the name suggests, these settings are used
     when an item of the `tests` array does not specify something.

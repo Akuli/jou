@@ -3,11 +3,6 @@
 # Most of the result reporting happens later, but some output is printed as the
 # tests run.
 #
-# This uses the traditional fork()+exec() instead of posix_spawn(), because
-# there is no standard way to add a chdir() that runs in the child process of
-# posix_spawn(). Some platforms have posix_spawn_file_actions_addchdir_np(),
-# but others do not.
-#
 # Note about error handling
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 # If a test crashes in any way (wrong exit code, wrong output, dies with signal),
@@ -167,6 +162,7 @@ if WINDOWS:
 
         if test.cd_to_containing_directory:
             working_dir_memory = strdup(test.path)
+            assert working_dir_memory != NULL
             working_dir = dirname(working_dir_memory)
         else:
             working_dir_memory = NULL
@@ -282,6 +278,10 @@ else:
     def WTERMSIG(s: int) -> int:
         return s & 0x7f
 
+    # This uses the traditional fork()+exec() instead of posix_spawn(), because
+    # there is no standard way to add a chdir() that runs in the child process of
+    # posix_spawn(). Some platforms have posix_spawn_file_actions_addchdir_np(),
+    # but others do not.
     def run_command(test: Test*) -> None:
         message: byte[300]
         pipefd: int[2]
@@ -291,10 +291,10 @@ else:
         # but not the default behavior for historical reasons.
         #
         # If this code was multi-threaded, creating file descriptors with
-        # O_CLOEXEC would be even more important essential, because all child
-        # processes inherit all currently open non-O_CLOEXEC file descriptors.
-        # Basically, if you have threads that run processes, then having a file
-        # open at any time without O_CLOEXEC is bad.
+        # O_CLOEXEC would be even more important, because all child processes
+        # inherit all currently open non-O_CLOEXEC file descriptors. Basically,
+        # if you have threads that run processes, then opening anything without
+        # O_CLOEXEC is bad.
         #
         # Here O_CLOEXEC means that the command we run cannot access our error
         # pipe, and it is closed when exec succeeds. For example, if the
@@ -319,6 +319,14 @@ else:
         stdout_goes_to_pipe = (test.stdout_capture_mode != CaptureMode.DoNotCapture)
         stderr_goes_to_pipe = (test.stderr_capture_mode != CaptureMode.DoNotCapture)
 
+        if test.cd_to_containing_directory:
+            working_dir_memory = strdup(test.path)
+            assert working_dir_memory != NULL
+            working_dir = dirname(working_dir_memory)
+        else:
+            working_dir_memory = NULL
+            working_dir = NULL
+
         # Make sure the argument list ends with a NULL, needed for execvp()
         test.actual_command_list.append(NULL)
         test.actual_command_list.pop()  # does not free allocated memory
@@ -328,15 +336,7 @@ else:
         if pid < 0:
             snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
             fail(message)
-
-        if test.cd_to_containing_directory:
-            working_dir_memory = strdup(test.path)
-            working_dir = dirname(working_dir_memory)
-        else:
-            working_dir_memory = NULL
-            working_dir = NULL
-
-        if pid == 0:
+        elif pid == 0:
             # This is the child process. We should do the bare minimum we
             # can here. For example, no printing.
 
@@ -424,9 +424,7 @@ else:
             assert WTERMSIG(wstatus) != 0
             test.terminating_signal = WTERMSIG(wstatus)
         else:
-            # I'm not quite sure whether this can ever happen.
-            snprintf(message, sizeof(message), "waitpid() gave a status that is neither exit nor signal: %#08x", wstatus)
-            fail(message)
+            assert False
 
 
 def run_test(test: Test*, args: CommandLineArgs*) -> None:

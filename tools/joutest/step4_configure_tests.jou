@@ -165,18 +165,19 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         for toml = test.relevant_toml_tables.ptr; toml < test.relevant_toml_tables.end(); toml++:
             apply_settings_to_test(*toml, test)
 
+        params = StringFormatParams{file = test.path}
+        if test.cd_to_containing_directory:
+            # {file} is just the file name, e.g. "hello.jou"
+            while *params.file != '\0':
+                params.file++
+            while params.file > test.path and not is_slash(params.file[-1]):
+                params.file--
+
         assert test.actual_command_list.len == 0
         if test.specified_command_list.len == 0:
             test.actual_command_list.append(strdup("jou"))
-            test.actual_command_list.append(strdup(test.path))
+            test.actual_command_list.append(strdup(params.path))
         else:
-            params = StringFormatParams{file = test.path}
-            if test.cd_to_containing_directory:
-                # {file} is just the file name, e.g. "hello.jou"
-                while *params.file != '\0':
-                    params.file++
-                while params.file > test.path and not is_slash(params.file[-1]):
-                    params.file--
             for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
                 test.actual_command_list.append(string_format(*arg, params))
 
