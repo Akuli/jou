@@ -45,6 +45,8 @@ def add_output_byte(out: List[byte]*, b: byte) -> None:
             out.append(b)
 
 
+declare dirname(path: byte*) -> byte*
+
 if WINDOWS:
     class STARTUPINFOA:
         cb: uint32
@@ -467,7 +469,6 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
 
 
 if not WINDOWS:
-    declare dirname(path: byte*) -> byte*
     declare setenv(name: byte*, value: byte*, overwrite: int) -> int
     if MACOS:
         declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
