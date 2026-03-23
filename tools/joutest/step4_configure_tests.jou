@@ -5,6 +5,7 @@ import "stdlib/toml.jou"
 
 import "./fail.jou"
 import "./state.jou"
+import "./string_formatter.jou"
 
 
 # This is public and available on all platforms, because there's a test that
@@ -117,13 +118,41 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
             case "files":
                 # Already handled in previous step that created the test
                 pass
+            case "command":
+                test.specified_command_list.len = 0
+                if kv.value.type != TOMLType.Array:
+                    snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
+                    fail_in_toml(kv.value.lineno, error)
+                for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
+                    if toml_to_string(item) == NULL:
+                        snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
+                        fail_in_toml(item.lineno, error)
+                    test.specified_command_list.append(item)
+                if test.specified_command_list.len == 0:
+                    snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
+                    fail_in_toml(kv.value.lineno, error)
             case "stdout":
                 test.stdout_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
             case "stderr":
                 test.stderr_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
+            case "cd_to_containing_directory":
+                if toml_is_true(&kv.value):
+                    test.cd_to_containing_directory = True
+                elif toml_is_false(&kv.value):
+                    test.cd_to_containing_directory = False
+                else:
+                    fail_in_toml(kv.value.lineno, "'cd_to_containing_directory' must be a boolean")
+            case "expected_exit_code":
+                test.expected_exit_code = toml_to_int(&kv.value, -1)
+                if test.expected_exit_code < 0 or test.expected_exit_code > 255:
+                    fail_in_toml(kv.value.lineno, "'expected_exit_code' must be an integer between 0 and 255")
             case _:
                 snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
                 fail_in_toml(kv.value.lineno, error)
+
+
+def is_slash(b: byte) -> bool:
+    return b == '/' or (b == '\\' and WINDOWS)
 
 
 @public
@@ -136,9 +165,21 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         for toml = test.relevant_toml_tables.ptr; toml < test.relevant_toml_tables.end(); toml++:
             apply_settings_to_test(*toml, test)
 
+        params = StringFormatParams{file = test.path}
+        if test.cd_to_containing_directory:
+            # {file} is just the file name, e.g. "hello.jou"
+            while *params.file != '\0':
+                params.file++
+            while params.file > test.path and not is_slash(params.file[-1]):
+                params.file--
+
         assert test.actual_command_list.len == 0
-        test.actual_command_list.append("jou")
-        test.actual_command_list.append(test.path)
+        if test.specified_command_list.len == 0:
+            test.actual_command_list.append(strdup("jou"))
+            test.actual_command_list.append(strdup(params.file))
+        else:
+            for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
+                test.actual_command_list.append(string_format(*arg, params))
 
         assert test.actual_command_string == NULL
         if WINDOWS:

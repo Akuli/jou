@@ -1,0 +1,11 @@
+import "stdlib/io.jou"
+
+def main() -> int:
+    f = fopen("joutest.toml", "rb")
+    # Output: Current directory is where joutest.toml is
+    if f != NULL:
+        puts("Current directory is where joutest.toml is")
+        fclose(f)
+    else:
+        puts("Current directory is NOT where joutest.toml is")
+    return 0

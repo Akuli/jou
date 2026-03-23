@@ -1,5 +1,10 @@
+# Test joutest with itself
 [[tests]]
-files = [
-    "examples/hello.jou",
-    "tests/should_succeed/file name with spaces.jou",
-]
+files = "tests/tests_of_joutest/**/joutest.toml"
+command = ["joutest", "--no-colors"]
+cd_to_containing_directory = true
+expected_exit_code = 1
+
+[[tests]]
+files = "tests/tests_of_joutest/should_succeed/**/joutest.toml"
+expected_exit_code = 0

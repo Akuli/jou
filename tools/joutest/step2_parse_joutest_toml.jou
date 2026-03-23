@@ -98,7 +98,7 @@ global big_file_content_buffer: byte[1_000_000]
 
 @public
 def step2_parse_joutest_toml() -> TOML:
-    error: byte[200]
+    error: byte[1000]
 
     f = fopen("joutest.toml", "rb")
     if f == NULL:
@@ -121,7 +121,7 @@ def step2_parse_joutest_toml() -> TOML:
 
     toml = parse_toml(big_file_content_buffer)
     if toml.type == TOMLType.Error:
-        fail_in_toml(toml.lineno, toml.error_message)
+        fail_with_toml_syntax_error(toml.lineno, toml.error_message)
 
     eliminate_condition_tables(&toml, 0)
     return toml

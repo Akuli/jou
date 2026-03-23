@@ -29,11 +29,14 @@ class Test:
     relevant_toml_tables: List[TOML*]
 
     # These are set in step 4 (configure tests)
+    specified_command_list: List[TOML*]  # may contain things like "{file}"
     actual_command_list: List[byte*]
     actual_command_string: byte*
     stdout_capture_mode: CaptureMode
     stderr_capture_mode: CaptureMode
     uses_output_capturing: bool
+    cd_to_containing_directory: bool
+    expected_exit_code: int
 
     # These are set in step 5 (gather expected output)
     expected_output: byte*
@@ -41,6 +44,6 @@ class Test:
     # These are set in step 6 (run tests)
     start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
     terminating_signal: int  # (POSIX only) signal number that killed the test while running
-    exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
+    actual_exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
     actual_output: byte*
     simple_result: SimpleResult

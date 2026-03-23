@@ -58,11 +58,11 @@ def show_failures(tests: List[Test]) -> None:
             if t.uses_output_capturing and strcmp(t.expected_output, t.actual_output) != 0:
                 print_diff(t.expected_output, t.actual_output)
 
-            if t.exit_code != 0:
-                # TODO: make the correct exit code configurable
+            if t.expected_exit_code != t.actual_exit_code:
                 printf(
-                    "Process exited with code %d. The correct exit code would be 0.\n",
-                    t.exit_code,
+                    "Process exited with code %d. The correct exit code would be %d.\n",
+                    t.actual_exit_code,
+                    t.expected_exit_code,
                 )
 
         printf("\n")
