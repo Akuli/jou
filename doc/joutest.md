@@ -238,7 +238,7 @@ Everything else is optional.
         that will be used when running the test:
         `true` means the directory where the test file is, and
         `false` means the directory that contains `joutest.toml`.
-        This affects the `{file}` substition in `command`:
+        This affects the `{file}` substitution in `command`:
         if `cd_to_containing_directory` is `true`, then `{file}` is
         only the file name rather than a path, e.g. `test_foo.jou` instead of `tests/test_foo.jou`.
     - `expected_exit_code` is the correct [exit code](tutorial.md#main-function-and-binaries) for the test as an integer.
