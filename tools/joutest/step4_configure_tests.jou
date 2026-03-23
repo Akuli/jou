@@ -176,7 +176,7 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         assert test.actual_command_list.len == 0
         if test.specified_command_list.len == 0:
             test.actual_command_list.append(strdup("jou"))
-            test.actual_command_list.append(strdup(params.path))
+            test.actual_command_list.append(strdup(params.file))
         else:
             for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
                 test.actual_command_list.append(string_format(*arg, params))
