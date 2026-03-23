@@ -2,6 +2,7 @@ import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/toml.jou"
+import "stdlib/mem.jou"
 
 import "./fail.jou"
 import "./state.jou"
@@ -106,6 +107,8 @@ def enum_from_toml_keyval(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> in
     fail_in_toml(kv.value.lineno, error)
 
 
+declare dirname(path: byte*) -> byte*
+
 def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
     assert toml != NULL
     assert toml.type == TOMLType.Table
@@ -137,9 +140,15 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 test.stderr_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
             case "cd_to_containing_directory":
                 if toml_is_true(&kv.value):
-                    test.cd_to_containing_directory = True
+                    free(test.working_directory)
+                    temp = strdup(test.path)
+                    assert temp != NULL
+                    test.working_directory = strdup(dirname(temp))  # may modify temp string
+                    free(temp)
+                    assert test.working_directory != NULL
                 elif toml_is_false(&kv.value):
-                    test.cd_to_containing_directory = False
+                    free(test.working_directory)
+                    test.working_directory = NULL
                 else:
                     fail_in_toml(kv.value.lineno, "'cd_to_containing_directory' must be a boolean")
             case "expected_exit_code":
@@ -166,8 +175,15 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             apply_settings_to_test(*toml, test)
 
         params = StringFormatParams{file = test.path}
-        if test.cd_to_containing_directory:
-            # {file} is just the file name, e.g. "hello.jou"
+        if test.working_directory != NULL:
+            # Check that working_directory is the directory that contains the file.
+            # Currently that is the only possible way to set it.
+            temp = strdup(test.path)
+            assert temp != NULL
+            assert strcmp(dirname(temp), test.working_directory) == 0
+            free(temp)
+
+            # {file} is just the file name, e.g. "hello.jou".
             while *params.file != '\0':
                 params.file++
             while params.file > test.path and not is_slash(params.file[-1]):
