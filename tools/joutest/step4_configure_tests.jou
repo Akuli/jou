@@ -2,6 +2,7 @@ import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/toml.jou"
+import "stdlib/mem.jou"
 
 import "./fail.jou"
 import "./state.jou"
@@ -123,11 +124,16 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 if kv.value.type != TOMLType.Array:
                     snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
                     fail_in_toml(kv.value.lineno, error)
+                allowed: bool[enum_count(FormatParam)]
+                memset(allowed, 0, sizeof(allowed))
+                allowed[FormatParam.File as int] = True
                 for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
-                    if toml_to_string(item) == NULL:
+                    arg = toml_to_string(item)
+                    if arg == NULL:
                         snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
                         fail_in_toml(item.lineno, error)
-                    test.specified_command_list.append(item)
+                    validate_format_string_in_toml(arg, item.lineno, allowed)
+                    test.specified_command_list.append(arg)
                 if test.specified_command_list.len == 0:
                     snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
                     fail_in_toml(kv.value.lineno, error)
@@ -165,21 +171,23 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         for toml = test.relevant_toml_tables.ptr; toml < test.relevant_toml_tables.end(); toml++:
             apply_settings_to_test(*toml, test)
 
-        params = StringFormatParams{file = test.path}
+        if test.specified_command_list.len == 0:
+            test.specified_command_list.append("jou")
+            test.specified_command_list.append("{file}")
+
+        file_param = test.path
         if test.cd_to_containing_directory:
             # {file} is just the file name, e.g. "hello.jou"
-            while *params.file != '\0':
-                params.file++
-            while params.file > test.path and not is_slash(params.file[-1]):
-                params.file--
-
+            while *file_param != '\0':
+                file_param++
+            while file_param > test.path and not is_slash(file_param[-1]):
+                file_param--
+        params: byte*[enum_count(FormatParam)]
+        memset(params, 0, sizeof(params))
+        params[FormatParam.File as int] = file_param
         assert test.actual_command_list.len == 0
-        if test.specified_command_list.len == 0:
-            test.actual_command_list.append(strdup("jou"))
-            test.actual_command_list.append(strdup(params.file))
-        else:
-            for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
-                test.actual_command_list.append(string_format(*arg, params))
+        for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
+            test.actual_command_list.append(format_string(*arg, params))
 
         assert test.actual_command_string == NULL
         if WINDOWS:
