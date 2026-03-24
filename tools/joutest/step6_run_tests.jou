@@ -40,8 +40,6 @@ def add_output_byte(out: List[byte]*, b: byte) -> None:
             out.append(b)
 
 
-declare dirname(path: byte*) -> byte*
-
 if WINDOWS:
     class STARTUPINFOA:
         cb: uint32
@@ -160,14 +158,6 @@ if WINDOWS:
                 startup_info.hStdError = pipe_write
         process_info = PROCESS_INFORMATION{}
 
-        if test.cd_to_containing_directory:
-            working_dir_memory = strdup(test.path)
-            assert working_dir_memory != NULL
-            working_dir = dirname(working_dir_memory)
-        else:
-            working_dir_memory = NULL
-            working_dir = NULL
-
         # This takes a string because that's how windows works. The command
         # line of a Windows process is a string at the lowest level. The
         # process itself (typically libc) splits it into argc and argv or
@@ -184,12 +174,11 @@ if WINDOWS:
             test.uses_output_capturing as int,
             0,
             NULL,
-            working_dir,
+            test.working_directory,
             &startup_info,
             &process_info,
         )
         free(string)
-        free(working_dir_memory)
 
         # From now on, child is going to write and parent is going to read.
         #
@@ -328,14 +317,6 @@ else:
         stdout_goes_to_pipe = (test.stdout_capture_mode != CaptureMode.DoNotCapture)
         stderr_goes_to_pipe = (test.stderr_capture_mode != CaptureMode.DoNotCapture)
 
-        if test.cd_to_containing_directory:
-            working_dir_memory = strdup(test.path)
-            assert working_dir_memory != NULL
-            working_dir = dirname(working_dir_memory)
-        else:
-            working_dir_memory = NULL
-            working_dir = NULL
-
         # Make sure the argument list ends with a NULL, needed for execvp()
         test.actual_command_list.append(NULL)
         test.actual_command_list.pop()  # does not free allocated memory
@@ -365,8 +346,8 @@ else:
                     e = get_errno()
                     write(error_pipe_write, &e, sizeof(e))
                     _exit(127)
-            if working_dir != NULL:
-                if chdir(working_dir) != 0:
+            if test.working_directory != NULL:
+                if chdir(test.working_directory) != 0:
                     e = get_errno()
                     write(error_pipe_write, &e, sizeof(e))
                     _exit(127)
@@ -382,8 +363,6 @@ else:
         close(error_pipe_write)
         if output_pipe_write != -1:
             close(output_pipe_write)
-
-        free(working_dir_memory)
 
         assert test.actual_output == NULL
         if test.uses_output_capturing:
@@ -438,7 +417,10 @@ else:
 
 def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if args.verbose:
-        printf("%srun:%s %s\n", BLUE, RESET, test.actual_command_string)
+        printf("%srun:%s %s", BLUE, RESET, test.actual_command_string)
+        if test.working_directory != NULL:
+            printf(" %sin %s%s", CYAN, test.working_directory, RESET)
+        printf("\n")
         fflush(get_stdout())
 
     run_command(test)
@@ -459,11 +441,14 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if args.verbose:
         match test.simple_result:
             case SimpleResult.Success:
-                printf("%s ok %s %s\n", GREEN, RESET, test.actual_command_string)
+                printf("%s ok %s %s", GREEN, RESET, test.actual_command_string)
             case SimpleResult.Failed:
-                printf("%sFAIL%s %s\n", RED, RESET, test.actual_command_string)
+                printf("%sFAIL%s %s", RED, RESET, test.actual_command_string)
             case SimpleResult.Skipped:
-                printf("%sskip%s %s\n", YELLOW, RESET, test.actual_command_string)
+                printf("%sskip%s %s", YELLOW, RESET, test.actual_command_string)
+        if test.working_directory != NULL:
+            printf(" %sin %s%s", CYAN, test.working_directory, RESET)
+        printf("\n")
     else:
         match test.simple_result:
             case SimpleResult.Success:
@@ -532,6 +517,8 @@ if not WINDOWS:
 
         # TODO: show os error message? (GetLastError / errno)
         fail("cannot locate currently running executable, needed for finding the Jou compiler")
+
+    declare dirname(path: byte*) -> byte*
 
     # Adds the directory containing joutest to PATH. It usually contains the
     # Jou compiler.

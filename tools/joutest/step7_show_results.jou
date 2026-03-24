@@ -26,43 +26,47 @@ else:
 
 
 def show_failures(tests: List[Test]) -> None:
-    for t = tests.ptr; t < tests.end(); t++:
-        if t.simple_result != SimpleResult.Failed:
+    for test = tests.ptr; test < tests.end(); test++:
+        if test.simple_result != SimpleResult.Failed:
             continue
 
-        printf("%s*** Command: %s ***%s\n", YELLOW, t.actual_command_string, RESET)
-        if t.start_error != 0:
+        if test.working_directory == NULL:
+            printf("%s*** Command: %s ***%s\n", YELLOW, test.actual_command_string, RESET)
+        else:
+            printf("%s*** Command: %s %sin %s%s ***%s\n", YELLOW, test.actual_command_string, CYAN, test.working_directory, YELLOW, RESET)
+
+        if test.start_error != 0:
             printf("Process failed to start: ")
             if WINDOWS:
                 message: byte[300] = ""
                 FormatMessageA(
                     FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                    NULL, t.start_error as uint32, 0, message, sizeof(message) as uint32, NULL,
+                    NULL, test.start_error as uint32, 0, message, sizeof(message) as uint32, NULL,
                 )
                 puts(message)
             else:
-                puts(strerror(t.start_error))
-        elif t.terminating_signal != 0:
+                puts(strerror(test.start_error))
+        elif test.terminating_signal != 0:
             if WINDOWS:
                 # This shouldn't be possible. Windows doesn't have signals.
                 assert False
             else:
                 printf(
                     "Process was killed by signal %d: %s\n",
-                    t.terminating_signal,
-                    strsignal(t.terminating_signal),
+                    test.terminating_signal,
+                    strsignal(test.terminating_signal),
                 )
         else:
             # The process completed, perhaps not successfully but it did something.
             # Output can be wrong, exit code can be wrong, both can be wrong.
-            if t.uses_output_capturing and strcmp(t.expected_output, t.actual_output) != 0:
-                print_diff(t.expected_output, t.actual_output)
+            if test.uses_output_capturing and strcmp(test.expected_output, test.actual_output) != 0:
+                print_diff(test.expected_output, test.actual_output)
 
-            if t.expected_exit_code != t.actual_exit_code:
+            if test.expected_exit_code != test.actual_exit_code:
                 printf(
                     "Process exited with code %d. The correct exit code would be %d.\n",
-                    t.actual_exit_code,
-                    t.expected_exit_code,
+                    test.actual_exit_code,
+                    test.expected_exit_code,
                 )
 
         printf("\n")
@@ -76,8 +80,8 @@ def step7_show_results(tests: List[Test]) -> noreturn:
     succeeded = 0
     failed = 0
     skipped = 0
-    for t = tests.ptr; t < tests.end(); t++:
-        match t.simple_result:
+    for test = tests.ptr; test < tests.end(); test++:
+        match test.simple_result:
             case SimpleResult.Success:
                 succeeded++
             case SimpleResult.Failed:
