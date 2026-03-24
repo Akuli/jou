@@ -57,12 +57,12 @@ def add_or_update_tests_of_glob(state: DiscoveryState*, settings_toml: TOML*, gl
     glob = toml_to_string(glob_toml)
     if glob == NULL:
         fail_in_toml(glob_toml.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
+    if strstr(glob, "\\") != NULL:
+        fail_in_toml(glob_toml.lineno, "please use forward slashes instead of backslashes")
 
     error: byte[200]
 
     if not glob_is_valid(glob):
-        if strstr(glob, "\\") != NULL:
-            fail_in_toml(glob_toml.lineno, "please use forward slashes instead of backslashes")
         snprintf(error, sizeof(error), "invalid path or glob pattern: %s", glob)
         fail_in_toml(glob_toml.lineno, error)
 
