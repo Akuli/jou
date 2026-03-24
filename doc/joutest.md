@@ -229,11 +229,27 @@ Everything else is optional.
             `joutest` captures the output and compares it to [output comments](#output-comments).
         - `"do_not_capture"` passes the output (if any) to the terminal as is among all the things that `joutest` itself prints.
             Output comments are ignored entirely if both `stdout` and `stderr` are set to `"do_not_capture"`.
+    - `output_comment_rules` (default: `{Output = "{comment}"}`) is a TOML table that specifies
+        which comments are recognized as [output comments](#output-comments)
+        and how exactly they are transformed into expected output.
+        For example, `{Greet = "hello {comment}"}` means that
+        the only supported output comment is `# Greet:`,
+        and it works so that `# Greet: world` adds `hello world` to the expected output.
+        Inside the values of `output_comment_rules`, the following replacements are done:
+        - `{comment}` is replaced with the comment text after `:` excluding the space character immediately following it.
+        - `{file}` is replaced with a relative path to the file containing the comment.
+            Backslashes are used on Windows, and forward slashes are used on other operating systems.
+        - `{line}` is replaced with the line number of the comment.
+            The first line of the file is line 1.
+        - `{{` is replaced with a `{` character.
+        - `}}` is replaced with a `}` character.
     - `command` (default: `["jou", "{file}"]`) is the command that `joutest` invokes to run the test.
         It is an array of strings like `["jou", "{file}"]`.
-        Inside each string, `{file}` is replaced by a relative path to the test file.
-        The relative path uses backslashes on Windows and forward slashes on other operating system.
-        Use `{{` or `}}` if you need a command-line argument that includes a curly brace.
+        Inside each string, the following replacements are done:
+        - `{file}` is replaced with a relative path to the test file.
+            Backslashes are used on Windows, and forward slashes are used on other operating systems.
+        - `{{` is replaced with a `{` character.
+        - `}}` is replaced with a `}` character.
     - `cd_to_containing_directory` (default: `false`) is a boolean that determines the current working directory
         that will be used when running the test:
         `true` means the directory where the test file is, and
@@ -287,7 +303,7 @@ markdown.languages_to_test_as_jou = ["jou"]
 timeout_seconds = 60
 stdout = "compare_to_comments"
 stderr = "compare_to_comments"
-special_output_comments = {
+output_comment_rules = {
     Output = "{comment}",
     # The following will be useful for developing the Jou compiler, but
     # probably won't be not enabled by default.
@@ -334,8 +350,8 @@ Plan and status:
     - in TOML, use:
         - [DONE] `files`
         - `markdown.languages_to_test_as_jou`
-4. configure tests
-    - walk through and apply each relevant TOML section
+4. [DONE] configure tests
+    - [DONE] walk through and apply each relevant TOML section
     - this is where most of the validation should happen
 5. gather expected outputs
     - [DONE] read files and parse for comments
