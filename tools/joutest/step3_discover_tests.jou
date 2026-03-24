@@ -61,6 +61,8 @@ def add_or_update_tests_of_glob(state: DiscoveryState*, settings_toml: TOML*, gl
     error: byte[200]
 
     if not glob_is_valid(glob):
+        if strstr(glob, "\\") != NULL:
+            fail_in_toml(glob_toml.lineno, "please use forward slashes instead of backslashes")
         snprintf(error, sizeof(error), "invalid path or glob pattern: %s", glob)
         fail_in_toml(glob_toml.lineno, error)
 
@@ -107,7 +109,21 @@ def compare_tests(t1: Test*, t2: Test*) -> int:
 
 @public
 def step3_discover_tests(toml: TOML*) -> List[Test]:
-    tests_toml = toml_get(toml, "tests")
+    tests_toml: TOML* = NULL
+    defaults_toml: TOML* = NULL
+
+    assert toml.type == TOMLType.Table
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        match kv.key with strcmp:
+            case "tests":
+                tests_toml = &kv.value
+            case "defaults_for_all_tests":
+                defaults_toml = &kv.value
+            case _:
+                error: byte[200]
+                snprintf(error, sizeof(error), "unknown setting '%s'", kv.key)
+                fail_in_toml(kv.value.lineno, error)
+
     if tests_toml == NULL:
         fail("joutest.toml must define an array named 'tests'")
     if tests_toml.type != TOMLType.Array:
@@ -115,7 +131,6 @@ def step3_discover_tests(toml: TOML*) -> List[Test]:
     if tests_toml.array.len == 0:
         fail_in_toml(tests_toml.lineno, "the 'tests' array cannot be empty")
 
-    defaults_toml = toml_get(toml, "defaults_for_all_tests")
     if defaults_toml != NULL:
         if defaults_toml.type != TOMLType.Table:
             fail_in_toml(defaults_toml.lineno, "'defaults_for_all_tests' must be a table")

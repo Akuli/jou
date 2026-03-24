@@ -70,6 +70,7 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
                     cond = cond_index as Condition
                     if cond != Condition.Default and condition_is_true(cond):
                         if chosen != NULL:
+                            # TODO: test this?
                             snprintf(error, sizeof(error), "conditions '%s' and '%s' are both true", chosen.key, kv.key)
                             fail_in_toml(kv.value.lineno, error)
                         chosen = kv
