@@ -60,7 +60,7 @@ def check_https_link(url):
         #expected_status = 403
         # In Late July 2025, stackoverflow returns 200 again. Let's accept both.
         expected_statuses = [200, 403]
-    elif url.startswith("https://adventofcode.com/2023/"):
+    elif url.startswith("https://adventofcode.com/"):
         # Advent of Code sometimes returns 403 Forbidden in GitHub Actions
         expected_statuses = [200, 403]
     else:
