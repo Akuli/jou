@@ -124,6 +124,7 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
     assert test != NULL
 
     error: byte[200]
+    allowed: bool[enum_count(FormatParam)]
 
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
         match kv.key with strcmp:
@@ -135,7 +136,6 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 if kv.value.type != TOMLType.Array:
                     snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
                     fail_in_toml(kv.value.lineno, error)
-                allowed: bool[enum_count(FormatParam)]
                 memset(allowed, 0, sizeof(allowed))
                 allowed[FormatParam.File as int] = True
                 for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
@@ -175,7 +175,16 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                     fail_in_toml(kv.value.lineno, error)  # TODO: test
                 test.output_comment_rules.len = 0
                 for inner_kv = kv.value.table.ptr; inner_kv < kv.value.table.end(); inner_kv++:
-                    test.output_comment_rules.append([inner_kv.key, toml_to_string(&inner_kv.value)])
+                    if strstr(inner_kv.key, ":") != NULL or strstr(inner_kv.key, "#") != NULL:
+                        fail_in_toml(inner_kv.value.lineno, "keys of 'output_comment_rules' cannot contain '#' or ':' characters")
+                    s = toml_to_string(&inner_kv.value)
+                    assert s != NULL
+                    memset(allowed, 0, sizeof(allowed))
+                    allowed[FormatParam.File as int] = True
+                    allowed[FormatParam.Line as int] = True
+                    allowed[FormatParam.Comment as int] = True
+                    validate_format_string_in_toml(s, inner_kv.value.lineno, [True,True,True])
+                    test.output_comment_rules.append([inner_kv.key, s])
             case _:
                 snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
                 fail_in_toml(kv.value.lineno, error)
