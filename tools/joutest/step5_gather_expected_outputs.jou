@@ -75,8 +75,8 @@ def find_expected_output(test: Test*) -> None:
     lineno = 0
     while fgets(line, sizeof(line), f) != NULL:
         if ends_with(line, "\r\n"):
-            line[strlen(line) - 2] = '\0'
-        elif ends_with(line, "\n"):
+            strcpy(strrchr(line, '\r'), "\n")
+        if ends_with(line, "\n"):
             lineno++  # Having this here helps with handling very long lines.
             line[strlen(line) - 1] = '\0'
         find_expected_output_from_line(test, lineno, line, &result)
