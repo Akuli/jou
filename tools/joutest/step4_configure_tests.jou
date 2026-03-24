@@ -107,6 +107,15 @@ def enum_from_toml_keyval(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> in
     fail_in_toml(kv.value.lineno, error)
 
 
+def is_table_with_string_values(toml: TOML*) -> bool:
+    if toml.type != TOMLType.Table:
+        return False
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        if toml_to_string(&kv.value) == NULL:
+            return False
+    return True
+
+
 declare dirname(path: byte*) -> byte*
 
 def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
@@ -115,6 +124,7 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
     assert test != NULL
 
     error: byte[200]
+    allowed: bool[enum_count(FormatParam)]
 
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
         match kv.key with strcmp:
@@ -126,11 +136,15 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 if kv.value.type != TOMLType.Array:
                     snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
                     fail_in_toml(kv.value.lineno, error)
+                memset(allowed, 0, sizeof(allowed))
+                allowed[FormatParam.File as int] = True
                 for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
-                    if toml_to_string(item) == NULL:
+                    arg = toml_to_string(item)
+                    if arg == NULL:
                         snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
                         fail_in_toml(item.lineno, error)
-                    test.specified_command_list.append(item)
+                    validate_format_string_in_toml(arg, item.lineno, allowed)
+                    test.specified_command_list.append(arg)
                 if test.specified_command_list.len == 0:
                     snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
                     fail_in_toml(kv.value.lineno, error)
@@ -155,6 +169,22 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 test.expected_exit_code = toml_to_int(&kv.value, -1)
                 if test.expected_exit_code < 0 or test.expected_exit_code > 255:
                     fail_in_toml(kv.value.lineno, "'expected_exit_code' must be an integer between 0 and 255")
+            case "output_comment_rules":
+                if not is_table_with_string_values(&kv.value):
+                    snprintf(error, sizeof(error), "'%s' must be a table with string keys and string values", kv.key)
+                    fail_in_toml(kv.value.lineno, error)  # TODO: test
+                test.output_comment_rules.len = 0
+                for inner_kv = kv.value.table.ptr; inner_kv < kv.value.table.end(); inner_kv++:
+                    if strstr(inner_kv.key, ":") != NULL or strstr(inner_kv.key, "#") != NULL:
+                        fail_in_toml(inner_kv.value.lineno, "keys of 'output_comment_rules' cannot contain '#' or ':' characters")
+                    s = toml_to_string(&inner_kv.value)
+                    assert s != NULL
+                    memset(allowed, 0, sizeof(allowed))
+                    allowed[FormatParam.File as int] = True
+                    allowed[FormatParam.Line as int] = True
+                    allowed[FormatParam.Comment as int] = True
+                    validate_format_string_in_toml(s, inner_kv.value.lineno, [True,True,True])
+                    test.output_comment_rules.append([inner_kv.key, s])
             case _:
                 snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
                 fail_in_toml(kv.value.lineno, error)
@@ -167,6 +197,10 @@ def is_slash(b: byte) -> bool:
 @public
 def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     for test = tests.ptr; test < tests.end(); test++:
+        # This is here because it is possible to override it with empty
+        assert test.output_comment_rules.len == 0
+        test.output_comment_rules.append(["Output", "{comment}"])
+
         # TODO: It might be better to loop backwards and explicitly ignore
         #       settings that have been already set. This way we can mark the
         #       used parts of TOML and later show warning about stuff that was
@@ -174,7 +208,7 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         for toml = test.relevant_toml_tables.ptr; toml < test.relevant_toml_tables.end(); toml++:
             apply_settings_to_test(*toml, test)
 
-        params = StringFormatParams{file = test.path}
+        test.path_in_working_directory = test.path
         if test.working_directory != NULL:
             # Check that working_directory is the directory that contains the file.
             # Currently that is the only possible way to set it.
@@ -183,19 +217,23 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             assert strcmp(dirname(temp), test.working_directory) == 0
             free(temp)
 
-            # {file} is just the file name, e.g. "hello.jou".
-            while *params.file != '\0':
-                params.file++
-            while params.file > test.path and not is_slash(params.file[-1]):
-                params.file--
+            # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
+            p = &test.path[strlen(test.path)]
+            while p > test.path and not is_slash(p[-1]):
+                p--
+            test.path_in_working_directory = p
+
+        if test.specified_command_list.len == 0:
+            test.specified_command_list.append("jou")
+            test.specified_command_list.append("{file}")
+
+        params: byte*[enum_count(FormatParam)]
+        memset(params, 0, sizeof(params))
+        params[FormatParam.File as int] = test.path_in_working_directory
 
         assert test.actual_command_list.len == 0
-        if test.specified_command_list.len == 0:
-            test.actual_command_list.append(strdup("jou"))
-            test.actual_command_list.append(strdup(params.file))
-        else:
-            for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
-                test.actual_command_list.append(string_format(*arg, params))
+        for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
+            test.actual_command_list.append(format_string(*arg, params))
 
         assert test.actual_command_string == NULL
         if WINDOWS:

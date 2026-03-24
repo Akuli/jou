@@ -29,13 +29,15 @@ class Test:
     relevant_toml_tables: List[TOML*]
 
     # These are set in step 4 (configure tests)
-    specified_command_list: List[TOML*]  # may contain things like "{file}"
+    specified_command_list: List[byte*]  # may contain things like "{file}"
     actual_command_list: List[byte*]
     actual_command_string: byte*
     stdout_capture_mode: CaptureMode
     stderr_capture_mode: CaptureMode
     uses_output_capturing: bool
+    output_comment_rules: List[byte*[2]]
     working_directory: byte*  # NULL means use current directory
+    path_in_working_directory: byte*  # usually same as path, just file name if cd_to_containing_directory is used
     expected_exit_code: int
 
     # These are set in step 5 (gather expected output)

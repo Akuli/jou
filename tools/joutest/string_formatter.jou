@@ -1,59 +1,99 @@
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
-import "stdlib/toml.jou"
 
 import "./fail.jou"
 
 
 @public
-class StringFormatParams:
-    # All of these can be NULL
-    file: byte*
-    line: byte*
-    message: byte*
+enum FormatParam:
+    File
+    Line
+    Comment
+
+global PLACEHOLDERS: byte*[enum_count(FormatParam)] = [
+    "{file}",
+    "{line}",
+    "{comment}",
+]
+
+
+def format_string_is_valid(
+    format: byte*,  # the format string
+    allowed: bool[enum_count(FormatParam)],  # True means the param is allowed
+) -> bool:
+    assert format != NULL
+    while *format != '\0':
+        match *format:
+            case '{':
+                if starts_with(format, "{{"):
+                    format = &format[2]
+                else:
+                    found = -1
+                    for i = 0; i < enum_count(FormatParam); i++:
+                        if starts_with(format, PLACEHOLDERS[i]):
+                            found = i
+                            break
+                    if found == -1 or not allowed[found]:
+                        return False
+                    format = &format[strlen(PLACEHOLDERS[found])]
+            case '}':
+                if not starts_with(format, "}}"):
+                    return False
+                format = &format[2]
+            case _:
+                format++
+    return True
 
 
 @public
-def string_format(string_toml: TOML*, params: StringFormatParams) -> byte*:
-    string = toml_to_string(string_toml)
-    assert string != NULL
+def validate_format_string_in_toml(
+    format: byte*,  # the format string
+    error_lineno: int,  # line number of format string in joutest.toml
+    allowed: bool[enum_count(FormatParam)],  # True means the param is allowed
+) -> None:
+    assert format != NULL
+    if not format_string_is_valid(format, allowed):
+        error: byte[1000] = "braces are allowed only for "
+        assert sizeof(error) >= 2*(100 + 15*enum_count(FormatParam))  # easily big enough
+        for i = 0; i < enum_count(FormatParam); i++:
+            if allowed[i]:
+                strcat(error, PLACEHOLDERS[i])
+                strcat(error, ", ")
+        strcat(error, "{{ and }} (repeating the braces escapes them)")
+        fail_in_toml(error_lineno, error)
 
-    error: byte[500] = "braces are allowed only for "
-    if params.file != NULL:
-        strcat(error, "{file}, ")
-    if params.line != NULL:
-        strcat(error, "{line}, ")
-    if params.message != NULL:
-        strcat(error, "{message}, ")
-    strcat(error, "{{ and }} (repeating the braces escapes them)")
+
+@public
+def format_string(format: byte*, params: byte*[enum_count(FormatParam)]) -> byte*:
+    allowed: bool[enum_count(FormatParam)]
+    for i = 0; i < enum_count(FormatParam); i++:
+        allowed[i] = (params[i] != NULL)
+    assert format_string_is_valid(format, allowed)
 
     out = List[byte]{}
-    while *string != '\0':
-        match *string:
+    while *format != '\0':
+        match *format:
             case '{':
-                if starts_with(string, "{file}") and params.file != NULL:
-                    out.extend_from_ptr(params.file, strlen(params.file))
-                    string = &strstr(string, "}")[1]
-                elif starts_with(string, "{line}") and params.line != NULL:
-                    out.extend_from_ptr(params.line, strlen(params.line))
-                    string = &strstr(string, "}")[1]
-                elif starts_with(string, "{message}") and params.message != NULL:
-                    out.extend_from_ptr(params.message, strlen(params.message))
-                    string = &strstr(string, "}")[1]
-                elif starts_with(string, "{{"):
+                if starts_with(format, "{{"):
                     out.append('{')
-                    string = &string[2]
+                    format = &format[2]
                 else:
-                    fail_in_toml(string_toml.lineno, error)
+                    found = False
+                    for i = 0; i < enum_count(FormatParam); i++:
+                        if starts_with(format, PLACEHOLDERS[i]):
+                            found = True
+                            assert params[i] != NULL
+                            out.extend_from_ptr(params[i], strlen(params[i]))
+                            format = &format[strlen(PLACEHOLDERS[i])]
+                            break
+                    assert found
             case '}':
-                if starts_with(string, "}}"):
-                    out.append('}')
-                    string = &string[2]
-                else:
-                    fail_in_toml(string_toml.lineno, error)
+                assert starts_with(format, "}}")
+                out.append('}')
+                format = &format[2]
             case _:
-                out.append(*string++)
+                out.append(*format++)
 
     out.append('\0')
     return out.ptr
