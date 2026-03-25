@@ -98,8 +98,8 @@ def main() -> int:
 ## Functions
 
 All of the functions listed below return `0` on success and `-1` on failure.
-If these functions fail, they set the errno,
-so you use e.g. `strerror(get_errno())` (see [stdlib/errno.jou](../stdlib/errno.jou))
+These functions set `errno` when they fail,
+so you can use e.g. `strerror(get_errno())` (see [stdlib/errno.jou](../stdlib/errno.jou))
 to get an error message as a string.
 
 - `mkdir(path: byte*, mode: int) -> int` creates a directory.
