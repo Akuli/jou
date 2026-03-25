@@ -206,7 +206,7 @@ def get_path_to_jou_compiled_subfolder() -> byte*:
     asprintf(&jou_compiled, "%s/jou_compiled", dirname(infile))
     free(infile)
 
-    mkdir(jou_compiled)
+    mkdir(jou_compiled, 0o777)
     write_gitignore(jou_compiled)
 
     name = skip_slashes(global_compiler_state.args.infile)
@@ -216,7 +216,7 @@ def get_path_to_jou_compiled_subfolder() -> byte*:
 
     subfolder: byte*
     asprintf(&subfolder, "%s/%.*s", jou_compiled, name_len as int, name)
-    mkdir(subfolder)
+    mkdir(subfolder, 0o777)
 
     free(jou_compiled)
     return subfolder

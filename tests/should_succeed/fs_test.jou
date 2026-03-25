@@ -155,9 +155,9 @@ def test_dir_iter_corner_cases() -> None:
     assert strlen(iter.error_message) >= 10  # exact message depends on system
 
     puts("Empty directory")  # Output: Empty directory
-    mkdir("tmp")
-    mkdir("tmp/tests")
-    mkdir("tmp/tests/empty_dir")
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
+    mkdir("tmp/tests/empty_dir", 0o777)
     iter = DirIter{dir = "tmp/tests/empty_dir"}
     assert not iter.next()
     printf("%d\n", iter.error_code)  # Output: 0
@@ -182,8 +182,8 @@ def test_dir_iter_corner_cases() -> None:
 
 
 def test_unlink() -> None:
-    mkdir("tmp")
-    mkdir("tmp/tests")
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
     f = fopen("tmp/tests/fs_test_temp.txt", "w")
     assert f != NULL
     fclose(f)
