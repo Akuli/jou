@@ -7,17 +7,6 @@ import "stdlib/sort.jou"
 import "stdlib/str.jou"
 
 
-# TODO: add some kind of mkdir to standard library
-if WINDOWS:
-    declare _mkdir(path: byte*) -> int
-    def my_mkdir(path: byte*) -> None:
-        _mkdir(path)
-else:
-    declare mkdir(path: byte*, mode: int) -> int  # posix
-    def my_mkdir(path: byte*) -> None:
-        mkdir(path, 0o777)
-
-
 def test_dir_iter_basic() -> None:
     result = List[byte*]{}
 
@@ -166,9 +155,9 @@ def test_dir_iter_corner_cases() -> None:
     assert strlen(iter.error_message) >= 10  # exact message depends on system
 
     puts("Empty directory")  # Output: Empty directory
-    my_mkdir("tmp")
-    my_mkdir("tmp/tests")
-    my_mkdir("tmp/tests/empty_dir")
+    mkdir("tmp")
+    mkdir("tmp/tests")
+    mkdir("tmp/tests/empty_dir")
     iter = DirIter{dir = "tmp/tests/empty_dir"}
     assert not iter.next()
     printf("%d\n", iter.error_code)  # Output: 0

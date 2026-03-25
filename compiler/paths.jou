@@ -36,11 +36,6 @@ else:
     declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
 
 if WINDOWS:
-    declare _mkdir(path: byte*) -> int
-else:
-    declare mkdir(path: byte*, mode: int) -> int  # posix
-
-if WINDOWS:
     declare _unlink(path: byte*) -> int
 else:
     declare unlink(path: byte*) -> int
@@ -176,15 +171,6 @@ def find_stdlib() -> byte*:
     exit(1)
 
 
-def simple_mkdir(path: byte*) -> None:
-    # TODO: check if errno == EEXIST
-    # Currently no good way to access EEXIST constant
-    if WINDOWS:
-        _mkdir(path)
-    else:
-        mkdir(path, 0o777)  # this is what mkdir in bash does according to strace
-
-
 def write_gitignore(p: byte*) -> None:
     filename: byte*
     asprintf(&filename, "%s/.gitignore", p)
@@ -225,7 +211,7 @@ def get_path_to_jou_compiled_subfolder() -> byte*:
     asprintf(&jou_compiled, "%s/jou_compiled", dirname(infile))
     free(infile)
 
-    simple_mkdir(jou_compiled)
+    mkdir(jou_compiled)
     write_gitignore(jou_compiled)
 
     name = skip_slashes(global_compiler_state.args.infile)
@@ -235,7 +221,7 @@ def get_path_to_jou_compiled_subfolder() -> byte*:
 
     subfolder: byte*
     asprintf(&subfolder, "%s/%.*s", jou_compiled, name_len as int, name)
-    simple_mkdir(subfolder)
+    mkdir(subfolder)
 
     free(jou_compiled)
     return subfolder

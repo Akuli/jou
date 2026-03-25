@@ -262,3 +262,14 @@ class DirIter:
 
                 if self.set_name(name):
                     return True
+
+
+if WINDOWS:
+    declare _mkdir(path: byte*) -> int
+    @public
+    @inline
+    def mkdir(path: byte*, the_mode_is_ignored: int) -> int:
+        return _mkdir(path)
+else:
+    @public
+    declare mkdir(path: byte*, mode: int) -> int
