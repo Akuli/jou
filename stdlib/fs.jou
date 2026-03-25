@@ -264,6 +264,9 @@ class DirIter:
                     return True
 
 
+# Use mkdir(path, 0o777) if you don't know what the mode argument does. It
+# looks like insecure "everything allowed" permissions, but actually means that
+# default permissions will be used. See the documentation.
 if WINDOWS:
     declare _mkdir(path: byte*) -> int
     @public
@@ -273,3 +276,12 @@ if WINDOWS:
 else:
     @public
     declare mkdir(path: byte*, mode: int) -> int
+
+if WINDOWS:
+    declare _unlink(path: byte*) -> int
+    @public
+    @inline
+    def unlink(path: byte*) -> int:
+        return _unlink(path)
+else:
+    declare unlink(path: byte*) -> int
