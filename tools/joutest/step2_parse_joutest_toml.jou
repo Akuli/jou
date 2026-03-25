@@ -1,5 +1,4 @@
 import "stdlib/assert.jou"
-import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
@@ -99,17 +98,13 @@ global big_file_content_buffer: byte[1_000_000]
 
 @public
 def step2_parse_joutest_toml() -> TOML:
-    error: byte[1000]
-
     f = fopen("joutest.toml", "rb")
     if f == NULL:
-        snprintf(error, sizeof(error), "cannot open joutest.toml: %s", strerror(get_errno()))
-        fail(error)
+        fail_with_errno("cannot open joutest.toml")
 
     n = fread(big_file_content_buffer, 1, sizeof(big_file_content_buffer), f)
     if ferror(f) != 0:
-        snprintf(error, sizeof(error), "reading joutest.toml failed: %s", strerror(get_errno()))
-        fail(error)
+        fail_with_errno("reading joutest.toml failed")
     fclose(f)
 
     if n == sizeof(big_file_content_buffer):

@@ -3,15 +3,14 @@
 files = "tests/tests_of_joutest/**/joutest.toml"
 command = ["joutest", "--no-colors"]
 cd_to_containing_directory = true
+
+[[tests]]
+files = "tests/tests_of_joutest/bad_configs/**/joutest.toml"
 expected_exit_code = 1
 output_comment_rules = {
     Output = '{comment}',
     Error = 'joutest error in file "{file}", line {line}: {comment}'
 }
-
-[[tests]]
-files = "tests/tests_of_joutest/should_succeed/**/joutest.toml"
-expected_exit_code = 0
 
 [[tests]]
 files = "tests/tests_of_joutest/should_succeed/verbose*/joutest.toml"

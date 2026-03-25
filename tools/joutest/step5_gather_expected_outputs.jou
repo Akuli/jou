@@ -1,4 +1,3 @@
-import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
@@ -68,8 +67,8 @@ def find_expected_output(test: Test*) -> None:
 
     f = fopen(test.path, "rb")
     if f == NULL:
-        snprintf(message, sizeof(message), "reading expected output from '%s' failed: %s", strerror(get_errno()))
-        fail(message)
+        snprintf(message, sizeof(message), "reading expected output from '%s' failed", test.path)
+        fail_with_errno(message)
 
     result = List[byte]{}
     line: byte[4096]

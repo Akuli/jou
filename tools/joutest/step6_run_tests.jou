@@ -283,16 +283,10 @@ else:
         # program, because another thread could fork+exec between creating the
         # pipe and setting the flag.
         pipefd: int[2]
-        message: byte[300]
-
         if pipe(&pipefd) != 0:
-            snprintf(message, sizeof(message), "pipe() failed: %s", strerror(get_errno()))
-            fail(message)
-
+            fail_with_errno("pipe() failed")
         if fcntl(pipefd[0], F_SETFD, FD_CLOEXEC) != 0 or fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0:
-            snprintf(message, sizeof(message), "fcntl() failed: %s", strerror(get_errno()))
-            fail(message)
-
+            fail_with_errno("fcntl() failed")
         return pipefd
 
     # This uses the traditional fork()+exec() instead of posix_spawn(), because
@@ -300,8 +294,6 @@ else:
     # posix_spawn(). Some platforms have posix_spawn_file_actions_addchdir_np(),
     # but others do not.
     def run_command(test: Test*) -> None:
-        message: byte[300]
-
         error_pipe = create_cloexec_pipe()
         error_pipe_read = error_pipe[0]
         error_pipe_write = error_pipe[1]
@@ -324,8 +316,7 @@ else:
 
         pid = fork()
         if pid < 0:
-            snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
-            fail(message)
+            fail_with_errno("fork() failed")
         elif pid == 0:
             # This is the child process. We should do the bare minimum we
             # can here. For example, no printing.
@@ -371,8 +362,7 @@ else:
             while True:
                 n = read(output_pipe_read, buf, sizeof(buf))
                 if n < 0:  # TODO: retry on EINTR
-                    snprintf(message, sizeof(message), "reading output failed: %s", strerror(get_errno()))
-                    fail(message)
+                    fail_with_errno("reading output failed")
                 assert n >= 0  # TODO
                 if n == 0:
                     break
@@ -389,8 +379,7 @@ else:
         while ret != -1 and not WIFEXITED(wstatus) and not WIFSIGNALED(wstatus):
             ret = waitpid(pid, &wstatus, 0)
         if ret == -1:
-            snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
-            fail(message)
+            fail_with_errno("waitpid() failed")
 
         # Detect errors before exec in child process
         #
@@ -399,8 +388,7 @@ else:
         #       writing to the pipe while the parent is waiting for it.
         e = 0
         if read(error_pipe_read, &e, sizeof(e)) < 0:
-            snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
-            fail(message)
+            fail_with_errno("read() failed")
 
         close(error_pipe_read)
 
