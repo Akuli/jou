@@ -181,8 +181,22 @@ def test_dir_iter_corner_cases() -> None:
     assert strlen(iter.error_message) >= 10  # exact message depends on system
 
 
+def test_unlink() -> None:
+    mkdir("tmp")
+    mkdir("tmp/tests")
+    f = fopen("tmp/tests/fs_test_temp.txt", "w")
+    assert f != NULL
+    fclose(f)
+
+    assert unlink("tmp/tests/fs_test_temp.txt") == 0
+    assert unlink("tmp/tests/fs_test_temp.txt") == -1
+    assert unlink("tmp/tests/fs_test_temp.txt") == -1
+    assert fopen("tmp/tests/fs_test_temp.txt", "r") == NULL
+
+
 def main() -> int:
     test_dir_iter_basic()
     test_dir_iter_funny_paths()
     test_dir_iter_corner_cases()
+    test_unlink()
     return 0

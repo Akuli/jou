@@ -111,6 +111,9 @@ to get an error message as a string.
     instead, it actually creates the directory with **default** permissions
     because of how [the umask](https://en.wikipedia.org/wiki/Umask) works.
     On Windows, the `mode` argument is ignored entirely.
+- `unlink(path: byte*) -> int` deletes a file.
+    Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+    if you need to delete a directory.
 
 
 ## Windows support

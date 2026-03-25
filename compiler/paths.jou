@@ -35,11 +35,6 @@ elif NETBSD:
 else:
     declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
 
-if WINDOWS:
-    declare _unlink(path: byte*) -> int
-else:
-    declare unlink(path: byte*) -> int
-
 @public
 declare dirname(path: byte*) -> byte*
 
@@ -228,14 +223,14 @@ def get_path_to_jou_compiled_subfolder() -> byte*:
 
 
 # Deletes files in a directory whose name ends with the given suffix.
+#
+# This may occasionally miss some files because they are being deleted while
+# looping through the directory.
 def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
     iter = DirIter{dir = dir}
     while iter.next():
         if ends_with(iter.name, suffix):
-            if WINDOWS:
-                ret = _unlink(iter.path)
-            else:
-                ret = unlink(iter.path)
+            ret = unlink(iter.path)
             if ret == 0 and global_compiler_state.args.verbosity >= 1:
                 printf("Deleted %s\n", iter.path)
 
