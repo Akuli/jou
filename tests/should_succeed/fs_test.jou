@@ -7,14 +7,6 @@ import "stdlib/sort.jou"
 import "stdlib/str.jou"
 
 
-# TODO: add some kind of chdir to standard library
-if WINDOWS:
-    declare _chdir(dirname: byte*) -> int
-    def chdir(dir: byte*) -> int:
-        return _chdir(dir)
-else:
-    declare chdir(path: byte*) -> int
-
 # TODO: add some kind of mkdir to standard library
 if WINDOWS:
     declare _mkdir(path: byte*) -> int

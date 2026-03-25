@@ -18,3 +18,15 @@ declare abort() -> noreturn  # Hard exit. Similar to a crash.
 # the environment variables of the current process.
 @public
 declare getenv(varname: byte*) -> byte*  # Returns NULL if not found.
+
+# chdir(path) changes the working directory of the current process.
+# Return value 0 means it succeeded.
+if WINDOWS:
+    declare _chdir(path: byte*) -> int
+    @public
+    @inline
+    def chdir(path: byte*) -> int:
+        return _chdir(path)
+else:
+    @public
+    declare chdir(path: byte*) -> int
