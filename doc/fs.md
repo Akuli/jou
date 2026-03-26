@@ -118,10 +118,11 @@ def main() -> int:
 ```
 
 The `find_current_executable()` function returns `NULL` if any error occurs.
-There is currently no cross-platform way to get information about *why* it failed,
-and I recommend printing an error message similar to "cannot locate the currently running executable".
-This is by design: if this fails on someone's system,
-the system is likely in a weird enough state that whoever is running
+There is currently no cross-platform way to get information about the error,
+and I recommend displaying a generic error message,
+such as "failed to locate the currently running executable".
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if this is a problem in your use case.
 
 
 ## Windows support
