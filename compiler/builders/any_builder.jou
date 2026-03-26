@@ -129,7 +129,7 @@ class AnyBuilder:
         assert ptr.type.kind == TypeKind.Pointer
         result = AnyBuilderValue{type = ptr.type.value_type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.dereference(ptr.lvalue)
+            result.lvalue = self.lbuilder.dereference(ptr.lvalue, ptr.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.dereference(ptr.uvalue)
         if self.hbuilder != NULL:
@@ -139,9 +139,10 @@ class AnyBuilder:
     # Returns &ptr[index]
     @public
     def indexed_pointer(self, ptr: AnyBuilderValue, index: AnyBuilderValue) -> AnyBuilderValue:
+        assert index.type == int_type(64)  # LLVM wants this, easy enough to ensure
         result = AnyBuilderValue{type = ptr.type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.indexed_pointer(ptr.lvalue, index.lvalue)
+            result.lvalue = self.lbuilder.indexed_pointer(ptr.lvalue, ptr.type, index.lvalue)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.indexed_pointer(ptr.uvalue, index.uvalue)
         if self.hbuilder != NULL:
@@ -158,8 +159,7 @@ class AnyBuilder:
 
         result = AnyBuilderValue{type = field.type.pointer_type()}
         if self.lbuilder != NULL:
-            # TODO(refactor): pass the field, not the name
-            result.lvalue = self.lbuilder.class_field_pointer(ptr.lvalue, field_name)
+            result.lvalue = self.lbuilder.class_field_pointer(ptr.lvalue, ptr.type, field)
         if self.ubuilder != NULL:
             # TODO(refactor): pass the field, not the name
             result.uvalue = self.ubuilder.class_field_pointer(ptr.uvalue, field_name)
@@ -174,7 +174,7 @@ class AnyBuilder:
     def global_var_ptr(self, name: byte*, var_type: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{type = var_type.pointer_type()}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.global_var_ptr(name, var_type)
+            result.lvalue = self.lbuilder.global_var_ptr(name)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.global_var_ptr(name, var_type)
         if self.hbuilder != NULL:
@@ -198,7 +198,7 @@ class AnyBuilder:
     def get_argument(self, i: int, argtype: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{type = argtype}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.get_argument(i, argtype)
+            result.lvalue = self.lbuilder.get_argument(i)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.get_argument(i, argtype)
         if self.hbuilder != NULL:
@@ -375,7 +375,7 @@ class AnyBuilder:
         assert a.type == b.type
         result = AnyBuilderValue{type = a.type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.add(a.lvalue, b.lvalue)
+            result.lvalue = self.lbuilder.add(a.lvalue, b.lvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.add(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
@@ -388,7 +388,7 @@ class AnyBuilder:
         assert a.type == b.type
         result = AnyBuilderValue{type = a.type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.sub(a.lvalue, b.lvalue)
+            result.lvalue = self.lbuilder.sub(a.lvalue, b.lvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.sub(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
@@ -401,7 +401,7 @@ class AnyBuilder:
         assert a.type == b.type
         result = AnyBuilderValue{type = a.type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.mul(a.lvalue, b.lvalue)
+            result.lvalue = self.lbuilder.mul(a.lvalue, b.lvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.mul(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
@@ -414,7 +414,7 @@ class AnyBuilder:
         assert a.type == b.type
         result = AnyBuilderValue{type = a.type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.div(a.lvalue, b.lvalue)
+            result.lvalue = self.lbuilder.div(a.lvalue, b.lvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.div(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
@@ -427,7 +427,7 @@ class AnyBuilder:
         assert a.type == b.type
         result = AnyBuilderValue{type = a.type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.mod(a.lvalue, b.lvalue)
+            result.lvalue = self.lbuilder.mod(a.lvalue, b.lvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.mod(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
@@ -478,7 +478,7 @@ class AnyBuilder:
     def bit_shift_left(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{type = a.type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.bit_shift_left(a.lvalue, b.lvalue)
+            result.lvalue = self.lbuilder.bit_shift_left(a.lvalue, b.lvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_shift_left(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
@@ -490,7 +490,7 @@ class AnyBuilder:
     def bit_shift_right(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         result = AnyBuilderValue{type = a.type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.bit_shift_right(a.lvalue, b.lvalue)
+            result.lvalue = self.lbuilder.bit_shift_right(a.lvalue, b.lvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_shift_right(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
@@ -503,7 +503,7 @@ class AnyBuilder:
         assert a.type == b.type
         result = AnyBuilderValue{type = bool_type()}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.eq(a.lvalue, b.lvalue)
+            result.lvalue = self.lbuilder.eq(a.lvalue, b.lvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.eq(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
@@ -516,7 +516,7 @@ class AnyBuilder:
         assert a.type == b.type
         result = AnyBuilderValue{type = bool_type()}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.lt(a.lvalue, b.lvalue)
+            result.lvalue = self.lbuilder.lt(a.lvalue, b.lvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.lt(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
@@ -542,7 +542,7 @@ class AnyBuilder:
         assert value.type.is_integer_type()
         result = AnyBuilderValue{type = value.type}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.bit_not(value.lvalue)
+            result.lvalue = self.lbuilder.bit_not(value.lvalue, value.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_not(value.uvalue)
         if self.hbuilder != NULL:
@@ -566,7 +566,7 @@ class AnyBuilder:
     def memset_to_zero(self, ptr: AnyBuilderValue) -> None:
         assert ptr.type.kind == TypeKind.Pointer
         if self.lbuilder != NULL:
-            self.lbuilder.memset_to_zero(ptr.lvalue)
+            self.lbuilder.memset_to_zero(ptr.lvalue, ptr.type)
         if self.ubuilder != NULL:
             self.ubuilder.memset_to_zero(ptr.uvalue)
         if self.hbuilder != NULL:
@@ -577,7 +577,7 @@ class AnyBuilder:
     def cast(self, value: AnyBuilderValue, to: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{type = to}
         if self.lbuilder != NULL:
-            result.lvalue = self.lbuilder.cast(value.lvalue, to)
+            result.lvalue = self.lbuilder.cast(value.lvalue, value.type, to)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.cast(value.uvalue, to)
         if self.hbuilder != NULL:
