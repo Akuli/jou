@@ -1,0 +1,94 @@
+import "stdlib/errno.jou"
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+import "./fail.jou"
+import "./string_formatter.jou"
+import "./state.jou"
+
+
+# Examples:
+#   "# Output: whatever\n", "Output" --> "whatever\n"
+#   "# Lolwat: whatever\n", "Output" --> NULL
+def skip_start_of_comment(p: byte*, marker: byte*) -> byte*:
+    if *p++ != '#':
+        return NULL
+    if *p++ != ' ':
+        return NULL
+    while *marker != '\0':
+        if *p++ != *marker++:
+            return NULL
+    if *p++ != ':':
+        return NULL
+
+    match *p:
+        case ' ':
+            # skip space so "# Output: foo\n" becomes "foo\n"
+            return &p[1]
+        case '\0':
+            # treat "# Output:" as blank line
+            return p
+        case _:
+            return NULL
+
+
+def find_expected_output_from_line(
+    test: Test*,
+    lineno: int,
+    line: byte*,
+    out: List[byte]*,
+) -> None:
+    for p = &line[strlen(line)]; p >= &line[0]; p--:
+        for m = test.output_comment_rules.ptr; m < test.output_comment_rules.end(); m++:
+            marker = (*m)[0]
+            template = (*m)[1]
+
+            comment = skip_start_of_comment(p, marker)
+            if comment != NULL:
+                lineno_str: byte[100]
+                sprintf(lineno_str, "%d", lineno)
+
+                params: byte*[enum_count(FormatParam)]
+                memset(params, 0, sizeof(params))
+                params[FormatParam.File as int] = test.path_in_working_directory
+                params[FormatParam.Line as int] = lineno_str
+                params[FormatParam.Comment as int] = comment
+
+                s = format_string(template, params)
+                out.extend_from_ptr(s, strlen(s))
+                out.append('\n')
+                free(s)
+                return
+
+
+def find_expected_output(test: Test*) -> None:
+    message: byte[300]
+
+    f = fopen(test.path, "rb")
+    if f == NULL:
+        snprintf(message, sizeof(message), "reading expected output from '%s' failed: %s", strerror(get_errno()))
+        fail(message)
+
+    result = List[byte]{}
+    line: byte[4096]
+    lineno = 0
+    while fgets(line, sizeof(line), f) != NULL:
+        if ends_with(line, "\r\n"):
+            strcpy(strrchr(line, '\r'), "\n")
+        if ends_with(line, "\n"):
+            lineno++  # Having this here helps with handling very long lines.
+            line[strlen(line) - 1] = '\0'
+        find_expected_output_from_line(test, lineno, line, &result)
+
+    fclose(f)
+    result.append('\0')
+    test.expected_output = result.ptr
+
+
+@public
+def step5_gather_expected_outputs(tests: List[Test]) -> None:
+    for test = tests.ptr; test < tests.end(); test++:
+        if test.uses_output_capturing:
+            find_expected_output(test)

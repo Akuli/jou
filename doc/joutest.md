@@ -21,8 +21,7 @@ To use `joutest` this way, create a file `joutest.toml` that contains just these
 files = "tests/test_*.jou"
 ```
 
-Now you can simply run `joutest` inside your project directory.
-It should run the tests:
+Now you can simply run `joutest`. It should run the tests:
 
 ```
 akuli@Akuli-Desktop ~/curses-klondike $ joutest
@@ -30,6 +29,10 @@ akuli@Akuli-Desktop ~/curses-klondike $ joutest
 
 3 succeeded
 ```
+
+The `joutest.toml` file must be in the same directory where you invoke `joutest`.
+There is no hidden file finding logic: `joutest` literally does `fopen("joutest.toml", "rb")`,
+and the content of `joutest.toml` specifies where to find the files to be tested.
 
 Each dot means that a file ran successfully.
 You can also try `--verbose` (or `-v`, that does the same thing):
@@ -45,6 +48,102 @@ run: jou "tests/test_klondike.jou"
 
 
 3 succeeded
+```
+
+
+## Output Comments
+
+By default, `joutest` checks that your test files print exactly what they are supposed to print.
+To determine the expected output, `joutest` collects all `# Output: foo` comments from the file being tested
+in the order they appear in the file.
+The space after `:` is required, but as a special case,
+`# Output:` at the end of a line means an empty line of output.
+
+For example, the following test passes:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    # Output: Hello
+    # Output: World
+    printf("Hello\nWorld\n")
+
+    # Empty line
+    printf("\n")    # Output:
+
+    printf("Bla1\n")    # Output: Bla1
+    printf("Bla2\n")    # Output: Bla2
+    printf("Bla3\n")    # Output: Bla3
+    printf("Bla4\n")    # Output: Bla4
+    printf("Bla5\n")    # Output: Bla5
+
+    return 0
+```
+
+If the expected and actual output do not match, `joutest` shows a diff.
+For example, changing `printf("Bla4\n")` to `printf("Baa4\n")` above produces the following output:
+
+```diff
+F
+
+*** Command: jou test.jou ***
+@@ 3 lines not shown @@
+ Bla1
+ Bla2
+ Bla3
+-Bla4
++Baa4
+ Bla5
+
+
+0 succeeded, 1 failed
+```
+
+The colors that joutest actually uses are slightly different than what's shown above,
+because this documentation is limited by GitHub's syntax highlighting.
+
+In `joutest` diffs, red `-` lines are the expected output,
+and green `+` lines are the actual output.
+This is backwards compared to the usual "red is bad and green is good" thinking,
+but consistent with the "red was changed to green" coloring that is almost always used with diffs.
+
+If you want to split up a test file into multiple pieces,
+just make functions and call them from `main()` in the order they are defined. For example:
+
+```python
+import "stdlib/io.jou"
+
+def test_plus() -> None:
+    printf("%d\n", 1 + 2)  # Output: 3
+    printf("%d\n", 123 + 456)  # Output: 579
+
+def test_minus() -> None:
+    printf("%d\n", 1 - 2)  # Output: -1
+    printf("%d\n", 456 - 123)  # Output: 333
+
+def main() -> int:
+    test_plus()
+    test_minus()
+    return 0
+```
+
+If you forget to call one of the functions in `main()`,
+you will get a compiler warning that will show up in the diff.
+For example, commenting out or removing `test_minus()` from `main()` in the above example produces:
+
+```diff
+F
+
+*** Command: jou a.jou ***
++compiler warning for file "a.jou", line 7: function 'test_minus' defined but not used
+ 3
+ 579
+--1
+-333
+
+
+0 succeeded, 1 failed
 ```
 
 
@@ -114,7 +213,7 @@ files = {
 
 ## Content of `joutest.toml`
 
-Note that any value can be specified as a condition table (see above).
+Note that any value can be specified as a [condition table](#condition-tables).
 
 The only required things are the `tests` array, and `files` inside each table of the `tests` array.
 Everything else is optional.
@@ -125,8 +224,43 @@ Everything else is optional.
         and `**` (match zero or more entire path components).
         For example, `files = ["**/*.md"]` finds all markdown files,
         including any markdown files in the same directory with `joutest.toml`.
-    - More will be added in the future...
-- `defaults_for_all_tests` is just like each table of the `tests` array,
+    - `stdout` and `stderr` (default: `"compare_to_comments"`) define what happens to text printed by the test. The valid values are:
+        - `"compare_to_comments"` means that
+            `joutest` captures the output and compares it to [output comments](#output-comments).
+        - `"do_not_capture"` passes the output (if any) to the terminal as is among all the things that `joutest` itself prints.
+            Output comments are ignored entirely if both `stdout` and `stderr` are set to `"do_not_capture"`.
+    - `output_comment_rules` (default: `{Output = "{comment}"}`) is a TOML table that specifies
+        which comments are recognized as [output comments](#output-comments)
+        and how exactly they are transformed into expected output.
+        For example, `{Greet = "hello {comment}"}` means that
+        the only supported output comment is `# Greet:`,
+        and it works so that `# Greet: world` adds `hello world` to the expected output.
+        Inside the values of `output_comment_rules`, the following replacements are done:
+        - `{comment}` is replaced with the comment text after `:` excluding the space character immediately following it.
+        - `{file}` is replaced with a relative path to the file containing the comment.
+            Backslashes are used on Windows, and forward slashes are used on other operating systems.
+        - `{line}` is replaced with the line number of the comment.
+            The first line of the file is line 1.
+        - `{{` is replaced with a `{` character.
+        - `}}` is replaced with a `}` character.
+    - `command` (default: `["jou", "{file}"]`) is the command that `joutest` invokes to run the test.
+        It is an array of strings like `["jou", "{file}"]`.
+        Inside each string, the following replacements are done:
+        - `{file}` is replaced with a relative path to the test file.
+            Backslashes are used on Windows, and forward slashes are used on other operating systems.
+        - `{{` is replaced with a `{` character.
+        - `}}` is replaced with a `}` character.
+    - `cd_to_containing_directory` (default: `false`) is a boolean that determines the current working directory
+        that will be used when running the test:
+        `true` means the directory where the test file is, and
+        `false` means the directory that contains `joutest.toml`.
+        This affects the `{file}` substitution in `command`:
+        if `cd_to_containing_directory` is `true`, then `{file}` is
+        only the file name rather than a path, e.g. `test_foo.jou` instead of `tests/test_foo.jou`.
+    - `expected_exit_code` (default: `0`) is the correct
+        [exit code](tutorial.md#main-function-and-binaries) for the test as an integer.
+        If errors are expected, you probably want to set this to `1`.
+- `defaults_for_all_tests` (default: empty table) is just like each table of the `tests` array,
     except that you cannot specify `files`.
     As the name suggests, these settings are used
     when an item of the `tests` array does not specify something.
@@ -137,22 +271,16 @@ This way you can specify something general first and special cases afterwards.
 For example:
 
 ```toml
-# Run all example files
+# Run tests normally
 [[tests]]
-files = "examples/*.jou"
+files = "tests/*.jou"
 
-# ...except this example file
+# ...except that for some reason, you want to see what this file prints when
+# you run the tests
 [[tests]]
-files = "examples/dont_do_this.jou"
-skip = true   # TODO: this option doesn't exist yet, sorry :(
+files = "tests/special.jou"
+stdout = "do_not_capture"
 ```
-
-
-## Location of `joutest.toml`
-
-The `joutest.toml` file must be in the same directory where you invoke `joutest`.
-There is no hidden file finding logic: `joutest` literally does `fopen("joutest.toml", "rb")`,
-and the content of `joutest.toml` specifies where to find the files to be tested.
 
 
 ## Unimplemented features
@@ -175,7 +303,7 @@ markdown.languages_to_test_as_jou = ["jou"]
 timeout_seconds = 60
 stdout = "compare_to_comments"
 stderr = "compare_to_comments"
-special_output_comments = {
+output_comment_rules = {
     Output = "{comment}",
     # The following will be useful for developing the Jou compiler, but
     # probably won't be not enabled by default.
@@ -222,30 +350,30 @@ Plan and status:
     - in TOML, use:
         - [DONE] `files`
         - `markdown.languages_to_test_as_jou`
-4. configure tests
-    - walk through and apply each relevant TOML section
+4. [DONE] configure tests
+    - [DONE] walk through and apply each relevant TOML section
     - this is where most of the validation should happen
 5. gather expected outputs
-    - read files and parse for comments
+    - [DONE] read files and parse for comments
     - markdown: must seek
 6. run tests
     - pre-test command like `make`
         - TODO: how about `./runtests.sh --dont-run-make`?
-    - Windows:
-        - use `CreateProcessA` (maybe later `CreateProcessW`)
-        - set `lpApplicationName` to NULL and `lpCommandLine` like `"jou file.jou"`,
+    - [DONE] Windows:
+        - [DONE] use `CreateProcessA` (maybe later `CreateProcessW`)
+        - [DONE] set `lpApplicationName` to NULL and `lpCommandLine` like `"jou file.jou"`,
             so that `joutest.exe` will always prefer a `jou.exe`
             in the same directory with `joutest.exe` over anything that might be in `%PATH%`
-        - implement the notorious CRT quoting rules
+        - [DONE] implement the notorious CRT quoting rules
             to construct the string of arguments that no shell will ever see
-    - POSIX:
-        - use `posix_spawnp()`
-        - prepend dirname of joutest executable to `$PATH`,
+    - [DONE] POSIX:
+        - [DONE] use `posix_spawnp()`
+        - [DONE] prepend dirname of joutest executable to `$PATH`,
             so that `joutest.exe` will always prefer a `jou` in the same directory with `joutest`
-    - if configured, capture stdout/stderr
+    - [DONE] if configured, capture stdout/stderr
     - if configured, discard stdout/stderr
     - run in parallel
 7. show results
-    - show diffs (need that algorithm.......)
-    - show how many succeeded and failed
+    - [DONE] show diffs (need that algorithm.......)
+    - [DONE] show how many succeeded and failed
     - [DONE] exit 0 or 1

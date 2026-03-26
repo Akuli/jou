@@ -8,6 +8,14 @@ def fail(message: byte*) -> noreturn:
     exit(1)
 
 
+# This should only be used for syntax errors. Don't use this when the TOML file
+# contains valid TOML that doesn't mean anything reasonable in joutest.
+@public
+def fail_with_toml_syntax_error(toml_lineno: int, message: byte*) -> noreturn:
+    fprintf(get_stderr(), "TOML syntax error in file \"joutest.toml\", line %d: %s\n", toml_lineno, message)
+    exit(1)
+
+
 @public
 def fail_in_toml(toml_lineno: int, message: byte*) -> noreturn:
     fprintf(get_stderr(), "joutest error in file \"joutest.toml\", line %d: %s\n", toml_lineno, message)

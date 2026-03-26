@@ -14,18 +14,38 @@ enum SimpleResult:
     Skipped
 
 @public
-class DetailResult:
-    start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
-    terminating_signal: int  # (POSIX only) signal number that killed the test while running
-    exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
-    #output: List[byte]  # TODO
+enum CaptureMode:
+    CompareToComments   # (default) expected output comes from comments like "# Output: hello"
+    DoNotCapture        # do nothing with the output, let it go to console
+
+@public
+global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comments", "do_not_capture"]
 
 @public
 class Test:
+    # These are set in step 3 (discover tests)
     path: byte*
     glob_toml: TOML*
     relevant_toml_tables: List[TOML*]
+
+    # These are set in step 4 (configure tests)
+    specified_command_list: List[byte*]  # may contain things like "{file}"
     actual_command_list: List[byte*]
     actual_command_string: byte*
+    stdout_capture_mode: CaptureMode
+    stderr_capture_mode: CaptureMode
+    uses_output_capturing: bool
+    output_comment_rules: List[byte*[2]]
+    working_directory: byte*  # NULL means use current directory
+    path_in_working_directory: byte*  # usually same as path, just file name if cd_to_containing_directory is used
+    expected_exit_code: int
+
+    # These are set in step 5 (gather expected output)
+    expected_output: byte*
+
+    # These are set in step 6 (run tests)
+    start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
+    terminating_signal: int  # (POSIX only) signal number that killed the test while running
+    actual_exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
+    actual_output: byte*
     simple_result: SimpleResult
-    detail_result: DetailResult
