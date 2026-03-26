@@ -10,6 +10,7 @@ import "./ast.jou"
 import "./state.jou"
 
 if WINDOWS:
+    import "stdlib/fs.jou"
     import "./paths.jou"
 else:
     import "../config.jou"
@@ -77,6 +78,9 @@ def run_linker(exepath: byte*) -> None:
         else:
             # Assume the folder that contains jou.exe also contains mingw64
             jou_exe = find_current_executable()
+            if jou_exe == NULL:
+                fprintf(get_stderr(), "error: cannot locate the currently running Jou compiler executable\n")
+                exit(1)
             asprintf(&mingw_dir, "%s\\mingw64", dirname(jou_exe))
             free(jou_exe)
 
