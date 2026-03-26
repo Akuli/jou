@@ -11,15 +11,6 @@ import "stdlib/io.jou"
 import "stdlib/ascii.jou"
 
 
-# TODO: add some kind of chdir to standard library
-if WINDOWS:
-    declare _chdir(dirname: byte*) -> int
-    def chdir(dir: byte*) -> int:
-        return _chdir(dir)
-else:
-    declare chdir(path: byte*) -> int
-
-
 def go_to_project_root() -> None:
     for i = 0; i < 3; i++:
         f = fopen("compiler/main.jou", "r")

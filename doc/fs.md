@@ -17,8 +17,7 @@ if iter.error_code != 0:
     printf("Error: %s\n", iter.error_message)
 ```
 
-The `DirIter` class can be used to loop through the files and folders in a directory
-(also known as folder).
+The `DirIter` class can be used to loop through the files and subdirectories in a directory.
 
 When creating a `DirIter`, you should set all unused fields to zero
 by e.g. using [the `ClassName{}` syntax](classes.md#instantiating-syntax) as shown above.
@@ -94,6 +93,27 @@ def main() -> int:
     free(results.ptr)
     return 0
 ```
+
+
+## Functions
+
+All of the functions listed below return `0` on success and `-1` on failure.
+These functions set `errno` when they fail,
+so you can use e.g. `strerror(get_errno())` (see [stdlib/errno.jou](../stdlib/errno.jou))
+to get an error message as a string.
+
+- `mkdir(path: byte*, mode: int) -> int` creates a directory.
+    Its parent directory must already exist.
+    This function takes a `mode` argument mostly for compatibility reasons,
+    and it should almost always be `0o777`.
+    Unlike you might think, this does not mean that
+    the directory is created with insecure permissions that allow any user to do anything;
+    instead, it actually creates the directory with **default** permissions
+    because of how [the umask](https://en.wikipedia.org/wiki/Umask) works.
+    On Windows, the `mode` argument is ignored entirely.
+- `unlink(path: byte*) -> int` deletes a file.
+    Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+    if you need to delete a directory.
 
 
 ## Windows support
