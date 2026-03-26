@@ -133,7 +133,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.dereference(ptr.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.dereference(ptr.hvalue)
+            result.hvalue = self.hbuilder.dereference(ptr.hvalue, ptr.type)
         return result
 
     # Returns &ptr[index]
@@ -146,7 +146,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.indexed_pointer(ptr.uvalue, index.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.indexed_pointer(ptr.hvalue, index.hvalue)
+            result.hvalue = self.hbuilder.indexed_pointer(ptr.hvalue, ptr.type, index.hvalue)
         return result
 
     # Returns &ptr.field
@@ -165,7 +165,7 @@ class AnyBuilder:
             result.uvalue = self.ubuilder.class_field_pointer(ptr.uvalue, field_name)
         if self.hbuilder != NULL:
             # TODO(refactor): pass the field, not the name
-            result.hvalue = self.hbuilder.class_field_pointer(ptr.hvalue, field_name)
+            result.hvalue = self.hbuilder.class_field_pointer(ptr.hvalue, ptr.type, field)
         return result
 
     # Returns &global_variable. Type needs to be passed in because a new builder
@@ -379,7 +379,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.add(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.add(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.add(a.hvalue, b.hvalue, a.type)
         return result
 
     # a - b
@@ -392,7 +392,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.sub(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.sub(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.sub(a.hvalue, b.hvalue, a.type)
         return result
 
     # a * b
@@ -405,7 +405,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.mul(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.mul(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.mul(a.hvalue, b.hvalue, a.type)
         return result
 
     # a / b
@@ -418,7 +418,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.div(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.div(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.div(a.hvalue, b.hvalue, a.type)
         return result
 
     # a % b
@@ -431,7 +431,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.mod(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.mod(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.mod(a.hvalue, b.hvalue, a.type)
         return result
 
     # a & b
@@ -444,7 +444,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_and(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_and(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.bit_and(a.hvalue, b.hvalue, a.type)
         return result
 
     # a | b
@@ -457,7 +457,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_or(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_or(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.bit_or(a.hvalue, b.hvalue, a.type)
         return result
 
     # a ^ b
@@ -470,7 +470,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_xor(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_xor(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.bit_xor(a.hvalue, b.hvalue, a.type)
         return result
 
     # a << b
@@ -482,7 +482,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_shift_left(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_shift_left(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.bit_shift_left(a.hvalue, b.hvalue, a.type)
         return result
 
     # a >> b
@@ -494,7 +494,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_shift_right(a.uvalue, b.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_shift_right(a.hvalue, b.hvalue)
+            result.hvalue = self.hbuilder.bit_shift_right(a.hvalue, b.hvalue, a.type)
         return result
 
     # a == b
@@ -546,7 +546,7 @@ class AnyBuilder:
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_not(value.uvalue)
         if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_not(value.hvalue)
+            result.hvalue = self.hbuilder.bit_not(value.hvalue, value.type)
         return result
 
     # sizeof(any value of given type)

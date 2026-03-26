@@ -73,7 +73,6 @@ def hash_signature(hash: Hash*, sig: Signature*) -> None:
 @public
 class HBuilderValue:
     id: int64
-    type: Type*
 
 
 @public
@@ -94,7 +93,6 @@ class HBuilder:
         self.hash.add_bool(public)
         hash_type(&self.hash, type)
         if initial_value != NULL:
-            assert initial_value.type == type
             self.hash.add_int64(initial_value.id)
 
     @public
@@ -125,7 +123,7 @@ class HBuilder:
             self.hash.add_string("no type")
         else:
             hash_type(&self.hash, t)
-        return HBuilderValue{type = t, id = id}
+        return HBuilderValue{id = id}
 
     @public
     def stack_alloc(self, t: Type*, varname: byte*) -> HBuilderValue:
@@ -144,35 +142,32 @@ class HBuilder:
 
     # *ptr
     @public
-    def dereference(self, ptr: HBuilderValue) -> HBuilderValue:
+    def dereference(self, ptr: HBuilderValue, ptr_type: Type*) -> HBuilderValue:
         self.hash.add_string("deref")
         self.hash.add_int64(ptr.id)
-        assert ptr.type.kind == TypeKind.Pointer
-        return self.new_value(ptr.type.value_type)
+        assert ptr_type.kind == TypeKind.Pointer
+        return self.new_value(ptr_type.value_type)
 
     # Returns &ptr[index]
     @public
-    def indexed_pointer(self, ptr: HBuilderValue, index: HBuilderValue) -> HBuilderValue:
+    def indexed_pointer(self, ptr: HBuilderValue, ptr_type: Type*, index: HBuilderValue) -> HBuilderValue:
         self.hash.add_string("indexed_pointer")
         self.hash.add_int64(ptr.id)
         self.hash.add_int64(index.id)
-        hash_type(&self.hash, ptr.type.value_type)  # result depends on size of pointed type
-        return self.new_value(ptr.type)
+        hash_type(&self.hash, ptr_type.value_type)  # result depends on size of pointed type
+        return self.new_value(ptr_type)
 
     # Returns &ptr.field
     @public
-    def class_field_pointer(self, ptr: HBuilderValue, field_name: byte*) -> HBuilderValue:
+    def class_field_pointer(self, ptr: HBuilderValue, ptr_type: Type*, field: ClassField*) -> HBuilderValue:
         # Do not hash field name, renaming fields should not cause recompiling
-        assert ptr.type.kind == TypeKind.Pointer
-        classtype = ptr.type.value_type
-        assert classtype.kind == TypeKind.Class
-        field = classtype.find_class_field(field_name)
-        assert field != NULL
+        assert ptr_type.kind == TypeKind.Pointer
+        assert ptr_type.value_type.kind == TypeKind.Class
 
         # TODO: Result of &ptr.field depends on the offset of the field in the
         #       struct, so ideally we would get it here somehow and compute
         #       that instead of hashing the whole struct.
-        hash_type(&self.hash, classtype)
+        hash_type(&self.hash, ptr_type.value_type)
 
         self.hash.add_string("class_field_pointer")
         self.hash.add_int64(ptr.id)
@@ -237,7 +232,6 @@ class HBuilder:
     def array(self, len: int, items: HBuilderValue*, item_type: Type*) -> HBuilderValue:
         self.hash.add_string("array")
         for i = 0; i < len; i++:
-            assert items[i].type == item_type
             self.hash.add_int64(items[i].id)
         return self.new_value(item_type.array_type(len))
 
@@ -281,93 +275,85 @@ class HBuilder:
 
     # a + b
     @public
-    def add(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def add(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("add")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        assert a.type == b.type
-        return self.new_value(a.type)
+        return self.new_value(type)
 
     # a - b
     @public
-    def sub(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def sub(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("sub")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        assert a.type == b.type
-        return self.new_value(a.type)
+        return self.new_value(type)
 
     # a * b
     @public
-    def mul(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def mul(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("mul")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        assert a.type == b.type
-        return self.new_value(a.type)
+        return self.new_value(type)
 
     # a / b
     @public
-    def div(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def div(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("div")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        assert a.type == b.type
-        return self.new_value(a.type)
+        return self.new_value(type)
 
     # a % b
     @public
-    def mod(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def mod(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("mod")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        assert a.type == b.type
-        return self.new_value(a.type)
+        return self.new_value(type)
 
     # a & b
     @public
-    def bit_and(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_and(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("and")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        assert a.type == b.type
-        return self.new_value(a.type)
+        return self.new_value(type)
 
     # a | b
     @public
-    def bit_or(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_or(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("or")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        assert a.type == b.type
-        return self.new_value(a.type)
+        return self.new_value(type)
 
     # a ^ b
     @public
-    def bit_xor(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_xor(self, a: HBuilderValue, b: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("xor")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
-        assert a.type == b.type
-        return self.new_value(a.type)
+        return self.new_value(type)
 
     # a << b
     @public
-    def bit_shift_left(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_shift_left(self, a: HBuilderValue, b: HBuilderValue, shift_type: Type*) -> HBuilderValue:
         self.hash.add_string("shl")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
         # Type of b doesn't matter. Result's type is always the type of a.
-        return self.new_value(a.type)
+        return self.new_value(shift_type)
 
     # a >> b
     @public
-    def bit_shift_right(self, a: HBuilderValue, b: HBuilderValue) -> HBuilderValue:
+    def bit_shift_right(self, a: HBuilderValue, b: HBuilderValue, shift_type: Type*) -> HBuilderValue:
         self.hash.add_string("shr")
         self.hash.add_int64(a.id)
         self.hash.add_int64(b.id)
         # Type of b doesn't matter. Result's type is always the type of a.
-        return self.new_value(a.type)
+        return self.new_value(shift_type)
 
     # a == b
     @public
@@ -394,10 +380,10 @@ class HBuilder:
 
     # ~value
     @public
-    def bit_not(self, value: HBuilderValue) -> HBuilderValue:
+    def bit_not(self, value: HBuilderValue, type: Type*) -> HBuilderValue:
         self.hash.add_string("bitnot")
         self.hash.add_int64(value.id)
-        return self.new_value(value.type)
+        return self.new_value(type)
 
     # sizeof(any value of given type)
     @public
