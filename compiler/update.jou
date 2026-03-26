@@ -9,15 +9,6 @@ import "stdlib/process.jou"
 import "stdlib/fs.jou"
 import "./paths.jou"
 
-# TODO: add some kind of chdir to standard library
-if WINDOWS:
-    declare _chdir(dirname: byte*) -> int
-
-    def chdir(dir: byte*) -> int:
-        return _chdir(dir)
-else:
-    declare chdir(path: byte*) -> int
-
 
 def fail_update() -> noreturn:
     puts("")

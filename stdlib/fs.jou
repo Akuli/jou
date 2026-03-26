@@ -336,3 +336,27 @@ def find_current_executable() -> byte*:
                 if ret < size:
                     buf[ret] = '\0'  # Work around valgrind bug: https://bugs.kde.org/show_bug.cgi?id=514094
                     return buf  # success, it fits
+
+
+# Use mkdir(path, 0o777) if you don't know what the mode argument does. It
+# looks like insecure "everything allowed" permissions, but actually means that
+# default permissions will be used. See the documentation.
+if WINDOWS:
+    declare _mkdir(path: byte*) -> int
+    @public
+    @inline
+    def mkdir(path: byte*, the_mode_is_ignored: int) -> int:
+        return _mkdir(path)
+else:
+    @public
+    declare mkdir(path: byte*, mode: int) -> int
+
+if WINDOWS:
+    declare _unlink(path: byte*) -> int
+    @public
+    @inline
+    def unlink(path: byte*) -> int:
+        return _unlink(path)
+else:
+    @public
+    declare unlink(path: byte*) -> int

@@ -3,27 +3,9 @@ import "stdlib/fs.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
+import "stdlib/process.jou"
 import "stdlib/sort.jou"
 import "stdlib/str.jou"
-
-
-# TODO: add some kind of chdir to standard library
-if WINDOWS:
-    declare _chdir(dirname: byte*) -> int
-    def chdir(dir: byte*) -> int:
-        return _chdir(dir)
-else:
-    declare chdir(path: byte*) -> int
-
-# TODO: add some kind of mkdir to standard library
-if WINDOWS:
-    declare _mkdir(path: byte*) -> int
-    def my_mkdir(path: byte*) -> None:
-        _mkdir(path)
-else:
-    declare mkdir(path: byte*, mode: int) -> int  # posix
-    def my_mkdir(path: byte*) -> None:
-        mkdir(path, 0o777)
 
 
 def test_dir_iter_basic() -> None:
@@ -174,9 +156,9 @@ def test_dir_iter_corner_cases() -> None:
     assert strlen(iter.error_message) >= 10  # exact message depends on system
 
     puts("Empty directory")  # Output: Empty directory
-    my_mkdir("tmp")
-    my_mkdir("tmp/tests")
-    my_mkdir("tmp/tests/empty_dir")
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
+    mkdir("tmp/tests/empty_dir", 0o777)
     iter = DirIter{dir = "tmp/tests/empty_dir"}
     assert not iter.next()
     printf("%d\n", iter.error_code)  # Output: 0
@@ -207,9 +189,23 @@ def test_find_exe() -> None:
     free(s)
 
 
+def test_unlink() -> None:
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
+    f = fopen("tmp/tests/fs_test_temp.txt", "w")
+    assert f != NULL
+    fclose(f)
+
+    printf("%d\n", unlink("tmp/tests/fs_test_temp.txt"))  # Output: 0
+    printf("%d\n", unlink("tmp/tests/fs_test_temp.txt"))  # Output: -1
+    printf("%d\n", unlink("tmp/tests/fs_test_temp.txt"))  # Output: -1
+    assert fopen("tmp/tests/fs_test_temp.txt", "r") == NULL
+
+
 def main() -> int:
     test_dir_iter_basic()
     test_dir_iter_funny_paths()
     test_dir_iter_corner_cases()
     test_find_exe()
+    test_unlink()
     return 0
