@@ -107,7 +107,7 @@ to get an error message as a string.
     This function takes a `mode` argument mostly for compatibility reasons,
     and it should almost always be `0o777`.
     Unlike you might think, this does not mean that
-    the directory is created with insecure permissions that allow anyone to do anything with the directory;
+    the directory is created with insecure permissions that allow any user to do anything;
     instead, it actually creates the directory with **default** permissions
     because of how [the umask](https://en.wikipedia.org/wiki/Umask) works.
     On Windows, the `mode` argument is ignored entirely.
