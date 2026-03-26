@@ -23,7 +23,7 @@ import "./hash_builder.jou"
 class AnyBuilderValue:
     lvalue: LLVMValue*
     uvalue: int
-    hvalue: HBuilderValue
+    hvalue: int64
     type: Type*
 
 
@@ -227,7 +227,7 @@ class AnyBuilder:
                 uargs[i] = args[i].uvalue
             result.uvalue = self.ubuilder.call_function(funcptr_type, func_ptr.uvalue, uargs, nargs)
         if self.hbuilder != NULL:
-            hargs: HBuilderValue[MAX_ARGS]
+            hargs: int64[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 hargs[i] = args[i].hvalue
             result.hvalue = self.hbuilder.call_function(funcptr_type, func_ptr.hvalue, hargs, nargs)
@@ -252,7 +252,7 @@ class AnyBuilder:
                 uargs[i] = args[i].uvalue
             result.uvalue = self.ubuilder.call_method(sig, uargs, nargs)
         if self.hbuilder != NULL:
-            hargs: HBuilderValue[MAX_ARGS]
+            hargs: int64[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 hargs[i] = args[i].hvalue
             result.hvalue = self.hbuilder.call_method(sig, hargs, nargs)
@@ -291,7 +291,7 @@ class AnyBuilder:
             free(uvalues)
 
         if self.hbuilder != NULL:
-            hvalues: HBuilderValue* = malloc(sizeof(hvalues[0]) * len)
+            hvalues: int64* = malloc(sizeof(hvalues[0]) * len)
             assert hvalues != NULL
             for i = 0; i < len; i++:
                 hvalues[i] = items[i].hvalue
