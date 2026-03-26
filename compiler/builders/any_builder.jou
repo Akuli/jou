@@ -55,7 +55,7 @@ class AnyBuilder:
     @public
     def define_global_var(self, varname: byte*, vartype: Type*, initial_value: AnyBuilderValue*, public: bool) -> None:
         if self.lbuilder != NULL:
-            self.lbuilder.define_global_var(varname, vartype, NULL if initial_value == NULL else &initial_value.lvalue, public)
+            self.lbuilder.define_global_var(varname, vartype, NULL if initial_value == NULL else initial_value.lvalue, public)
         if self.ubuilder != NULL:
             self.ubuilder.define_global_var(varname, vartype, NULL if initial_value == NULL else &initial_value.uvalue, public)
         if self.hbuilder != NULL:
@@ -659,7 +659,7 @@ class AnyBuilder:
             if value == NULL:
                 self.lbuilder.ret(NULL)
             else:
-                self.lbuilder.ret(&value.lvalue)
+                self.lbuilder.ret(value.lvalue)
         if self.ubuilder != NULL:
             if value == NULL:
                 self.ubuilder.ret(NULL)
