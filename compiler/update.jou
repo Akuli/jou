@@ -42,6 +42,10 @@ def confirm(prompt: byte*) -> None:
 @public
 def update_jou_compiler() -> None:
     exe = find_current_executable()
+    if exe == NULL:
+        fprintf(get_stderr(), "error: cannot locate the currently running Jou compiler executable\n")
+        exit(1)
+
     exedir = dirname(exe)
     printf("Installation directory: %s\n\n", exedir)
 

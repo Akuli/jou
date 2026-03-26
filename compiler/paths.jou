@@ -40,6 +40,10 @@ def hash_of_compiler() -> Hash:
         return global_compiler_state.cached_compiler_hash
 
     path = find_current_executable()
+    if path == NULL:
+        fprintf(get_stderr(), "error: cannot locate the currently running Jou compiler executable\n")
+        exit(1)
+
     f = fopen(path, "rb")
     free(path)
     if f == NULL:
@@ -69,6 +73,10 @@ def find_stdlib() -> byte*:
     memset(&checked, 0, sizeof(checked))
 
     exedir = find_current_executable()
+    if exedir == NULL:
+        fprintf(get_stderr(), "error: cannot locate the currently running Jou compiler executable\n")
+        exit(1)
+
     while WINDOWS and strstr(exedir, "\\") != NULL:
         *strstr(exedir, "\\") = '/'
 
