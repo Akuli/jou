@@ -359,8 +359,6 @@ def tokenize_only() -> None:
     print_tokens(tokenize_result.tokens)
     tokenize_result.free()
 
-    fail_if_warnings_and_flag()
-
 
 def parse_only() -> None:
     tokenize_result = tokenize(global_compiler_state.args.infile, NULL)
@@ -372,7 +370,6 @@ def parse_only() -> None:
         p.free()
     free(ast.ptr)
     tokenize_result.free()
-    fail_if_warnings_and_flag()
 
 
 def uvg_only() -> None:
