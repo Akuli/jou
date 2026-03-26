@@ -5,16 +5,6 @@
 # useful data structures by modifying only the IR builder, such as UVG. This
 # means we don't walk through the AST in multiple different places that could
 # handle some corner cases differently.
-#
-# !!!!!!!!!!!!!!!!!!!!!!!!!!
-# !! Thread Safety Notice !!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!
-# LLVM IR is built using multiple threads, so be careful when you access global
-# state from here. Any kind of mutation of global state (e.g. getting a type
-# that may or may not exist yet) is almost certainly wrong and will cause bugs
-# that are difficult to reproduce and debug. Note that if the hash builder gets
-# a type, then that type will surely exist when we build LLVM IR, because we
-# need hashes to check whether the object file needs to be rebuilt.
 
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
