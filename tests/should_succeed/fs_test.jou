@@ -189,9 +189,9 @@ def test_unlink() -> None:
     assert f != NULL
     fclose(f)
 
-    assert unlink("tmp/tests/fs_test_temp.txt") == 0
-    assert unlink("tmp/tests/fs_test_temp.txt") == -1
-    assert unlink("tmp/tests/fs_test_temp.txt") == -1
+    printf("%d\n", unlink("tmp/tests/fs_test_temp.txt"))  # Output: 0
+    printf("%d\n", unlink("tmp/tests/fs_test_temp.txt"))  # Output: -1
+    printf("%d\n", unlink("tmp/tests/fs_test_temp.txt"))  # Output: -1
     assert fopen("tmp/tests/fs_test_temp.txt", "r") == NULL
 
 
