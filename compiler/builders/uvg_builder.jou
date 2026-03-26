@@ -337,10 +337,3 @@ class UBuilder:
         assert self.current_block != NULL
         assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
         self.current_block.terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
-
-
-@public
-def build_and_analyze_uvgs(jou_file: JouFile*, print: bool) -> None:
-    builder = UBuilder{print = print}
-    builder_wrapper = AnyBuilder{ubuilder = &builder}
-    feed_file_to_builder(jou_file, &builder_wrapper)

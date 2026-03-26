@@ -5,12 +5,15 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
 import "./ast.jou"
+import "./builders/any_builder.jou"
 import "./builders/llvm_builder.jou"
 import "./builders/uvg_builder.jou"
 import "./command_line_args.jou"
 import "./errors_and_warnings.jou"
 import "./evaluate.jou"
 import "./global_symbols.jou"
+import "./hash.jou"
+import "./llvm.jou"
 import "./parallel_compile.jou"
 import "./parser.jou"
 import "./paths.jou"
@@ -35,49 +38,56 @@ def defines_main(jou_file: JouFile*) -> bool:
     return False
 
 
-def warn_about_unused(jou_file: JouFile*) -> None:
+def fail_if_missing_main() -> None:
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        if jou_file.is_main_file and not defines_main(jou_file):
+            fail(Location{path = jou_file.path}, "missing `main` function to execute the program")
+
+
+def warn_about_unused() -> None:
     msg: byte[500]
 
-    for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
-        if stmt.kind == AstStatementKind.Import and not stmt.import_statement.used:
-            snprintf(msg, sizeof(msg), "\"%s\" imported but not used", stmt.import_statement.specified_path)
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
+            if stmt.kind == AstStatementKind.Import and not stmt.import_statement.used:
+                snprintf(msg, sizeof(msg), "\"%s\" imported but not used", stmt.import_statement.specified_path)
+                show_warning(stmt.location, msg)
+
+        for sym_stmt = jou_file.symbol_statements.ptr; sym_stmt < jou_file.symbol_statements.end(); sym_stmt++:
+            stmt = *sym_stmt
+
+            symbol = stmt.symbol()
+            if symbol.public or symbol.used:
+                continue
+
+            # Do not show a warning if a private main function is unused.
+            #
+            # You are probably wondering: what the heck is a private main function?
+            #
+            # If an imported file has a main() function, it becomes private.
+            #
+            # This is useful in large Jou projects. For example, utils/json.jou
+            # might have public functions for working with JSON, and some example
+            # code in a main() function. That main() is usually private, but if you
+            # run "jou utils/json.jou", then it becomes public and runs.
+            if stmt.kind == AstStatementKind.FunctionDef and strcmp(symbol.name, "main") == 0:
+                continue
+
+            match stmt.kind:
+                case AstStatementKind.Enum:
+                    short_desc = "enum"
+                case AstStatementKind.Class:
+                    short_desc = "class"
+                case _:
+                    short_desc = symbol.short_description()
+
+            match stmt.kind:
+                case AstStatementKind.FunctionDeclare | AstStatementKind.GlobalVariableDeclare:
+                    snprintf(msg, sizeof(msg), "%s '%s' declared but not used", short_desc, symbol.name)
+                case _:
+                    snprintf(msg, sizeof(msg), "%s '%s' defined but not used", short_desc, symbol.name)
+
             show_warning(stmt.location, msg)
-
-    for sym_stmt = jou_file.symbol_statements.ptr; sym_stmt < jou_file.symbol_statements.end(); sym_stmt++:
-        stmt = *sym_stmt
-
-        symbol = stmt.symbol()
-        if symbol.public or symbol.used:
-            continue
-
-        # Do not show a warning if a private main function is unused.
-        #
-        # You are probably wondering: what the heck is a private main function?
-        #
-        # If an imported file has a main() function, it becomes private.
-        #
-        # This is useful in large Jou projects. For example, utils/json.jou
-        # might have public functions for working with JSON, and some example
-        # code in a main() function. That main() is usually private, but if you
-        # run "jou utils/json.jou", then it becomes public and runs.
-        if stmt.kind == AstStatementKind.FunctionDef and strcmp(symbol.name, "main") == 0:
-            continue
-
-        match stmt.kind:
-            case AstStatementKind.Enum:
-                short_desc = "enum"
-            case AstStatementKind.Class:
-                short_desc = "class"
-            case _:
-                short_desc = symbol.short_description()
-
-        match stmt.kind:
-            case AstStatementKind.FunctionDeclare | AstStatementKind.GlobalVariableDeclare:
-                snprintf(msg, sizeof(msg), "%s '%s' declared but not used", short_desc, symbol.name)
-            case _:
-                snprintf(msg, sizeof(msg), "%s '%s' defined but not used", short_desc, symbol.name)
-
-        show_warning(stmt.location, msg)
 
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
@@ -180,13 +190,6 @@ def check_duplicate_defining(symbol_statements: List[AstStatement*]) -> None:
             fail((*p).location, msg)
 
 
-def find_file(path: byte*) -> JouFile*:
-    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
-        if strcmp(p.path, path) == 0:
-            return p
-    return NULL
-
-
 # AST must not move to new memory location after this runs
 def collect_symbol_statements(ast: List[AstStatement]) -> List[AstStatement*]:
     result = List[AstStatement*]{}
@@ -201,6 +204,13 @@ def collect_symbol_statements(ast: List[AstStatement]) -> List[AstStatement*]:
                     result.append(member)
 
     return result
+
+
+def find_file(path: byte*) -> JouFile*:
+    for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
+        if strcmp(p.path, path) == 0:
+            return p
+    return NULL
 
 
 def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
@@ -339,25 +349,48 @@ def make_imported_statements_available() -> None:
     free(seen_before.ptr)
 
 
-def typecheck_everything() -> None:
+def build_everything(we_are_making_object_files: bool) -> None:
+    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+        assert jou_file.object_file_path == NULL
+        assert jou_file.llvm_ir == NULL
+
+        if we_are_making_object_files:
+            hash: Hash
+            build_file(jou_file, &jou_file.llvm_ir, &hash)
+
+            exists: bool
+            jou_file.object_file_path = get_path_to_object_file_in_jou_compiled(jou_file, hash, &exists)
+            assert jou_file.object_file_path != NULL
+
+            if exists:
+                if global_compiler_state.args.verbosity >= 1:
+                    printf("Reusing previously compiled file: %s\n", jou_file.object_file_path)
+                LLVMDisposeMemoryBuffer(jou_file.llvm_ir)
+                jou_file.llvm_ir = NULL
+        else:
+            build_file(jou_file, NULL, NULL)
+
+
+def typecheck_and_build_everything(we_are_making_object_files: bool) -> None:
     make_imported_statements_available()
     typecheck_step1_global_symbols()
     typecheck_step2_class_members()
     typecheck_step3_function_and_method_bodies()
 
+    build_everything(we_are_making_object_files)
 
-def build_and_analyze_all_uvgs() -> None:
-    print_uvgs = global_compiler_state.args.verbosity >= 2
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        if global_compiler_state.args.verbosity >= 1:
-            printf("Building and analyzing UVGs for %s\n", jou_file.path)
-        build_and_analyze_uvgs(jou_file, print_uvgs)
+    warn_about_unused()
+    # Check for missing main() as late as possible, so that other errors come first.
+    # This way Jou users can work on other functions before main() function is written.
+    fail_if_missing_main()
+    fail_if_warnings_and_flag()
 
 
 def tokenize_only() -> None:
     tokenize_result = tokenize(global_compiler_state.args.infile, NULL)
     print_tokens(tokenize_result.tokens)
     tokenize_result.free()
+    fail_if_warnings_and_flag()
 
 
 def parse_only() -> None:
@@ -370,58 +403,19 @@ def parse_only() -> None:
         p.free()
     free(ast.ptr)
     tokenize_result.free()
-
-
-def uvg_only() -> None:
-    tokenize_and_parse_all_files()
-    typecheck_everything()
-
-    mainfile = find_file(global_compiler_state.args.infile)
-    assert mainfile != NULL
-    build_and_analyze_uvgs(mainfile, True)
+    fail_if_warnings_and_flag()
 
 
 def check() -> None:
     tokenize_and_parse_all_files()
-    typecheck_everything()
-    build_and_analyze_all_uvgs()
-
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        warn_about_unused(jou_file)
-
-    # Check for missing main() as late as possible, so that other errors come first.
-    # This way Jou users can work on other functions before main() function is written.
-    mainfile = find_file(global_compiler_state.args.infile)
-    assert mainfile != NULL
-    if not defines_main(mainfile):
-        fail(Location{path=mainfile.path}, "missing `main` function to execute the program")
-
-    fail_if_warnings_and_flag()
+    typecheck_and_build_everything(False)
 
 
 def compile_to_object_files() -> None:
-    check()
+    tokenize_and_parse_all_files()
     init_global_target()
-
-    needs_compiling = List[JouFile*]{}
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        assert jou_file.object_file_path == NULL
-        assert jou_file.llvm_ir == NULL
-
-        exists: bool
-        jou_file.object_file_path = get_path_to_object_file_in_jou_compiled(jou_file, &exists)
-        assert jou_file.object_file_path != NULL
-
-        if exists:
-            if global_compiler_state.args.verbosity >= 1:
-                printf("Reusing previously compiled file: %s\n", jou_file.object_file_path)
-        else:
-            needs_compiling.append(jou_file)
-            jou_file.llvm_ir = build_llvm_ir(jou_file)
-            assert jou_file.llvm_ir != NULL
-
-    optimize_llvm_ir_and_write_object_files_in_parallel(needs_compiling)
-    free(needs_compiling.ptr)
+    typecheck_and_build_everything(True)
+    optimize_llvm_ir_and_write_object_files_in_parallel()
 
 
 def compile_to_jou_compiled_and_run() -> int:
@@ -451,7 +445,7 @@ def main(argc: int, argv: byte**) -> int:
         case CompilingMode.ParseOnly:
             parse_only()
         case CompilingMode.UvgOnly:
-            uvg_only()
+            check()  # This is enough, UVG builder knows when to print
         case CompilingMode.Check:
             check()
             printf("Checked %d files.\n", global_compiler_state.jou_files.len as int)
@@ -459,8 +453,6 @@ def main(argc: int, argv: byte**) -> int:
             compile_to_outfile()
         case CompilingMode.Run:
             ret = compile_to_jou_compiled_and_run()
-
-    fail_if_warnings_and_flag()
 
     # not really necessary, but makes valgrind much happier
     global_compiler_state.free()

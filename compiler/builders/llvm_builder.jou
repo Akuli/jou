@@ -772,37 +772,3 @@ class LBuilder:
             LLVMBuildRetVoid(self.llvm_builder)
         else:
             LLVMBuildRet(self.llvm_builder, value)
-
-
-@public
-def build_llvm_ir(jou_file: JouFile*) -> LLVMMemoryBuffer*:
-    start = monotonic_ns()
-
-    module = LLVMModuleCreateWithName(jou_file.path)
-
-    assert global_compiler_state.target.ready
-    LLVMSetTarget(module, global_compiler_state.target.triple)
-    LLVMSetDataLayout(module, global_compiler_state.target.data_layout)
-
-    builder = LBuilder{llvm_module = module, llvm_builder = LLVMCreateBuilder()}
-    builder_wrapper = AnyBuilder{lbuilder = &builder}
-
-    feed_file_to_builder(jou_file, &builder_wrapper)
-
-    LLVMDisposeBuilder(builder.llvm_builder)
-
-    end = monotonic_ns()
-    if global_compiler_state.args.verbosity >= 1:
-        printf("Build: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
-
-    # Convert the LLVMModule* to basically a sequence of bytes, so that it can
-    # be safely passed to another thread that optimizes it and writes .o file.
-    start = monotonic_ns()
-    result = LLVMWriteBitcodeToMemoryBuffer(module)
-    LLVMDisposeModule(module)
-    end = monotonic_ns()
-    if global_compiler_state.args.verbosity >= 1:
-        printf("Serialize: %.3fms for %s\n", (end-start) * 1e-6, jou_file.path)
-
-    assert result != NULL
-    return result

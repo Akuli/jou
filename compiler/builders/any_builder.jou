@@ -6,14 +6,20 @@
 # the builder, but Jou has no way to do inheritance yet.
 
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 
+import "../ast.jou"
+import "../command_line_args.jou"
 import "../errors_and_warnings.jou"
+import "../hash.jou"
 import "../llvm.jou"
+import "../paths.jou"
+import "../state.jou"
 import "../types.jou"
 import "../uvg.jou"
-import "../ast.jou"
+import "./ast_to_builder.jou"
 import "./llvm_builder.jou"
 import "./uvg_builder.jou"
 import "./hash_builder.jou"
@@ -670,3 +676,72 @@ class AnyBuilder:
                 self.hbuilder.ret(NULL)
             else:
                 self.hbuilder.ret(&value.hvalue)
+
+
+# You can set llvm_out and hash_out to NULL if they are not needed.
+# That is useful for e.g. "jou --check".
+#
+# This always builds and checks UVG's.
+@public
+def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*) -> None:
+    assert (llvm_out != NULL and hash_out != NULL) or (llvm_out == NULL and hash_out == NULL)
+    we_are_making_object_file = llvm_out != NULL
+
+    if global_compiler_state.args.verbosity >= 1:
+        if we_are_making_object_file:
+            printf("Building file: %s\n", jou_file.path)
+        else:
+            printf("Building and analyzing UVGs: %s\n", jou_file.path)
+
+    builder = AnyBuilder{}
+
+    uvg_builder = UBuilder{
+        # Print UVG of main file if command line says so
+        print = (
+            global_compiler_state.args.verbosity >= 2
+            or (
+                global_compiler_state.args.mode == CompilingMode.UvgOnly
+                and jou_file.is_main_file
+            )
+        )
+    }
+    builder.ubuilder = &uvg_builder
+
+    llvm_builder = LBuilder{}
+    hash_builder = HBuilder{}
+
+    if we_are_making_object_file:
+        llvm_builder.llvm_builder = LLVMCreateBuilder()
+        hash_builder.hash = new_hash()
+
+        # Compilation results depend on the compiler that compiles them, so
+        # let's bake this whole compiler into the hash.
+        #
+        # Results also depend on optimization level (-O0, -O1, -O2, -O3).
+        # However, we don't include it in the hash here, because compilation
+        # results for different optimization levels are separated anyway.
+        # See doc/lazy-recompile.md for details.
+        hash_builder.hash.add_uint64(hash_of_compiler().hash)
+
+        llvm_builder.llvm_module = LLVMModuleCreateWithName(jou_file.path)
+        hash_builder.hash.add_string(jou_file.path)
+
+        assert global_compiler_state.target.ready
+
+        LLVMSetTarget(llvm_builder.llvm_module, global_compiler_state.target.triple)
+        hash_builder.hash.add_string(global_compiler_state.target.triple)
+
+        LLVMSetDataLayout(llvm_builder.llvm_module, global_compiler_state.target.data_layout)
+        hash_builder.hash.add_string(global_compiler_state.target.data_layout)
+
+        builder.lbuilder = &llvm_builder
+        builder.hbuilder = &hash_builder
+
+    feed_file_to_builder(jou_file, &builder)
+
+    if we_are_making_object_file:
+        *hash_out = hash_builder.hash
+        *llvm_out = LLVMWriteBitcodeToMemoryBuffer(llvm_builder.llvm_module)
+        assert *llvm_out != NULL
+        LLVMDisposeBuilder(llvm_builder.llvm_builder)
+        LLVMDisposeModule(llvm_builder.llvm_module)

@@ -436,27 +436,3 @@ class HBuilder:
         else:
             self.hash.add_string("ret")
             self.hash.add_int64(*value)
-
-
-# Returned hash is different when LLVM IR should be recompiled.
-@public
-def build_content_hash(jou_file: JouFile*) -> Hash:
-    builder = HBuilder{hash = new_hash()}
-    builder.hash.add_string(jou_file.path)  # file path is given to LLVM, presumably will be included in .o file
-
-    assert global_compiler_state.target.ready
-    builder.hash.add_string(global_compiler_state.target.triple)
-    builder.hash.add_string(global_compiler_state.target.data_layout)
-
-    # Compilation results depend on the compiler that compiles them
-    builder.hash.add_uint64(hash_of_compiler().hash)
-
-    # Compilation results depend on optimization level (-O0, -O1, -O2, -O3).
-    # However, we don't include it in the hash here, because compilation
-    # results for different optimization levels are separated anyway.
-    # See doc/lazy-recompile.md for details.
-
-    builder_wrapper = AnyBuilder{hbuilder = &builder}
-    feed_file_to_builder(jou_file, &builder_wrapper)
-
-    return builder.hash
