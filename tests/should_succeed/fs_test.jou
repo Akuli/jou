@@ -182,6 +182,13 @@ def test_dir_iter_corner_cases() -> None:
     assert strlen(iter.error_message) >= 10  # exact message depends on system
 
 
+def test_find_exe() -> None:
+    s = find_current_executable()
+    assert s != NULL
+    assert strstr(s, "jou_compiled") != NULL
+    free(s)
+
+
 def test_unlink() -> None:
     mkdir("tmp", 0o777)
     mkdir("tmp/tests", 0o777)
@@ -199,5 +206,6 @@ def main() -> int:
     test_dir_iter_basic()
     test_dir_iter_funny_paths()
     test_dir_iter_corner_cases()
+    test_find_exe()
     test_unlink()
     return 0

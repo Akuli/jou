@@ -95,7 +95,36 @@ def main() -> int:
 ```
 
 
-## Functions
+## Finding the current executable
+
+Use `find_current_executable()` to get a path to your executable as a string.
+The return value should be freed.
+
+For example, if I save the following file to `/home/akuli/thing.jou` and I run it with `jou thing.jou`,
+it prints `/home/akuli/jou_compiled/thing/thing`:
+
+```python
+import "stdlib/fs.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+def main() -> int:
+    path = find_current_executable()
+    if path != NULL:
+        puts(path)
+        free(path)
+    return 0
+```
+
+The `find_current_executable()` function returns `NULL` if any error occurs.
+There is currently no cross-platform way to get information about the error,
+and I recommend displaying a generic error message,
+such as "failed to locate the currently running executable".
+Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
+if this is a problem in your use case.
+
+
+## Other functions
 
 All of the functions listed below return `0` on success and `-1` on failure.
 These functions set `errno` when they fail,

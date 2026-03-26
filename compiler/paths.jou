@@ -10,31 +10,6 @@ import "./state.jou"
 import "./hash.jou"
 import "./builders/hash_builder.jou"
 
-if NETBSD:
-    import "stdlib/errno.jou"
-if not WINDOWS and not MACOS:
-    import "stdlib/intnative.jou"
-
-if WINDOWS:
-    declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
-elif MACOS:
-    declare _NSGetExecutablePath(buf: byte*, bufsize: int*) -> int
-elif NETBSD:
-    declare sysctl(
-        name: int*,
-        namelen: uint32,
-        oldp: void*,
-        oldlenp: intnative*,
-        newp: void*,  # NULL if not setting a new value
-        newlen: intnative,  # 0 if not setting a new value
-    ) -> int
-    const CTL_KERN: int = 1
-    const KERN_PROC_ARGS: int = 48
-    const KERN_PROC_PATHNAME: int = 5
-    const ENOSPC: int = 28  # No space left on this device
-else:
-    declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
-
 @public
 declare dirname(path: byte*) -> byte*
 
@@ -48,53 +23,6 @@ def file_exists(path: byte*) -> bool:
         return True
 
 
-@public
-def find_current_executable() -> byte*:
-    if MACOS:
-        n = 1
-        result: byte* = malloc(n)
-        ret = _NSGetExecutablePath(result, &n)  # sets n to desired size
-        assert ret < 0  # didn't fit
-        result = realloc(result, n)
-        ret = _NSGetExecutablePath(result, &n)
-        if ret == 0:
-            # success
-            return result
-
-    else:
-        buf: byte* = NULL
-        for size = 2; True; size *= 2:
-            buf = realloc(buf, size)
-            memset(buf, 0, size)
-
-            if WINDOWS:
-                ret = GetModuleFileNameA(NULL, buf, size)
-                if ret == 0:
-                    break  # error
-                if ret < size:
-                    return buf  # success, it fits
-            elif NETBSD:
-                sysctl_name: int[4] = [CTL_KERN, KERN_PROC_ARGS, -1, KERN_PROC_PATHNAME]
-                n: intnative = size
-                ret = sysctl(sysctl_name, array_count(sysctl_name) as uint32, buf, &n, NULL, 0)
-                if ret < 0 and get_errno() != ENOSPC:
-                    break  # error
-                if n < size:
-                    return buf  # success, it fits
-            else:
-                ret = readlink("/proc/self/exe", buf, size)
-                success = 0 <= ret and ret < size
-                if ret < 0:
-                    break  # error
-                if ret < size:
-                    buf[ret] = '\0'  # Work around valgrind bug: https://bugs.kde.org/show_bug.cgi?id=514094
-                    return buf  # success, it fits
-
-    # TODO: show os error message? (GetLastError / errno)
-    fprintf(get_stderr(), "error: cannot locate currently running executable, needed for finding the Jou standard library\n")
-    exit(1)
-
-
 # Returns a value that changes when the compiler is recompiled.
 @public
 def hash_of_compiler() -> Hash:
@@ -102,6 +30,10 @@ def hash_of_compiler() -> Hash:
         return global_compiler_state.cached_compiler_hash
 
     path = find_current_executable()
+    if path == NULL:
+        fprintf(get_stderr(), "error: cannot locate the currently running Jou compiler executable\n")
+        exit(1)
+
     f = fopen(path, "rb")
     free(path)
     if f == NULL:
@@ -131,6 +63,10 @@ def find_stdlib() -> byte*:
     memset(&checked, 0, sizeof(checked))
 
     exedir = find_current_executable()
+    if exedir == NULL:
+        fprintf(get_stderr(), "error: cannot locate the currently running Jou compiler executable\n")
+        exit(1)
+
     while WINDOWS and strstr(exedir, "\\") != NULL:
         *strstr(exedir, "\\") = '/'
 
