@@ -266,7 +266,7 @@ class DirIter:
 if WINDOWS:
     declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
 elif MACOS:
-    declare _NSGetExecutablePath(buf: byte*, bufsize: int32*) -> int
+    declare _NSGetExecutablePath(buf: byte*, bufsize: uint32*) -> int
 elif NETBSD:
     declare sysctl(
         name: int*,
