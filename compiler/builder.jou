@@ -391,10 +391,6 @@ def llvm_end_function(builder: AnyBuilder*) -> None:
 def llvm_begin_statement_in_a_body(builder: AnyBuilder*) -> None:
     pass
 
-# TODO: use the location for debug info
-def llvm_set_location(builder: AnyBuilder*, location: Location) -> None:
-    pass
-
 def llvm_stack_alloc(builder: AnyBuilder*, t: Type*, varname: byte*) -> LLVMValue*:
     if varname == NULL:
         debug_name = "stack_alloc"
@@ -763,324 +759,316 @@ def hash_signature(hash: Hash*, sig: Signature*) -> None:
         hash_type(hash, sig.return_type)
 
 
-class HBuilder:
-    hash: Hash
-    id_counter: int64
+def hash_declare_global_var(builder: AnyBuilder*, varname: byte*, type: Type*) -> None:
+    builder.hash.add_string("globaldeclare")
+    builder.hash.add_string(varname)
+    hash_type(&builder.hash, type)
 
-    def declare_global_var(self, varname: byte*, type: Type*) -> None:
-        self.hash.add_string("globaldeclare")
-        self.hash.add_string(varname)
-        hash_type(&self.hash, type)
+def hash_define_global_var(builder: AnyBuilder*, varname: byte*, type: Type*, initial_value: int64*, public: bool) -> None:
+    builder.hash.add_string("globaldefine")
+    builder.hash.add_string(varname)
+    builder.hash.add_bool(public)
+    hash_type(&builder.hash, type)
+    if initial_value != NULL:
+        builder.hash.add_int64(*initial_value)
 
-    def define_global_var(self, varname: byte*, type: Type*, initial_value: int64*, public: bool) -> None:
-        self.hash.add_string("globaldefine")
-        self.hash.add_string(varname)
-        self.hash.add_bool(public)
-        hash_type(&self.hash, type)
-        if initial_value != NULL:
-            self.hash.add_int64(*initial_value)
+def hash_begin_function(builder: AnyBuilder*, sig: Signature*, public: bool) -> None:
+    builder.hash.add_string("begin func")
+    hash_signature(&builder.hash, sig)
+    builder.hash.add_bool(public)
 
-    def begin_function(self, sig: Signature*, public: bool) -> None:
-        self.hash.add_string("begin func")
-        hash_signature(&self.hash, sig)
-        self.hash.add_bool(public)
+def hash_end_function(builder: AnyBuilder*) -> None:
+    pass
 
-    def end_function(self) -> None:
-        pass
+def hash_begin_statement_in_a_body(builder: AnyBuilder*) -> None:
+    pass
 
-    def begin_statement_in_a_body(self) -> None:
-        pass
+# Hashes and returns a unique ID number that represents a value in code.
+# Also hashes the type, because a changed type may be enough to need a recompile.
+def hash_new_value(builder: AnyBuilder*, t: Type*) -> int64:
+    id = builder.hash_id_counter++
+    builder.hash.add_int64(id)
+    if t == NULL:
+        builder.hash.add_string("no type")
+    else:
+        hash_type(&builder.hash, t)
+    return id
 
-    # TODO: If in the future, location is used for debug info, we should do something with it.
-    def set_location(self, location: Location) -> None:
-        pass
+def hash_stack_alloc(builder: AnyBuilder*, t: Type*, varname: byte*) -> int64:
+    # Do nothing with varname, so that renaming a local variable doesn't cause a rebuild
+    # TODO: Will need to be different if debug info is enabled
+    builder.hash.add_string("stack_alloc")
+    hash_type(&builder.hash, t)
+    return hash_new_value(builder, t.pointer_type())
 
-    # Hashes and returns a unique ID number that represents a value in code.
-    # Also hashes the type, because a changed type may be enough to need a recompile.
-    def new_value(self, t: Type*) -> int64:
-        id = self.id_counter++
-        self.hash.add_int64(id)
-        if t == NULL:
-            self.hash.add_string("no type")
-        else:
-            hash_type(&self.hash, t)
-        return id
+# *ptr = value
+def hash_set_ptr(builder: AnyBuilder*, ptr: int64, value: int64) -> None:
+    builder.hash.add_string("set_ptr")
+    builder.hash.add_int64(ptr)
+    builder.hash.add_int64(value)
 
-    def stack_alloc(self, t: Type*, varname: byte*) -> int64:
-        # Do nothing with varname, so that renaming a local variable doesn't cause a rebuild
-        # TODO: Will need to be different if debug info is enabled
-        self.hash.add_string("stack_alloc")
-        hash_type(&self.hash, t)
-        return self.new_value(t.pointer_type())
+# *ptr
+def hash_dereference(builder: AnyBuilder*, ptr: int64, ptr_type: Type*) -> int64:
+    builder.hash.add_string("deref")
+    builder.hash.add_int64(ptr)
+    assert ptr_type.kind == TypeKind.Pointer
+    return hash_new_value(builder, ptr_type.value_type)
 
-    # *ptr = value
-    def set_ptr(self, ptr: int64, value: int64) -> None:
-        self.hash.add_string("set_ptr")
-        self.hash.add_int64(ptr)
-        self.hash.add_int64(value)
+# Returns &ptr[index]
+def hash_indexed_pointer(builder: AnyBuilder*, ptr: int64, ptr_type: Type*, index: int64) -> int64:
+    builder.hash.add_string("indexed_pointer")
+    builder.hash.add_int64(ptr)
+    builder.hash.add_int64(index)
+    hash_type(&builder.hash, ptr_type.value_type)  # result depends on size of pointed type
+    return hash_new_value(builder, ptr_type)
 
-    # *ptr
-    def dereference(self, ptr: int64, ptr_type: Type*) -> int64:
-        self.hash.add_string("deref")
-        self.hash.add_int64(ptr)
-        assert ptr_type.kind == TypeKind.Pointer
-        return self.new_value(ptr_type.value_type)
+# Returns &ptr.field
+def hash_class_field_pointer(builder: AnyBuilder*, ptr: int64, ptr_type: Type*, field: ClassField*) -> int64:
+    # Do not hash field name, renaming fields should not cause recompiling
+    assert ptr_type.kind == TypeKind.Pointer
+    assert ptr_type.value_type.kind == TypeKind.Class
 
-    # Returns &ptr[index]
-    def indexed_pointer(self, ptr: int64, ptr_type: Type*, index: int64) -> int64:
-        self.hash.add_string("indexed_pointer")
-        self.hash.add_int64(ptr)
-        self.hash.add_int64(index)
-        hash_type(&self.hash, ptr_type.value_type)  # result depends on size of pointed type
-        return self.new_value(ptr_type)
+    # TODO: Result of &ptr.field depends on the offset of the field in the
+    #       struct, so ideally we would get it here somehow and compute
+    #       that instead of hashing the whole struct.
+    hash_type(&builder.hash, ptr_type.value_type)
 
-    # Returns &ptr.field
-    def class_field_pointer(self, ptr: int64, ptr_type: Type*, field: ClassField*) -> int64:
-        # Do not hash field name, renaming fields should not cause recompiling
-        assert ptr_type.kind == TypeKind.Pointer
-        assert ptr_type.value_type.kind == TypeKind.Class
+    builder.hash.add_string("class_field_pointer")
+    builder.hash.add_int64(ptr)
+    builder.hash.add_int(field.union_id)
+    return hash_new_value(builder, field.type.pointer_type())
 
-        # TODO: Result of &ptr.field depends on the offset of the field in the
-        #       struct, so ideally we would get it here somehow and compute
-        #       that instead of hashing the whole struct.
-        hash_type(&self.hash, ptr_type.value_type)
+# &global_variable
+def hash_global_var_ptr(builder: AnyBuilder*, name: byte*, var_type: Type*) -> int64:
+    builder.hash.add_string("global_var_ptr")
+    builder.hash.add_string(name)
+    return hash_new_value(builder, var_type.pointer_type())
 
-        self.hash.add_string("class_field_pointer")
-        self.hash.add_int64(ptr)
-        self.hash.add_int(field.union_id)
-        return self.new_value(field.type.pointer_type())
+# some_function
+def hash_get_funcptr(builder: AnyBuilder*, signature: Signature*) -> int64:
+    builder.hash.add_string("funcptr")
+    builder.hash.add_string(signature.name)
+    return hash_new_value(builder, signature.to_funcptr_type())
 
-    # &global_variable
-    def global_var_ptr(self, name: byte*, var_type: Type*) -> int64:
-        self.hash.add_string("global_var_ptr")
-        self.hash.add_string(name)
-        return self.new_value(var_type.pointer_type())
+# i'th argument given to this function
+def hash_get_argument(builder: AnyBuilder*, i: int, argtype: Type*) -> int64:
+    builder.hash.add_string("arg")
+    builder.hash.add_int(i)
+    return hash_new_value(builder, argtype)
 
-    # some_function
-    def get_funcptr(self, signature: Signature*) -> int64:
-        self.hash.add_string("funcptr")
-        self.hash.add_string(signature.name)
-        return self.new_value(signature.to_funcptr_type())
+def hash_call_function(builder: AnyBuilder*, funcptr_type: Type*, func: int64, args: int64*, nargs: int) -> int64:
+    builder.hash.add_string("call_func")
+    builder.hash.add_int64(func)
+    for p = args; p < &args[nargs]; p++:
+        builder.hash.add_int64(*p)
 
-    # i'th argument given to this function
-    def get_argument(self, i: int, argtype: Type*) -> int64:
-        self.hash.add_string("arg")
-        self.hash.add_int(i)
-        return self.new_value(argtype)
+    assert funcptr_type.kind == TypeKind.FuncPtr
+    if funcptr_type.func_ptr.return_type != NULL:
+        return hash_new_value(builder, funcptr_type.func_ptr.return_type)
+    else:
+        return -1
 
-    def call_function(self, funcptr_type: Type*, func: int64, args: int64*, nargs: int) -> int64:
-        self.hash.add_string("call_func")
-        self.hash.add_int64(func)
-        for p = args; p < &args[nargs]; p++:
-            self.hash.add_int64(*p)
+def hash_call_method(builder: AnyBuilder*, sig: Signature*, args: int64*, nargs: int) -> int64:
+    hash_signature(&builder.hash, sig)
+    for p = args; p < &args[nargs]; p++:
+        builder.hash.add_int64(*p)
 
-        assert funcptr_type.kind == TypeKind.FuncPtr
-        if funcptr_type.func_ptr.return_type != NULL:
-            return self.new_value(funcptr_type.func_ptr.return_type)
-        else:
-            return -1
+    if sig.return_type != NULL:
+        return hash_new_value(builder, sig.return_type)
+    else:
+        return -1
 
-    def call_method(self, sig: Signature*, args: int64*, nargs: int) -> int64:
-        hash_signature(&self.hash, sig)
-        for p = args; p < &args[nargs]; p++:
-            self.hash.add_int64(*p)
+# string as array of bytes
+def hash_array_of_bytes(builder: AnyBuilder*, bytes: List[byte]) -> int64:
+    builder.hash.add_string("array_of_bytes")
+    assert bytes.len <= INT32_MAX
+    builder.hash.add_int(bytes.len as int)
+    builder.hash.add_bytes(bytes.ptr, bytes.len)
+    return hash_new_value(builder, uint_type(8).array_type(bytes.len as int))
 
-        if sig.return_type != NULL:
-            return self.new_value(sig.return_type)
-        else:
-            return -1
+def hash_array(builder: AnyBuilder*, len: int, items: int64*, item_type: Type*) -> int64:
+    builder.hash.add_string("array")
+    for i = 0; i < len; i++:
+        builder.hash.add_int64(items[i])
+    return hash_new_value(builder, item_type.array_type(len))
 
-    # string as array of bytes
-    def array_of_bytes(self, bytes: List[byte]) -> int64:
-        self.hash.add_string("array_of_bytes")
-        assert bytes.len <= INT32_MAX
-        self.hash.add_int(bytes.len as int)
-        self.hash.add_bytes(bytes.ptr, bytes.len)
-        return self.new_value(uint_type(8).array_type(bytes.len as int))
+# string as '\0' terminated pointer
+def hash_pointer_string(builder: AnyBuilder*, s: byte*) -> int64:
+    builder.hash.add_string("pointer_string")
+    builder.hash.add_string(s)
+    return hash_new_value(builder, uint_type(8).pointer_type())
 
-    def array(self, len: int, items: int64*, item_type: Type*) -> int64:
-        self.hash.add_string("array")
-        for i = 0; i < len; i++:
-            self.hash.add_int64(items[i])
-        return self.new_value(item_type.array_type(len))
+def hash_boolean(builder: AnyBuilder*, b: bool) -> int64:
+    builder.hash.add_string("bool")
+    builder.hash.add_bool(b)
+    return hash_new_value(builder, bool_type())
 
-    # string as '\0' terminated pointer
-    def pointer_string(self, s: byte*) -> int64:
-        self.hash.add_string("pointer_string")
-        self.hash.add_string(s)
-        return self.new_value(uint_type(8).pointer_type())
+def hash_integer(builder: AnyBuilder*, t: Type*, value: int64) -> int64:
+    builder.hash.add_string("integer")
+    builder.hash.add_int64(value)
+    return hash_new_value(builder, t)
 
-    def boolean(self, b: bool) -> int64:
-        self.hash.add_string("bool")
-        self.hash.add_bool(b)
-        return self.new_value(bool_type())
+def hash_float_or_double(builder: AnyBuilder*, t: Type*, dbl: double) -> int64:
+    builder.hash.add_string("float_or_double")
+    builder.hash.add_bytes(&dbl as byte*, sizeof(dbl))
+    return hash_new_value(builder, t)
 
-    def integer(self, t: Type*, value: int64) -> int64:
-        self.hash.add_string("integer")
-        self.hash.add_int64(value)
-        return self.new_value(t)
+def hash_zero_of_type(builder: AnyBuilder*, t: Type*) -> int64:
+    builder.hash.add_string("zero")
+    return hash_new_value(builder, t)
 
-    def float_or_double(self, t: Type*, dbl: double) -> int64:
-        self.hash.add_string("float_or_double")
-        self.hash.add_bytes(&dbl as byte*, sizeof(dbl))
-        return self.new_value(t)
+def hash_enum_member(builder: AnyBuilder*, t: Type*, name: byte*) -> int64:
+    builder.hash.add_string("enum")
+    int_value = t.find_enum_member(name)
+    assert int_value != -1
+    builder.hash.add_int(int_value)
+    return hash_new_value(builder, t)
 
-    def zero_of_type(self, t: Type*) -> int64:
-        self.hash.add_string("zero")
-        return self.new_value(t)
+# a + b
+def hash_add(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
+    builder.hash.add_string("add")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, type)
 
-    def enum_member(self, t: Type*, name: byte*) -> int64:
-        self.hash.add_string("enum")
-        int_value = t.find_enum_member(name)
-        assert int_value != -1
-        self.hash.add_int(int_value)
-        return self.new_value(t)
+# a - b
+def hash_sub(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
+    builder.hash.add_string("sub")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, type)
 
-    # a + b
-    def add(self, a: int64, b: int64, type: Type*) -> int64:
-        self.hash.add_string("add")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(type)
+# a * b
+def hash_mul(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
+    builder.hash.add_string("mul")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, type)
 
-    # a - b
-    def sub(self, a: int64, b: int64, type: Type*) -> int64:
-        self.hash.add_string("sub")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(type)
+# a / b
+def hash_div(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
+    builder.hash.add_string("div")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, type)
 
-    # a * b
-    def mul(self, a: int64, b: int64, type: Type*) -> int64:
-        self.hash.add_string("mul")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(type)
+# a % b
+def hash_mod(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
+    builder.hash.add_string("mod")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, type)
 
-    # a / b
-    def div(self, a: int64, b: int64, type: Type*) -> int64:
-        self.hash.add_string("div")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(type)
+# a & b
+def hash_bit_and(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
+    builder.hash.add_string("and")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, type)
 
-    # a % b
-    def mod(self, a: int64, b: int64, type: Type*) -> int64:
-        self.hash.add_string("mod")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(type)
+# a | b
+def hash_bit_or(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
+    builder.hash.add_string("or")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, type)
 
-    # a & b
-    def bit_and(self, a: int64, b: int64, type: Type*) -> int64:
-        self.hash.add_string("and")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(type)
+# a ^ b
+def hash_bit_xor(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
+    builder.hash.add_string("xor")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, type)
 
-    # a | b
-    def bit_or(self, a: int64, b: int64, type: Type*) -> int64:
-        self.hash.add_string("or")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(type)
+# a << b
+def hash_bit_shift_left(builder: AnyBuilder*, a: int64, b: int64, shift_type: Type*) -> int64:
+    builder.hash.add_string("shl")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    # Type of b doesn't matter. Result's type is always the type of a.
+    return hash_new_value(builder, shift_type)
 
-    # a ^ b
-    def bit_xor(self, a: int64, b: int64, type: Type*) -> int64:
-        self.hash.add_string("xor")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(type)
+# a >> b
+def hash_bit_shift_right(builder: AnyBuilder*, a: int64, b: int64, shift_type: Type*) -> int64:
+    builder.hash.add_string("shr")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    # Type of b doesn't matter. Result's type is always the type of a.
+    return hash_new_value(builder, shift_type)
 
-    # a << b
-    def bit_shift_left(self, a: int64, b: int64, shift_type: Type*) -> int64:
-        self.hash.add_string("shl")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        # Type of b doesn't matter. Result's type is always the type of a.
-        return self.new_value(shift_type)
+# a == b
+def hash_eq(builder: AnyBuilder*, a: int64, b: int64) -> int64:
+    builder.hash.add_string("eq")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, bool_type())
 
-    # a >> b
-    def bit_shift_right(self, a: int64, b: int64, shift_type: Type*) -> int64:
-        self.hash.add_string("shr")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        # Type of b doesn't matter. Result's type is always the type of a.
-        return self.new_value(shift_type)
+# a < b
+def hash_lt(builder: AnyBuilder*, a: int64, b: int64) -> int64:
+    builder.hash.add_string("lt")
+    builder.hash.add_int64(a)
+    builder.hash.add_int64(b)
+    return hash_new_value(builder, bool_type())
 
-    # a == b
-    def eq(self, a: int64, b: int64) -> int64:
-        self.hash.add_string("eq")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(bool_type())
+# not value
+def hash_not_(builder: AnyBuilder*, value: int64) -> int64:
+    builder.hash.add_string("not")
+    builder.hash.add_int64(value)
+    return hash_new_value(builder, bool_type())
 
-    # a < b
-    def lt(self, a: int64, b: int64) -> int64:
-        self.hash.add_string("lt")
-        self.hash.add_int64(a)
-        self.hash.add_int64(b)
-        return self.new_value(bool_type())
+# ~value
+def hash_bit_not(builder: AnyBuilder*, value: int64, type: Type*) -> int64:
+    builder.hash.add_string("bitnot")
+    builder.hash.add_int64(value)
+    return hash_new_value(builder, type)
 
-    # not value
-    def not_(self, value: int64) -> int64:
-        self.hash.add_string("not")
-        self.hash.add_int64(value)
-        return self.new_value(bool_type())
+# sizeof(any value of given type)
+def hash_size_of(builder: AnyBuilder*, t: Type*) -> int64:
+    builder.hash.add_string("sizeof")
+    hash_type(&builder.hash, t)
+    return hash_new_value(builder, int_type(32))
 
-    # ~value
-    def bit_not(self, value: int64, type: Type*) -> int64:
-        self.hash.add_string("bitnot")
-        self.hash.add_int64(value)
-        return self.new_value(type)
+# memset(ptr, 0, sizeof(*ptr))
+def hash_memset_to_zero(builder: AnyBuilder*, ptr: int64) -> None:
+    builder.hash.add_string("memset0")
+    builder.hash.add_int64(ptr)
 
-    # sizeof(any value of given type)
-    def size_of(self, t: Type*) -> int64:
-        self.hash.add_string("sizeof")
-        hash_type(&self.hash, t)
-        return self.new_value(int_type(32))
+# value as to
+def hash_cast(builder: AnyBuilder*, value: int64, to: Type*) -> int64:
+    builder.hash.add_string("cast")
+    builder.hash.add_int64(value)
+    return hash_new_value(builder, to)
 
-    # memset(ptr, 0, sizeof(*ptr))
-    def memset_to_zero(self, ptr: int64) -> None:
-        self.hash.add_string("memset0")
-        self.hash.add_int64(ptr)
+def hash_add_block(builder: AnyBuilder*) -> int64:
+    builder.hash.add_string("add block")
+    block_id = builder.hash_id_counter++
+    builder.hash.add_int64(block_id)
+    return block_id
 
-    # value as to
-    def cast(self, value: int64, to: Type*) -> int64:
-        self.hash.add_string("cast")
-        self.hash.add_int64(value)
-        return self.new_value(to)
+# Decide which block will contain the resulting instructions.
+def hash_set_current_block(builder: AnyBuilder*, block_id: int64) -> None:
+    builder.hash.add_string("set block")
+    builder.hash.add_int64(block_id)
 
-    def add_block(self) -> int64:
-        self.hash.add_string("add block")
-        block_id = self.id_counter++
-        self.hash.add_int64(block_id)
-        return block_id
+def hash_branch(builder: AnyBuilder*, cond: int64, then_block_id: int64, otherwise_block_id: int64) -> None:
+    builder.hash.add_string("br")
+    builder.hash.add_int64(cond)
+    builder.hash.add_int64(then_block_id)
+    builder.hash.add_int64(otherwise_block_id)
 
-    # Decide which block will contain the resulting instructions.
-    def set_current_block(self, block_id: int64) -> None:
-        self.hash.add_string("set block")
-        self.hash.add_int64(block_id)
+def hash_jump(builder: AnyBuilder*, next_block_id: int64) -> None:
+    builder.hash.add_string("jump")
+    builder.hash.add_int64(next_block_id)
 
-    def branch(self, cond: int64, then_block_id: int64, otherwise_block_id: int64) -> None:
-        self.hash.add_string("br")
-        self.hash.add_int64(cond)
-        self.hash.add_int64(then_block_id)
-        self.hash.add_int64(otherwise_block_id)
+def hash_unreachable(builder: AnyBuilder*) -> None:
+    builder.hash.add_string("unreachable")
 
-    def jump(self, next_block_id: int64) -> None:
-        self.hash.add_string("jump")
-        self.hash.add_int64(next_block_id)
-
-    def unreachable(self) -> None:
-        self.hash.add_string("unreachable")
-
-    def ret(self, value: int64*) -> None:
-        if value == NULL:
-            self.hash.add_string("ret null")
-        else:
-            self.hash.add_string("ret")
-            self.hash.add_int64(*value)
+def hash_ret(builder: AnyBuilder*, value: int64*) -> None:
+    if value == NULL:
+        builder.hash.add_string("ret null")
+    else:
+        builder.hash.add_string("ret")
+        builder.hash.add_int64(*value)
 
 
 # Special "UVG variable ID". Denotes a value that is not a pointer,
@@ -1390,66 +1378,59 @@ class AnyBuilder:
     llvm_current_block: LLVMBasicBlock*
     llvm_returns_a_value: bool
 
+    hash: Hash
+    hash_id_counter: int64
+
     ubuilder: UBuilder*
-    hbuilder: HBuilder*
 
     # Also used for imported variables, import vs declare makes no difference in LLVM
     @public
     def declare_global_var(self, varname: byte*, vartype: Type*) -> None:
         if self.llvm_builder != NULL:
             llvm_declare_global_var(self, varname, vartype)
+            hash_declare_global_var(self, varname, vartype)
         if self.ubuilder != NULL:
             self.ubuilder.declare_global_var(varname, vartype)
-        if self.hbuilder != NULL:
-            self.hbuilder.declare_global_var(varname, vartype)
 
     # If initial value is NULL, zero-initialization will be used.
     @public
     def define_global_var(self, varname: byte*, vartype: Type*, initial_value: AnyBuilderValue*, public: bool) -> None:
         if self.llvm_builder != NULL:
             llvm_define_global_var(self, varname, vartype, NULL if initial_value == NULL else initial_value.lvalue, public)
+            hash_define_global_var(self, varname, vartype, NULL if initial_value == NULL else &initial_value.hvalue, public)
         if self.ubuilder != NULL:
             self.ubuilder.define_global_var(varname, vartype, NULL if initial_value == NULL else &initial_value.uvalue, public)
-        if self.hbuilder != NULL:
-            self.hbuilder.define_global_var(varname, vartype, NULL if initial_value == NULL else &initial_value.hvalue, public)
 
     @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         if self.llvm_builder != NULL:
             llvm_begin_function(self, sig, public)
+            hash_begin_function(self, sig, public)
         if self.ubuilder != NULL:
             self.ubuilder.begin_function(sig, public)
-        if self.hbuilder != NULL:
-            self.hbuilder.begin_function(sig, public)
 
     @public
     def end_function(self) -> None:
         if self.llvm_builder != NULL:
             llvm_end_function(self)
+            hash_end_function(self)
         if self.ubuilder != NULL:
             self.ubuilder.end_function()
-        if self.hbuilder != NULL:
-            self.hbuilder.end_function()
 
     @public
     def begin_statement_in_a_body(self) -> None:
         if self.llvm_builder != NULL:
             llvm_begin_statement_in_a_body(self)
+            hash_begin_statement_in_a_body(self)
         if self.ubuilder != NULL:
             self.ubuilder.begin_statement_in_a_body()
-        if self.hbuilder != NULL:
-            self.hbuilder.begin_statement_in_a_body()
 
     # If inlining_signature is not NULL, it means that the given location is
     # inside an @inline function that is being called.
     @public
     def set_location(self, location: Location, inlining_signature: Signature*) -> None:
-        if self.llvm_builder != NULL:
-            llvm_set_location(self, location)
         if self.ubuilder != NULL:
             self.ubuilder.set_location(location, inlining_signature)
-        if self.hbuilder != NULL:
-            self.hbuilder.set_location(location)
 
     # Allocates enough stack space in the function to hold a value of given type.
     # Returns a pointer to the stack space.
@@ -1459,10 +1440,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = t.pointer_type()}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_stack_alloc(self, t, varname)
+            result.hvalue = hash_stack_alloc(self, t, varname)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.stack_alloc(t, varname)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.stack_alloc(t, varname)
         return result
 
     # *ptr = value
@@ -1470,10 +1450,9 @@ class AnyBuilder:
     def set_ptr(self, ptr: AnyBuilderValue, value: AnyBuilderValue) -> None:
         if self.llvm_builder != NULL:
             llvm_set_ptr(self, ptr.lvalue, value.lvalue)
+            hash_set_ptr(self, ptr.hvalue, value.hvalue)
         if self.ubuilder != NULL:
             self.ubuilder.set_ptr(ptr.uvalue, value.uvalue)
-        if self.hbuilder != NULL:
-            self.hbuilder.set_ptr(ptr.hvalue, value.hvalue)
 
     # *ptr
     @public
@@ -1482,10 +1461,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = ptr.type.value_type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_dereference(self, ptr.lvalue, ptr.type)
+            result.hvalue = hash_dereference(self, ptr.hvalue, ptr.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.dereference(ptr.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.dereference(ptr.hvalue, ptr.type)
         return result
 
     # Returns &ptr[index]
@@ -1495,10 +1473,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = ptr.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_indexed_pointer(self, ptr.lvalue, ptr.type, index.lvalue)
+            result.hvalue = hash_indexed_pointer(self, ptr.hvalue, ptr.type, index.hvalue)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.indexed_pointer(ptr.uvalue, index.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.indexed_pointer(ptr.hvalue, ptr.type, index.hvalue)
         return result
 
     # Returns &ptr.field
@@ -1512,25 +1489,20 @@ class AnyBuilder:
         result = AnyBuilderValue{type = field.type.pointer_type()}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_class_field_pointer(self, ptr.lvalue, ptr.type, field)
+            result.hvalue = hash_class_field_pointer(self, ptr.hvalue, ptr.type, field)
         if self.ubuilder != NULL:
             # TODO(refactor): pass the field, not the name
             result.uvalue = self.ubuilder.class_field_pointer(ptr.uvalue, field_name)
-        if self.hbuilder != NULL:
-            # TODO(refactor): pass the field, not the name
-            result.hvalue = self.hbuilder.class_field_pointer(ptr.hvalue, ptr.type, field)
         return result
 
-    # Returns &global_variable. Type needs to be passed in because a new builder
-    # unaware of global variables is created for each function.
     @public
     def global_var_ptr(self, name: byte*, var_type: Type*) -> AnyBuilderValue:
         result = AnyBuilderValue{type = var_type.pointer_type()}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_global_var_ptr(self, name)
+            result.hvalue = hash_global_var_ptr(self, name, var_type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.global_var_ptr(name, var_type)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.global_var_ptr(name, var_type)
         return result
 
     # Returns a function as funcptr
@@ -1539,10 +1511,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = sig.to_funcptr_type()}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_get_funcptr(self, sig)
+            result.hvalue = hash_get_funcptr(self, sig)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.get_funcptr(sig)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.get_funcptr(sig)
         return result
 
     # Returns the i'th argument given to function
@@ -1551,10 +1522,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = argtype}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_get_argument(self, i)
+            result.hvalue = hash_get_argument(self, i, argtype)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.get_argument(i, argtype)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.get_argument(i, argtype)
         return result
 
     # Function call through a function pointer
@@ -1570,19 +1540,18 @@ class AnyBuilder:
 
         if self.llvm_builder != NULL:
             largs: LLVMValue*[MAX_ARGS]
+            hargs: int64[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 largs[i] = args[i].lvalue
+                hargs[i] = args[i].hvalue
             result.lvalue = llvm_call_function(self, funcptr_type, func_ptr.lvalue, largs, nargs)
+            result.hvalue = hash_call_function(self, funcptr_type, func_ptr.hvalue, hargs, nargs)
+
         if self.ubuilder != NULL:
             uargs: int[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 uargs[i] = args[i].uvalue
             result.uvalue = self.ubuilder.call_function(funcptr_type, func_ptr.uvalue, uargs, nargs)
-        if self.hbuilder != NULL:
-            hargs: int64[MAX_ARGS]
-            for i = 0; i < nargs; i++:
-                hargs[i] = args[i].hvalue
-            result.hvalue = self.hbuilder.call_function(funcptr_type, func_ptr.hvalue, hargs, nargs)
 
         return result
 
@@ -1595,19 +1564,18 @@ class AnyBuilder:
 
         if self.llvm_builder != NULL:
             largs: LLVMValue*[MAX_ARGS]
+            hargs: int64[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 largs[i] = args[i].lvalue
+                hargs[i] = args[i].hvalue
             result.lvalue = llvm_call_method(self, sig, largs, nargs)
+            result.hvalue = hash_call_method(self, sig, hargs, nargs)
+
         if self.ubuilder != NULL:
             uargs: int[MAX_ARGS]
             for i = 0; i < nargs; i++:
                 uargs[i] = args[i].uvalue
             result.uvalue = self.ubuilder.call_method(sig, uargs, nargs)
-        if self.hbuilder != NULL:
-            hargs: int64[MAX_ARGS]
-            for i = 0; i < nargs; i++:
-                hargs[i] = args[i].hvalue
-            result.hvalue = self.hbuilder.call_method(sig, hargs, nargs)
 
         return result
 
@@ -1616,10 +1584,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = uint_type(8).array_type(bytes.len as int)}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_array_of_bytes(self, bytes)
+            result.hvalue = hash_array_of_bytes(self, bytes)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.array_of_bytes(bytes)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.array_of_bytes(bytes)
         return result
 
     @public
@@ -1628,11 +1595,16 @@ class AnyBuilder:
 
         if self.llvm_builder != NULL:
             lvalues: LLVMValue** = malloc(sizeof(lvalues[0]) * len)
+            hvalues: int64* = malloc(sizeof(hvalues[0]) * len)
             assert lvalues != NULL
+            assert hvalues != NULL
             for i = 0; i < len; i++:
                 lvalues[i] = items[i].lvalue
+                hvalues[i] = items[i].hvalue
             result.lvalue = llvm_array(self, len, lvalues, item_type)
+            result.hvalue = hash_array(self, len, hvalues, item_type)
             free(lvalues)
+            free(hvalues)
 
         if self.ubuilder != NULL:
             uvalues: int* = malloc(sizeof(uvalues[0]) * len)
@@ -1642,14 +1614,6 @@ class AnyBuilder:
             result.uvalue = self.ubuilder.array(len, uvalues, item_type)
             free(uvalues)
 
-        if self.hbuilder != NULL:
-            hvalues: int64* = malloc(sizeof(hvalues[0]) * len)
-            assert hvalues != NULL
-            for i = 0; i < len; i++:
-                hvalues[i] = items[i].hvalue
-            result.hvalue = self.hbuilder.array(len, hvalues, item_type)
-            free(hvalues)
-
         return result
 
     # string as '\0' terminated pointer
@@ -1658,10 +1622,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = uint_type(8).pointer_type()}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_pointer_string(self, s)
+            result.hvalue = hash_pointer_string(self, s)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.pointer_string(s)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.pointer_string(s)
         return result
 
     @public
@@ -1669,10 +1632,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = bool_type()}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_boolean(self, b)
+            result.hvalue = hash_boolean(self, b)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.boolean(b)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.boolean(b)
         return result
 
     @public
@@ -1681,10 +1643,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = t}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_integer(self, t, value)
+            result.hvalue = hash_integer(self, t, value)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.integer(t, value)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.integer(t, value)
         return result
 
     @public
@@ -1693,10 +1654,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = t}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_float_or_double(self, t, dbl)
+            result.hvalue = hash_float_or_double(self, t, dbl)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.float_or_double(t, dbl)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.float_or_double(t, dbl)
         return result
 
     @public
@@ -1704,10 +1664,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = t}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_zero_of_type(self, t)
+            result.hvalue = hash_zero_of_type(self, t)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.zero_of_type(t)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.zero_of_type(t)
         return result
 
     @public
@@ -1715,10 +1674,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = t}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_enum_member(self, t, name)
+            result.hvalue = hash_enum_member(self, t, name)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.enum_member(t, name)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.enum_member(t, name)
         return result
 
     # a + b
@@ -1728,10 +1686,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_add(self, a.lvalue, b.lvalue, a.type)
+            result.hvalue = hash_add(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.add(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.add(a.hvalue, b.hvalue, a.type)
         return result
 
     # a - b
@@ -1741,10 +1698,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_sub(self, a.lvalue, b.lvalue, a.type)
+            result.hvalue = hash_sub(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.sub(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.sub(a.hvalue, b.hvalue, a.type)
         return result
 
     # a * b
@@ -1754,10 +1710,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_mul(self, a.lvalue, b.lvalue, a.type)
+            result.hvalue = hash_mul(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.mul(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.mul(a.hvalue, b.hvalue, a.type)
         return result
 
     # a / b
@@ -1767,10 +1722,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_div(self, a.lvalue, b.lvalue, a.type)
+            result.hvalue = hash_div(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.div(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.div(a.hvalue, b.hvalue, a.type)
         return result
 
     # a % b
@@ -1780,10 +1734,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_mod(self, a.lvalue, b.lvalue, a.type)
+            result.hvalue = hash_mod(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.mod(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.mod(a.hvalue, b.hvalue, a.type)
         return result
 
     # a & b
@@ -1793,10 +1746,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_bit_and(self, a.lvalue, b.lvalue)
+            result.hvalue = hash_bit_and(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_and(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_and(a.hvalue, b.hvalue, a.type)
         return result
 
     # a | b
@@ -1806,10 +1758,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_bit_or(self, a.lvalue, b.lvalue)
+            result.hvalue = hash_bit_or(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_or(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_or(a.hvalue, b.hvalue, a.type)
         return result
 
     # a ^ b
@@ -1819,10 +1770,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_bit_xor(self, a.lvalue, b.lvalue)
+            result.hvalue = hash_bit_xor(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_xor(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_xor(a.hvalue, b.hvalue, a.type)
         return result
 
     # a << b
@@ -1831,10 +1781,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_bit_shift_left(self, a.lvalue, b.lvalue, a.type)
+            result.hvalue = hash_bit_shift_left(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_shift_left(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_shift_left(a.hvalue, b.hvalue, a.type)
         return result
 
     # a >> b
@@ -1843,10 +1792,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = a.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_bit_shift_right(self, a.lvalue, b.lvalue, a.type)
+            result.hvalue = hash_bit_shift_right(self, a.hvalue, b.hvalue, a.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_shift_right(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_shift_right(a.hvalue, b.hvalue, a.type)
         return result
 
     # a == b
@@ -1856,10 +1804,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = bool_type()}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_eq(self, a.lvalue, b.lvalue, a.type)
+            result.hvalue = hash_eq(self, a.hvalue, b.hvalue)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.eq(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.eq(a.hvalue, b.hvalue)
         return result
 
     # a < b
@@ -1869,10 +1816,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = bool_type()}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_lt(self, a.lvalue, b.lvalue, a.type)
+            result.hvalue = hash_lt(self, a.hvalue, b.hvalue)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.lt(a.uvalue, b.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.lt(a.hvalue, b.hvalue)
         return result
 
     # not value
@@ -1882,10 +1828,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = bool_type()}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_not_(self, value.lvalue)
+            result.hvalue = hash_not_(self, value.hvalue)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.not_(value.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.not_(value.hvalue)
         return result
 
     # ~value
@@ -1895,10 +1840,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = value.type}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_bit_not(self, value.lvalue, value.type)
+            result.hvalue = hash_bit_not(self, value.hvalue, value.type)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.bit_not(value.uvalue)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.bit_not(value.hvalue, value.type)
         return result
 
     # sizeof(any value of given type)
@@ -1907,10 +1851,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = int_type(32)}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_size_of(self, t)
+            result.hvalue = hash_size_of(self, t)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.size_of(t)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.size_of(t)
         return result
 
     # memset(ptr, 0, sizeof(*ptr))
@@ -1919,10 +1862,9 @@ class AnyBuilder:
         assert ptr.type.kind == TypeKind.Pointer
         if self.llvm_builder != NULL:
             llvm_memset_to_zero(self, ptr.lvalue, ptr.type)
+            hash_memset_to_zero(self, ptr.hvalue)
         if self.ubuilder != NULL:
             self.ubuilder.memset_to_zero(ptr.uvalue)
-        if self.hbuilder != NULL:
-            self.hbuilder.memset_to_zero(ptr.hvalue)
 
     # value as to
     @public
@@ -1930,10 +1872,9 @@ class AnyBuilder:
         result = AnyBuilderValue{type = to}
         if self.llvm_builder != NULL:
             result.lvalue = llvm_cast(self, value.lvalue, value.type, to)
+            result.hvalue = hash_cast(self, value.hvalue, to)
         if self.ubuilder != NULL:
             result.uvalue = self.ubuilder.cast(value.uvalue, to)
-        if self.hbuilder != NULL:
-            result.hvalue = self.hbuilder.cast(value.hvalue, to)
         return result
 
     # Blocks are used to implement e.g. if statements and loops.
@@ -1942,10 +1883,9 @@ class AnyBuilder:
         result = AnyBuilderBlock{}
         if self.llvm_builder != NULL:
             result.lblock = llvm_add_block(self)
+            result.hblock = hash_add_block(self)
         if self.ubuilder != NULL:
             result.ublock = self.ubuilder.add_block()
-        if self.hbuilder != NULL:
-            result.hblock = self.hbuilder.add_block()
         return result
 
     # Decide which block will contain the resulting instructions.
@@ -1953,10 +1893,9 @@ class AnyBuilder:
     def set_current_block(self, block: AnyBuilderBlock) -> None:
         if self.llvm_builder != NULL:
             llvm_set_current_block(self, block.lblock)
+            hash_set_current_block(self, block.hblock)
         if self.ubuilder != NULL:
             self.ubuilder.set_current_block(block.ublock)
-        if self.hbuilder != NULL:
-            self.hbuilder.set_current_block(block.hblock)
 
     # Conditional branch:
     #
@@ -1972,10 +1911,9 @@ class AnyBuilder:
     def branch(self, cond: AnyBuilderValue, then: AnyBuilderBlock, otherwise: AnyBuilderBlock) -> None:
         if self.llvm_builder != NULL:
             llvm_branch(self, cond.lvalue, then.lblock, otherwise.lblock)
+            hash_branch(self, cond.hvalue, then.hblock, otherwise.hblock)
         if self.ubuilder != NULL:
             self.ubuilder.branch(cond.uvalue, then.ublock, otherwise.ublock)
-        if self.hbuilder != NULL:
-            self.hbuilder.branch(cond.hvalue, then.hblock, otherwise.hblock)
 
     # Go to the block. Similar to branch() but no condition. LLVM calls this
     # "unconditional branch", which IMO doesn't make sense because it always
@@ -1988,10 +1926,9 @@ class AnyBuilder:
     def jump(self, next_block: AnyBuilderBlock) -> None:
         if self.llvm_builder != NULL:
             llvm_jump(self, next_block.lblock)
+            hash_jump(self, next_block.hblock)
         if self.ubuilder != NULL:
             self.ubuilder.jump(next_block.ublock)
-        if self.hbuilder != NULL:
-            self.hbuilder.jump(next_block.hblock)
 
     # Add an instruction that should never run.
     # May be used by optimizer, but also tells LLVM that the block ends here.
@@ -1999,10 +1936,9 @@ class AnyBuilder:
     def unreachable(self) -> None:
         if self.llvm_builder != NULL:
             llvm_unreachable(self)
+            hash_unreachable(self)
         if self.ubuilder != NULL:
             self.ubuilder.unreachable()
-        if self.hbuilder != NULL:
-            self.hbuilder.unreachable()
 
     # Return from function/method. Value should be NULL if the function is '-> None'.
     @public
@@ -2010,18 +1946,15 @@ class AnyBuilder:
         if self.llvm_builder != NULL:
             if value == NULL:
                 llvm_ret(self, NULL)
+                hash_ret(self, NULL)
             else:
                 llvm_ret(self, value.lvalue)
+                hash_ret(self, &value.hvalue)
         if self.ubuilder != NULL:
             if value == NULL:
                 self.ubuilder.ret(NULL)
             else:
                 self.ubuilder.ret(&value.uvalue)
-        if self.hbuilder != NULL:
-            if value == NULL:
-                self.hbuilder.ret(NULL)
-            else:
-                self.hbuilder.ret(&value.hvalue)
 
 
 # You can set llvm_out and hash_out to NULL if they are not needed.
@@ -2053,12 +1986,10 @@ def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*
     }
     builder.ubuilder = &uvg_builder
 
-    hash_builder = HBuilder{}
-
     if we_are_making_object_file:
         builder.llvm_builder = LLVMCreateBuilder()
         assert builder.llvm_builder != NULL
-        hash_builder.hash = new_hash()
+        builder.hash = new_hash()
 
         # Compilation results depend on the compiler that compiles them, so
         # let's bake this whole compiler into the hash.
@@ -2067,25 +1998,23 @@ def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*
         # However, we don't include it in the hash here, because compilation
         # results for different optimization levels are separated anyway.
         # See doc/lazy-recompile.md for details.
-        hash_builder.hash.add_uint64(hash_of_compiler().hash)
+        builder.hash.add_uint64(hash_of_compiler().hash)
 
         builder.llvm_module = LLVMModuleCreateWithName(jou_file.path)
-        hash_builder.hash.add_string(jou_file.path)
+        builder.hash.add_string(jou_file.path)
 
         assert global_compiler_state.target.ready
 
         LLVMSetTarget(builder.llvm_module, global_compiler_state.target.triple)
-        hash_builder.hash.add_string(global_compiler_state.target.triple)
+        builder.hash.add_string(global_compiler_state.target.triple)
 
         LLVMSetDataLayout(builder.llvm_module, global_compiler_state.target.data_layout)
-        hash_builder.hash.add_string(global_compiler_state.target.data_layout)
-
-        builder.hbuilder = &hash_builder
+        builder.hash.add_string(global_compiler_state.target.data_layout)
 
     feed_file_to_builder(jou_file, &builder)
 
     if we_are_making_object_file:
-        *hash_out = hash_builder.hash
+        *hash_out = builder.hash
         *llvm_out = LLVMWriteBitcodeToMemoryBuffer(builder.llvm_module)
         assert *llvm_out != NULL
         LLVMDisposeBuilder(builder.llvm_builder)
