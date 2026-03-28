@@ -350,215 +350,6 @@ def build_llvm_cast(
     assert False
 
 
-def llvm_declare_global_var(builder: AnyBuilder*, varname: byte*, type: Type*) -> None:
-    LLVMAddGlobal(builder.llvm_module, type_to_llvm(type), varname)
-
-def llvm_define_global_var(builder: AnyBuilder*, varname: byte*, type: Type*, initial_value: LLVMValue*, public: bool) -> None:
-    llvm_type = type_to_llvm(type)
-    globalptr = LLVMAddGlobal(builder.llvm_module, llvm_type, varname)
-    assert globalptr != NULL
-
-    if initial_value == NULL:
-        LLVMSetInitializer(globalptr, LLVMConstNull(llvm_type))
-    else:
-        LLVMSetInitializer(globalptr, initial_value)
-
-    if not public:
-        LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
-
-def llvm_begin_function(builder: AnyBuilder*, sig: Signature*, public: bool) -> None:
-    builder.llvm_func = declare_in_llvm(sig, builder.llvm_module)
-    builder.llvm_returns_a_value = sig.return_type != NULL
-
-    builder.llvm_alloca_block = LLVMAppendBasicBlock(builder.llvm_func, "alloca")
-    builder.llvm_code_start_block = LLVMAppendBasicBlock(builder.llvm_func, "code_start")
-    LLVMPositionBuilderAtEnd(builder.llvm_builder, builder.llvm_code_start_block)
-    builder.llvm_current_block = builder.llvm_code_start_block
-
-    if not public:
-        LLVMSetLinkage(builder.llvm_func, LLVMLinkage.Private)
-
-def llvm_end_function(builder: AnyBuilder*) -> None:
-    if builder.llvm_returns_a_value:
-        # Implicit "return" at the end of a function that should return a value
-        LLVMBuildUnreachable(builder.llvm_builder)
-    else:
-        LLVMBuildRetVoid(builder.llvm_builder)
-
-    LLVMPositionBuilderAtEnd(builder.llvm_builder, builder.llvm_alloca_block)
-    LLVMBuildBr(builder.llvm_builder, builder.llvm_code_start_block)
-
-def llvm_begin_statement_in_a_body(builder: AnyBuilder*) -> None:
-    pass
-
-def llvm_stack_alloc(builder: AnyBuilder*, t: Type*, varname: byte*) -> LLVMValue*:
-    if varname == NULL:
-        debug_name = "stack_alloc"
-    else:
-        debug_name = varname
-
-    # Place all allocations to the same block at start of function, so that
-    # we don't overflow the stack when the part of code that creates local
-    # var runs many times.
-    LLVMPositionBuilderAtEnd(builder.llvm_builder, builder.llvm_alloca_block)
-    llvm_ptr = LLVMBuildAlloca(builder.llvm_builder, type_to_llvm(t), debug_name)
-    LLVMPositionBuilderAtEnd(builder.llvm_builder, builder.llvm_current_block)
-    return llvm_ptr
-
-# *ptr = value
-def llvm_set_ptr(builder: AnyBuilder*, ptr: LLVMValue*, value: LLVMValue*) -> None:
-    # TODO: fix how typedef llvm_statement works and re-enable this!
-    #if ptr.type != value.type.pointer_type():
-    #    printf("Cannot set value of %s to %s\n", ptr.type.name, value.type.name)
-    #assert ptr.type == value.type.pointer_type()
-    ptr_type = LLVMPointerTypeInContext(LLVMGetGlobalContext(), 0)
-    LLVMBuildStore(builder.llvm_builder, value, ptr)
-
-# *ptr
-def llvm_dereference(builder: AnyBuilder*, ptr: LLVMValue*, ptr_type: Type*) -> LLVMValue*:
-    assert ptr_type.kind == TypeKind.Pointer
-    return LLVMBuildLoad2(builder.llvm_builder, type_to_llvm(ptr_type.value_type), ptr, "dereference")
-
-# Returns &ptr[index]
-def llvm_indexed_pointer(builder: AnyBuilder*, ptr: LLVMValue*, ptr_type: Type*, index: LLVMValue*) -> LLVMValue*:
-    assert ptr_type.kind == TypeKind.Pointer
-    return LLVMBuildGEP2(
-        builder.llvm_builder,
-        type_to_llvm(ptr_type.value_type),
-        ptr,
-        &index,
-        1,
-        "indexed_pointer",
-    )
-
-# Returns &ptr.field
-def llvm_class_field_pointer(builder: AnyBuilder*, ptr: LLVMValue*, ptr_type: Type*, field: ClassField*) -> LLVMValue*:
-    assert ptr_type.kind == TypeKind.Pointer
-    assert ptr_type.value_type.kind == TypeKind.Class
-
-    return LLVMBuildStructGEP2(
-        builder.llvm_builder,
-        type_to_llvm(ptr_type.value_type),
-        ptr,
-        field.union_id,
-        field.name,
-    )
-
-# &global_variable
-def llvm_global_var_ptr(builder: AnyBuilder*, name: byte*) -> LLVMValue*:
-    result = LLVMGetNamedGlobal(builder.llvm_module, name)
-    assert result != NULL
-    return result
-
-# some_function
-def llvm_get_funcptr(builder: AnyBuilder*, sig: Signature*) -> LLVMValue*:
-    return declare_in_llvm(sig, builder.llvm_module)
-
-# i'th argument given to this function
-def llvm_get_argument(builder: AnyBuilder*, i: int) -> LLVMValue*:
-    return LLVMGetParam(builder.llvm_func, i)
-
-def llvm_call_function(builder: AnyBuilder*, funcptr_type: Type*, func: LLVMValue*, args: LLVMValue**, nargs: int) -> LLVMValue*:
-    assert nargs <= MAX_ARGS
-    llvm_args: LLVMValue*[MAX_ARGS]
-    for i = 0; i < nargs; i++:
-        llvm_args[i] = args[i]
-
-    assert funcptr_type.kind == TypeKind.FuncPtr
-    debug_name = ""
-    if funcptr_type.func_ptr.return_type != NULL:
-        debug_name = "func_return_value"
-
-    llvm_return_value = LLVMBuildCall2(
-        builder.llvm_builder,
-        funcptr_type_to_llvm(funcptr_type),
-        func,
-        llvm_args,
-        nargs,
-        debug_name,
-    )
-
-    # TODO(refactor): can this be simplified?
-    if funcptr_type.func_ptr.return_type == NULL:
-        return NULL
-    else:
-        assert llvm_return_value != NULL
-        return llvm_return_value
-
-# self must be included in args
-def llvm_call_method(builder: AnyBuilder*, sig: Signature*, args: LLVMValue**, nargs: int) -> LLVMValue*:
-    assert nargs >= sig.args.len
-    if nargs > sig.args.len:
-        assert sig.takes_varargs
-
-    assert nargs <= MAX_ARGS
-    llvm_args: LLVMValue*[MAX_ARGS]
-    for i = 0; i < nargs; i++:
-        llvm_args[i] = args[i]
-
-    debug_name: byte[100] = ""
-    if sig.return_type != NULL:
-        snprintf(debug_name, sizeof(debug_name), "%s_return_value", sig.name)
-
-    llvm_func = declare_in_llvm(sig, builder.llvm_module)
-    llvm_return_value = LLVMBuildCall2(
-        builder.llvm_builder,
-        signature_to_llvm(sig),
-        llvm_func,
-        llvm_args,
-        nargs,
-        debug_name,
-    )
-
-    # TODO(refactor): can this be simplified?
-    if sig.return_type == NULL:
-        return NULL
-    else:
-        assert llvm_return_value != NULL
-        return llvm_return_value
-
-def llvm_array_of_bytes(builder: AnyBuilder*, bytes: List[byte]) -> LLVMValue*:
-    assert bytes.len <= UINT32_MAX
-    return LLVMConstString(bytes.ptr, bytes.len as uint32, True as int)
-
-def llvm_array(builder: AnyBuilder*, len: int, items: LLVMValue**, item_type: Type*) -> LLVMValue*:
-    llvm_items: LLVMValue** = malloc(sizeof(llvm_items[0]) * len)
-    assert llvm_items != NULL
-
-    for i = 0; i < len; i++:
-        llvm_items[i] = items[i]
-
-    result = LLVMConstArray(type_to_llvm(item_type), llvm_items, len as uint32)
-    free(llvm_items)
-    return result
-
-# string as '\0' terminated pointer
-def llvm_pointer_string(builder: AnyBuilder*, s: byte*) -> LLVMValue*:
-    llvm_array = LLVMConstString(s, strlen(s) as uint32, False as int)
-    llvm_string = LLVMAddGlobal(builder.llvm_module, LLVMTypeOf(llvm_array), "string_literal")
-    LLVMSetLinkage(llvm_string, LLVMLinkage.Private)  # This makes it a static global variable
-    LLVMSetInitializer(llvm_string, llvm_array)
-    return llvm_string
-
-def llvm_boolean(builder: AnyBuilder*, b: bool) -> LLVMValue*:
-    return LLVMConstInt(LLVMInt1Type(), b as int64, False as int)
-
-def llvm_integer(builder: AnyBuilder*, t: Type*, value: int64) -> LLVMValue*:
-    assert t.is_integer_type()
-    return LLVMConstInt(type_to_llvm(t), value, (t.kind == TypeKind.SignedInteger) as int)
-
-def llvm_float_or_double(builder: AnyBuilder*, t: Type*, dbl: double) -> LLVMValue*:
-    assert t.kind == TypeKind.FloatingPoint
-    return LLVMConstReal(type_to_llvm(t), dbl)
-
-def llvm_zero_of_type(builder: AnyBuilder*, t: Type*) -> LLVMValue*:
-    return LLVMConstNull(type_to_llvm(t))
-
-def llvm_enum_member(builder: AnyBuilder*, t: Type*, name: byte*) -> LLVMValue*:
-    int_value = t.find_enum_member(name)
-    assert int_value != -1
-    return LLVMConstInt(LLVMInt32Type(), int_value, False as int)
-
 # a + b
 def llvm_add(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
     match type.kind:
@@ -682,15 +473,6 @@ def llvm_memset_to_zero(builder: AnyBuilder*, ptr: LLVMValue*, ptr_type: Type*) 
 def llvm_cast(builder: AnyBuilder*, value: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
     return build_llvm_cast(builder.llvm_builder, value, from, to)
 
-# Blocks are used to implement e.g. if statements and loops.
-def llvm_add_block(builder: AnyBuilder*) -> LLVMBasicBlock*:
-    return LLVMAppendBasicBlock(builder.llvm_func, "block")
-
-# Decide which block will contain the resulting instructions.
-def llvm_set_current_block(builder: AnyBuilder*, block: LLVMBasicBlock*) -> None:
-    LLVMPositionBuilderAtEnd(builder.llvm_builder, block)
-    builder.llvm_current_block = block
-
 def llvm_branch(builder: AnyBuilder*, cond: LLVMValue*, then: LLVMBasicBlock*, otherwise: LLVMBasicBlock*) -> None:
     LLVMBuildCondBr(builder.llvm_builder, cond, then, otherwise)
 
@@ -759,226 +541,61 @@ def hash_signature(hash: Hash*, sig: Signature*) -> None:
         hash_type(hash, sig.return_type)
 
 
-def hash_declare_global_var(builder: AnyBuilder*, varname: byte*, type: Type*) -> None:
-    builder.hash.add_string("globaldeclare")
-    builder.hash.add_string(varname)
-    hash_type(&builder.hash, type)
-
-def hash_define_global_var(builder: AnyBuilder*, varname: byte*, type: Type*, initial_value: int64*, public: bool) -> None:
-    builder.hash.add_string("globaldefine")
-    builder.hash.add_string(varname)
-    builder.hash.add_bool(public)
-    hash_type(&builder.hash, type)
-    if initial_value != NULL:
-        builder.hash.add_int64(*initial_value)
-
-def hash_begin_function(builder: AnyBuilder*, sig: Signature*, public: bool) -> None:
-    builder.hash.add_string("begin func")
-    hash_signature(&builder.hash, sig)
-    builder.hash.add_bool(public)
-
-def hash_end_function(builder: AnyBuilder*) -> None:
-    pass
-
-def hash_begin_statement_in_a_body(builder: AnyBuilder*) -> None:
-    pass
-
-# Hashes and returns a unique ID number that represents a value in code.
-# Also hashes the type, because a changed type may be enough to need a recompile.
-def hash_new_value(builder: AnyBuilder*, t: Type*) -> int64:
-    id = builder.hash_id_counter++
-    builder.hash.add_int64(id)
-    if t == NULL:
-        builder.hash.add_string("no type")
-    else:
-        hash_type(&builder.hash, t)
-    return id
-
-def hash_stack_alloc(builder: AnyBuilder*, t: Type*, varname: byte*) -> int64:
-    # Do nothing with varname, so that renaming a local variable doesn't cause a rebuild
-    # TODO: Will need to be different if debug info is enabled
-    builder.hash.add_string("stack_alloc")
-    hash_type(&builder.hash, t)
-    return hash_new_value(builder, t.pointer_type())
-
-# *ptr = value
-def hash_set_ptr(builder: AnyBuilder*, ptr: int64, value: int64) -> None:
-    builder.hash.add_string("set_ptr")
-    builder.hash.add_int64(ptr)
-    builder.hash.add_int64(value)
-
-# *ptr
-def hash_dereference(builder: AnyBuilder*, ptr: int64, ptr_type: Type*) -> int64:
-    builder.hash.add_string("deref")
-    builder.hash.add_int64(ptr)
-    assert ptr_type.kind == TypeKind.Pointer
-    return hash_new_value(builder, ptr_type.value_type)
-
-# Returns &ptr[index]
-def hash_indexed_pointer(builder: AnyBuilder*, ptr: int64, ptr_type: Type*, index: int64) -> int64:
-    builder.hash.add_string("indexed_pointer")
-    builder.hash.add_int64(ptr)
-    builder.hash.add_int64(index)
-    hash_type(&builder.hash, ptr_type.value_type)  # result depends on size of pointed type
-    return hash_new_value(builder, ptr_type)
-
-# Returns &ptr.field
-def hash_class_field_pointer(builder: AnyBuilder*, ptr: int64, ptr_type: Type*, field: ClassField*) -> int64:
-    # Do not hash field name, renaming fields should not cause recompiling
-    assert ptr_type.kind == TypeKind.Pointer
-    assert ptr_type.value_type.kind == TypeKind.Class
-
-    # TODO: Result of &ptr.field depends on the offset of the field in the
-    #       struct, so ideally we would get it here somehow and compute
-    #       that instead of hashing the whole struct.
-    hash_type(&builder.hash, ptr_type.value_type)
-
-    builder.hash.add_string("class_field_pointer")
-    builder.hash.add_int64(ptr)
-    builder.hash.add_int(field.union_id)
-    return hash_new_value(builder, field.type.pointer_type())
-
-# &global_variable
-def hash_global_var_ptr(builder: AnyBuilder*, name: byte*, var_type: Type*) -> int64:
-    builder.hash.add_string("global_var_ptr")
-    builder.hash.add_string(name)
-    return hash_new_value(builder, var_type.pointer_type())
-
-# some_function
-def hash_get_funcptr(builder: AnyBuilder*, signature: Signature*) -> int64:
-    builder.hash.add_string("funcptr")
-    builder.hash.add_string(signature.name)
-    return hash_new_value(builder, signature.to_funcptr_type())
-
-# i'th argument given to this function
-def hash_get_argument(builder: AnyBuilder*, i: int, argtype: Type*) -> int64:
-    builder.hash.add_string("arg")
-    builder.hash.add_int(i)
-    return hash_new_value(builder, argtype)
-
-def hash_call_function(builder: AnyBuilder*, funcptr_type: Type*, func: int64, args: int64*, nargs: int) -> int64:
-    builder.hash.add_string("call_func")
-    builder.hash.add_int64(func)
-    for p = args; p < &args[nargs]; p++:
-        builder.hash.add_int64(*p)
-
-    assert funcptr_type.kind == TypeKind.FuncPtr
-    if funcptr_type.func_ptr.return_type != NULL:
-        return hash_new_value(builder, funcptr_type.func_ptr.return_type)
-    else:
-        return -1
-
-def hash_call_method(builder: AnyBuilder*, sig: Signature*, args: int64*, nargs: int) -> int64:
-    hash_signature(&builder.hash, sig)
-    for p = args; p < &args[nargs]; p++:
-        builder.hash.add_int64(*p)
-
-    if sig.return_type != NULL:
-        return hash_new_value(builder, sig.return_type)
-    else:
-        return -1
-
-# string as array of bytes
-def hash_array_of_bytes(builder: AnyBuilder*, bytes: List[byte]) -> int64:
-    builder.hash.add_string("array_of_bytes")
-    assert bytes.len <= INT32_MAX
-    builder.hash.add_int(bytes.len as int)
-    builder.hash.add_bytes(bytes.ptr, bytes.len)
-    return hash_new_value(builder, uint_type(8).array_type(bytes.len as int))
-
-def hash_array(builder: AnyBuilder*, len: int, items: int64*, item_type: Type*) -> int64:
-    builder.hash.add_string("array")
-    for i = 0; i < len; i++:
-        builder.hash.add_int64(items[i])
-    return hash_new_value(builder, item_type.array_type(len))
-
-# string as '\0' terminated pointer
-def hash_pointer_string(builder: AnyBuilder*, s: byte*) -> int64:
-    builder.hash.add_string("pointer_string")
-    builder.hash.add_string(s)
-    return hash_new_value(builder, uint_type(8).pointer_type())
-
-def hash_boolean(builder: AnyBuilder*, b: bool) -> int64:
-    builder.hash.add_string("bool")
-    builder.hash.add_bool(b)
-    return hash_new_value(builder, bool_type())
-
-def hash_integer(builder: AnyBuilder*, t: Type*, value: int64) -> int64:
-    builder.hash.add_string("integer")
-    builder.hash.add_int64(value)
-    return hash_new_value(builder, t)
-
-def hash_float_or_double(builder: AnyBuilder*, t: Type*, dbl: double) -> int64:
-    builder.hash.add_string("float_or_double")
-    builder.hash.add_bytes(&dbl as byte*, sizeof(dbl))
-    return hash_new_value(builder, t)
-
-def hash_zero_of_type(builder: AnyBuilder*, t: Type*) -> int64:
-    builder.hash.add_string("zero")
-    return hash_new_value(builder, t)
-
-def hash_enum_member(builder: AnyBuilder*, t: Type*, name: byte*) -> int64:
-    builder.hash.add_string("enum")
-    int_value = t.find_enum_member(name)
-    assert int_value != -1
-    builder.hash.add_int(int_value)
-    return hash_new_value(builder, t)
-
 # a + b
 def hash_add(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
     builder.hash.add_string("add")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, type)
+    return builder.hash_new_value(builder, type)
 
 # a - b
 def hash_sub(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
     builder.hash.add_string("sub")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, type)
+    return builder.hash_new_value(builder, type)
 
 # a * b
 def hash_mul(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
     builder.hash.add_string("mul")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, type)
+    return builder.hash_new_value(builder, type)
 
 # a / b
 def hash_div(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
     builder.hash.add_string("div")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, type)
+    return builder.hash_new_value(builder, type)
 
 # a % b
 def hash_mod(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
     builder.hash.add_string("mod")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, type)
+    return builder.hash_new_value(builder, type)
 
 # a & b
 def hash_bit_and(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
     builder.hash.add_string("and")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, type)
+    return builder.hash_new_value(builder, type)
 
 # a | b
 def hash_bit_or(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
     builder.hash.add_string("or")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, type)
+    return builder.hash_new_value(builder, type)
 
 # a ^ b
 def hash_bit_xor(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
     builder.hash.add_string("xor")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, type)
+    return builder.hash_new_value(builder, type)
 
 # a << b
 def hash_bit_shift_left(builder: AnyBuilder*, a: int64, b: int64, shift_type: Type*) -> int64:
@@ -986,7 +603,7 @@ def hash_bit_shift_left(builder: AnyBuilder*, a: int64, b: int64, shift_type: Ty
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
     # Type of b doesn't matter. Result's type is always the type of a.
-    return hash_new_value(builder, shift_type)
+    return builder.hash_new_value(builder, shift_type)
 
 # a >> b
 def hash_bit_shift_right(builder: AnyBuilder*, a: int64, b: int64, shift_type: Type*) -> int64:
@@ -994,39 +611,39 @@ def hash_bit_shift_right(builder: AnyBuilder*, a: int64, b: int64, shift_type: T
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
     # Type of b doesn't matter. Result's type is always the type of a.
-    return hash_new_value(builder, shift_type)
+    return builder.hash_new_value(builder, shift_type)
 
 # a == b
 def hash_eq(builder: AnyBuilder*, a: int64, b: int64) -> int64:
     builder.hash.add_string("eq")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, bool_type())
+    return builder.hash_new_value(builder, bool_type())
 
 # a < b
 def hash_lt(builder: AnyBuilder*, a: int64, b: int64) -> int64:
     builder.hash.add_string("lt")
     builder.hash.add_int64(a)
     builder.hash.add_int64(b)
-    return hash_new_value(builder, bool_type())
+    return builder.hash_new_value(builder, bool_type())
 
 # not value
 def hash_not_(builder: AnyBuilder*, value: int64) -> int64:
     builder.hash.add_string("not")
     builder.hash.add_int64(value)
-    return hash_new_value(builder, bool_type())
+    return builder.hash_new_value(builder, bool_type())
 
 # ~value
 def hash_bit_not(builder: AnyBuilder*, value: int64, type: Type*) -> int64:
     builder.hash.add_string("bitnot")
     builder.hash.add_int64(value)
-    return hash_new_value(builder, type)
+    return builder.hash_new_value(builder, type)
 
 # sizeof(any value of given type)
 def hash_size_of(builder: AnyBuilder*, t: Type*) -> int64:
     builder.hash.add_string("sizeof")
     hash_type(&builder.hash, t)
-    return hash_new_value(builder, int_type(32))
+    return builder.hash_new_value(builder, int_type(32))
 
 # memset(ptr, 0, sizeof(*ptr))
 def hash_memset_to_zero(builder: AnyBuilder*, ptr: int64) -> None:
@@ -1037,18 +654,7 @@ def hash_memset_to_zero(builder: AnyBuilder*, ptr: int64) -> None:
 def hash_cast(builder: AnyBuilder*, value: int64, to: Type*) -> int64:
     builder.hash.add_string("cast")
     builder.hash.add_int64(value)
-    return hash_new_value(builder, to)
-
-def hash_add_block(builder: AnyBuilder*) -> int64:
-    builder.hash.add_string("add block")
-    block_id = builder.hash_id_counter++
-    builder.hash.add_int64(block_id)
-    return block_id
-
-# Decide which block will contain the resulting instructions.
-def hash_set_current_block(builder: AnyBuilder*, block_id: int64) -> None:
-    builder.hash.add_string("set block")
-    builder.hash.add_int64(block_id)
+    return builder.hash_new_value(builder, to)
 
 def hash_branch(builder: AnyBuilder*, cond: int64, then_block_id: int64, otherwise_block_id: int64) -> None:
     builder.hash.add_string("br")
@@ -1115,6 +721,10 @@ class AnyBuilder:
     uvg_inlining_signature: Signature*
     uvg_return_value_id: int
 
+    def hash_new_id(self) -> int64:
+        self.hash.add_int64(self.hash_id_counter)
+        return self.hash_id_counter++
+
     def add_uvg_instruction(self, ins: UvgInstruction) -> None:
         assert ins.var >= 0
 
@@ -1143,15 +753,30 @@ class AnyBuilder:
     @public
     def declare_global_var(self, varname: byte*, vartype: Type*) -> None:
         if self.llvm_builder != NULL:
-            llvm_declare_global_var(self, varname, vartype)
-            hash_declare_global_var(self, varname, vartype)
+            self.hash.add_string("globaldeclare")
+            self.hash.add_string(varname)
+            hash_type(&self.hash, vartype)
+            LLVMAddGlobal(self.llvm_module, type_to_llvm(vartype), varname)
 
     # If initial value is NULL, zero-initialization will be used.
     @public
     def define_global_var(self, varname: byte*, vartype: Type*, initial_value: AnyBuilderValue*, public: bool) -> None:
+        assert initial_value == NULL or initial_value.type == vartype
+
         if self.llvm_builder != NULL:
-            llvm_define_global_var(self, varname, vartype, NULL if initial_value == NULL else initial_value.lvalue, public)
-            hash_define_global_var(self, varname, vartype, NULL if initial_value == NULL else &initial_value.hvalue, public)
+            self.hash.add_string("globaldefine")
+            self.hash.add_string(varname)
+            hash_type(&self.hash, vartype)
+            self.hash.add_bool(public)
+            if initial_value != NULL:
+                self.hash.add_int64(initial_value.hvalue)
+
+            llvm_type = type_to_llvm(vartype)
+            globalptr = LLVMAddGlobal(self.llvm_module, llvm_type, varname)
+            assert globalptr != NULL
+            LLVMSetInitializer(globalptr, LLVMConstNull(llvm_type) if initial_value == NULL else initial_value.lvalue)
+            if not public:
+                LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
 
     @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
@@ -1163,8 +788,18 @@ class AnyBuilder:
             self.uvg_return_value_id = -1
 
         if self.llvm_builder != NULL:
-            llvm_begin_function(self, sig, public)
-            hash_begin_function(self, sig, public)
+            self.hash.add_string("begin func")
+            hash_signature(&self.hash, sig)
+            self.hash.add_bool(public)
+
+            self.llvm_func = declare_in_llvm(sig, self.llvm_module)
+            self.llvm_returns_a_value = sig.return_type != NULL
+            self.llvm_alloca_block = LLVMAppendBasicBlock(self.llvm_func, "alloca")
+            self.llvm_code_start_block = LLVMAppendBasicBlock(self.llvm_func, "code_start")
+            LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_code_start_block)
+            self.llvm_current_block = self.llvm_code_start_block
+            if not public:
+                LLVMSetLinkage(self.llvm_func, LLVMLinkage.Private)
 
     @public
     def end_function(self) -> None:
@@ -1187,15 +822,16 @@ class AnyBuilder:
         self.uvg = Uvg{}
 
         if self.llvm_builder != NULL:
-            llvm_end_function(self)
-            hash_end_function(self)
+            if self.llvm_returns_a_value:
+                # Implicit "return" at the end of a function that should return a value
+                LLVMBuildUnreachable(self.llvm_builder)
+            else:
+                LLVMBuildRetVoid(self.llvm_builder)
+            LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_alloca_block)
+            LLVMBuildBr(self.llvm_builder, self.llvm_code_start_block)
 
     @public
     def begin_statement_in_a_body(self) -> None:
-        if self.llvm_builder != NULL:
-            llvm_begin_statement_in_a_body(self)
-            hash_begin_statement_in_a_body(self)
-
         self.add_uvg_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})
 
     # If inlining_signature is not NULL, it means that the given location is
@@ -1209,6 +845,20 @@ class AnyBuilder:
         if inlining_signature == NULL:
             self.uvg_location = location
 
+    # Hashes and returns a unique ID number that represents a value in code.
+    # Also hashes the type, because a changed type may be enough to need a recompile.
+    #
+    # TODO(refactor): I hate this function, delete it. Instead:
+    #   - Prefer hash_new_id() directly
+    #   - Hash the type only when needed
+    def hash_new_value(self, builder: AnyBuilder*, t: Type*) -> int64:
+        assert builder == self  # TODO(refactor): this is super dumb, clean up!!!
+        if t == NULL:
+            builder.hash.add_string("no type")
+        else:
+            hash_type(&builder.hash, t)
+        return self.hash_new_id()
+
     # Allocates enough stack space in the function to hold a value of given type.
     # Returns a pointer to the stack space.
     # If allocated stack memory is not a local variable, varname must be NULL.
@@ -1220,8 +870,22 @@ class AnyBuilder:
         }
 
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_stack_alloc(self, t, varname)
-            result.hvalue = hash_stack_alloc(self, t, varname)
+            if varname == NULL:
+                debug_name = "stack_alloc"
+            else:
+                debug_name = varname
+            # Place all allocations to the same block at start of function, so that
+            # we don't overflow the stack when the part of code that creates local
+            # var runs many times.
+            LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_alloca_block)
+            result.lvalue = LLVMBuildAlloca(self.llvm_builder, type_to_llvm(t), debug_name)
+            LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_current_block)
+
+            # Don't hash varname, so that renaming a local variable doesn't cause a rebuild
+            # TODO: Will need to be different if debug info is enabled
+            self.hash.add_string("stack_alloc")
+            hash_type(&self.hash, t)
+            result.hvalue = self.hash_new_id()
 
         return result
 
@@ -1232,8 +896,15 @@ class AnyBuilder:
         self.add_uvg_set(ptr.uvalue)
 
         if self.llvm_builder != NULL:
-            llvm_set_ptr(self, ptr.lvalue, value.lvalue)
-            hash_set_ptr(self, ptr.hvalue, value.hvalue)
+            self.hash.add_string("set_ptr")
+            self.hash.add_int64(ptr.hvalue)
+            self.hash.add_int64(value.hvalue)
+
+            # TODO(refactor): can this be enabled? It was commented out because of the
+            #       old dumb implementation of typedef statement that was
+            #       removed quite a while ago.
+            #assert ptr.type == value.type.pointer_type()
+            LLVMBuildStore(self.llvm_builder, value.lvalue, ptr.lvalue)
 
     # *ptr
     @public
@@ -1247,21 +918,39 @@ class AnyBuilder:
         self.add_uvg_use(ptr.uvalue)
 
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_dereference(self, ptr.lvalue, ptr.type)
-            result.hvalue = hash_dereference(self, ptr.hvalue, ptr.type)
+            self.hash.add_string("deref")
+            self.hash.add_int64(ptr.hvalue)
+            hash_type(&self.hash, ptr.type.value_type)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMBuildLoad2(self.llvm_builder, type_to_llvm(ptr.type.value_type), ptr.lvalue, "deref")
+
         return result
 
     # Returns &ptr[index]
     @public
     def indexed_pointer(self, ptr: AnyBuilderValue, index: AnyBuilderValue) -> AnyBuilderValue:
+        assert ptr.type.kind == TypeKind.Pointer
         assert index.type == int_type(64)  # LLVM wants this, easy enough to ensure
 
         result = AnyBuilderValue{type = ptr.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
         self.add_uvg_dont_analyze(ptr.uvalue)
 
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_indexed_pointer(self, ptr.lvalue, ptr.type, index.lvalue)
-            result.hvalue = hash_indexed_pointer(self, ptr.hvalue, ptr.type, index.hvalue)
+            self.hash.add_string("indexed_pointer")
+            self.hash.add_int64(ptr.hvalue)
+            self.hash.add_int64(index.hvalue)
+            hash_type(&self.hash, ptr.type.value_type)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMBuildGEP2(
+                self.llvm_builder,
+                type_to_llvm(ptr.type.value_type),
+                ptr.lvalue,
+                &index.lvalue,
+                1,
+                "indexed_pointer",
+            )
 
         return result
 
@@ -1277,43 +966,78 @@ class AnyBuilder:
         self.add_uvg_dont_analyze(ptr.uvalue)
 
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_class_field_pointer(self, ptr.lvalue, ptr.type, field)
-            result.hvalue = hash_class_field_pointer(self, ptr.hvalue, ptr.type, field)
+            self.hash.add_string("class_field_pointer")
+            hash_type(&self.hash, ptr.type.value_type)
+            self.hash.add_int64(ptr.hvalue)
+            self.hash.add_int(field.union_id)
+            # Do not hash field name, renaming fields should not cause recompiling
+            # TODO: That is different once we implement debug info.
+            result.hvalue = self.hash_new_value(self, field.type.pointer_type())
+
+            result.lvalue = LLVMBuildStructGEP2(
+                self.llvm_builder,
+                type_to_llvm(ptr.type.value_type),
+                ptr.lvalue,
+                field.union_id,
+                field.name,
+            )
 
         return result
 
     @public
     def global_var_ptr(self, name: byte*, var_type: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = var_type.pointer_type()}
+        result = AnyBuilderValue{
+            type = var_type.pointer_type(),
+            uvalue = ANONYMOUS_UVG_VALUE_ID,
+        }
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_global_var_ptr(self, name)
-            result.hvalue = hash_global_var_ptr(self, name, var_type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            self.hash.add_string("global_var_ptr")
+            self.hash.add_string(name)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMGetNamedGlobal(self.llvm_module, name)
+            assert result.lvalue != NULL
+
         return result
 
     # Returns a function as funcptr
     @public
     def get_funcptr(self, sig: Signature*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = sig.to_funcptr_type()}
+        result = AnyBuilderValue{type = sig.to_funcptr_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_get_funcptr(self, sig)
-            result.hvalue = hash_get_funcptr(self, sig)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            self.hash.add_string("funcptr")
+            assert sig.get_self_class() == NULL  # sig.name goes to LLVM as is
+            self.hash.add_string(sig.name)
+            result.hvalue = self.hash_new_id()
+
+            # TODO(refactor): does this ever actually declare? or can it just look up instead?
+            #   - If this can declare, the signature should be hashed
+            #   - If this is always a lookup, never a declare, this should be just a lookup
+            result.lvalue = declare_in_llvm(sig, self.llvm_module)
+
         return result
 
     # Returns the i'th argument given to function
+    # TODO(refactor): delete the argtype from here, get from signature
     @public
     def get_argument(self, i: int, argtype: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = argtype}
+        result = AnyBuilderValue{type = argtype, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_get_argument(self, i)
-            result.hvalue = hash_get_argument(self, i, argtype)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            self.hash.add_string("arg")
+            self.hash.add_int(i)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMGetParam(self.llvm_func, i)
+
         return result
 
     # Function call through a function pointer
     @public
     def call_function(self, funcptr_type: Type*, func_ptr: AnyBuilderValue, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
+        assert funcptr_type == func_ptr.type  # TODO(refactor): delete funcptr_type parameter
         assert funcptr_type.kind == TypeKind.FuncPtr
         assert nargs >= funcptr_type.func_ptr.argtypes.len
         if nargs > funcptr_type.func_ptr.argtypes.len:
@@ -1325,15 +1049,36 @@ class AnyBuilder:
             self.add_uvg_dont_analyze(args[i].uvalue)
 
         assert nargs <= MAX_ARGS
+        assert nargs >= funcptr_type.func_ptr.argtypes.len
+        if nargs > funcptr_type.func_ptr.argtypes.len:
+            assert funcptr_type.func_ptr.takes_varargs
 
         if self.llvm_builder != NULL:
-            largs: LLVMValue*[MAX_ARGS]
-            hargs: int64[MAX_ARGS]
+            self.hash.add_string("call_func")
+            self.hash.add_int64(func_ptr.hvalue)
+            self.hash.add_int64(nargs)
             for i = 0; i < nargs; i++:
-                largs[i] = args[i].lvalue
-                hargs[i] = args[i].hvalue
-            result.lvalue = llvm_call_function(self, funcptr_type, func_ptr.lvalue, largs, nargs)
-            result.hvalue = hash_call_function(self, funcptr_type, func_ptr.hvalue, hargs, nargs)
+                self.hash.add_int64(args[i].hvalue)
+            if funcptr_type.func_ptr.return_type == NULL:
+                result.hvalue = -1
+                self.hash.add_bool(funcptr_type.func_ptr.is_noreturn)
+            else:
+                # TODO: I think hashing the return type is needed, but not
+                #       sure. Depends on all the ways to access a function.
+                hash_type(&self.hash, funcptr_type.func_ptr.return_type)
+                result.hvalue = self.hash_new_id()
+
+            llvm_args: LLVMValue*[MAX_ARGS]
+            for i = 0; i < nargs; i++:
+                llvm_args[i] = args[i].lvalue
+            result.lvalue = LLVMBuildCall2(
+                self.llvm_builder,
+                funcptr_type_to_llvm(funcptr_type),
+                func_ptr.lvalue,
+                llvm_args,
+                nargs,
+                "" if funcptr_type.func_ptr.return_type == NULL else "func_return_value",
+            )
 
         return result
 
@@ -1345,15 +1090,31 @@ class AnyBuilder:
             self.add_uvg_dont_analyze(args[i].uvalue)
 
         assert nargs <= MAX_ARGS
+        assert nargs >= sig.args.len
+        if nargs > sig.args.len:
+            assert sig.takes_varargs
 
         if self.llvm_builder != NULL:
-            largs: LLVMValue*[MAX_ARGS]
-            hargs: int64[MAX_ARGS]
+            hash_signature(&self.hash, sig)
+            for p = args; p < &args[nargs]; p++:
+                self.hash.add_int64(p.hvalue)
+            if sig.return_type == NULL:
+                result.hvalue = -1
+            else:
+                result.hvalue = self.hash_new_id()
+
+            llvm_args: LLVMValue*[MAX_ARGS]
             for i = 0; i < nargs; i++:
-                largs[i] = args[i].lvalue
-                hargs[i] = args[i].hvalue
-            result.lvalue = llvm_call_method(self, sig, largs, nargs)
-            result.hvalue = hash_call_method(self, sig, hargs, nargs)
+                llvm_args[i] = args[i].lvalue
+            llvm_func = declare_in_llvm(sig, self.llvm_module)
+            result.lvalue = LLVMBuildCall2(
+                self.llvm_builder,
+                signature_to_llvm(sig),
+                llvm_func,
+                llvm_args,
+                nargs,
+                "" if sig.return_type == NULL else "method_return_value",
+            )
 
         return result
 
@@ -1364,9 +1125,14 @@ class AnyBuilder:
             uvalue = ANONYMOUS_UVG_VALUE_ID,
         }
 
+        assert bytes.len <= UINT32_MAX
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_array_of_bytes(self, bytes)
-            result.hvalue = hash_array_of_bytes(self, bytes)
+            self.hash.add_string("array_of_bytes")
+            self.hash.add_int64(bytes.len)
+            self.hash.add_bytes(bytes.ptr, bytes.len)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMConstString(bytes.ptr, bytes.len as uint32, True as int)
 
         return result
 
@@ -1381,17 +1147,19 @@ class AnyBuilder:
             self.add_uvg_use(items[i].uvalue)
 
         if self.llvm_builder != NULL:
-            lvalues: LLVMValue** = malloc(sizeof(lvalues[0]) * len)
-            hvalues: int64* = malloc(sizeof(hvalues[0]) * len)
-            assert lvalues != NULL
-            assert hvalues != NULL
+            self.hash.add_string("array")
+            hash_type(&self.hash, item_type)
+            self.hash.add_int(len)
             for i = 0; i < len; i++:
-                lvalues[i] = items[i].lvalue
-                hvalues[i] = items[i].hvalue
-            result.lvalue = llvm_array(self, len, lvalues, item_type)
-            result.hvalue = hash_array(self, len, hvalues, item_type)
-            free(lvalues)
-            free(hvalues)
+                self.hash.add_int64(items[i].hvalue)
+            result.hvalue = self.hash_new_id()
+
+            llvm_items: LLVMValue** = malloc(sizeof(llvm_items[0]) * len)
+            assert llvm_items != NULL
+            for i = 0; i < len; i++:
+                llvm_items[i] = items[i].lvalue
+            result.lvalue = LLVMConstArray(type_to_llvm(item_type), llvm_items, len as uint32)
+            free(llvm_items)
 
         return result
 
@@ -1403,9 +1171,19 @@ class AnyBuilder:
             uvalue = ANONYMOUS_UVG_VALUE_ID,
         }
 
+        len = strlen(s)
+        assert len <= UINT32_MAX
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_pointer_string(self, s)
-            result.hvalue = hash_pointer_string(self, s)
+            self.hash.add_string("pointer_string")
+            self.hash.add_string(s)
+            result.hvalue = self.hash_new_id()
+
+            # TODO: make it read-only?
+            llvm_array = LLVMConstString(s, len as uint32, False as int)
+            result.lvalue = LLVMAddGlobal(self.llvm_module, LLVMTypeOf(llvm_array), "string_literal")
+            LLVMSetLinkage(result.lvalue, LLVMLinkage.Private)  # This makes it a static global variable
+            LLVMSetInitializer(result.lvalue, llvm_array)
 
         return result
 
@@ -1417,8 +1195,11 @@ class AnyBuilder:
         }
 
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_boolean(self, b)
-            result.hvalue = hash_boolean(self, b)
+            self.hash.add_string("bool")
+            self.hash.add_bool(b)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMConstInt(LLVMInt1Type(), b as int64, False as int)
 
         return result
 
@@ -1427,37 +1208,46 @@ class AnyBuilder:
         assert t.is_integer_type()
         result = AnyBuilderValue{type = t}
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_integer(self, t, value)
-            result.hvalue = hash_integer(self, t, value)
+            self.hash.add_string("integer")
+            self.hash.add_int64(value)
+            result.hvalue = self.hash_new_id()
+            result.lvalue = LLVMConstInt(type_to_llvm(t), value, (t.kind == TypeKind.SignedInteger) as int)
         result.uvalue = ANONYMOUS_UVG_VALUE_ID
         return result
 
     @public
     def float_or_double(self, t: Type*, dbl: double) -> AnyBuilderValue:
+        result = AnyBuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         assert t.kind == TypeKind.FloatingPoint
-        result = AnyBuilderValue{type = t}
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_float_or_double(self, t, dbl)
-            result.hvalue = hash_float_or_double(self, t, dbl)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            self.hash.add_string("float_or_double")
+            hash_type(&self.hash, t)
+            self.hash.add_bytes(&dbl as byte*, sizeof(dbl))
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMConstReal(type_to_llvm(t), dbl)
+
         return result
 
     @public
     def zero_of_type(self, t: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = t}
+        result = AnyBuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_zero_of_type(self, t)
-            result.hvalue = hash_zero_of_type(self, t)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            hash_type(&self.hash, t)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMConstNull(type_to_llvm(t))
+
         return result
 
     @public
     def enum_member(self, t: Type*, name: byte*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = t}
-        if self.llvm_builder != NULL:
-            result.lvalue = llvm_enum_member(self, t, name)
-            result.hvalue = hash_enum_member(self, t, name)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+        int_value = t.find_enum_member(name)
+        assert int_value != -1
+        result = self.integer(int_type(32), int_value)
+        result.type = t
         return result
 
     # a + b
@@ -1670,17 +1460,22 @@ class AnyBuilder:
     def add_block(self) -> AnyBuilderBlock:
         result = AnyBuilderBlock{ublock = self.uvg.add_block()}
         if self.llvm_builder != NULL:
-            result.lblock = llvm_add_block(self)
-            result.hblock = hash_add_block(self)
+            self.hash.add_string("add block")
+            result.hblock = self.hash_new_id()
+            result.lblock = LLVMAppendBasicBlock(self.llvm_func, "block")
         return result
 
     # Decide which block will contain the resulting instructions.
     @public
     def set_current_block(self, block: AnyBuilderBlock) -> None:
         self.uvg_current_block = block.ublock
+
         if self.llvm_builder != NULL:
-            llvm_set_current_block(self, block.lblock)
-            hash_set_current_block(self, block.hblock)
+            self.hash.add_string("set block")
+            self.hash.add_int64(block.hblock)
+
+            LLVMPositionBuilderAtEnd(self.llvm_builder, block.lblock)
+            self.llvm_current_block = block.lblock
 
     # Conditional branch:
     #
