@@ -703,12 +703,13 @@ class AnyBuilderBlock:
 
 @public
 class AnyBuilder:
+    current_block: AnyBuilderBlock
+
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
     llvm_func: LLVMValue*
     llvm_alloca_block: LLVMBasicBlock*  # local variables created here before code of function runs
     llvm_code_start_block: LLVMBasicBlock*
-    llvm_current_block: LLVMBasicBlock*
     llvm_returns_a_value: bool
 
     hash: Hash
@@ -716,7 +717,6 @@ class AnyBuilder:
 
     uvg_print: bool
     uvg: Uvg
-    uvg_current_block: UvgBlock*
     uvg_location: Location
     uvg_inlining_signature: Signature*
     uvg_return_value_id: int
@@ -733,9 +733,8 @@ class AnyBuilder:
         ins.location = self.uvg_location
         ins.inlining_signature = self.uvg_inlining_signature
 
-        b = self.uvg_current_block
-        assert b != NULL
-        b.instructions.append(ins)
+        assert self.current_block.ublock != NULL
+        self.current_block.ublock.instructions.append(ins)
 
     def add_uvg_use(self, value_id: int) -> None:
         if value_id >= 0:
@@ -781,7 +780,6 @@ class AnyBuilder:
     @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.uvg.signature = sig
-        self.uvg_current_block = self.uvg.add_block()
         if sig.return_type != NULL:
             self.uvg_return_value_id = self.uvg.stack_alloc("return")
         else:
@@ -795,11 +793,14 @@ class AnyBuilder:
             self.llvm_func = declare_in_llvm(sig, self.llvm_module)
             self.llvm_returns_a_value = sig.return_type != NULL
             self.llvm_alloca_block = LLVMAppendBasicBlock(self.llvm_func, "alloca")
-            self.llvm_code_start_block = LLVMAppendBasicBlock(self.llvm_func, "code_start")
-            LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_code_start_block)
-            self.llvm_current_block = self.llvm_code_start_block
             if not public:
                 LLVMSetLinkage(self.llvm_func, LLVMLinkage.Private)
+
+        self.set_current_block(self.add_block())
+
+        if self.llvm_builder != NULL:
+            self.llvm_code_start_block = self.current_block.lblock
+            assert self.llvm_code_start_block != NULL
 
     @public
     def end_function(self) -> None:
@@ -807,10 +808,10 @@ class AnyBuilder:
             # The function returns a value
             self.add_uvg_use(self.uvg_return_value_id)
 
-        assert self.uvg_current_block != NULL
-        assert self.uvg_current_block.terminator.kind == UvgTerminatorKind.NotSet
-        self.uvg_current_block.terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
-        self.uvg_current_block = NULL
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
+        self.current_block.ublock = NULL
 
         self.uvg_location = Location{}
 
@@ -879,7 +880,7 @@ class AnyBuilder:
             # var runs many times.
             LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_alloca_block)
             result.lvalue = LLVMBuildAlloca(self.llvm_builder, type_to_llvm(t), debug_name)
-            LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_current_block)
+            LLVMPositionBuilderAtEnd(self.llvm_builder, self.current_block.lblock)
 
             # Don't hash varname, so that renaming a local variable doesn't cause a rebuild
             # TODO: Will need to be different if debug info is enabled
@@ -1468,14 +1469,12 @@ class AnyBuilder:
     # Decide which block will contain the resulting instructions.
     @public
     def set_current_block(self, block: AnyBuilderBlock) -> None:
-        self.uvg_current_block = block.ublock
+        self.current_block = block
 
         if self.llvm_builder != NULL:
             self.hash.add_string("set block")
             self.hash.add_int64(block.hblock)
-
             LLVMPositionBuilderAtEnd(self.llvm_builder, block.lblock)
-            self.llvm_current_block = block.lblock
 
     # Conditional branch:
     #
@@ -1497,13 +1496,13 @@ class AnyBuilder:
             self.jump(otherwise)
             return
 
-        assert self.uvg_current_block != NULL
-        assert self.uvg_current_block.terminator.kind == UvgTerminatorKind.NotSet
-        self.uvg_current_block.terminator = UvgTerminator{
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{
             kind = UvgTerminatorKind.Branch,
             branch = UvgBranch{then = then.ublock, otherwise = otherwise.ublock},
         }
-        self.uvg_current_block = NULL
+        self.current_block.ublock = NULL
 
         if self.llvm_builder != NULL:
             llvm_branch(self, cond.lvalue, then.lblock, otherwise.lblock)
@@ -1518,13 +1517,13 @@ class AnyBuilder:
     # before the builder is usable again.
     @public
     def jump(self, next_block: AnyBuilderBlock) -> None:
-        assert self.uvg_current_block != NULL
-        assert self.uvg_current_block.terminator.kind == UvgTerminatorKind.NotSet
-        self.uvg_current_block.terminator = UvgTerminator{
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{
             kind = UvgTerminatorKind.Jump,
             jump_block = next_block.ublock,
         }
-        self.uvg_current_block = NULL
+        self.current_block.ublock = NULL
 
         if self.llvm_builder != NULL:
             llvm_jump(self, next_block.lblock)
@@ -1538,10 +1537,10 @@ class AnyBuilder:
             llvm_unreachable(self)
             hash_unreachable(self)
 
-        assert self.uvg_current_block != NULL
-        assert self.uvg_current_block.terminator.kind == UvgTerminatorKind.NotSet
-        self.uvg_current_block.terminator = UvgTerminator{kind = UvgTerminatorKind.Unreachable}
-        self.uvg_current_block = NULL
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{kind = UvgTerminatorKind.Unreachable}
+        self.current_block.ublock = NULL
 
     # Return from function/method. Value should be NULL if the function is '-> None'.
     @public
@@ -1554,9 +1553,9 @@ class AnyBuilder:
             # The function returns a value
             self.add_uvg_use(self.uvg_return_value_id)
 
-        assert self.uvg_current_block != NULL
-        assert self.uvg_current_block.terminator.kind == UvgTerminatorKind.NotSet
-        self.uvg_current_block.terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
 
         if self.llvm_builder != NULL:
             if value == NULL:
