@@ -351,7 +351,6 @@ def build_llvm_cast(
 
 
 # Not named LLVMBuilder because that is the name of LLVM's thing.
-@public
 class LBuilder:
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
@@ -361,11 +360,9 @@ class LBuilder:
     current_block: LLVMBasicBlock*
     returns_a_value: bool
 
-    @public
     def declare_global_var(self, varname: byte*, type: Type*) -> None:
         LLVMAddGlobal(self.llvm_module, type_to_llvm(type), varname)
 
-    @public
     def define_global_var(self, varname: byte*, type: Type*, initial_value: LLVMValue*, public: bool) -> None:
         llvm_type = type_to_llvm(type)
         globalptr = LLVMAddGlobal(self.llvm_module, llvm_type, varname)
@@ -379,7 +376,6 @@ class LBuilder:
         if not public:
             LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
 
-    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.llvm_func = declare_in_llvm(sig, self.llvm_module)
         self.returns_a_value = sig.return_type != NULL
@@ -392,7 +388,6 @@ class LBuilder:
         if not public:
             LLVMSetLinkage(self.llvm_func, LLVMLinkage.Private)
 
-    @public
     def end_function(self) -> None:
         if self.returns_a_value:
             # Implicit "return" at the end of a function that should return a value
@@ -403,16 +398,13 @@ class LBuilder:
         LLVMPositionBuilderAtEnd(self.llvm_builder, self.alloca_block)
         LLVMBuildBr(self.llvm_builder, self.code_start_block)
 
-    @public
     def begin_statement_in_a_body(self) -> None:
         pass
 
     # TODO: use the location for debug info
-    @public
     def set_location(self, location: Location) -> None:
         pass
 
-    @public
     def stack_alloc(self, t: Type*, varname: byte*) -> LLVMValue*:
         if varname == NULL:
             debug_name = "stack_alloc"
@@ -428,7 +420,6 @@ class LBuilder:
         return llvm_ptr
 
     # *ptr = value
-    @public
     def set_ptr(self, ptr: LLVMValue*, value: LLVMValue*) -> None:
         # TODO: fix how typedef statement works and re-enable this!
         #if ptr.type != value.type.pointer_type():
@@ -438,13 +429,11 @@ class LBuilder:
         LLVMBuildStore(self.llvm_builder, value, ptr)
 
     # *ptr
-    @public
     def dereference(self, ptr: LLVMValue*, ptr_type: Type*) -> LLVMValue*:
         assert ptr_type.kind == TypeKind.Pointer
         return LLVMBuildLoad2(self.llvm_builder, type_to_llvm(ptr_type.value_type), ptr, "dereference")
 
     # Returns &ptr[index]
-    @public
     def indexed_pointer(self, ptr: LLVMValue*, ptr_type: Type*, index: LLVMValue*) -> LLVMValue*:
         assert ptr_type.kind == TypeKind.Pointer
         return LLVMBuildGEP2(
@@ -457,7 +446,6 @@ class LBuilder:
         )
 
     # Returns &ptr.field
-    @public
     def class_field_pointer(self, ptr: LLVMValue*, ptr_type: Type*, field: ClassField*) -> LLVMValue*:
         assert ptr_type.kind == TypeKind.Pointer
         assert ptr_type.value_type.kind == TypeKind.Class
@@ -471,23 +459,19 @@ class LBuilder:
         )
 
     # &global_variable
-    @public
     def global_var_ptr(self, name: byte*) -> LLVMValue*:
         result = LLVMGetNamedGlobal(self.llvm_module, name)
         assert result != NULL
         return result
 
     # some_function
-    @public
     def get_funcptr(self, sig: Signature*) -> LLVMValue*:
         return declare_in_llvm(sig, self.llvm_module)
 
     # i'th argument given to this function
-    @public
     def get_argument(self, i: int) -> LLVMValue*:
         return LLVMGetParam(self.llvm_func, i)
 
-    @public
     def call_function(self, funcptr_type: Type*, func: LLVMValue*, args: LLVMValue**, nargs: int) -> LLVMValue*:
         assert nargs <= MAX_ARGS
         llvm_args: LLVMValue*[MAX_ARGS]
@@ -516,7 +500,6 @@ class LBuilder:
             return llvm_return_value
 
     # self must be included in args
-    @public
     def call_method(self, sig: Signature*, args: LLVMValue**, nargs: int) -> LLVMValue*:
         assert nargs >= sig.args.len
         if nargs > sig.args.len:
@@ -548,12 +531,10 @@ class LBuilder:
             assert llvm_return_value != NULL
             return llvm_return_value
 
-    @public
     def array_of_bytes(self, bytes: List[byte]) -> LLVMValue*:
         assert bytes.len <= UINT32_MAX
         return LLVMConstString(bytes.ptr, bytes.len as uint32, True as int)
 
-    @public
     def array(self, len: int, items: LLVMValue**, item_type: Type*) -> LLVMValue*:
         llvm_items: LLVMValue** = malloc(sizeof(llvm_items[0]) * len)
         assert llvm_items != NULL
@@ -566,7 +547,6 @@ class LBuilder:
         return result
 
     # string as '\0' terminated pointer
-    @public
     def pointer_string(self, s: byte*) -> LLVMValue*:
         llvm_array = LLVMConstString(s, strlen(s) as uint32, False as int)
         llvm_string = LLVMAddGlobal(self.llvm_module, LLVMTypeOf(llvm_array), "string_literal")
@@ -574,32 +554,26 @@ class LBuilder:
         LLVMSetInitializer(llvm_string, llvm_array)
         return llvm_string
 
-    @public
     def boolean(self, b: bool) -> LLVMValue*:
         return LLVMConstInt(LLVMInt1Type(), b as int64, False as int)
 
-    @public
     def integer(self, t: Type*, value: int64) -> LLVMValue*:
         assert t.is_integer_type()
         return LLVMConstInt(type_to_llvm(t), value, (t.kind == TypeKind.SignedInteger) as int)
 
-    @public
     def float_or_double(self, t: Type*, dbl: double) -> LLVMValue*:
         assert t.kind == TypeKind.FloatingPoint
         return LLVMConstReal(type_to_llvm(t), dbl)
 
-    @public
     def zero_of_type(self, t: Type*) -> LLVMValue*:
         return LLVMConstNull(type_to_llvm(t))
 
-    @public
     def enum_member(self, t: Type*, name: byte*) -> LLVMValue*:
         int_value = t.find_enum_member(name)
         assert int_value != -1
         return LLVMConstInt(LLVMInt32Type(), int_value, False as int)
 
     # a + b
-    @public
     def add(self, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
         match type.kind:
             case TypeKind.FloatingPoint:
@@ -610,7 +584,6 @@ class LBuilder:
                 assert False
 
     # a - b
-    @public
     def sub(self, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
         match type.kind:
             case TypeKind.FloatingPoint:
@@ -621,7 +594,6 @@ class LBuilder:
                 assert False
 
     # a * b
-    @public
     def mul(self, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
         match type.kind:
             case TypeKind.FloatingPoint:
@@ -632,7 +604,6 @@ class LBuilder:
                 assert False
 
     # a / b
-    @public
     def div(self, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
         match type.kind:
             case TypeKind.FloatingPoint:
@@ -645,7 +616,6 @@ class LBuilder:
                 assert False
 
     # a % b
-    @public
     def mod(self, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
         match type.kind:
             case TypeKind.FloatingPoint:
@@ -658,32 +628,26 @@ class LBuilder:
                 assert False
 
     # a & b
-    @public
     def bit_and(self, a: LLVMValue*, b: LLVMValue*) -> LLVMValue*:
         return LLVMBuildAnd(self.llvm_builder, a, b, "bit_and")
 
     # a | b
-    @public
     def bit_or(self, a: LLVMValue*, b: LLVMValue*) -> LLVMValue*:
         return LLVMBuildOr(self.llvm_builder, a, b, "bit_or")
 
     # a ^ b
-    @public
     def bit_xor(self, a: LLVMValue*, b: LLVMValue*) -> LLVMValue*:
         return LLVMBuildXor(self.llvm_builder, a, b, "bit_xor")
 
     # a << b
-    @public
     def bit_shift_left(self, a: LLVMValue*, b: LLVMValue*, shift_type: Type*) -> LLVMValue*:
         return bitshift(self.llvm_builder, a, b, shift_type, True)
 
     # a >> b
-    @public
     def bit_shift_right(self, a: LLVMValue*, b: LLVMValue*, shift_type: Type*) -> LLVMValue*:
         return bitshift(self.llvm_builder, a, b, shift_type, False)
 
     # a == b
-    @public
     def eq(self, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
         match type.kind:
             case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.Enum | TypeKind.Bool:
@@ -694,7 +658,6 @@ class LBuilder:
                 assert False
 
     # a < b
-    @public
     def lt(self, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
         match type.kind:
             case TypeKind.SignedInteger:
@@ -707,26 +670,22 @@ class LBuilder:
                 assert False
 
     # not value
-    @public
     def not_(self, value: LLVMValue*) -> LLVMValue*:
         llvm_true = LLVMConstInt(LLVMInt1Type(), 1, False as int)
         return LLVMBuildXor(self.llvm_builder, value, llvm_true, "not")
 
     # ~value
-    @public
     def bit_not(self, value: LLVMValue*, type: Type*) -> LLVMValue*:
         all_bits = uint_type(type.size_in_bits).max_value()
         all_bits_llvm = LLVMConstInt(type_to_llvm(type), all_bits as int64, False as int)
         return LLVMBuildXor(self.llvm_builder, value, all_bits_llvm, "bit_not")
 
     # sizeof(any value of given type)
-    @public
     def size_of(self, t: Type*) -> LLVMValue*:
         # LLVMSizeOf() returns a 64-bit value. Jou's sizeof(x) is 32-bit.
         return LLVMBuildTrunc(self.llvm_builder, LLVMSizeOf(type_to_llvm(t)), LLVMInt32Type(), "sizeof")
 
     # memset(ptr, 0, sizeof(*ptr))
-    @public
     def memset_to_zero(self, ptr: LLVMValue*, ptr_type: Type*) -> None:
         assert ptr_type.kind == TypeKind.Pointer
         size = self.size_of(ptr_type.value_type)
@@ -734,34 +693,27 @@ class LBuilder:
         LLVMBuildMemSet(self.llvm_builder, ptr, zero_byte, size, 0)
 
     # value as to
-    @public
     def cast(self, value: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
         return build_llvm_cast(self.llvm_builder, value, from, to)
 
     # Blocks are used to implement e.g. if statements and loops.
-    @public
     def add_block(self) -> LLVMBasicBlock*:
         return LLVMAppendBasicBlock(self.llvm_func, "block")
 
     # Decide which block will contain the resulting instructions.
-    @public
     def set_current_block(self, block: LLVMBasicBlock*) -> None:
         LLVMPositionBuilderAtEnd(self.llvm_builder, block)
         self.current_block = block
 
-    @public
     def branch(self, cond: LLVMValue*, then: LLVMBasicBlock*, otherwise: LLVMBasicBlock*) -> None:
         LLVMBuildCondBr(self.llvm_builder, cond, then, otherwise)
 
-    @public
     def jump(self, next_block: LLVMBasicBlock*) -> None:
         LLVMBuildBr(self.llvm_builder, next_block)
 
-    @public
     def unreachable(self) -> None:
         LLVMBuildUnreachable(self.llvm_builder)
 
-    @public
     def ret(self, value: LLVMValue*) -> None:
         if value == NULL:
             LLVMBuildRetVoid(self.llvm_builder)
@@ -821,18 +773,15 @@ def hash_signature(hash: Hash*, sig: Signature*) -> None:
         hash_type(hash, sig.return_type)
 
 
-@public
 class HBuilder:
     hash: Hash
     id_counter: int64
 
-    @public
     def declare_global_var(self, varname: byte*, type: Type*) -> None:
         self.hash.add_string("globaldeclare")
         self.hash.add_string(varname)
         hash_type(&self.hash, type)
 
-    @public
     def define_global_var(self, varname: byte*, type: Type*, initial_value: int64*, public: bool) -> None:
         self.hash.add_string("globaldefine")
         self.hash.add_string(varname)
@@ -841,22 +790,18 @@ class HBuilder:
         if initial_value != NULL:
             self.hash.add_int64(*initial_value)
 
-    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.hash.add_string("begin func")
         hash_signature(&self.hash, sig)
         self.hash.add_bool(public)
 
-    @public
     def end_function(self) -> None:
         pass
 
-    @public
     def begin_statement_in_a_body(self) -> None:
         pass
 
     # TODO: If in the future, location is used for debug info, we should do something with it.
-    @public
     def set_location(self, location: Location) -> None:
         pass
 
@@ -871,7 +816,6 @@ class HBuilder:
             hash_type(&self.hash, t)
         return id
 
-    @public
     def stack_alloc(self, t: Type*, varname: byte*) -> int64:
         # Do nothing with varname, so that renaming a local variable doesn't cause a rebuild
         # TODO: Will need to be different if debug info is enabled
@@ -880,14 +824,12 @@ class HBuilder:
         return self.new_value(t.pointer_type())
 
     # *ptr = value
-    @public
     def set_ptr(self, ptr: int64, value: int64) -> None:
         self.hash.add_string("set_ptr")
         self.hash.add_int64(ptr)
         self.hash.add_int64(value)
 
     # *ptr
-    @public
     def dereference(self, ptr: int64, ptr_type: Type*) -> int64:
         self.hash.add_string("deref")
         self.hash.add_int64(ptr)
@@ -895,7 +837,6 @@ class HBuilder:
         return self.new_value(ptr_type.value_type)
 
     # Returns &ptr[index]
-    @public
     def indexed_pointer(self, ptr: int64, ptr_type: Type*, index: int64) -> int64:
         self.hash.add_string("indexed_pointer")
         self.hash.add_int64(ptr)
@@ -904,7 +845,6 @@ class HBuilder:
         return self.new_value(ptr_type)
 
     # Returns &ptr.field
-    @public
     def class_field_pointer(self, ptr: int64, ptr_type: Type*, field: ClassField*) -> int64:
         # Do not hash field name, renaming fields should not cause recompiling
         assert ptr_type.kind == TypeKind.Pointer
@@ -921,27 +861,23 @@ class HBuilder:
         return self.new_value(field.type.pointer_type())
 
     # &global_variable
-    @public
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int64:
         self.hash.add_string("global_var_ptr")
         self.hash.add_string(name)
         return self.new_value(var_type.pointer_type())
 
     # some_function
-    @public
     def get_funcptr(self, signature: Signature*) -> int64:
         self.hash.add_string("funcptr")
         self.hash.add_string(signature.name)
         return self.new_value(signature.to_funcptr_type())
 
     # i'th argument given to this function
-    @public
     def get_argument(self, i: int, argtype: Type*) -> int64:
         self.hash.add_string("arg")
         self.hash.add_int(i)
         return self.new_value(argtype)
 
-    @public
     def call_function(self, funcptr_type: Type*, func: int64, args: int64*, nargs: int) -> int64:
         self.hash.add_string("call_func")
         self.hash.add_int64(func)
@@ -954,7 +890,6 @@ class HBuilder:
         else:
             return -1
 
-    @public
     def call_method(self, sig: Signature*, args: int64*, nargs: int) -> int64:
         hash_signature(&self.hash, sig)
         for p = args; p < &args[nargs]; p++:
@@ -966,7 +901,6 @@ class HBuilder:
             return -1
 
     # string as array of bytes
-    @public
     def array_of_bytes(self, bytes: List[byte]) -> int64:
         self.hash.add_string("array_of_bytes")
         assert bytes.len <= INT32_MAX
@@ -974,7 +908,6 @@ class HBuilder:
         self.hash.add_bytes(bytes.ptr, bytes.len)
         return self.new_value(uint_type(8).array_type(bytes.len as int))
 
-    @public
     def array(self, len: int, items: int64*, item_type: Type*) -> int64:
         self.hash.add_string("array")
         for i = 0; i < len; i++:
@@ -982,36 +915,30 @@ class HBuilder:
         return self.new_value(item_type.array_type(len))
 
     # string as '\0' terminated pointer
-    @public
     def pointer_string(self, s: byte*) -> int64:
         self.hash.add_string("pointer_string")
         self.hash.add_string(s)
         return self.new_value(uint_type(8).pointer_type())
 
-    @public
     def boolean(self, b: bool) -> int64:
         self.hash.add_string("bool")
         self.hash.add_bool(b)
         return self.new_value(bool_type())
 
-    @public
     def integer(self, t: Type*, value: int64) -> int64:
         self.hash.add_string("integer")
         self.hash.add_int64(value)
         return self.new_value(t)
 
-    @public
     def float_or_double(self, t: Type*, dbl: double) -> int64:
         self.hash.add_string("float_or_double")
         self.hash.add_bytes(&dbl as byte*, sizeof(dbl))
         return self.new_value(t)
 
-    @public
     def zero_of_type(self, t: Type*) -> int64:
         self.hash.add_string("zero")
         return self.new_value(t)
 
-    @public
     def enum_member(self, t: Type*, name: byte*) -> int64:
         self.hash.add_string("enum")
         int_value = t.find_enum_member(name)
@@ -1020,7 +947,6 @@ class HBuilder:
         return self.new_value(t)
 
     # a + b
-    @public
     def add(self, a: int64, b: int64, type: Type*) -> int64:
         self.hash.add_string("add")
         self.hash.add_int64(a)
@@ -1028,7 +954,6 @@ class HBuilder:
         return self.new_value(type)
 
     # a - b
-    @public
     def sub(self, a: int64, b: int64, type: Type*) -> int64:
         self.hash.add_string("sub")
         self.hash.add_int64(a)
@@ -1036,7 +961,6 @@ class HBuilder:
         return self.new_value(type)
 
     # a * b
-    @public
     def mul(self, a: int64, b: int64, type: Type*) -> int64:
         self.hash.add_string("mul")
         self.hash.add_int64(a)
@@ -1044,7 +968,6 @@ class HBuilder:
         return self.new_value(type)
 
     # a / b
-    @public
     def div(self, a: int64, b: int64, type: Type*) -> int64:
         self.hash.add_string("div")
         self.hash.add_int64(a)
@@ -1052,7 +975,6 @@ class HBuilder:
         return self.new_value(type)
 
     # a % b
-    @public
     def mod(self, a: int64, b: int64, type: Type*) -> int64:
         self.hash.add_string("mod")
         self.hash.add_int64(a)
@@ -1060,7 +982,6 @@ class HBuilder:
         return self.new_value(type)
 
     # a & b
-    @public
     def bit_and(self, a: int64, b: int64, type: Type*) -> int64:
         self.hash.add_string("and")
         self.hash.add_int64(a)
@@ -1068,7 +989,6 @@ class HBuilder:
         return self.new_value(type)
 
     # a | b
-    @public
     def bit_or(self, a: int64, b: int64, type: Type*) -> int64:
         self.hash.add_string("or")
         self.hash.add_int64(a)
@@ -1076,7 +996,6 @@ class HBuilder:
         return self.new_value(type)
 
     # a ^ b
-    @public
     def bit_xor(self, a: int64, b: int64, type: Type*) -> int64:
         self.hash.add_string("xor")
         self.hash.add_int64(a)
@@ -1084,7 +1003,6 @@ class HBuilder:
         return self.new_value(type)
 
     # a << b
-    @public
     def bit_shift_left(self, a: int64, b: int64, shift_type: Type*) -> int64:
         self.hash.add_string("shl")
         self.hash.add_int64(a)
@@ -1093,7 +1011,6 @@ class HBuilder:
         return self.new_value(shift_type)
 
     # a >> b
-    @public
     def bit_shift_right(self, a: int64, b: int64, shift_type: Type*) -> int64:
         self.hash.add_string("shr")
         self.hash.add_int64(a)
@@ -1102,7 +1019,6 @@ class HBuilder:
         return self.new_value(shift_type)
 
     # a == b
-    @public
     def eq(self, a: int64, b: int64) -> int64:
         self.hash.add_string("eq")
         self.hash.add_int64(a)
@@ -1110,7 +1026,6 @@ class HBuilder:
         return self.new_value(bool_type())
 
     # a < b
-    @public
     def lt(self, a: int64, b: int64) -> int64:
         self.hash.add_string("lt")
         self.hash.add_int64(a)
@@ -1118,40 +1033,34 @@ class HBuilder:
         return self.new_value(bool_type())
 
     # not value
-    @public
     def not_(self, value: int64) -> int64:
         self.hash.add_string("not")
         self.hash.add_int64(value)
         return self.new_value(bool_type())
 
     # ~value
-    @public
     def bit_not(self, value: int64, type: Type*) -> int64:
         self.hash.add_string("bitnot")
         self.hash.add_int64(value)
         return self.new_value(type)
 
     # sizeof(any value of given type)
-    @public
     def size_of(self, t: Type*) -> int64:
         self.hash.add_string("sizeof")
         hash_type(&self.hash, t)
         return self.new_value(int_type(32))
 
     # memset(ptr, 0, sizeof(*ptr))
-    @public
     def memset_to_zero(self, ptr: int64) -> None:
         self.hash.add_string("memset0")
         self.hash.add_int64(ptr)
 
     # value as to
-    @public
     def cast(self, value: int64, to: Type*) -> int64:
         self.hash.add_string("cast")
         self.hash.add_int64(value)
         return self.new_value(to)
 
-    @public
     def add_block(self) -> int64:
         self.hash.add_string("add block")
         block_id = self.id_counter++
@@ -1159,28 +1068,23 @@ class HBuilder:
         return block_id
 
     # Decide which block will contain the resulting instructions.
-    @public
     def set_current_block(self, block_id: int64) -> None:
         self.hash.add_string("set block")
         self.hash.add_int64(block_id)
 
-    @public
     def branch(self, cond: int64, then_block_id: int64, otherwise_block_id: int64) -> None:
         self.hash.add_string("br")
         self.hash.add_int64(cond)
         self.hash.add_int64(then_block_id)
         self.hash.add_int64(otherwise_block_id)
 
-    @public
     def jump(self, next_block_id: int64) -> None:
         self.hash.add_string("jump")
         self.hash.add_int64(next_block_id)
 
-    @public
     def unreachable(self) -> None:
         self.hash.add_string("unreachable")
 
-    @public
     def ret(self, value: int64*) -> None:
         if value == NULL:
             self.hash.add_string("ret null")
@@ -1207,15 +1111,12 @@ class UBuilder:
     inlining_signature: Signature*
     return_value_id: int
 
-    @public
     def declare_global_var(self, varname: byte*, type: Type*) -> None:
         pass
 
-    @public
     def define_global_var(self, varname: byte*, type: Type*, initial_value: int*, public: bool) -> None:
         pass
 
-    @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
         self.uvg.signature = sig
         self.current_block = self.uvg.add_block()
@@ -1224,7 +1125,6 @@ class UBuilder:
         else:
             self.return_value_id = -1
 
-    @public
     def end_function(self) -> None:
         self.ret(NULL)
         self.current_block = NULL
@@ -1236,7 +1136,6 @@ class UBuilder:
         self.uvg.free()
         self.uvg = Uvg{}
 
-    @public
     def set_location(self, location: Location, inlining_signature: Signature*) -> None:
         self.inlining_signature = inlining_signature
 
@@ -1257,7 +1156,6 @@ class UBuilder:
         assert b != NULL
         b.instructions.append(ins)
 
-    @public
     def begin_statement_in_a_body(self) -> None:
         self.add_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})
 
@@ -1273,154 +1171,123 @@ class UBuilder:
         if var >= 0:
             self.add_instruction(UvgInstruction{kind = UvgInstructionKind.DontAnalyze, var = var})
 
-    @public
     def stack_alloc(self, t: Type*, varname: byte*) -> int:
         return self.uvg.stack_alloc(varname)
 
-    @public
     def set_ptr(self, ptr: int, value: int) -> None:
         self.dont_analyze(value)
         self.set(ptr)
 
-    @public
     def dereference(self, ptr: int) -> int:
         self.use(ptr)
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def indexed_pointer(self, ptr: int, index: int) -> int:
         self.dont_analyze(ptr)
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def class_field_pointer(self, ptr: int, field_name: byte*) -> int:
         self.dont_analyze(ptr)
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def global_var_ptr(self, name: byte*, var_type: Type*) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def get_funcptr(self, signature: Signature*) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def get_argument(self, i: int, argtype: Type*) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def call_function(self, funcptr_type: Type*, func: int, args: int*, nargs: int) -> int:
         self.use(func)
         for i = 0; i < nargs; i++:
             self.dont_analyze(args[i])
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def call_method(self, sig: Signature*, args: int*, nargs: int) -> int:
         for i = 0; i < nargs; i++:
             self.dont_analyze(args[i])
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def array_of_bytes(self, bytes: List[byte]) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def array(self, len: int, items: int*, item_type: Type*) -> int:
         for i = 0; i < len; i++:
             self.use(items[i])
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def pointer_string(self, s: byte*) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def boolean(self, b: bool) -> int:
         if b:
             return TRUE_UVG_VALUE_ID
         else:
             return FALSE_UVG_VALUE_ID
 
-    @public
     def integer(self, t: Type*, value: int64) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def float_or_double(self, t: Type*, dbl: double) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def zero_of_type(self, t: Type*) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
-    @public
     def enum_member(self, t: Type*, name: byte*) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a + b
-    @public
     def add(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a - b
-    @public
     def sub(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a * b
-    @public
     def mul(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a / b
-    @public
     def div(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a % b
-    @public
     def mod(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a & b
-    @public
     def bit_and(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a | b
-    @public
     def bit_or(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a ^ b
-    @public
     def bit_xor(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a << b
-    @public
     def bit_shift_left(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a >> b
-    @public
     def bit_shift_right(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a == b
-    @public
     def eq(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # a < b
-    @public
     def lt(self, a: int, b: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # not value
-    @public
     def not_(self, value: int) -> int:
         match value:
             case TRUE_UVG_VALUE_ID:
@@ -1431,22 +1298,18 @@ class UBuilder:
                 return ANONYMOUS_UVG_VALUE_ID
 
     # ~value
-    @public
     def bit_not(self, value: int) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # sizeof(any value of given type)
-    @public
     def size_of(self, t: Type*) -> int:
         return ANONYMOUS_UVG_VALUE_ID
 
     # memset(ptr, 0, sizeof(*ptr))
-    @public
     def memset_to_zero(self, ptr: int) -> None:
         self.set(ptr)
 
     # value as to
-    @public
     def cast(self, value: int, to: Type*) -> int:
         if to.is_pointer_type():
             # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
@@ -1461,16 +1324,13 @@ class UBuilder:
             return ANONYMOUS_UVG_VALUE_ID
 
     # Blocks are used to implement e.g. if statements and loops.
-    @public
     def add_block(self) -> UvgBlock*:
         return self.uvg.add_block()
 
     # Decide which block will contain the resulting instructions.
-    @public
     def set_current_block(self, block: UvgBlock*) -> None:
         self.current_block = block
 
-    @public
     def branch(self, cond: int, then: UvgBlock*, otherwise: UvgBlock*) -> None:
         match cond:
             case TRUE_UVG_VALUE_ID:
@@ -1486,7 +1346,6 @@ class UBuilder:
                 }
                 self.current_block = NULL
 
-    @public
     def jump(self, next_block: UvgBlock*) -> None:
         assert self.current_block != NULL
         assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
@@ -1496,14 +1355,12 @@ class UBuilder:
         }
         self.current_block = NULL
 
-    @public
     def unreachable(self) -> None:
         assert self.current_block != NULL
         assert self.current_block.terminator.kind == UvgTerminatorKind.NotSet
         self.current_block.terminator = UvgTerminator{kind = UvgTerminatorKind.Unreachable}
         self.current_block = NULL
 
-    @public
     def ret(self, value: int*) -> None:
         if value != NULL:
             assert self.return_value_id != -1
