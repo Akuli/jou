@@ -296,6 +296,7 @@ def bitshift(
     )
 
 
+# TODO: wayyyyyyyy too complicated, split up by what kind of cast we do!!!
 def build_llvm_cast(
     builder: LLVMBuilder*,
     obj: LLVMValue*,
@@ -350,145 +351,6 @@ def build_llvm_cast(
     assert False
 
 
-# a + b
-def llvm_add(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
-    match type.kind:
-        case TypeKind.FloatingPoint:
-            return LLVMBuildFAdd(builder.llvm_builder, a, b, "float_sum")
-        case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
-            return LLVMBuildAdd(builder.llvm_builder, a, b, "int_sum")
-        case _:
-            assert False
-
-# a - b
-def llvm_sub(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
-    match type.kind:
-        case TypeKind.FloatingPoint:
-            return LLVMBuildFSub(builder.llvm_builder, a, b, "float_diff")
-        case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
-            return LLVMBuildSub(builder.llvm_builder, a, b, "int_diff")
-        case _:
-            assert False
-
-# a * b
-def llvm_mul(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
-    match type.kind:
-        case TypeKind.FloatingPoint:
-            return LLVMBuildFMul(builder.llvm_builder, a, b, "float_prod")
-        case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
-            return LLVMBuildMul(builder.llvm_builder, a, b, "int_prod")
-        case _:
-            assert False
-
-# a / b
-def llvm_div(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
-    match type.kind:
-        case TypeKind.FloatingPoint:
-            return LLVMBuildFDiv(builder.llvm_builder, a, b, "float_quot")
-        case TypeKind.SignedInteger:
-            return build_llvm_signed_div(builder.llvm_builder, a, b)
-        case TypeKind.UnsignedInteger:
-            return LLVMBuildUDiv(builder.llvm_builder, a, b, "uint_quot")
-        case _:
-            assert False
-
-# a % b
-def llvm_mod(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
-    match type.kind:
-        case TypeKind.FloatingPoint:
-            return LLVMBuildFRem(builder.llvm_builder, a, b, "float_mod")
-        case TypeKind.SignedInteger:
-            return build_llvm_signed_mod(builder.llvm_builder, a, b)
-        case TypeKind.UnsignedInteger:
-            return LLVMBuildURem(builder.llvm_builder, a, b, "uint_mod")
-        case _:
-            assert False
-
-# a & b
-def llvm_bit_and(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*) -> LLVMValue*:
-    return LLVMBuildAnd(builder.llvm_builder, a, b, "bit_and")
-
-# a | b
-def llvm_bit_or(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*) -> LLVMValue*:
-    return LLVMBuildOr(builder.llvm_builder, a, b, "bit_or")
-
-# a ^ b
-def llvm_bit_xor(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*) -> LLVMValue*:
-    return LLVMBuildXor(builder.llvm_builder, a, b, "bit_xor")
-
-# a << b
-def llvm_bit_shift_left(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, shift_type: Type*) -> LLVMValue*:
-    return bitshift(builder.llvm_builder, a, b, shift_type, True)
-
-# a >> b
-def llvm_bit_shift_right(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, shift_type: Type*) -> LLVMValue*:
-    return bitshift(builder.llvm_builder, a, b, shift_type, False)
-
-# a == b
-def llvm_eq(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
-    match type.kind:
-        case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.Enum | TypeKind.Bool:
-            return LLVMBuildICmp(builder.llvm_builder, LLVMIntPredicate.EQ, a, b, "eq")
-        case TypeKind.FloatingPoint:
-            return LLVMBuildFCmp(builder.llvm_builder, LLVMRealPredicate.OEQ, a, b, "eq")
-        case _:
-            assert False
-
-# a < b
-def llvm_lt(builder: AnyBuilder*, a: LLVMValue*, b: LLVMValue*, type: Type*) -> LLVMValue*:
-    match type.kind:
-        case TypeKind.SignedInteger:
-            return LLVMBuildICmp(builder.llvm_builder, LLVMIntPredicate.SLT, a, b, "lt")
-        case TypeKind.UnsignedInteger:
-            return LLVMBuildICmp(builder.llvm_builder, LLVMIntPredicate.ULT, a, b, "lt")
-        case TypeKind.FloatingPoint:
-            return LLVMBuildFCmp(builder.llvm_builder, LLVMRealPredicate.OLT, a, b, "lt")
-        case _:
-            assert False
-
-# not value
-def llvm_not_(builder: AnyBuilder*, value: LLVMValue*) -> LLVMValue*:
-    llvm_true = LLVMConstInt(LLVMInt1Type(), 1, False as int)
-    return LLVMBuildXor(builder.llvm_builder, value, llvm_true, "not")
-
-# ~value
-def llvm_bit_not(builder: AnyBuilder*, value: LLVMValue*, type: Type*) -> LLVMValue*:
-    all_bits = uint_type(type.size_in_bits).max_value()
-    all_bits_llvm = LLVMConstInt(type_to_llvm(type), all_bits as int64, False as int)
-    return LLVMBuildXor(builder.llvm_builder, value, all_bits_llvm, "bit_not")
-
-# sizeof(any value of given type)
-def llvm_size_of(builder: AnyBuilder*, t: Type*) -> LLVMValue*:
-    # LLVMSizeOf() returns a 64-bit value. Jou's sizeof(x) is 32-bit.
-    return LLVMBuildTrunc(builder.llvm_builder, LLVMSizeOf(type_to_llvm(t)), LLVMInt32Type(), "sizeof")
-
-# memset(ptr, 0, sizeof(*ptr))
-def llvm_memset_to_zero(builder: AnyBuilder*, ptr: LLVMValue*, ptr_type: Type*) -> None:
-    assert ptr_type.kind == TypeKind.Pointer
-    size = llvm_size_of(builder, ptr_type.value_type)
-    zero_byte = LLVMConstInt(LLVMInt8Type(), 0, False as int)
-    LLVMBuildMemSet(builder.llvm_builder, ptr, zero_byte, size, 0)
-
-# value as to
-def llvm_cast(builder: AnyBuilder*, value: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
-    return build_llvm_cast(builder.llvm_builder, value, from, to)
-
-def llvm_branch(builder: AnyBuilder*, cond: LLVMValue*, then: LLVMBasicBlock*, otherwise: LLVMBasicBlock*) -> None:
-    LLVMBuildCondBr(builder.llvm_builder, cond, then, otherwise)
-
-def llvm_jump(builder: AnyBuilder*, next_block: LLVMBasicBlock*) -> None:
-    LLVMBuildBr(builder.llvm_builder, next_block)
-
-def llvm_unreachable(builder: AnyBuilder*) -> None:
-    LLVMBuildUnreachable(builder.llvm_builder)
-
-def llvm_ret(builder: AnyBuilder*, value: LLVMValue*) -> None:
-    if value == NULL:
-        LLVMBuildRetVoid(builder.llvm_builder)
-    else:
-        LLVMBuildRet(builder.llvm_builder, value)
-
-
 def hash_type(hash: Hash*, type: Type*) -> None:
     assert type != NULL
 
@@ -539,142 +401,6 @@ def hash_signature(hash: Hash*, sig: Signature*) -> None:
             hash.add_string("None")
     else:
         hash_type(hash, sig.return_type)
-
-
-# a + b
-def hash_add(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
-    builder.hash.add_string("add")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, type)
-
-# a - b
-def hash_sub(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
-    builder.hash.add_string("sub")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, type)
-
-# a * b
-def hash_mul(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
-    builder.hash.add_string("mul")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, type)
-
-# a / b
-def hash_div(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
-    builder.hash.add_string("div")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, type)
-
-# a % b
-def hash_mod(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
-    builder.hash.add_string("mod")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, type)
-
-# a & b
-def hash_bit_and(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
-    builder.hash.add_string("and")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, type)
-
-# a | b
-def hash_bit_or(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
-    builder.hash.add_string("or")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, type)
-
-# a ^ b
-def hash_bit_xor(builder: AnyBuilder*, a: int64, b: int64, type: Type*) -> int64:
-    builder.hash.add_string("xor")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, type)
-
-# a << b
-def hash_bit_shift_left(builder: AnyBuilder*, a: int64, b: int64, shift_type: Type*) -> int64:
-    builder.hash.add_string("shl")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    # Type of b doesn't matter. Result's type is always the type of a.
-    return builder.hash_new_value(builder, shift_type)
-
-# a >> b
-def hash_bit_shift_right(builder: AnyBuilder*, a: int64, b: int64, shift_type: Type*) -> int64:
-    builder.hash.add_string("shr")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    # Type of b doesn't matter. Result's type is always the type of a.
-    return builder.hash_new_value(builder, shift_type)
-
-# a == b
-def hash_eq(builder: AnyBuilder*, a: int64, b: int64) -> int64:
-    builder.hash.add_string("eq")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, bool_type())
-
-# a < b
-def hash_lt(builder: AnyBuilder*, a: int64, b: int64) -> int64:
-    builder.hash.add_string("lt")
-    builder.hash.add_int64(a)
-    builder.hash.add_int64(b)
-    return builder.hash_new_value(builder, bool_type())
-
-# not value
-def hash_not_(builder: AnyBuilder*, value: int64) -> int64:
-    builder.hash.add_string("not")
-    builder.hash.add_int64(value)
-    return builder.hash_new_value(builder, bool_type())
-
-# ~value
-def hash_bit_not(builder: AnyBuilder*, value: int64, type: Type*) -> int64:
-    builder.hash.add_string("bitnot")
-    builder.hash.add_int64(value)
-    return builder.hash_new_value(builder, type)
-
-# sizeof(any value of given type)
-def hash_size_of(builder: AnyBuilder*, t: Type*) -> int64:
-    builder.hash.add_string("sizeof")
-    hash_type(&builder.hash, t)
-    return builder.hash_new_value(builder, int_type(32))
-
-# memset(ptr, 0, sizeof(*ptr))
-def hash_memset_to_zero(builder: AnyBuilder*, ptr: int64) -> None:
-    builder.hash.add_string("memset0")
-    builder.hash.add_int64(ptr)
-
-# value as to
-def hash_cast(builder: AnyBuilder*, value: int64, to: Type*) -> int64:
-    builder.hash.add_string("cast")
-    builder.hash.add_int64(value)
-    return builder.hash_new_value(builder, to)
-
-def hash_branch(builder: AnyBuilder*, cond: int64, then_block_id: int64, otherwise_block_id: int64) -> None:
-    builder.hash.add_string("br")
-    builder.hash.add_int64(cond)
-    builder.hash.add_int64(then_block_id)
-    builder.hash.add_int64(otherwise_block_id)
-
-def hash_jump(builder: AnyBuilder*, next_block_id: int64) -> None:
-    builder.hash.add_string("jump")
-    builder.hash.add_int64(next_block_id)
-
-def hash_unreachable(builder: AnyBuilder*) -> None:
-    builder.hash.add_string("unreachable")
-
-def hash_ret(builder: AnyBuilder*, value: int64*) -> None:
-    if value == NULL:
-        builder.hash.add_string("ret null")
-    else:
-        builder.hash.add_string("ret")
-        builder.hash.add_int64(*value)
 
 
 # Special "UVG variable ID". Denotes a value that is not a pointer,
@@ -804,6 +530,7 @@ class AnyBuilder:
 
     @public
     def end_function(self) -> None:
+        # TODO: call self.ret() from here
         if self.uvg_return_value_id != -1:
             # The function returns a value
             self.add_uvg_use(self.uvg_return_value_id)
@@ -1251,134 +978,204 @@ class AnyBuilder:
         result.type = t
         return result
 
+    def hash_binop(self, op_name: byte*, a: AnyBuilderValue, b: AnyBuilderValue) -> int64:
+        assert self.llvm_builder != NULL
+        self.hash.add_string(op_name)
+        self.hash.add_int64(a.hvalue)
+        self.hash.add_int64(b.hvalue)
+        return self.hash_new_id()
+
     # a + b
     @public
     def add(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type}
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_add(self, a.lvalue, b.lvalue, a.type)
-            result.hvalue = hash_add(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("+", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFAdd(self.llvm_builder, a.lvalue, b.lvalue, "add")
+                case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildAdd(self.llvm_builder, a.lvalue, b.lvalue, "add")
+                case _:
+                    assert False
+
         return result
 
     # a - b
     @public
     def sub(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type}
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_sub(self, a.lvalue, b.lvalue, a.type)
-            result.hvalue = hash_sub(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("-", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFSub(self.llvm_builder, a.lvalue, b.lvalue, "sub")
+                case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildSub(self.llvm_builder, a.lvalue, b.lvalue, "sub")
+                case _:
+                    assert False
+
         return result
 
     # a * b
     @public
     def mul(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type}
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_mul(self, a.lvalue, b.lvalue, a.type)
-            result.hvalue = hash_mul(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("*", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFMul(self.llvm_builder, a.lvalue, b.lvalue, "mul")
+                case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildMul(self.llvm_builder, a.lvalue, b.lvalue, "mul")
+                case _:
+                    assert False
+
         return result
 
     # a / b
     @public
     def div(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type}
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_div(self, a.lvalue, b.lvalue, a.type)
-            result.hvalue = hash_div(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("/", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFDiv(self.llvm_builder, a.lvalue, b.lvalue, "div")
+                case TypeKind.SignedInteger:
+                    result.lvalue = build_llvm_signed_div(self.llvm_builder, a.lvalue, b.lvalue)
+                case TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildUDiv(self.llvm_builder, a.lvalue, b.lvalue, "div")
+                case _:
+                    assert False
+
         return result
 
     # a % b
     @public
     def mod(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type}
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_mod(self, a.lvalue, b.lvalue, a.type)
-            result.hvalue = hash_mod(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("%", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFRem(self.llvm_builder, a.lvalue, b.lvalue, "mod")
+                case TypeKind.SignedInteger:
+                    result.lvalue = build_llvm_signed_mod(self.llvm_builder, a.lvalue, b.lvalue)
+                case TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildURem(self.llvm_builder, a.lvalue, b.lvalue, "mod")
+                case _:
+                    assert False
+
         return result
 
     # a & b
     @public
     def bit_and(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type}
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_bit_and(self, a.lvalue, b.lvalue)
-            result.hvalue = hash_bit_and(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("&", a, b)
+            result.lvalue = LLVMBuildAnd(self.llvm_builder, a.lvalue, b.lvalue, "bit_and")
+
         return result
 
     # a | b
     @public
     def bit_or(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type}
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_bit_or(self, a.lvalue, b.lvalue)
-            result.hvalue = hash_bit_or(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("|", a, b)
+            result.lvalue = LLVMBuildOr(self.llvm_builder, a.lvalue, b.lvalue, "bit_or")
+
         return result
 
     # a ^ b
     @public
     def bit_xor(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type}
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_bit_xor(self, a.lvalue, b.lvalue)
-            result.hvalue = hash_bit_xor(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("^", a, b)
+            result.lvalue = LLVMBuildXor(self.llvm_builder, a.lvalue, b.lvalue, "bit_xor")
+
         return result
 
     # a << b
     @public
     def bit_shift_left(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = a.type}
+        # Type of b doesn't matter. Result's type is always the type of a.
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_bit_shift_left(self, a.lvalue, b.lvalue, a.type)
-            result.hvalue = hash_bit_shift_left(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("<<", a, b)
+            result.lvalue = bitshift(self.llvm_builder, a.lvalue, b.lvalue, a.type, True)
+
         return result
 
-    # a >> b
+    # a << b
     @public
     def bit_shift_right(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = a.type}
+        # Type of b doesn't matter. Result's type is always the type of a.
+        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_bit_shift_right(self, a.lvalue, b.lvalue, a.type)
-            result.hvalue = hash_bit_shift_right(self, a.hvalue, b.hvalue, a.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop(">>", a, b)
+            result.lvalue = bitshift(self.llvm_builder, a.lvalue, b.lvalue, a.type, False)
+
         return result
 
     # a == b
+    # Does not support pointers, they must be converted to int64 first.
     @public
     def eq(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = bool_type()}
+        result = AnyBuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_eq(self, a.lvalue, b.lvalue, a.type)
-            result.hvalue = hash_eq(self, a.hvalue, b.hvalue)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("==", a, b)
+            match a.type.kind:
+                case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.Enum | TypeKind.Bool:
+                    result.lvalue = LLVMBuildICmp(self.llvm_builder, LLVMIntPredicate.EQ, a.lvalue, b.lvalue, "eq")
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFCmp(self.llvm_builder, LLVMRealPredicate.OEQ, a.lvalue, b.lvalue, "eq")
+                case _:
+                    assert False
+
         return result
 
     # a < b
     @public
     def lt(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = bool_type()}
+        result = AnyBuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_lt(self, a.lvalue, b.lvalue, a.type)
-            result.hvalue = hash_lt(self, a.hvalue, b.hvalue)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            result.hvalue = self.hash_binop("<", a, b)
+            match a.type.kind:
+                case TypeKind.SignedInteger:
+                    result.lvalue = LLVMBuildICmp(self.llvm_builder, LLVMIntPredicate.SLT, a.lvalue, b.lvalue, "lt")
+                case TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildICmp(self.llvm_builder, LLVMIntPredicate.ULT, a.lvalue, b.lvalue, "lt")
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFCmp(self.llvm_builder, LLVMRealPredicate.OLT, a.lvalue, b.lvalue, "lt")
+                case _:
+                    assert False
+
         return result
 
     # not value
@@ -1397,8 +1194,12 @@ class AnyBuilder:
                 result.uvalue = ANONYMOUS_UVG_VALUE_ID
 
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_not_(self, value.lvalue)
-            result.hvalue = hash_not_(self, value.hvalue)
+            self.hash.add_string("not")
+            self.hash.add_int64(value.hvalue)
+            result.hvalue = self.hash_new_id()
+
+            llvm_true = LLVMConstInt(LLVMInt1Type(), 1, False as int)
+            result.lvalue = LLVMBuildXor(self.llvm_builder, value.lvalue, llvm_true, "not")
 
         return result
 
@@ -1406,21 +1207,33 @@ class AnyBuilder:
     @public
     def bit_not(self, value: AnyBuilderValue) -> AnyBuilderValue:
         assert value.type.is_integer_type()
-        result = AnyBuilderValue{type = value.type}
+        result = AnyBuilderValue{type = value.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_bit_not(self, value.lvalue, value.type)
-            result.hvalue = hash_bit_not(self, value.hvalue, value.type)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            self.hash.add_string("~")
+            self.hash.add_int64(value.hvalue)
+            result.hvalue = self.hash_new_id()
+
+            all_bits = uint_type(value.type.size_in_bits).max_value()
+            all_bits_llvm = LLVMConstInt(type_to_llvm(value.type), all_bits as int64, False as int)
+            result.lvalue = LLVMBuildXor(self.llvm_builder, value.lvalue, all_bits_llvm, "bit_not")
+
         return result
 
     # sizeof(any value of given type)
     @public
     def size_of(self, t: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = int_type(32)}
+        result = AnyBuilderValue{type = int_type(32), uvalue = ANONYMOUS_UVG_VALUE_ID}
+
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_size_of(self, t)
-            result.hvalue = hash_size_of(self, t)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+            self.hash.add_string("sizeof")
+            hash_type(&self.hash, t)
+            result.hvalue = self.hash_new_id()
+
+            # LLVMSizeOf() returns a 64-bit value. Jou's sizeof(x) is 32-bit.
+            size64 = LLVMSizeOf(type_to_llvm(t))
+            result.lvalue = LLVMBuildTrunc(self.llvm_builder, size64, LLVMInt32Type(), "sizeof")
+
         return result
 
     # memset(ptr, 0, sizeof(*ptr))
@@ -1430,8 +1243,12 @@ class AnyBuilder:
         self.add_uvg_set(ptr.uvalue)
 
         if self.llvm_builder != NULL:
-            llvm_memset_to_zero(self, ptr.lvalue, ptr.type)
-            hash_memset_to_zero(self, ptr.hvalue)
+            self.hash.add_string("memset0")
+            self.hash.add_int64(ptr.hvalue)
+
+            llvm_zero_byte = LLVMConstInt(LLVMInt8Type(), 0, False as int)
+            llvm_size = LLVMSizeOf(type_to_llvm(ptr.type.value_type))
+            LLVMBuildMemSet(self.llvm_builder, ptr.lvalue, llvm_zero_byte, llvm_size, 0)
 
     # value as to
     # TODO: split this up by type of cast, this does too many different casts!
@@ -1452,8 +1269,13 @@ class AnyBuilder:
             result.uvalue = ANONYMOUS_UVG_VALUE_ID
 
         if self.llvm_builder != NULL:
-            result.lvalue = llvm_cast(self, value.lvalue, value.type, to)
-            result.hvalue = hash_cast(self, value.hvalue, to)
+            self.hash.add_string("cast")
+            self.hash.add_int64(value.hvalue)
+            hash_type(&self.hash, to)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = build_llvm_cast(self.llvm_builder, value.lvalue, value.type, to)
+
         return result
 
     # Blocks are used to implement e.g. if statements and loops.
@@ -1505,8 +1327,11 @@ class AnyBuilder:
         self.current_block.ublock = NULL
 
         if self.llvm_builder != NULL:
-            llvm_branch(self, cond.lvalue, then.lblock, otherwise.lblock)
-            hash_branch(self, cond.hvalue, then.hblock, otherwise.hblock)
+            self.hash.add_string("br")
+            self.hash.add_int64(cond.hvalue)
+            self.hash.add_int64(then.hblock)
+            self.hash.add_int64(otherwise.hblock)
+            LLVMBuildCondBr(self.llvm_builder, cond.lvalue, then.lblock, otherwise.lblock)
 
     # Go to the block. Similar to branch() but no condition. LLVM calls this
     # "unconditional branch", which IMO doesn't make sense because it always
@@ -1526,16 +1351,17 @@ class AnyBuilder:
         self.current_block.ublock = NULL
 
         if self.llvm_builder != NULL:
-            llvm_jump(self, next_block.lblock)
-            hash_jump(self, next_block.hblock)
+            self.hash.add_string("jump")
+            self.hash.add_int64(next_block.hblock)
+            LLVMBuildBr(self.llvm_builder, next_block.lblock)
 
     # Add an instruction that should never run.
     # May be used by optimizer, but also tells LLVM that the block ends here.
     @public
     def unreachable(self) -> None:
         if self.llvm_builder != NULL:
-            llvm_unreachable(self)
-            hash_unreachable(self)
+            self.hash.add_string("unreachable")
+            LLVMBuildUnreachable(self.llvm_builder)
 
         assert self.current_block.ublock != NULL
         assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
@@ -1559,11 +1385,15 @@ class AnyBuilder:
 
         if self.llvm_builder != NULL:
             if value == NULL:
-                llvm_ret(self, NULL)
-                hash_ret(self, NULL)
+                self.hash.add_string("ret null")
             else:
-                llvm_ret(self, value.lvalue)
-                hash_ret(self, &value.hvalue)
+                self.hash.add_string("ret")
+                self.hash.add_int64(value.hvalue)
+
+            if value == NULL:
+                LLVMBuildRetVoid(self.llvm_builder)
+            else:
+                LLVMBuildRet(self.llvm_builder, value.lvalue)
 
 
 # You can set llvm_out and hash_out to NULL if they are not needed.
