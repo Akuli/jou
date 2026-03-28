@@ -413,7 +413,7 @@ const FALSE_UVG_VALUE_ID: int = -3
 
 
 @public
-class AnyBuilderValue:
+class BuilderValue:
     lvalue: LLVMValue*
     uvalue: int
     hvalue: int64
@@ -421,15 +421,15 @@ class AnyBuilderValue:
 
 
 @public
-class AnyBuilderBlock:
+class BuilderBlock:
     lblock: LLVMBasicBlock*
     ublock: UvgBlock*  # funny naming :)
     hblock: int64
 
 
 @public
-class AnyBuilder:
-    current_block: AnyBuilderBlock
+class Builder:
+    current_block: BuilderBlock
 
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
@@ -485,7 +485,7 @@ class AnyBuilder:
 
     # If initial value is NULL, zero-initialization will be used.
     @public
-    def define_global_var(self, varname: byte*, vartype: Type*, initial_value: AnyBuilderValue*, public: bool) -> None:
+    def define_global_var(self, varname: byte*, vartype: Type*, initial_value: BuilderValue*, public: bool) -> None:
         assert initial_value == NULL or initial_value.type == vartype
 
         if self.llvm_builder != NULL:
@@ -579,7 +579,7 @@ class AnyBuilder:
     # TODO(refactor): I hate this function, delete it. Instead:
     #   - Prefer hash_new_id() directly
     #   - Hash the type only when needed
-    def hash_new_value(self, builder: AnyBuilder*, t: Type*) -> int64:
+    def hash_new_value(self, builder: Builder*, t: Type*) -> int64:
         assert builder == self  # TODO(refactor): this is super dumb, clean up!!!
         if t == NULL:
             builder.hash.add_string("no type")
@@ -591,8 +591,8 @@ class AnyBuilder:
     # Returns a pointer to the stack space.
     # If allocated stack memory is not a local variable, varname must be NULL.
     @public
-    def stack_alloc(self, t: Type*, varname: byte*) -> AnyBuilderValue:
-        result = AnyBuilderValue{
+    def stack_alloc(self, t: Type*, varname: byte*) -> BuilderValue:
+        result = BuilderValue{
             type = t.pointer_type(),
             uvalue = self.uvg.stack_alloc(varname),
         }
@@ -619,7 +619,7 @@ class AnyBuilder:
 
     # *ptr = value
     @public
-    def set_ptr(self, ptr: AnyBuilderValue, value: AnyBuilderValue) -> None:
+    def set_ptr(self, ptr: BuilderValue, value: BuilderValue) -> None:
         self.add_uvg_dont_analyze(value.uvalue)
         self.add_uvg_set(ptr.uvalue)
 
@@ -636,10 +636,10 @@ class AnyBuilder:
 
     # *ptr
     @public
-    def dereference(self, ptr: AnyBuilderValue) -> AnyBuilderValue:
+    def dereference(self, ptr: BuilderValue) -> BuilderValue:
         assert ptr.type.kind == TypeKind.Pointer
 
-        result = AnyBuilderValue{
+        result = BuilderValue{
             type = ptr.type.value_type,
             uvalue = ANONYMOUS_UVG_VALUE_ID,
         }
@@ -657,11 +657,11 @@ class AnyBuilder:
 
     # Returns &ptr[index]
     @public
-    def indexed_pointer(self, ptr: AnyBuilderValue, index: AnyBuilderValue) -> AnyBuilderValue:
+    def indexed_pointer(self, ptr: BuilderValue, index: BuilderValue) -> BuilderValue:
         assert ptr.type.kind == TypeKind.Pointer
         assert index.type == int_type(64)  # LLVM wants this, easy enough to ensure
 
-        result = AnyBuilderValue{type = ptr.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = ptr.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
         self.add_uvg_dont_analyze(ptr.uvalue)
 
         if self.llvm_builder != NULL:
@@ -684,13 +684,13 @@ class AnyBuilder:
 
     # Returns &ptr.field
     @public
-    def class_field_pointer(self, ptr: AnyBuilderValue, field_name: byte*) -> AnyBuilderValue:
+    def class_field_pointer(self, ptr: BuilderValue, field_name: byte*) -> BuilderValue:
         assert ptr.type.kind == TypeKind.Pointer
         assert ptr.type.value_type.kind == TypeKind.Class
         field = ptr.type.value_type.find_class_field(field_name)
         assert field != NULL
 
-        result = AnyBuilderValue{type = field.type.pointer_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = field.type.pointer_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
         self.add_uvg_dont_analyze(ptr.uvalue)
 
         if self.llvm_builder != NULL:
@@ -713,8 +713,8 @@ class AnyBuilder:
         return result
 
     @public
-    def global_var_ptr(self, name: byte*, var_type: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{
+    def global_var_ptr(self, name: byte*, var_type: Type*) -> BuilderValue:
+        result = BuilderValue{
             type = var_type.pointer_type(),
             uvalue = ANONYMOUS_UVG_VALUE_ID,
         }
@@ -731,8 +731,8 @@ class AnyBuilder:
 
     # Returns a function as funcptr
     @public
-    def get_funcptr(self, sig: Signature*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = sig.to_funcptr_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+    def get_funcptr(self, sig: Signature*) -> BuilderValue:
+        result = BuilderValue{type = sig.to_funcptr_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             self.hash.add_string("funcptr")
@@ -750,8 +750,8 @@ class AnyBuilder:
     # Returns the i'th argument given to function
     # TODO(refactor): delete the argtype from here, get from signature
     @public
-    def get_argument(self, i: int, argtype: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = argtype, uvalue = ANONYMOUS_UVG_VALUE_ID}
+    def get_argument(self, i: int, argtype: Type*) -> BuilderValue:
+        result = BuilderValue{type = argtype, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             self.hash.add_string("arg")
@@ -764,14 +764,14 @@ class AnyBuilder:
 
     # Function call through a function pointer
     @public
-    def call_function(self, funcptr_type: Type*, func_ptr: AnyBuilderValue, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
+    def call_function(self, funcptr_type: Type*, func_ptr: BuilderValue, args: BuilderValue*, nargs: int) -> BuilderValue:
         assert funcptr_type == func_ptr.type  # TODO(refactor): delete funcptr_type parameter
         assert funcptr_type.kind == TypeKind.FuncPtr
         assert nargs >= funcptr_type.func_ptr.argtypes.len
         if nargs > funcptr_type.func_ptr.argtypes.len:
             assert funcptr_type.func_ptr.takes_varargs
 
-        result = AnyBuilderValue{type = funcptr_type.func_ptr.return_type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = funcptr_type.func_ptr.return_type, uvalue = ANONYMOUS_UVG_VALUE_ID}
         self.add_uvg_use(func_ptr.uvalue)
         for i = 0; i < nargs; i++:
             self.add_uvg_dont_analyze(args[i].uvalue)
@@ -812,8 +812,8 @@ class AnyBuilder:
 
     # self with the correct type must be included in args
     @public
-    def call_method(self, sig: Signature*, args: AnyBuilderValue*, nargs: int) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = sig.return_type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+    def call_method(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
+        result = BuilderValue{type = sig.return_type, uvalue = ANONYMOUS_UVG_VALUE_ID}
         for i = 0; i < nargs; i++:
             self.add_uvg_dont_analyze(args[i].uvalue)
 
@@ -847,8 +847,8 @@ class AnyBuilder:
         return result
 
     @public
-    def array_of_bytes(self, bytes: List[byte]) -> AnyBuilderValue:
-        result = AnyBuilderValue{
+    def array_of_bytes(self, bytes: List[byte]) -> BuilderValue:
+        result = BuilderValue{
             type = uint_type(8).array_type(bytes.len as int),
             uvalue = ANONYMOUS_UVG_VALUE_ID,
         }
@@ -865,8 +865,8 @@ class AnyBuilder:
         return result
 
     @public
-    def array(self, len: int, items: AnyBuilderValue*, item_type: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{
+    def array(self, len: int, items: BuilderValue*, item_type: Type*) -> BuilderValue:
+        result = BuilderValue{
             type = item_type.array_type(len),
             uvalue = ANONYMOUS_UVG_VALUE_ID,
         }
@@ -893,8 +893,8 @@ class AnyBuilder:
 
     # string as '\0' terminated pointer
     @public
-    def pointer_string(self, s: byte*) -> AnyBuilderValue:
-        result = AnyBuilderValue{
+    def pointer_string(self, s: byte*) -> BuilderValue:
+        result = BuilderValue{
             type = uint_type(8).pointer_type(),
             uvalue = ANONYMOUS_UVG_VALUE_ID,
         }
@@ -916,8 +916,8 @@ class AnyBuilder:
         return result
 
     @public
-    def boolean(self, b: bool) -> AnyBuilderValue:
-        result = AnyBuilderValue{
+    def boolean(self, b: bool) -> BuilderValue:
+        result = BuilderValue{
             type = bool_type(),
             uvalue = TRUE_UVG_VALUE_ID if b else FALSE_UVG_VALUE_ID,
         }
@@ -932,9 +932,9 @@ class AnyBuilder:
         return result
 
     @public
-    def integer(self, t: Type*, value: int64) -> AnyBuilderValue:
+    def integer(self, t: Type*, value: int64) -> BuilderValue:
         assert t.is_integer_type()
-        result = AnyBuilderValue{type = t}
+        result = BuilderValue{type = t}
         if self.llvm_builder != NULL:
             self.hash.add_string("integer")
             self.hash.add_int64(value)
@@ -944,8 +944,8 @@ class AnyBuilder:
         return result
 
     @public
-    def float_or_double(self, t: Type*, dbl: double) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
+    def float_or_double(self, t: Type*, dbl: double) -> BuilderValue:
+        result = BuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         assert t.kind == TypeKind.FloatingPoint
         if self.llvm_builder != NULL:
@@ -959,8 +959,8 @@ class AnyBuilder:
         return result
 
     @public
-    def zero_of_type(self, t: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
+    def zero_of_type(self, t: Type*) -> BuilderValue:
+        result = BuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             hash_type(&self.hash, t)
@@ -971,14 +971,14 @@ class AnyBuilder:
         return result
 
     @public
-    def enum_member(self, t: Type*, name: byte*) -> AnyBuilderValue:
+    def enum_member(self, t: Type*, name: byte*) -> BuilderValue:
         int_value = t.find_enum_member(name)
         assert int_value != -1
         result = self.integer(int_type(32), int_value)
         result.type = t
         return result
 
-    def hash_binop(self, op_name: byte*, a: AnyBuilderValue, b: AnyBuilderValue) -> int64:
+    def hash_binop(self, op_name: byte*, a: BuilderValue, b: BuilderValue) -> int64:
         assert self.llvm_builder != NULL
         self.hash.add_string(op_name)
         self.hash.add_int64(a.hvalue)
@@ -987,9 +987,9 @@ class AnyBuilder:
 
     # a + b
     @public
-    def add(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def add(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("+", a, b)
@@ -1005,9 +1005,9 @@ class AnyBuilder:
 
     # a - b
     @public
-    def sub(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def sub(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("-", a, b)
@@ -1023,9 +1023,9 @@ class AnyBuilder:
 
     # a * b
     @public
-    def mul(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def mul(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("*", a, b)
@@ -1041,9 +1041,9 @@ class AnyBuilder:
 
     # a / b
     @public
-    def div(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("/", a, b)
@@ -1061,9 +1061,9 @@ class AnyBuilder:
 
     # a % b
     @public
-    def mod(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def mod(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("%", a, b)
@@ -1081,9 +1081,9 @@ class AnyBuilder:
 
     # a & b
     @public
-    def bit_and(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def bit_and(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("&", a, b)
@@ -1093,9 +1093,9 @@ class AnyBuilder:
 
     # a | b
     @public
-    def bit_or(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def bit_or(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("|", a, b)
@@ -1105,9 +1105,9 @@ class AnyBuilder:
 
     # a ^ b
     @public
-    def bit_xor(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def bit_xor(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("^", a, b)
@@ -1117,9 +1117,9 @@ class AnyBuilder:
 
     # a << b
     @public
-    def bit_shift_left(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def bit_shift_left(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         # Type of b doesn't matter. Result's type is always the type of a.
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("<<", a, b)
@@ -1129,9 +1129,9 @@ class AnyBuilder:
 
     # a << b
     @public
-    def bit_shift_right(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def bit_shift_right(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         # Type of b doesn't matter. Result's type is always the type of a.
-        result = AnyBuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop(">>", a, b)
@@ -1142,9 +1142,9 @@ class AnyBuilder:
     # a == b
     # Does not support pointers, they must be converted to int64 first.
     @public
-    def eq(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def eq(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("==", a, b)
@@ -1160,9 +1160,9 @@ class AnyBuilder:
 
     # a < b
     @public
-    def lt(self, a: AnyBuilderValue, b: AnyBuilderValue) -> AnyBuilderValue:
+    def lt(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
-        result = AnyBuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("<", a, b)
@@ -1180,10 +1180,10 @@ class AnyBuilder:
 
     # not value
     @public
-    def not_(self, value: AnyBuilderValue) -> AnyBuilderValue:
+    def not_(self, value: BuilderValue) -> BuilderValue:
         assert value.type == bool_type()
 
-        result = AnyBuilderValue{type = bool_type()}
+        result = BuilderValue{type = bool_type()}
 
         match value.uvalue:
             case TRUE_UVG_VALUE_ID:
@@ -1205,9 +1205,9 @@ class AnyBuilder:
 
     # ~value
     @public
-    def bit_not(self, value: AnyBuilderValue) -> AnyBuilderValue:
+    def bit_not(self, value: BuilderValue) -> BuilderValue:
         assert value.type.is_integer_type()
-        result = AnyBuilderValue{type = value.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        result = BuilderValue{type = value.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             self.hash.add_string("~")
@@ -1222,8 +1222,8 @@ class AnyBuilder:
 
     # sizeof(any value of given type)
     @public
-    def size_of(self, t: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = int_type(32), uvalue = ANONYMOUS_UVG_VALUE_ID}
+    def size_of(self, t: Type*) -> BuilderValue:
+        result = BuilderValue{type = int_type(32), uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         if self.llvm_builder != NULL:
             self.hash.add_string("sizeof")
@@ -1238,7 +1238,7 @@ class AnyBuilder:
 
     # memset(ptr, 0, sizeof(*ptr))
     @public
-    def memset_to_zero(self, ptr: AnyBuilderValue) -> None:
+    def memset_to_zero(self, ptr: BuilderValue) -> None:
         assert ptr.type.kind == TypeKind.Pointer
         self.add_uvg_set(ptr.uvalue)
 
@@ -1253,8 +1253,8 @@ class AnyBuilder:
     # value as to
     # TODO: split this up by type of cast, this does too many different casts!
     @public
-    def cast(self, value: AnyBuilderValue, to: Type*) -> AnyBuilderValue:
-        result = AnyBuilderValue{type = to}
+    def cast(self, value: BuilderValue, to: Type*) -> BuilderValue:
+        result = BuilderValue{type = to}
 
         if to.is_pointer_type():
             # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
@@ -1280,8 +1280,8 @@ class AnyBuilder:
 
     # Blocks are used to implement e.g. if statements and loops.
     @public
-    def add_block(self) -> AnyBuilderBlock:
-        result = AnyBuilderBlock{ublock = self.uvg.add_block()}
+    def add_block(self) -> BuilderBlock:
+        result = BuilderBlock{ublock = self.uvg.add_block()}
         if self.llvm_builder != NULL:
             self.hash.add_string("add block")
             result.hblock = self.hash_new_id()
@@ -1290,7 +1290,7 @@ class AnyBuilder:
 
     # Decide which block will contain the resulting instructions.
     @public
-    def set_current_block(self, block: AnyBuilderBlock) -> None:
+    def set_current_block(self, block: BuilderBlock) -> None:
         self.current_block = block
 
         if self.llvm_builder != NULL:
@@ -1309,7 +1309,7 @@ class AnyBuilder:
     # "no current block" state, i.e. you must call set_current_block()
     # before the builder is usable again.
     @public
-    def branch(self, cond: AnyBuilderValue, then: AnyBuilderBlock, otherwise: AnyBuilderBlock) -> None:
+    def branch(self, cond: BuilderValue, then: BuilderBlock, otherwise: BuilderBlock) -> None:
         if cond.uvalue == TRUE_UVG_VALUE_ID:
             self.jump(then)
             return
@@ -1341,7 +1341,7 @@ class AnyBuilder:
     # "no current block" state, i.e. you must call set_current_block()
     # before the builder is usable again.
     @public
-    def jump(self, next_block: AnyBuilderBlock) -> None:
+    def jump(self, next_block: BuilderBlock) -> None:
         assert self.current_block.ublock != NULL
         assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
         self.current_block.ublock.terminator = UvgTerminator{
@@ -1370,7 +1370,7 @@ class AnyBuilder:
 
     # Return from function/method. Value should be NULL if the function is '-> None'.
     @public
-    def ret(self, value: AnyBuilderValue*) -> None:
+    def ret(self, value: BuilderValue*) -> None:
         if value != NULL:
             assert self.uvg_return_value_id != -1
             self.add_uvg_set(self.uvg_return_value_id)
@@ -1411,7 +1411,7 @@ def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*
         else:
             printf("Building and analyzing UVGs: %s\n", jou_file.path)
 
-    builder = AnyBuilder{
+    builder = Builder{
         # Print UVG if command line says so
         uvg_print = (
             global_compiler_state.args.verbosity >= 2
