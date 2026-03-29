@@ -430,6 +430,7 @@ class BuilderBlock:
 @public
 class Builder:
     current_block: BuilderBlock
+    disabled: bool  # if True, the only purpose is to figure out the type, not build anything
 
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
@@ -448,10 +449,15 @@ class Builder:
     uvg_return_value_id: int
 
     def hash_new_id(self) -> int64:
+        if self.disabled:
+            return -1
         self.hash.add_int64(self.hash_id_counter)
         return self.hash_id_counter++
 
     def add_uvg_instruction(self, ins: UvgInstruction) -> None:
+        if self.disabled:
+            return
+
         assert ins.var >= 0
 
         assert self.uvg_location.path != NULL
@@ -477,7 +483,7 @@ class Builder:
     # Also used for imported variables, import vs declare makes no difference in LLVM
     @public
     def declare_global_var(self, varname: byte*, vartype: Type*) -> None:
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("globaldeclare")
             self.hash.add_string(varname)
             hash_type(&self.hash, vartype)
@@ -486,9 +492,12 @@ class Builder:
     # If initial value is NULL, zero-initialization will be used.
     @public
     def define_global_var(self, varname: byte*, vartype: Type*, initial_value: BuilderValue*, public: bool) -> None:
+        if self.disabled:
+            return
+
         assert initial_value == NULL or initial_value.type == vartype
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("globaldefine")
             self.hash.add_string(varname)
             hash_type(&self.hash, vartype)
@@ -505,13 +514,16 @@ class Builder:
 
     @public
     def begin_function(self, sig: Signature*, public: bool) -> None:
+        if self.disabled:
+            return
+
         self.uvg.signature = sig
         if sig.return_type != NULL:
             self.uvg_return_value_id = self.uvg.stack_alloc("return")
         else:
             self.uvg_return_value_id = -1
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("begin func")
             hash_signature(&self.hash, sig)
             self.hash.add_bool(public)
@@ -524,12 +536,15 @@ class Builder:
 
         self.set_current_block(self.add_block())
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.llvm_code_start_block = self.current_block.lblock
             assert self.llvm_code_start_block != NULL
 
     @public
     def end_function(self) -> None:
+        if self.disabled:
+            return
+
         # TODO: call self.ret() from here
         if self.uvg_return_value_id != -1:
             # The function returns a value
@@ -549,7 +564,7 @@ class Builder:
         self.uvg.free()
         self.uvg = Uvg{}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             if self.llvm_returns_a_value:
                 # Implicit "return" at the end of a function that should return a value
                 LLVMBuildUnreachable(self.llvm_builder)
@@ -566,6 +581,9 @@ class Builder:
     # inside an @inline function that is being called.
     @public
     def set_location(self, location: Location, inlining_signature: Signature*) -> None:
+        if self.disabled:
+            return
+
         self.uvg_inlining_signature = inlining_signature
 
         # When inlining, do not store the location so that the locations in UVG
@@ -580,6 +598,9 @@ class Builder:
     #   - Prefer hash_new_id() directly
     #   - Hash the type only when needed
     def hash_new_value(self, builder: Builder*, t: Type*) -> int64:
+        if self.disabled:
+            return -1
+
         assert builder == self  # TODO(refactor): this is super dumb, clean up!!!
         if t == NULL:
             builder.hash.add_string("no type")
@@ -592,12 +613,13 @@ class Builder:
     # If allocated stack memory is not a local variable, varname must be NULL.
     @public
     def stack_alloc(self, t: Type*, varname: byte*) -> BuilderValue:
-        result = BuilderValue{
-            type = t.pointer_type(),
-            uvalue = self.uvg.stack_alloc(varname),
-        }
+        result = BuilderValue{type = t.pointer_type()}
+        if self.disabled:
+            return result
 
-        if self.llvm_builder != NULL:
+        result.uvalue = self.uvg.stack_alloc(varname)
+
+        if self.llvm_builder != NULL and not self.disabled:
             if varname == NULL:
                 debug_name = "stack_alloc"
             else:
@@ -620,10 +642,13 @@ class Builder:
     # *ptr = value
     @public
     def set_ptr(self, ptr: BuilderValue, value: BuilderValue) -> None:
+        if self.disabled:
+            return
+
         self.add_uvg_dont_analyze(value.uvalue)
         self.add_uvg_set(ptr.uvalue)
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("set_ptr")
             self.hash.add_int64(ptr.hvalue)
             self.hash.add_int64(value.hvalue)
@@ -645,7 +670,7 @@ class Builder:
         }
         self.add_uvg_use(ptr.uvalue)
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("deref")
             self.hash.add_int64(ptr.hvalue)
             hash_type(&self.hash, ptr.type.value_type)
@@ -664,7 +689,7 @@ class Builder:
         result = BuilderValue{type = ptr.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
         self.add_uvg_dont_analyze(ptr.uvalue)
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("indexed_pointer")
             self.hash.add_int64(ptr.hvalue)
             self.hash.add_int64(index.hvalue)
@@ -693,7 +718,7 @@ class Builder:
         result = BuilderValue{type = field.type.pointer_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
         self.add_uvg_dont_analyze(ptr.uvalue)
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("class_field_pointer")
             hash_type(&self.hash, ptr.type.value_type)
             self.hash.add_int64(ptr.hvalue)
@@ -719,7 +744,7 @@ class Builder:
             uvalue = ANONYMOUS_UVG_VALUE_ID,
         }
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("global_var_ptr")
             self.hash.add_string(name)
             result.hvalue = self.hash_new_id()
@@ -734,7 +759,7 @@ class Builder:
     def get_funcptr(self, sig: Signature*) -> BuilderValue:
         result = BuilderValue{type = sig.to_funcptr_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("funcptr")
             assert sig.get_self_class() == NULL  # sig.name goes to LLVM as is
             self.hash.add_string(sig.name)
@@ -753,7 +778,7 @@ class Builder:
     def get_argument(self, i: int, argtype: Type*) -> BuilderValue:
         result = BuilderValue{type = argtype, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("arg")
             self.hash.add_int(i)
             result.hvalue = self.hash_new_id()
@@ -767,6 +792,8 @@ class Builder:
     def call_function(self, funcptr_type: Type*, func_ptr: BuilderValue, args: BuilderValue*, nargs: int) -> BuilderValue:
         assert funcptr_type == func_ptr.type  # TODO(refactor): delete funcptr_type parameter
         assert funcptr_type.kind == TypeKind.FuncPtr
+
+        assert nargs <= MAX_ARGS
         assert nargs >= funcptr_type.func_ptr.argtypes.len
         if nargs > funcptr_type.func_ptr.argtypes.len:
             assert funcptr_type.func_ptr.takes_varargs
@@ -776,12 +803,7 @@ class Builder:
         for i = 0; i < nargs; i++:
             self.add_uvg_dont_analyze(args[i].uvalue)
 
-        assert nargs <= MAX_ARGS
-        assert nargs >= funcptr_type.func_ptr.argtypes.len
-        if nargs > funcptr_type.func_ptr.argtypes.len:
-            assert funcptr_type.func_ptr.takes_varargs
-
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("call_func")
             self.hash.add_int64(func_ptr.hvalue)
             self.hash.add_int64(nargs)
@@ -822,7 +844,7 @@ class Builder:
         if nargs > sig.args.len:
             assert sig.takes_varargs
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             hash_signature(&self.hash, sig)
             for p = args; p < &args[nargs]; p++:
                 self.hash.add_int64(p.hvalue)
@@ -854,7 +876,7 @@ class Builder:
         }
 
         assert bytes.len <= UINT32_MAX
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("array_of_bytes")
             self.hash.add_int64(bytes.len)
             self.hash.add_bytes(bytes.ptr, bytes.len)
@@ -874,7 +896,7 @@ class Builder:
         for i = 0; i < len; i++:
             self.add_uvg_use(items[i].uvalue)
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("array")
             hash_type(&self.hash, item_type)
             self.hash.add_int(len)
@@ -902,7 +924,7 @@ class Builder:
         len = strlen(s)
         assert len <= UINT32_MAX
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("pointer_string")
             self.hash.add_string(s)
             result.hvalue = self.hash_new_id()
@@ -922,7 +944,7 @@ class Builder:
             uvalue = TRUE_UVG_VALUE_ID if b else FALSE_UVG_VALUE_ID,
         }
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("bool")
             self.hash.add_bool(b)
             result.hvalue = self.hash_new_id()
@@ -934,13 +956,12 @@ class Builder:
     @public
     def integer(self, t: Type*, value: int64) -> BuilderValue:
         assert t.is_integer_type()
-        result = BuilderValue{type = t}
-        if self.llvm_builder != NULL:
+        result = BuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("integer")
             self.hash.add_int64(value)
             result.hvalue = self.hash_new_id()
             result.lvalue = LLVMConstInt(type_to_llvm(t), value, (t.kind == TypeKind.SignedInteger) as int)
-        result.uvalue = ANONYMOUS_UVG_VALUE_ID
         return result
 
     @public
@@ -948,7 +969,7 @@ class Builder:
         result = BuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
         assert t.kind == TypeKind.FloatingPoint
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("float_or_double")
             hash_type(&self.hash, t)
             self.hash.add_bytes(&dbl as byte*, sizeof(dbl))
@@ -962,10 +983,9 @@ class Builder:
     def zero_of_type(self, t: Type*) -> BuilderValue:
         result = BuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             hash_type(&self.hash, t)
             result.hvalue = self.hash_new_id()
-
             result.lvalue = LLVMConstNull(type_to_llvm(t))
 
         return result
@@ -980,6 +1000,7 @@ class Builder:
 
     def hash_binop(self, op_name: byte*, a: BuilderValue, b: BuilderValue) -> int64:
         assert self.llvm_builder != NULL
+        assert not self.disabled
         self.hash.add_string(op_name)
         self.hash.add_int64(a.hvalue)
         self.hash.add_int64(b.hvalue)
@@ -991,7 +1012,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("+", a, b)
             match a.type.kind:
                 case TypeKind.FloatingPoint:
@@ -1009,7 +1030,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("-", a, b)
             match a.type.kind:
                 case TypeKind.FloatingPoint:
@@ -1027,7 +1048,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("*", a, b)
             match a.type.kind:
                 case TypeKind.FloatingPoint:
@@ -1045,7 +1066,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("/", a, b)
             match a.type.kind:
                 case TypeKind.FloatingPoint:
@@ -1065,7 +1086,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("%", a, b)
             match a.type.kind:
                 case TypeKind.FloatingPoint:
@@ -1085,7 +1106,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("&", a, b)
             result.lvalue = LLVMBuildAnd(self.llvm_builder, a.lvalue, b.lvalue, "bit_and")
 
@@ -1097,7 +1118,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("|", a, b)
             result.lvalue = LLVMBuildOr(self.llvm_builder, a.lvalue, b.lvalue, "bit_or")
 
@@ -1109,7 +1130,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("^", a, b)
             result.lvalue = LLVMBuildXor(self.llvm_builder, a.lvalue, b.lvalue, "bit_xor")
 
@@ -1121,7 +1142,7 @@ class Builder:
         # Type of b doesn't matter. Result's type is always the type of a.
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("<<", a, b)
             result.lvalue = bitshift(self.llvm_builder, a.lvalue, b.lvalue, a.type, True)
 
@@ -1133,7 +1154,7 @@ class Builder:
         # Type of b doesn't matter. Result's type is always the type of a.
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop(">>", a, b)
             result.lvalue = bitshift(self.llvm_builder, a.lvalue, b.lvalue, a.type, False)
 
@@ -1146,7 +1167,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("==", a, b)
             match a.type.kind:
                 case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.Enum | TypeKind.Bool:
@@ -1164,7 +1185,7 @@ class Builder:
         assert a.type == b.type
         result = BuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             result.hvalue = self.hash_binop("<", a, b)
             match a.type.kind:
                 case TypeKind.SignedInteger:
@@ -1193,7 +1214,7 @@ class Builder:
             case _:
                 result.uvalue = ANONYMOUS_UVG_VALUE_ID
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("not")
             self.hash.add_int64(value.hvalue)
             result.hvalue = self.hash_new_id()
@@ -1209,7 +1230,7 @@ class Builder:
         assert value.type.is_integer_type()
         result = BuilderValue{type = value.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("~")
             self.hash.add_int64(value.hvalue)
             result.hvalue = self.hash_new_id()
@@ -1225,7 +1246,7 @@ class Builder:
     def size_of(self, t: Type*) -> BuilderValue:
         result = BuilderValue{type = int_type(32), uvalue = ANONYMOUS_UVG_VALUE_ID}
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("sizeof")
             hash_type(&self.hash, t)
             result.hvalue = self.hash_new_id()
@@ -1242,7 +1263,7 @@ class Builder:
         assert ptr.type.kind == TypeKind.Pointer
         self.add_uvg_set(ptr.uvalue)
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("memset0")
             self.hash.add_int64(ptr.hvalue)
 
@@ -1268,7 +1289,7 @@ class Builder:
             self.add_uvg_dont_analyze(value.uvalue)
             result.uvalue = ANONYMOUS_UVG_VALUE_ID
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("cast")
             self.hash.add_int64(value.hvalue)
             hash_type(&self.hash, to)
@@ -1281,8 +1302,11 @@ class Builder:
     # Blocks are used to implement e.g. if statements and loops.
     @public
     def add_block(self) -> BuilderBlock:
+        if self.disabled:
+            return BuilderBlock{}
+
         result = BuilderBlock{ublock = self.uvg.add_block()}
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("add block")
             result.hblock = self.hash_new_id()
             result.lblock = LLVMAppendBasicBlock(self.llvm_func, "block")
@@ -1291,9 +1315,12 @@ class Builder:
     # Decide which block will contain the resulting instructions.
     @public
     def set_current_block(self, block: BuilderBlock) -> None:
+        if self.disabled:
+            return
+
         self.current_block = block
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("set block")
             self.hash.add_int64(block.hblock)
             LLVMPositionBuilderAtEnd(self.llvm_builder, block.lblock)
@@ -1310,6 +1337,9 @@ class Builder:
     # before the builder is usable again.
     @public
     def branch(self, cond: BuilderValue, then: BuilderBlock, otherwise: BuilderBlock) -> None:
+        if self.disabled:
+            return
+
         if cond.uvalue == TRUE_UVG_VALUE_ID:
             self.jump(then)
             return
@@ -1326,7 +1356,7 @@ class Builder:
         }
         self.current_block.ublock = NULL
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("br")
             self.hash.add_int64(cond.hvalue)
             self.hash.add_int64(then.hblock)
@@ -1342,6 +1372,9 @@ class Builder:
     # before the builder is usable again.
     @public
     def jump(self, next_block: BuilderBlock) -> None:
+        if self.disabled:
+            return
+
         assert self.current_block.ublock != NULL
         assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
         self.current_block.ublock.terminator = UvgTerminator{
@@ -1350,7 +1383,7 @@ class Builder:
         }
         self.current_block.ublock = NULL
 
-        if self.llvm_builder != NULL:
+        if self.llvm_builder != NULL and not self.disabled:
             self.hash.add_string("jump")
             self.hash.add_int64(next_block.hblock)
             LLVMBuildBr(self.llvm_builder, next_block.lblock)
@@ -1359,6 +1392,9 @@ class Builder:
     # May be used by optimizer, but also tells LLVM that the block ends here.
     @public
     def unreachable(self) -> None:
+        if self.disabled:
+            return
+
         if self.llvm_builder != NULL:
             self.hash.add_string("unreachable")
             LLVMBuildUnreachable(self.llvm_builder)
@@ -1371,6 +1407,9 @@ class Builder:
     # Return from function/method. Value should be NULL if the function is '-> None'.
     @public
     def ret(self, value: BuilderValue*) -> None:
+        if self.disabled:
+            return
+
         if value != NULL:
             assert self.uvg_return_value_id != -1
             self.add_uvg_set(self.uvg_return_value_id)
