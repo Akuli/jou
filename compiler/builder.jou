@@ -449,8 +449,7 @@ class Builder:
     uvg_return_value_id: int
 
     def hash_new_id(self) -> int64:
-        if self.disabled:
-            return -1
+        assert not self.disabled
         self.hash.add_int64(self.hash_id_counter)
         return self.hash_id_counter++
 
@@ -598,9 +597,6 @@ class Builder:
     #   - Prefer hash_new_id() directly
     #   - Hash the type only when needed
     def hash_new_value(self, builder: Builder*, t: Type*) -> int64:
-        if self.disabled:
-            return -1
-
         assert builder == self  # TODO(refactor): this is super dumb, clean up!!!
         if t == NULL:
             builder.hash.add_string("no type")
