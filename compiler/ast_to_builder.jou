@@ -9,6 +9,7 @@ import "./global_symbols.jou"
 import "./constants.jou"
 import "./errors_and_warnings.jou"
 import "./state.jou"
+import "./typecheck/common.jou"
 import "./types.jou"
 import "./builder.jou"
 
@@ -40,6 +41,7 @@ class InliningInfo:
 
 
 class AstToBuilder:
+    jou_file: JouFile*
     builder: Builder*
     locals: List[LocalVar]
     loops: List[Loop]
@@ -48,6 +50,8 @@ class AstToBuilder:
 
     # If not NULL, this builder is being used to handle calling an @inline function
     inlining_info: InliningInfo*
+
+    self_class: Type*
 
     # Internal method. Should not be called outside this file.
     #
@@ -96,6 +100,8 @@ class AstToBuilder:
 
         self.set_location(old)  # TODO: I don't understand why this is needed.
 
+        self.self_class = signature.get_self_class()
+
     def end_function(self) -> None:
         self.builder.end_function()
         self.locals.len = 0
@@ -123,6 +129,8 @@ class AstToBuilder:
                 # First n local variables are the function arguments
                 self.builder.set_ptr(var_ptr, args[i])
 
+        self.self_class = signature.get_self_class()
+
     def inline(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
         assert sig.ast_to_inline != NULL
         ast = sig.ast_to_inline
@@ -148,7 +156,7 @@ class AstToBuilder:
             assert n1 == n2
             info.typemap_count = n1 as int
 
-        inliner = AstToBuilder{builder = self.builder, inlining_info = &info}
+        inliner = AstToBuilder{jou_file = self.jou_file, builder = self.builder, inlining_info = &info}
         inliner.begin_inlining(&ast.symbol.signature, ast.locals, args, nargs)
         inliner.build_body(ast.body)
         inliner.free()
@@ -283,7 +291,9 @@ class AstToBuilder:
         new_value = self.build_binop(op, old_value, rhs_value)
         self.builder.set_ptr(lhs_ptr, new_value)
 
-    def build_instantiation(self, class_type: Type*, inst: AstInstantiation*) -> BuilderValue:
+    def build_instantiation(self, inst: AstInstantiation*) -> BuilderValue:
+        class_type = type_from_ast(self.jou_file, self.self_class, &inst.type)
+
         assert class_type != NULL
         assert class_type.kind == TypeKind.Class
 
@@ -468,7 +478,7 @@ class AstToBuilder:
             case AstExpressionKind.Call:
                 return self.build_call(&expr.call)
             case AstExpressionKind.Instantiate:
-                return self.build_instantiation(expr.types.orig_type, &expr.instantiation)
+                return self.build_instantiation(&expr.instantiation)
             case AstExpressionKind.Self:
                 return self.builder.dereference(self.local_var_ptr("self"))
             case AstExpressionKind.GetVariable:
@@ -855,7 +865,7 @@ def feed_ast_to_builder(fom: AstFunctionOrMethod*, func_location: Location, is_m
 
 @public
 def feed_file_to_builder(jou_file: JouFile*, builder: Builder*) -> None:
-    ast2ir = AstToBuilder{builder = builder}
+    ast2ir = AstToBuilder{jou_file = jou_file, builder = builder}
 
     # Imported global variables
     for avail = jou_file.available_symbols.ptr; avail < jou_file.available_symbols.end(); avail++:
