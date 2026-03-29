@@ -316,11 +316,7 @@ class AstExpression:
         self.print_with_tree_printer(TreePrinter{})
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
-        printf("[line %d", self.location.lineno)
-        if self.types.orig_type != NULL:
-            printf(", type %s", self.types.orig_type.name)
-            # TODO: print casts and other stuff under self.types?
-        printf("] ")
+        printf("[line %d] ", self.location.lineno)
 
         match self.kind:
             case AstExpressionKind.IntegerConstant:
