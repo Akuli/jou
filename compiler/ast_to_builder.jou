@@ -521,7 +521,11 @@ class AstToBuilder:
                 # TODO: pass containing class instead of NULL
                 return self.builder.cast(self.build_expression(&expr.as_.value), type_from_ast(self.jou_file, NULL, &expr.as_.type))
             case AstExpressionKind.SizeOf:
-                return self.builder.size_of(self.map_type(expr.operands[0].types.implicit_cast_type))
+                was_disabled = self.builder.disabled
+                self.builder.disabled = True
+                t = self.build_expression(&expr.operands[0]).type
+                self.builder.disabled = was_disabled
+                return self.builder.size_of(t)
             case AstExpressionKind.ArrayCount:
                 array_type = expr.operands[0].types.implicit_cast_type
                 assert array_type.kind == TypeKind.Array
