@@ -538,10 +538,8 @@ class AstToBuilder:
                 return self.builder.dereference(self.build_expression(&expr.operands[0]))
             case AstExpressionKind.Negate:  # -x
                 # compute -x as 0-x
-                return self.builder.sub(
-                    self.builder.zero_of_type(expr.operands[0].types.implicit_cast_type),
-                    self.build_expression(&expr.operands[0]),
-                )
+                value = self.build_expression(&expr.operands[0])
+                return self.builder.sub(self.builder.zero_of_type(value.type), value)
             case AstExpressionKind.PreIncr:
                 return self.build_increment_or_decrement(&expr.operands[0], True, 1)
             case AstExpressionKind.PreDecr:
