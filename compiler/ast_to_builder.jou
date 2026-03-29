@@ -429,8 +429,12 @@ class AstToBuilder:
         cond_false = self.builder.add_block()
         done = self.builder.add_block()
 
-        t1 = then_expr.types.implicit_cast_type
-        t2 = otherwise_expr.types.implicit_cast_type
+        was_disabled = self.builder.disabled
+        self.builder.disabled = True
+        t1 = self.build_expression(then_expr).type
+        t2 = self.build_expression(otherwise_expr).type
+        self.builder.disabled = False
+
         assert t1 == t2
         resultptr = self.builder.stack_alloc(self.map_type(t1), NULL)
 
