@@ -509,7 +509,7 @@ class AstToBuilder:
                 # We need to copy, because it's not always possible to evaluate &foo.
                 # For example, consider evaluating some_function().some_field.
                 instance = self.build_expression(expr.class_field.instance)
-                ptr = self.builder.stack_alloc(self.map_type(expr.class_field.instance.types.implicit_cast_type), NULL)
+                ptr = self.builder.stack_alloc(instance.type, NULL)
                 self.builder.set_ptr(ptr, instance)
                 fieldptr = self.builder.class_field_pointer(ptr, expr.class_field.field_name)
                 return self.builder.dereference(fieldptr)
