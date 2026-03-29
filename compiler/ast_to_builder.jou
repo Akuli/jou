@@ -724,10 +724,7 @@ class AstToBuilder:
         if match_stmt.case_underscore != NULL:
             self.build_body(*match_stmt.case_underscore)
 
-        if (
-            match_stmt.case_underscore == NULL
-            and match_stmt.match_obj.types.implicit_cast_type.kind == TypeKind.Enum
-        ):
+        if match_stmt.case_underscore == NULL and match_obj.type.kind == TypeKind.Enum:
             # The one corner case where match statement invokes UB:
             #   - User is matching over an enum
             #   - All enum members are handled (otherwise error in typecheck)
