@@ -199,9 +199,15 @@ class AstToBuilder:
             # Signature of method calls is always known.
             assert sig != NULL
 
+            # Figure out the type of the self (the thing whose method is called)
+            was_disabled = self.builder.disabled
+            self.builder.disabled = True
+            self_type = self.build_expression(call.method_call_self).type
+            self.builder.disabled = was_disabled
+
             # pass self as first argument
             want_pointer = sig.args.ptr[0].type.is_pointer_type()
-            got_pointer = call.method_call_self.types.implicit_cast_type.is_pointer_type()
+            got_pointer = self_type.is_pointer_type()
 
             if want_pointer and not got_pointer:
                 arg = self.build_address_of_expression(call.method_call_self)
