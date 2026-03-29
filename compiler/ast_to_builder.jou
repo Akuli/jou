@@ -10,6 +10,7 @@ import "./constants.jou"
 import "./errors_and_warnings.jou"
 import "./state.jou"
 import "./typecheck/common.jou"
+import "./typecheck/step1_global_symbols.jou"
 import "./types.jou"
 import "./builder.jou"
 
@@ -466,6 +467,15 @@ class AstToBuilder:
         self.builder.set_current_block(done)
         return self.builder.dereference(resultptr)
 
+    def build_variable_lookup(self, name: byte*) -> BuilderValue:
+        if self.local_var_exists(name):
+            return self.builder.dereference(self.local_var_ptr(name))
+
+        assert self.inlining_info == NULL
+        var_type = find_and_typecheck_global_var(self.jou_file, name)
+        assert var_type != NULL
+        return self.builder.dereference(self.builder.global_var_ptr(name, var_type))
+
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> BuilderValue:
         match expr.kind:
             case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount | AstExpressionKind.EmbedFile:
@@ -482,11 +492,7 @@ class AstToBuilder:
             case AstExpressionKind.Self:
                 return self.builder.dereference(self.local_var_ptr("self"))
             case AstExpressionKind.GetVariable:
-                if self.local_var_exists(expr.varname):
-                    return self.builder.dereference(self.local_var_ptr(expr.varname))
-                else:
-                    assert self.inlining_info == NULL
-                    return self.builder.dereference(self.builder.global_var_ptr(expr.varname, expr.types.orig_type))
+                return self.build_variable_lookup(expr.varname)
             case AstExpressionKind.GetFuncPtr:
                 return self.builder.get_funcptr(expr.get_func_ptr.signature)
             case AstExpressionKind.Indexing:
