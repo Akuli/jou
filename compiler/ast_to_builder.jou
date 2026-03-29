@@ -467,14 +467,14 @@ class AstToBuilder:
         self.builder.set_current_block(done)
         return self.builder.dereference(resultptr)
 
-    def build_variable_lookup(self, name: byte*) -> BuilderValue:
+    def build_pointer_to_variable(self, name: byte*) -> BuilderValue:
         if self.local_var_exists(name):
-            return self.builder.dereference(self.local_var_ptr(name))
+            return self.local_var_ptr(name)
 
         assert self.inlining_info == NULL
         var_type = find_and_typecheck_global_var(self.jou_file, name)
         assert var_type != NULL
-        return self.builder.dereference(self.builder.global_var_ptr(name, var_type))
+        return self.builder.global_var_ptr(name, var_type)
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> BuilderValue:
         match expr.kind:
@@ -492,7 +492,7 @@ class AstToBuilder:
             case AstExpressionKind.Self:
                 return self.builder.dereference(self.local_var_ptr("self"))
             case AstExpressionKind.GetVariable:
-                return self.build_variable_lookup(expr.varname)
+                return self.builder.dereference(self.build_pointer_to_variable(expr.varname))
             case AstExpressionKind.GetFuncPtr:
                 return self.builder.get_funcptr(expr.get_func_ptr.signature)
             case AstExpressionKind.Indexing:
@@ -624,11 +624,7 @@ class AstToBuilder:
             case AstExpressionKind.Self:
                 result = self.local_var_ptr("self")
             case AstExpressionKind.GetVariable:
-                if self.local_var_exists(expr.varname):
-                    result = self.local_var_ptr(expr.varname)
-                else:
-                    assert self.inlining_info == NULL
-                    result = self.builder.global_var_ptr(expr.varname, expr.types.orig_type)
+                result = self.build_pointer_to_variable(expr.varname)
             case AstExpressionKind.Indexing:
                 # &ptr[index] = ptr + memory offset
                 ptr = self.build_expression(&expr.operands[0])
