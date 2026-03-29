@@ -527,9 +527,12 @@ class AstToBuilder:
                 self.builder.disabled = was_disabled
                 return self.builder.size_of(t)
             case AstExpressionKind.ArrayCount:
-                array_type = expr.operands[0].types.implicit_cast_type
-                assert array_type.kind == TypeKind.Array
-                return self.builder.integer(int_type(32), array_type.array.count)
+                was_disabled = self.builder.disabled
+                self.builder.disabled = True
+                t = self.build_expression(&expr.operands[0]).type
+                self.builder.disabled = was_disabled
+                assert t.kind == TypeKind.Array
+                return self.builder.integer(int_type(32), t.array.count)
             case AstExpressionKind.ArrayEnd:
                 array_type = expr.operands[0].types.implicit_cast_type
                 assert array_type.kind == TypeKind.Array
