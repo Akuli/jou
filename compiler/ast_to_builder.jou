@@ -534,9 +534,10 @@ class AstToBuilder:
                 assert t.kind == TypeKind.Array
                 return self.builder.integer(int_type(32), t.array.count)
             case AstExpressionKind.ArrayEnd:
-                array_type = expr.operands[0].types.implicit_cast_type
-                assert array_type.kind == TypeKind.Array
                 ptr_to_array = self.build_address_of_expression(&expr.operands[0])
+                assert ptr_to_array.type.kind == TypeKind.Pointer
+                array_type = ptr_to_array.type.value_type
+                assert array_type.kind == TypeKind.Array
                 ptr_to_start = self.builder.cast(ptr_to_array, array_type.array.item_type.pointer_type())
                 count = self.builder.integer(int_type(64), array_type.array.count)
                 return self.builder.indexed_pointer(ptr_to_start, count)
