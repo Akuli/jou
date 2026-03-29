@@ -597,12 +597,12 @@ class AstToBuilder:
             result = self.builder.cast(self.build_address_of_expression(expr), expr.types.implicit_cast_type)
         else:
             raw = self.build_expression_without_implicit_cast(expr)
-            if expr.types.orig_type == NULL and expr.types.implicit_cast_type == NULL:
+            if raw.type == NULL:
                 # Function/method call that returns no value
                 assert expr.kind == AstExpressionKind.Call
                 result = BuilderValue{}
             else:
-                assert expr.types.orig_type != NULL
+                assert raw.type != NULL
                 assert expr.types.implicit_cast_type != NULL
                 result = self.builder.cast(raw, self.map_type(expr.types.implicit_cast_type))
 
