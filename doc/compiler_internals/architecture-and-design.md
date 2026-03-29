@@ -1,5 +1,7 @@
 # How does the compiler work?
 
+**Note: I am currently (March 2026) refactoring the compiler, so this documentation may not be perfectly accurate**
+
 Suppose you have file `foo.jou` with the following content:
 
 ```python
@@ -101,10 +103,10 @@ The Jou compiler used to have a "Jou IR" (called CFGs) that was generated from A
 and then LLVM IR was generated from the "Jou IR".
 I deleted the "Jou IR" because it was a lot of code, and it felt like LLVM IR but worse.
 
-Instead of "Jou IR", there are [builders](../../compiler/builders/) to abstract away details of the AST.
+Instead of "Jou IR", the [`Builder` class](../../compiler/builder.jou) abstracts away details of the AST.
 For example, suppose that you want to replace LLVM with something else.
 To do this, you don't need to know anything about the AST,
-you just add a new builder that replaces [the LLVM builder](../../compiler/builders/llvm_builder.jou).
+you just change `Builder` to produce the new thing instead of LLVM IR.
 
 **The AST is mutated during type checking.**
 The types of expressions, function arguments and other such things are attached directly to the AST.

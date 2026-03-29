@@ -1,0 +1,1457 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/limits.jou"
+import "stdlib/list.jou"
+import "stdlib/math.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+import "./ast.jou"
+import "./ast_to_builder.jou"
+import "./command_line_args.jou"
+import "./errors_and_warnings.jou"
+import "./hash.jou"
+import "./llvm.jou"
+import "./paths.jou"
+import "./state.jou"
+import "./types.jou"
+import "./uvg.jou"
+import "./uvg_analyze.jou"
+
+
+# LLVM doesn't have a built-in union type, and you're supposed to abuse other types for that:
+# https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/unions.html
+#
+# My first idea was to use an array of bytes that is big enough to fit anything.
+# However, that might not be aligned properly.
+#
+# Then I tried choosing the member type that has the biggest align, and making a large enough array of it.
+# Because the align is always a power of two, the memory will be suitably aligned for all member types.
+# But it didn't work for some reason I still don't understand.
+#
+# Then I figured out how clang does it and did it the same way.
+# We make a struct that contains:
+# - the most aligned type as chosen before
+# - array of i8 as padding to make it the right size.
+# But for some reason that didn't work either.
+#
+# As a "last resort" I just use an array of i64 large enough and hope it's aligned as needed.
+def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
+    if ntypes == 1:
+        return types[0]
+
+    sizeneeded = 0 as int64
+    for i = 0; i < ntypes; i++:
+        size1 = LLVMABISizeOfType(global_compiler_state.target.main_thread_only.data, types[i])
+        size2 = LLVMStoreSizeOfType(global_compiler_state.target.main_thread_only.data, types[i])
+
+        # If this assert fails, you need to figure out which of the size functions should be used.
+        # I don't know what their difference is.
+        # And if you need the alignment, there's 3 different functions for that...
+        assert size1 == size2
+        sizeneeded = llmax(sizeneeded, size1)
+
+    return LLVMArrayType(type_to_llvm(int_type(64)), ((sizeneeded+7)/8) as int)
+
+
+def class_type_to_llvm(type: Type*) -> LLVMType*:
+    assert type.kind == TypeKind.Class
+
+    n = type.classdata.fields.len
+
+    flat_elems: LLVMType** = malloc(sizeof(flat_elems[0]) * n)
+    for i = 0; i < n; i++:
+        flat_elems[i] = type_to_llvm(type.classdata.fields.ptr[i].type)
+
+    # Combine together fields of the same union.
+    combined: LLVMType** = malloc(sizeof(combined[0]) * n)
+    combinedlen = 0
+    for start = 0; start < n; start = end:
+        end = start + 1
+        while end < n and type.classdata.fields.ptr[start].union_id == type.classdata.fields.ptr[end].union_id:
+            end++
+        combined[combinedlen++] = union_type_to_llvm(&flat_elems[start], end-start)
+
+    result = LLVMStructType(combined, combinedlen, False as int)
+    free(flat_elems)
+    free(combined)
+    return result
+
+
+def type_to_llvm(type: Type*) -> LLVMType*:
+    if type == NULL:
+        # This is only for noreturn and None return types of functions.
+        # TODO: tell llvm, if we know a function is noreturn ?
+        return LLVMVoidType()
+
+    match type.kind:
+        case TypeKind.Array:
+            return LLVMArrayType(type_to_llvm(type.array.item_type), type.array.count)
+        case TypeKind.Pointer | TypeKind.VoidPointer | TypeKind.FuncPtr:
+            return LLVMPointerTypeInContext(LLVMGetGlobalContext(), 0)
+        case TypeKind.FloatingPoint:
+            if type.size_in_bits == 32:
+                return LLVMFloatType()
+            if type.size_in_bits == 64:
+                return LLVMDoubleType()
+            assert False
+        case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+            return LLVMIntType(type.size_in_bits)
+        case TypeKind.Bool:
+            return LLVMInt1Type()
+        case TypeKind.TypeVar:
+            # This is compiler internal/temporary thing and should never end up here.
+            assert False  # please create an issue on GitHub if this errors
+        case TypeKind.Class:
+            return class_type_to_llvm(type)
+        case TypeKind.Enum:
+            return type_to_llvm(int_type(32))
+
+
+# This is not handled by type_to_llvm() because funcptr maps to a pointer in LLVM.
+# This function returns an LLVM type representing the underlying function.
+def funcptr_type_to_llvm(t: Type*) -> LLVMType*:
+    assert t.kind == TypeKind.FuncPtr
+
+    assert t.func_ptr.argtypes.len <= MAX_ARGS
+    argtypes: LLVMType*[MAX_ARGS]
+    for i = 0; i < t.func_ptr.argtypes.len; i++:
+        argtypes[i] = type_to_llvm(t.func_ptr.argtypes.ptr[i])
+
+    return LLVMFunctionType(
+        type_to_llvm(t.func_ptr.return_type),
+        argtypes,
+        t.func_ptr.argtypes.len as int,
+        t.func_ptr.takes_varargs as int,
+    )
+
+
+def signature_to_llvm(sig: Signature*) -> LLVMType*:
+    # We cannot simply convert the signature into a funcptr type because of
+    # thread safety. The new funcptr type might not exist yet, and creating it
+    # would cause race conditions.
+    assert sig.args.len <= MAX_ARGS
+    argtypes: LLVMType*[MAX_ARGS]
+    for i = 0; i < sig.args.len; i++:
+        argtypes[i] = type_to_llvm(sig.args.ptr[i].type)
+
+    return LLVMFunctionType(
+        type_to_llvm(sig.return_type),
+        argtypes,
+        sig.args.len as int,
+        sig.takes_varargs as int,
+    )
+
+
+def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
+    fullname: byte[500]
+    self_class = sig.get_self_class()
+    if self_class == NULL:
+        # function
+        snprintf(fullname, sizeof(fullname), "%s", sig.name)
+    else:
+        # method bark() in class Dog becomes Dog.bark()
+        # method append() in generic class List[int] becomes List.append(), not List[int].append()
+        n = strcspn(self_class.name, "[")
+        snprintf(fullname, sizeof(fullname), "%.*s.%s", n as int, self_class.name, sig.name)
+
+    # Make it so that this can be called many times without issue
+    llvm_func = LLVMGetNamedFunction(mod, fullname)
+    if llvm_func == NULL:
+        llvm_func = LLVMAddFunction(mod, fullname, signature_to_llvm(sig))
+
+    assert llvm_func != NULL
+    return llvm_func
+
+
+def build_llvm_signed_mod(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) -> LLVMValue*:
+    # Jou's % operator ensures that a%b has same sign as b:
+    # jou_mod(a, b) = llvm_mod(llvm_mod(a, b) + b, b)
+    llmod = LLVMBuildSRem(builder, lhs, rhs, "smod_tmp")
+    sum = LLVMBuildAdd(builder, llmod, rhs, "smod_tmp")
+    return LLVMBuildSRem(builder, sum, rhs, "smod")
+
+
+def build_llvm_signed_div(builder: LLVMBuilder*, lhs: LLVMValue*, rhs: LLVMValue*) -> LLVMValue*:
+    # LLVM's provides two divisions. One truncates, the other is an "exact div"
+    # that requires there is no remainder. Jou uses floor division which is
+    # neither of the two, but is quite easy to implement:
+    #
+    #    floordiv(a, b) = exact_div(a - jou_mod(a, b), b)
+    #
+    top = LLVMBuildSub(builder, lhs, build_llvm_signed_mod(builder, lhs, rhs), "sdiv_tmp")
+    return LLVMBuildExactSDiv(builder, top, rhs, "sdiv")
+
+
+# Clamps out-of-range values to min or max. Returns 0 for NaN.
+#
+# Doing this in LLVM without invoking UB is surprisingly difficult. The
+# following pseudo-code roughly describes what this does:
+#
+#    if float_value is NaN:
+#        result = 0
+#    elif float_value > max:
+#        result = max
+#    elif float_value < min:
+#        result = min
+#    else:
+#        result = normal LLVM conversion
+#
+def cast_floating_point_to_integer(builder: LLVMBuilder*, obj: LLVMValue*, from: Type*, to: Type*) -> LLVMValue*:
+    assert from.kind == TypeKind.FloatingPoint
+    assert to.is_integer_type()
+
+    is_signed = (to.kind == TypeKind.SignedInteger)
+
+    if is_signed:
+        int_min = LLVMConstInt(type_to_llvm(to), to.min_value(), 1)
+        int_max = LLVMConstInt(type_to_llvm(to), to.max_value() as int64, 1)
+        floating_min = LLVMBuildSIToFP(builder, int_min, type_to_llvm(from), "floating_min")
+        floating_max = LLVMBuildSIToFP(builder, int_max, type_to_llvm(from), "floating_max")
+    else:
+        int_min = LLVMConstInt(type_to_llvm(to), to.min_value(), 0)
+        int_max = LLVMConstInt(type_to_llvm(to), to.max_value() as int64, 0)
+        floating_min = LLVMBuildUIToFP(builder, int_min, type_to_llvm(from), "floating_min")
+        floating_max = LLVMBuildUIToFP(builder, int_max, type_to_llvm(from), "floating_max")
+
+    return LLVMBuildSelect(
+        builder,
+        # If NaN:
+        LLVMBuildFCmp(builder, LLVMRealPredicate.UNO, obj, obj, "is_nan"),
+        # then return 0
+        LLVMConstInt(type_to_llvm(to), 0, 0),
+        # If not NaN:
+        LLVMBuildSelect(
+            builder,
+            # If value > max:
+            LLVMBuildFCmp(builder, LLVMRealPredicate.OGT, obj, floating_max, "greater_than_max"),
+            # then return max
+            int_max,
+            # If value <= max:
+            LLVMBuildSelect(
+                builder,
+                # If value < min:
+                LLVMBuildFCmp(builder, LLVMRealPredicate.OLT, obj, floating_min, "less_than_min"),
+                # then return min
+                int_min,
+                # If value is between min and max, use LLVM's normal conversion.
+                #
+                # If value is not between min and max, LLVM returns a poison
+                # value. It is fine to construct a poison value if it is not
+                # used. Using a poison value invokes UB.
+                (
+                    LLVMBuildFPToSI(builder, obj, type_to_llvm(to), "normal_cast_signed")
+                    if is_signed else
+                    LLVMBuildFPToUI(builder, obj, type_to_llvm(to), "normal_cast_unsigned")
+                ),
+                "min_check",
+            ),
+            "max_check",
+        ),
+        "nan_check",
+    )
+
+
+# Builds the result of "a << b" or "a >> b". Avoids LLVM's undefined behaviors.
+def bitshift(
+    builder: LLVMBuilder*,
+    a: LLVMValue*,
+    b: LLVMValue*,
+    shift_type: Type*,
+    left: bool,
+) -> LLVMValue*:
+    assert LLVMTypeOf(a) == type_to_llvm(shift_type)
+
+    # Shift amount must be converted to a's type because LLVM wants it that
+    # way. This is fine: when the result is used, the shift amount is 0 to 63
+    # so it surely fits.
+    llvm_shift_amount = LLVMBuildIntCast2(builder, b, LLVMTypeOf(a), False as int, "shift_amount")
+
+    # Compute a normal LLVM bitshift. It is a poison value for shifting beyond
+    # the width. This is fine because creating a poison value is not UB if you
+    # don't use the poison value.
+    if left:
+        bitshift_or_poison = LLVMBuildShl(builder, a, llvm_shift_amount, "bitshift_or_poison")
+    else:
+        bitshift_or_poison = LLVMBuildLShr(builder, a, llvm_shift_amount, "bitshift_or_poison")
+
+    return LLVMBuildSelect(
+        builder,
+        # If we shift beyond the width of the type
+        LLVMBuildICmp(
+            builder,
+            # Check if shift amount >= width
+            LLVMIntPredicate.UGE,
+            b,
+            # Width of the data type (max 64, so surely fits into b's type)
+            LLVMConstInt(LLVMTypeOf(b), shift_type.size_in_bits, False as int),
+            "shifts_beyond_width",
+        ),
+        # Then return zero
+        LLVMConstInt(LLVMTypeOf(a), 0, False as int),
+        # Otherwise, return the result of a normal LLVM bitshift, which is not
+        # a poison value when it is chosen.
+        bitshift_or_poison,
+        "bitshift",
+    )
+
+
+# TODO: wayyyyyyyy too complicated, split up by what kind of cast we do!!!
+def build_llvm_cast(
+    builder: LLVMBuilder*,
+    obj: LLVMValue*,
+    from: Type*,
+    to: Type*,
+) -> LLVMValue*:
+    assert from != NULL
+    assert to != NULL
+
+    # Always treat enums as ints
+    if from.kind == TypeKind.Enum:
+        from = int_type(32)
+    if to.kind == TypeKind.Enum:
+        to = int_type(32)
+
+    if from == to:
+        return obj
+
+    if from.is_pointer_type() and to.is_pointer_type():
+        # All pointers are the same type in LLVM
+        return obj
+
+    if from.is_number_type() and to.is_number_type():
+        if from.is_integer_type() and to.is_integer_type():
+            # Examples:
+            #  signed 8-bit 0xFF (-1) --> 16-bit 0xFFFF (-1 or max value)
+            #  unsigned 8-bit 0xFF (255) --> 16-bit 0x00FF (255)
+            return LLVMBuildIntCast2(builder, obj, type_to_llvm(to), (from.kind == TypeKind.SignedInteger) as int, "cast")
+        if from.is_integer_type() and to.kind == TypeKind.FloatingPoint:
+            # integer --> double/float
+            if from.kind == TypeKind.SignedInteger:
+                return LLVMBuildSIToFP(builder, obj, type_to_llvm(to), "cast")
+            else:
+                return LLVMBuildUIToFP(builder, obj, type_to_llvm(to), "cast")
+        if from.kind == TypeKind.FloatingPoint and to.is_integer_type():
+            # double/float --> integer
+            return cast_floating_point_to_integer(builder, obj, from, to)
+        if from.kind == TypeKind.FloatingPoint and to.kind == TypeKind.FloatingPoint:
+            # double/float --> double/float
+            return LLVMBuildFPCast(builder, obj, type_to_llvm(to), "cast")
+        assert False
+
+    if from.is_integer_type() and to.is_pointer_type():
+        return LLVMBuildIntToPtr(builder, obj, type_to_llvm(to), "cast")
+    if from.is_pointer_type() and to.is_integer_type():
+        return LLVMBuildPtrToInt(builder, obj, type_to_llvm(to), "cast")
+
+    if from == bool_type() and to.is_integer_type():
+        return LLVMBuildIntCast2(builder, obj, type_to_llvm(to), False as int, "cast")
+
+    printf("cast failed: %s -> %s\n", from.name, to.name)
+    assert False
+
+
+def hash_type(hash: Hash*, type: Type*) -> None:
+    assert type != NULL
+
+    hash.add_string("type")
+    hash.add_int(type.kind as int)
+    match type.kind:
+        case TypeKind.Array:
+            hash.add_int64(type.array.count)
+            hash_type(hash, type.array.item_type)
+        case (
+            # Treat all pointers the same, since they are the same LLVM type.
+            TypeKind.Pointer
+            | TypeKind.VoidPointer
+            | TypeKind.FuncPtr
+            # Treat all enums the same, they are int32.
+            | TypeKind.Enum
+            | TypeKind.Bool
+            | TypeKind.TypeVar
+        ):
+            pass
+        case TypeKind.FloatingPoint | TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+            hash.add_int(type.size_in_bits)
+        case TypeKind.Class:
+            # Ignore methods, because only the fields affect the LLVM type.
+            for f = type.classdata.fields.ptr; f < type.classdata.fields.end(); f++:
+                hash_type(hash, f.type)
+                hash.add_int(f.union_id)
+
+
+def hash_signature(hash: Hash*, sig: Signature*) -> None:
+    hash.add_string("signature")
+    hash.add_string(sig.name)
+
+    if sig.get_self_class() != NULL:
+        # Name of self class is included in function names
+        hash.add_string(sig.get_self_class().name)
+    else:
+        hash.add_string("not a method")
+
+    hash.add_int64(sig.args.len)
+    for p = sig.args.ptr; p < sig.args.end(); p++:
+        hash_type(hash, p.type)
+
+    if sig.return_type == NULL:
+        if sig.is_noreturn:
+            hash.add_string("noreturn")
+        else:
+            hash.add_string("None")
+    else:
+        hash_type(hash, sig.return_type)
+
+
+# Special "UVG variable ID". Denotes a value that is not a pointer,
+# or is some pointer that we don't keep track of.
+const ANONYMOUS_UVG_VALUE_ID: int = -1
+
+# These represent boolean values known at compile time.
+const TRUE_UVG_VALUE_ID: int = -2
+const FALSE_UVG_VALUE_ID: int = -3
+
+
+@public
+class BuilderValue:
+    lvalue: LLVMValue*
+    uvalue: int
+    hvalue: int64
+    type: Type*
+
+
+@public
+class BuilderBlock:
+    lblock: LLVMBasicBlock*
+    ublock: UvgBlock*  # funny naming :)
+    hblock: int64
+
+
+@public
+class Builder:
+    current_block: BuilderBlock
+
+    llvm_module: LLVMModule*
+    llvm_builder: LLVMBuilder*
+    llvm_func: LLVMValue*
+    llvm_alloca_block: LLVMBasicBlock*  # local variables created here before code of function runs
+    llvm_code_start_block: LLVMBasicBlock*
+    llvm_returns_a_value: bool
+
+    hash: Hash
+    hash_id_counter: int64
+
+    uvg_print: bool
+    uvg: Uvg
+    uvg_location: Location
+    uvg_inlining_signature: Signature*
+    uvg_return_value_id: int
+
+    def hash_new_id(self) -> int64:
+        self.hash.add_int64(self.hash_id_counter)
+        return self.hash_id_counter++
+
+    def add_uvg_instruction(self, ins: UvgInstruction) -> None:
+        assert ins.var >= 0
+
+        assert self.uvg_location.path != NULL
+        assert self.uvg_location.lineno != 0
+        ins.location = self.uvg_location
+        ins.inlining_signature = self.uvg_inlining_signature
+
+        assert self.current_block.ublock != NULL
+        self.current_block.ublock.instructions.append(ins)
+
+    def add_uvg_use(self, value_id: int) -> None:
+        if value_id >= 0:
+            self.add_uvg_instruction(UvgInstruction{kind = UvgInstructionKind.Use, var = value_id})
+
+    def add_uvg_set(self, value_id: int) -> None:
+        if value_id >= 0:
+            self.add_uvg_instruction(UvgInstruction{kind = UvgInstructionKind.Set, var = value_id})
+
+    def add_uvg_dont_analyze(self, value_id: int) -> None:
+        if value_id >= 0:
+            self.add_uvg_instruction(UvgInstruction{kind = UvgInstructionKind.DontAnalyze, var = value_id})
+
+    # Also used for imported variables, import vs declare makes no difference in LLVM
+    @public
+    def declare_global_var(self, varname: byte*, vartype: Type*) -> None:
+        if self.llvm_builder != NULL:
+            self.hash.add_string("globaldeclare")
+            self.hash.add_string(varname)
+            hash_type(&self.hash, vartype)
+            LLVMAddGlobal(self.llvm_module, type_to_llvm(vartype), varname)
+
+    # If initial value is NULL, zero-initialization will be used.
+    @public
+    def define_global_var(self, varname: byte*, vartype: Type*, initial_value: BuilderValue*, public: bool) -> None:
+        assert initial_value == NULL or initial_value.type == vartype
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("globaldefine")
+            self.hash.add_string(varname)
+            hash_type(&self.hash, vartype)
+            self.hash.add_bool(public)
+            if initial_value != NULL:
+                self.hash.add_int64(initial_value.hvalue)
+
+            llvm_type = type_to_llvm(vartype)
+            globalptr = LLVMAddGlobal(self.llvm_module, llvm_type, varname)
+            assert globalptr != NULL
+            LLVMSetInitializer(globalptr, LLVMConstNull(llvm_type) if initial_value == NULL else initial_value.lvalue)
+            if not public:
+                LLVMSetLinkage(globalptr, LLVMLinkage.Private)  # This makes it a static global variable
+
+    @public
+    def begin_function(self, sig: Signature*, public: bool) -> None:
+        self.uvg.signature = sig
+        if sig.return_type != NULL:
+            self.uvg_return_value_id = self.uvg.stack_alloc("return")
+        else:
+            self.uvg_return_value_id = -1
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("begin func")
+            hash_signature(&self.hash, sig)
+            self.hash.add_bool(public)
+
+            self.llvm_func = declare_in_llvm(sig, self.llvm_module)
+            self.llvm_returns_a_value = sig.return_type != NULL
+            self.llvm_alloca_block = LLVMAppendBasicBlock(self.llvm_func, "alloca")
+            if not public:
+                LLVMSetLinkage(self.llvm_func, LLVMLinkage.Private)
+
+        self.set_current_block(self.add_block())
+
+        if self.llvm_builder != NULL:
+            self.llvm_code_start_block = self.current_block.lblock
+            assert self.llvm_code_start_block != NULL
+
+    @public
+    def end_function(self) -> None:
+        # TODO: call self.ret() from here
+        if self.uvg_return_value_id != -1:
+            # The function returns a value
+            self.add_uvg_use(self.uvg_return_value_id)
+
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
+        self.current_block.ublock = NULL
+
+        self.uvg_location = Location{}
+
+        if self.uvg_print:
+            self.uvg.print()
+        uvg_analyze(&self.uvg)
+
+        self.uvg.free()
+        self.uvg = Uvg{}
+
+        if self.llvm_builder != NULL:
+            if self.llvm_returns_a_value:
+                # Implicit "return" at the end of a function that should return a value
+                LLVMBuildUnreachable(self.llvm_builder)
+            else:
+                LLVMBuildRetVoid(self.llvm_builder)
+            LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_alloca_block)
+            LLVMBuildBr(self.llvm_builder, self.llvm_code_start_block)
+
+    @public
+    def begin_statement_in_a_body(self) -> None:
+        self.add_uvg_instruction(UvgInstruction{kind = UvgInstructionKind.Statement})
+
+    # If inlining_signature is not NULL, it means that the given location is
+    # inside an @inline function that is being called.
+    @public
+    def set_location(self, location: Location, inlining_signature: Signature*) -> None:
+        self.uvg_inlining_signature = inlining_signature
+
+        # When inlining, do not store the location so that the locations in UVG
+        # point at the place where inlined function is being called.
+        if inlining_signature == NULL:
+            self.uvg_location = location
+
+    # Hashes and returns a unique ID number that represents a value in code.
+    # Also hashes the type, because a changed type may be enough to need a recompile.
+    #
+    # TODO(refactor): I hate this function, delete it. Instead:
+    #   - Prefer hash_new_id() directly
+    #   - Hash the type only when needed
+    def hash_new_value(self, builder: Builder*, t: Type*) -> int64:
+        assert builder == self  # TODO(refactor): this is super dumb, clean up!!!
+        if t == NULL:
+            builder.hash.add_string("no type")
+        else:
+            hash_type(&builder.hash, t)
+        return self.hash_new_id()
+
+    # Allocates enough stack space in the function to hold a value of given type.
+    # Returns a pointer to the stack space.
+    # If allocated stack memory is not a local variable, varname must be NULL.
+    @public
+    def stack_alloc(self, t: Type*, varname: byte*) -> BuilderValue:
+        result = BuilderValue{
+            type = t.pointer_type(),
+            uvalue = self.uvg.stack_alloc(varname),
+        }
+
+        if self.llvm_builder != NULL:
+            if varname == NULL:
+                debug_name = "stack_alloc"
+            else:
+                debug_name = varname
+            # Place all allocations to the same block at start of function, so that
+            # we don't overflow the stack when the part of code that creates local
+            # var runs many times.
+            LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_alloca_block)
+            result.lvalue = LLVMBuildAlloca(self.llvm_builder, type_to_llvm(t), debug_name)
+            LLVMPositionBuilderAtEnd(self.llvm_builder, self.current_block.lblock)
+
+            # Don't hash varname, so that renaming a local variable doesn't cause a rebuild
+            # TODO: Will need to be different if debug info is enabled
+            self.hash.add_string("stack_alloc")
+            hash_type(&self.hash, t)
+            result.hvalue = self.hash_new_id()
+
+        return result
+
+    # *ptr = value
+    @public
+    def set_ptr(self, ptr: BuilderValue, value: BuilderValue) -> None:
+        self.add_uvg_dont_analyze(value.uvalue)
+        self.add_uvg_set(ptr.uvalue)
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("set_ptr")
+            self.hash.add_int64(ptr.hvalue)
+            self.hash.add_int64(value.hvalue)
+
+            # TODO(refactor): can this be enabled? It was commented out because of the
+            #       old dumb implementation of typedef statement that was
+            #       removed quite a while ago.
+            #assert ptr.type == value.type.pointer_type()
+            LLVMBuildStore(self.llvm_builder, value.lvalue, ptr.lvalue)
+
+    # *ptr
+    @public
+    def dereference(self, ptr: BuilderValue) -> BuilderValue:
+        assert ptr.type.kind == TypeKind.Pointer
+
+        result = BuilderValue{
+            type = ptr.type.value_type,
+            uvalue = ANONYMOUS_UVG_VALUE_ID,
+        }
+        self.add_uvg_use(ptr.uvalue)
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("deref")
+            self.hash.add_int64(ptr.hvalue)
+            hash_type(&self.hash, ptr.type.value_type)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMBuildLoad2(self.llvm_builder, type_to_llvm(ptr.type.value_type), ptr.lvalue, "deref")
+
+        return result
+
+    # Returns &ptr[index]
+    @public
+    def indexed_pointer(self, ptr: BuilderValue, index: BuilderValue) -> BuilderValue:
+        assert ptr.type.kind == TypeKind.Pointer
+        assert index.type == int_type(64)  # LLVM wants this, easy enough to ensure
+
+        result = BuilderValue{type = ptr.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        self.add_uvg_dont_analyze(ptr.uvalue)
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("indexed_pointer")
+            self.hash.add_int64(ptr.hvalue)
+            self.hash.add_int64(index.hvalue)
+            hash_type(&self.hash, ptr.type.value_type)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMBuildGEP2(
+                self.llvm_builder,
+                type_to_llvm(ptr.type.value_type),
+                ptr.lvalue,
+                &index.lvalue,
+                1,
+                "indexed_pointer",
+            )
+
+        return result
+
+    # Returns &ptr.field
+    @public
+    def class_field_pointer(self, ptr: BuilderValue, field_name: byte*) -> BuilderValue:
+        assert ptr.type.kind == TypeKind.Pointer
+        assert ptr.type.value_type.kind == TypeKind.Class
+        field = ptr.type.value_type.find_class_field(field_name)
+        assert field != NULL
+
+        result = BuilderValue{type = field.type.pointer_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+        self.add_uvg_dont_analyze(ptr.uvalue)
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("class_field_pointer")
+            hash_type(&self.hash, ptr.type.value_type)
+            self.hash.add_int64(ptr.hvalue)
+            self.hash.add_int(field.union_id)
+            # Do not hash field name, renaming fields should not cause recompiling
+            # TODO: That is different once we implement debug info.
+            result.hvalue = self.hash_new_value(self, field.type.pointer_type())
+
+            result.lvalue = LLVMBuildStructGEP2(
+                self.llvm_builder,
+                type_to_llvm(ptr.type.value_type),
+                ptr.lvalue,
+                field.union_id,
+                field.name,
+            )
+
+        return result
+
+    @public
+    def global_var_ptr(self, name: byte*, var_type: Type*) -> BuilderValue:
+        result = BuilderValue{
+            type = var_type.pointer_type(),
+            uvalue = ANONYMOUS_UVG_VALUE_ID,
+        }
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("global_var_ptr")
+            self.hash.add_string(name)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMGetNamedGlobal(self.llvm_module, name)
+            assert result.lvalue != NULL
+
+        return result
+
+    # Returns a function as funcptr
+    @public
+    def get_funcptr(self, sig: Signature*) -> BuilderValue:
+        result = BuilderValue{type = sig.to_funcptr_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("funcptr")
+            assert sig.get_self_class() == NULL  # sig.name goes to LLVM as is
+            self.hash.add_string(sig.name)
+            result.hvalue = self.hash_new_id()
+
+            # TODO(refactor): does this ever actually declare? or can it just look up instead?
+            #   - If this can declare, the signature should be hashed
+            #   - If this is always a lookup, never a declare, this should be just a lookup
+            result.lvalue = declare_in_llvm(sig, self.llvm_module)
+
+        return result
+
+    # Returns the i'th argument given to function
+    # TODO(refactor): delete the argtype from here, get from signature
+    @public
+    def get_argument(self, i: int, argtype: Type*) -> BuilderValue:
+        result = BuilderValue{type = argtype, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("arg")
+            self.hash.add_int(i)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMGetParam(self.llvm_func, i)
+
+        return result
+
+    # Function call through a function pointer
+    @public
+    def call_function(self, funcptr_type: Type*, func_ptr: BuilderValue, args: BuilderValue*, nargs: int) -> BuilderValue:
+        assert funcptr_type == func_ptr.type  # TODO(refactor): delete funcptr_type parameter
+        assert funcptr_type.kind == TypeKind.FuncPtr
+        assert nargs >= funcptr_type.func_ptr.argtypes.len
+        if nargs > funcptr_type.func_ptr.argtypes.len:
+            assert funcptr_type.func_ptr.takes_varargs
+
+        result = BuilderValue{type = funcptr_type.func_ptr.return_type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        self.add_uvg_use(func_ptr.uvalue)
+        for i = 0; i < nargs; i++:
+            self.add_uvg_dont_analyze(args[i].uvalue)
+
+        assert nargs <= MAX_ARGS
+        assert nargs >= funcptr_type.func_ptr.argtypes.len
+        if nargs > funcptr_type.func_ptr.argtypes.len:
+            assert funcptr_type.func_ptr.takes_varargs
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("call_func")
+            self.hash.add_int64(func_ptr.hvalue)
+            self.hash.add_int64(nargs)
+            for i = 0; i < nargs; i++:
+                self.hash.add_int64(args[i].hvalue)
+            if funcptr_type.func_ptr.return_type == NULL:
+                result.hvalue = -1
+                self.hash.add_bool(funcptr_type.func_ptr.is_noreturn)
+            else:
+                # TODO: I think hashing the return type is needed, but not
+                #       sure. Depends on all the ways to access a function.
+                hash_type(&self.hash, funcptr_type.func_ptr.return_type)
+                result.hvalue = self.hash_new_id()
+
+            llvm_args: LLVMValue*[MAX_ARGS]
+            for i = 0; i < nargs; i++:
+                llvm_args[i] = args[i].lvalue
+            result.lvalue = LLVMBuildCall2(
+                self.llvm_builder,
+                funcptr_type_to_llvm(funcptr_type),
+                func_ptr.lvalue,
+                llvm_args,
+                nargs,
+                "" if funcptr_type.func_ptr.return_type == NULL else "func_return_value",
+            )
+
+        return result
+
+    # self with the correct type must be included in args
+    @public
+    def call_method(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
+        result = BuilderValue{type = sig.return_type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        for i = 0; i < nargs; i++:
+            self.add_uvg_dont_analyze(args[i].uvalue)
+
+        assert nargs <= MAX_ARGS
+        assert nargs >= sig.args.len
+        if nargs > sig.args.len:
+            assert sig.takes_varargs
+
+        if self.llvm_builder != NULL:
+            hash_signature(&self.hash, sig)
+            for p = args; p < &args[nargs]; p++:
+                self.hash.add_int64(p.hvalue)
+            if sig.return_type == NULL:
+                result.hvalue = -1
+            else:
+                result.hvalue = self.hash_new_id()
+
+            llvm_args: LLVMValue*[MAX_ARGS]
+            for i = 0; i < nargs; i++:
+                llvm_args[i] = args[i].lvalue
+            llvm_func = declare_in_llvm(sig, self.llvm_module)
+            result.lvalue = LLVMBuildCall2(
+                self.llvm_builder,
+                signature_to_llvm(sig),
+                llvm_func,
+                llvm_args,
+                nargs,
+                "" if sig.return_type == NULL else "method_return_value",
+            )
+
+        return result
+
+    @public
+    def array_of_bytes(self, bytes: List[byte]) -> BuilderValue:
+        result = BuilderValue{
+            type = uint_type(8).array_type(bytes.len as int),
+            uvalue = ANONYMOUS_UVG_VALUE_ID,
+        }
+
+        assert bytes.len <= UINT32_MAX
+        if self.llvm_builder != NULL:
+            self.hash.add_string("array_of_bytes")
+            self.hash.add_int64(bytes.len)
+            self.hash.add_bytes(bytes.ptr, bytes.len)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMConstString(bytes.ptr, bytes.len as uint32, True as int)
+
+        return result
+
+    @public
+    def array(self, len: int, items: BuilderValue*, item_type: Type*) -> BuilderValue:
+        result = BuilderValue{
+            type = item_type.array_type(len),
+            uvalue = ANONYMOUS_UVG_VALUE_ID,
+        }
+
+        for i = 0; i < len; i++:
+            self.add_uvg_use(items[i].uvalue)
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("array")
+            hash_type(&self.hash, item_type)
+            self.hash.add_int(len)
+            for i = 0; i < len; i++:
+                self.hash.add_int64(items[i].hvalue)
+            result.hvalue = self.hash_new_id()
+
+            llvm_items: LLVMValue** = malloc(sizeof(llvm_items[0]) * len)
+            assert llvm_items != NULL
+            for i = 0; i < len; i++:
+                llvm_items[i] = items[i].lvalue
+            result.lvalue = LLVMConstArray(type_to_llvm(item_type), llvm_items, len as uint32)
+            free(llvm_items)
+
+        return result
+
+    # string as '\0' terminated pointer
+    @public
+    def pointer_string(self, s: byte*) -> BuilderValue:
+        result = BuilderValue{
+            type = uint_type(8).pointer_type(),
+            uvalue = ANONYMOUS_UVG_VALUE_ID,
+        }
+
+        len = strlen(s)
+        assert len <= UINT32_MAX
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("pointer_string")
+            self.hash.add_string(s)
+            result.hvalue = self.hash_new_id()
+
+            # TODO: make it read-only?
+            llvm_array = LLVMConstString(s, len as uint32, False as int)
+            result.lvalue = LLVMAddGlobal(self.llvm_module, LLVMTypeOf(llvm_array), "string_literal")
+            LLVMSetLinkage(result.lvalue, LLVMLinkage.Private)  # This makes it a static global variable
+            LLVMSetInitializer(result.lvalue, llvm_array)
+
+        return result
+
+    @public
+    def boolean(self, b: bool) -> BuilderValue:
+        result = BuilderValue{
+            type = bool_type(),
+            uvalue = TRUE_UVG_VALUE_ID if b else FALSE_UVG_VALUE_ID,
+        }
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("bool")
+            self.hash.add_bool(b)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMConstInt(LLVMInt1Type(), b as int64, False as int)
+
+        return result
+
+    @public
+    def integer(self, t: Type*, value: int64) -> BuilderValue:
+        assert t.is_integer_type()
+        result = BuilderValue{type = t}
+        if self.llvm_builder != NULL:
+            self.hash.add_string("integer")
+            self.hash.add_int64(value)
+            result.hvalue = self.hash_new_id()
+            result.lvalue = LLVMConstInt(type_to_llvm(t), value, (t.kind == TypeKind.SignedInteger) as int)
+        result.uvalue = ANONYMOUS_UVG_VALUE_ID
+        return result
+
+    @public
+    def float_or_double(self, t: Type*, dbl: double) -> BuilderValue:
+        result = BuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        assert t.kind == TypeKind.FloatingPoint
+        if self.llvm_builder != NULL:
+            self.hash.add_string("float_or_double")
+            hash_type(&self.hash, t)
+            self.hash.add_bytes(&dbl as byte*, sizeof(dbl))
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMConstReal(type_to_llvm(t), dbl)
+
+        return result
+
+    @public
+    def zero_of_type(self, t: Type*) -> BuilderValue:
+        result = BuilderValue{type = t, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            hash_type(&self.hash, t)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = LLVMConstNull(type_to_llvm(t))
+
+        return result
+
+    @public
+    def enum_member(self, t: Type*, name: byte*) -> BuilderValue:
+        int_value = t.find_enum_member(name)
+        assert int_value != -1
+        result = self.integer(int_type(32), int_value)
+        result.type = t
+        return result
+
+    def hash_binop(self, op_name: byte*, a: BuilderValue, b: BuilderValue) -> int64:
+        assert self.llvm_builder != NULL
+        self.hash.add_string(op_name)
+        self.hash.add_int64(a.hvalue)
+        self.hash.add_int64(b.hvalue)
+        return self.hash_new_id()
+
+    # a + b
+    @public
+    def add(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("+", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFAdd(self.llvm_builder, a.lvalue, b.lvalue, "add")
+                case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildAdd(self.llvm_builder, a.lvalue, b.lvalue, "add")
+                case _:
+                    assert False
+
+        return result
+
+    # a - b
+    @public
+    def sub(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("-", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFSub(self.llvm_builder, a.lvalue, b.lvalue, "sub")
+                case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildSub(self.llvm_builder, a.lvalue, b.lvalue, "sub")
+                case _:
+                    assert False
+
+        return result
+
+    # a * b
+    @public
+    def mul(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("*", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFMul(self.llvm_builder, a.lvalue, b.lvalue, "mul")
+                case TypeKind.SignedInteger | TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildMul(self.llvm_builder, a.lvalue, b.lvalue, "mul")
+                case _:
+                    assert False
+
+        return result
+
+    # a / b
+    @public
+    def div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("/", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFDiv(self.llvm_builder, a.lvalue, b.lvalue, "div")
+                case TypeKind.SignedInteger:
+                    result.lvalue = build_llvm_signed_div(self.llvm_builder, a.lvalue, b.lvalue)
+                case TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildUDiv(self.llvm_builder, a.lvalue, b.lvalue, "div")
+                case _:
+                    assert False
+
+        return result
+
+    # a % b
+    @public
+    def mod(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("%", a, b)
+            match a.type.kind:
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFRem(self.llvm_builder, a.lvalue, b.lvalue, "mod")
+                case TypeKind.SignedInteger:
+                    result.lvalue = build_llvm_signed_mod(self.llvm_builder, a.lvalue, b.lvalue)
+                case TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildURem(self.llvm_builder, a.lvalue, b.lvalue, "mod")
+                case _:
+                    assert False
+
+        return result
+
+    # a & b
+    @public
+    def bit_and(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("&", a, b)
+            result.lvalue = LLVMBuildAnd(self.llvm_builder, a.lvalue, b.lvalue, "bit_and")
+
+        return result
+
+    # a | b
+    @public
+    def bit_or(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("|", a, b)
+            result.lvalue = LLVMBuildOr(self.llvm_builder, a.lvalue, b.lvalue, "bit_or")
+
+        return result
+
+    # a ^ b
+    @public
+    def bit_xor(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("^", a, b)
+            result.lvalue = LLVMBuildXor(self.llvm_builder, a.lvalue, b.lvalue, "bit_xor")
+
+        return result
+
+    # a << b
+    @public
+    def bit_shift_left(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        # Type of b doesn't matter. Result's type is always the type of a.
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("<<", a, b)
+            result.lvalue = bitshift(self.llvm_builder, a.lvalue, b.lvalue, a.type, True)
+
+        return result
+
+    # a << b
+    @public
+    def bit_shift_right(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        # Type of b doesn't matter. Result's type is always the type of a.
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop(">>", a, b)
+            result.lvalue = bitshift(self.llvm_builder, a.lvalue, b.lvalue, a.type, False)
+
+        return result
+
+    # a == b
+    # Does not support pointers, they must be converted to int64 first.
+    @public
+    def eq(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("==", a, b)
+            match a.type.kind:
+                case TypeKind.SignedInteger | TypeKind.UnsignedInteger | TypeKind.Enum | TypeKind.Bool:
+                    result.lvalue = LLVMBuildICmp(self.llvm_builder, LLVMIntPredicate.EQ, a.lvalue, b.lvalue, "eq")
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFCmp(self.llvm_builder, LLVMRealPredicate.OEQ, a.lvalue, b.lvalue, "eq")
+                case _:
+                    assert False
+
+        return result
+
+    # a < b
+    @public
+    def lt(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        result = BuilderValue{type = bool_type(), uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("<", a, b)
+            match a.type.kind:
+                case TypeKind.SignedInteger:
+                    result.lvalue = LLVMBuildICmp(self.llvm_builder, LLVMIntPredicate.SLT, a.lvalue, b.lvalue, "lt")
+                case TypeKind.UnsignedInteger:
+                    result.lvalue = LLVMBuildICmp(self.llvm_builder, LLVMIntPredicate.ULT, a.lvalue, b.lvalue, "lt")
+                case TypeKind.FloatingPoint:
+                    result.lvalue = LLVMBuildFCmp(self.llvm_builder, LLVMRealPredicate.OLT, a.lvalue, b.lvalue, "lt")
+                case _:
+                    assert False
+
+        return result
+
+    # not value
+    @public
+    def not_(self, value: BuilderValue) -> BuilderValue:
+        assert value.type == bool_type()
+
+        result = BuilderValue{type = bool_type()}
+
+        match value.uvalue:
+            case TRUE_UVG_VALUE_ID:
+                result.uvalue = FALSE_UVG_VALUE_ID
+            case FALSE_UVG_VALUE_ID:
+                result.uvalue = TRUE_UVG_VALUE_ID
+            case _:
+                result.uvalue = ANONYMOUS_UVG_VALUE_ID
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("not")
+            self.hash.add_int64(value.hvalue)
+            result.hvalue = self.hash_new_id()
+
+            llvm_true = LLVMConstInt(LLVMInt1Type(), 1, False as int)
+            result.lvalue = LLVMBuildXor(self.llvm_builder, value.lvalue, llvm_true, "not")
+
+        return result
+
+    # ~value
+    @public
+    def bit_not(self, value: BuilderValue) -> BuilderValue:
+        assert value.type.is_integer_type()
+        result = BuilderValue{type = value.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("~")
+            self.hash.add_int64(value.hvalue)
+            result.hvalue = self.hash_new_id()
+
+            all_bits = uint_type(value.type.size_in_bits).max_value()
+            all_bits_llvm = LLVMConstInt(type_to_llvm(value.type), all_bits as int64, False as int)
+            result.lvalue = LLVMBuildXor(self.llvm_builder, value.lvalue, all_bits_llvm, "bit_not")
+
+        return result
+
+    # sizeof(any value of given type)
+    @public
+    def size_of(self, t: Type*) -> BuilderValue:
+        result = BuilderValue{type = int_type(32), uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("sizeof")
+            hash_type(&self.hash, t)
+            result.hvalue = self.hash_new_id()
+
+            # LLVMSizeOf() returns a 64-bit value. Jou's sizeof(x) is 32-bit.
+            size64 = LLVMSizeOf(type_to_llvm(t))
+            result.lvalue = LLVMBuildTrunc(self.llvm_builder, size64, LLVMInt32Type(), "sizeof")
+
+        return result
+
+    # memset(ptr, 0, sizeof(*ptr))
+    @public
+    def memset_to_zero(self, ptr: BuilderValue) -> None:
+        assert ptr.type.kind == TypeKind.Pointer
+        self.add_uvg_set(ptr.uvalue)
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("memset0")
+            self.hash.add_int64(ptr.hvalue)
+
+            llvm_zero_byte = LLVMConstInt(LLVMInt8Type(), 0, False as int)
+            llvm_size = LLVMSizeOf(type_to_llvm(ptr.type.value_type))
+            LLVMBuildMemSet(self.llvm_builder, ptr.lvalue, llvm_zero_byte, llvm_size, 0)
+
+    # value as to
+    # TODO: split this up by type of cast, this does too many different casts!
+    @public
+    def cast(self, value: BuilderValue, to: Type*) -> BuilderValue:
+        result = BuilderValue{type = to}
+
+        if to.is_pointer_type():
+            # Needed to keep track of pointers to local variables, implicit casts are basically everywhere
+            result.uvalue = value.uvalue
+        elif to == bool_type() and (value.uvalue == TRUE_UVG_VALUE_ID or value.uvalue == FALSE_UVG_VALUE_ID):
+            # Thips helps with e.g. if statements and loops where condition is a literal "True".
+            # There is an implicit cast from bool to bool.
+            result.uvalue = value.uvalue
+        else:
+            # e.g. cast pointer to int64
+            self.add_uvg_dont_analyze(value.uvalue)
+            result.uvalue = ANONYMOUS_UVG_VALUE_ID
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("cast")
+            self.hash.add_int64(value.hvalue)
+            hash_type(&self.hash, to)
+            result.hvalue = self.hash_new_id()
+
+            result.lvalue = build_llvm_cast(self.llvm_builder, value.lvalue, value.type, to)
+
+        return result
+
+    # Blocks are used to implement e.g. if statements and loops.
+    @public
+    def add_block(self) -> BuilderBlock:
+        result = BuilderBlock{ublock = self.uvg.add_block()}
+        if self.llvm_builder != NULL:
+            self.hash.add_string("add block")
+            result.hblock = self.hash_new_id()
+            result.lblock = LLVMAppendBasicBlock(self.llvm_func, "block")
+        return result
+
+    # Decide which block will contain the resulting instructions.
+    @public
+    def set_current_block(self, block: BuilderBlock) -> None:
+        self.current_block = block
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("set block")
+            self.hash.add_int64(block.hblock)
+            LLVMPositionBuilderAtEnd(self.llvm_builder, block.lblock)
+
+    # Conditional branch:
+    #
+    #   if cond:
+    #       then
+    #   else:
+    #       otherwise
+    #
+    # This terminates the current block and hence leaves the builder in a
+    # "no current block" state, i.e. you must call set_current_block()
+    # before the builder is usable again.
+    @public
+    def branch(self, cond: BuilderValue, then: BuilderBlock, otherwise: BuilderBlock) -> None:
+        if cond.uvalue == TRUE_UVG_VALUE_ID:
+            self.jump(then)
+            return
+
+        if cond.uvalue == FALSE_UVG_VALUE_ID:
+            self.jump(otherwise)
+            return
+
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{
+            kind = UvgTerminatorKind.Branch,
+            branch = UvgBranch{then = then.ublock, otherwise = otherwise.ublock},
+        }
+        self.current_block.ublock = NULL
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("br")
+            self.hash.add_int64(cond.hvalue)
+            self.hash.add_int64(then.hblock)
+            self.hash.add_int64(otherwise.hblock)
+            LLVMBuildCondBr(self.llvm_builder, cond.lvalue, then.lblock, otherwise.lblock)
+
+    # Go to the block. Similar to branch() but no condition. LLVM calls this
+    # "unconditional branch", which IMO doesn't make sense because it always
+    # jumps and hence doesn't branch.
+    #
+    # This terminates the current block and hence leaves the builder in a
+    # "no current block" state, i.e. you must call set_current_block()
+    # before the builder is usable again.
+    @public
+    def jump(self, next_block: BuilderBlock) -> None:
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{
+            kind = UvgTerminatorKind.Jump,
+            jump_block = next_block.ublock,
+        }
+        self.current_block.ublock = NULL
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("jump")
+            self.hash.add_int64(next_block.hblock)
+            LLVMBuildBr(self.llvm_builder, next_block.lblock)
+
+    # Add an instruction that should never run.
+    # May be used by optimizer, but also tells LLVM that the block ends here.
+    @public
+    def unreachable(self) -> None:
+        if self.llvm_builder != NULL:
+            self.hash.add_string("unreachable")
+            LLVMBuildUnreachable(self.llvm_builder)
+
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{kind = UvgTerminatorKind.Unreachable}
+        self.current_block.ublock = NULL
+
+    # Return from function/method. Value should be NULL if the function is '-> None'.
+    @public
+    def ret(self, value: BuilderValue*) -> None:
+        if value != NULL:
+            assert self.uvg_return_value_id != -1
+            self.add_uvg_set(self.uvg_return_value_id)
+
+        if self.uvg_return_value_id != -1:
+            # The function returns a value
+            self.add_uvg_use(self.uvg_return_value_id)
+
+        assert self.current_block.ublock != NULL
+        assert self.current_block.ublock.terminator.kind == UvgTerminatorKind.NotSet
+        self.current_block.ublock.terminator = UvgTerminator{kind = UvgTerminatorKind.Return}
+
+        if self.llvm_builder != NULL:
+            if value == NULL:
+                self.hash.add_string("ret null")
+            else:
+                self.hash.add_string("ret")
+                self.hash.add_int64(value.hvalue)
+
+            if value == NULL:
+                LLVMBuildRetVoid(self.llvm_builder)
+            else:
+                LLVMBuildRet(self.llvm_builder, value.lvalue)
+
+
+# You can set llvm_out and hash_out to NULL if they are not needed.
+# That is useful for e.g. "jou --check".
+#
+# This always builds and checks UVG's.
+@public
+def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*) -> None:
+    assert (llvm_out != NULL and hash_out != NULL) or (llvm_out == NULL and hash_out == NULL)
+    we_are_making_object_file = llvm_out != NULL
+
+    if global_compiler_state.args.verbosity >= 1:
+        if we_are_making_object_file:
+            printf("Building file: %s\n", jou_file.path)
+        else:
+            printf("Building and analyzing UVGs: %s\n", jou_file.path)
+
+    builder = Builder{
+        # Print UVG if command line says so
+        uvg_print = (
+            global_compiler_state.args.verbosity >= 2
+            or (
+                global_compiler_state.args.mode == CompilingMode.UvgOnly
+                and jou_file.is_main_file
+            )
+        )
+    }
+
+    if we_are_making_object_file:
+        builder.llvm_builder = LLVMCreateBuilder()
+        assert builder.llvm_builder != NULL
+        builder.hash = new_hash()
+
+        # Compilation results depend on the compiler that compiles them, so
+        # let's bake this whole compiler into the hash.
+        #
+        # Results also depend on optimization level (-O0, -O1, -O2, -O3).
+        # However, we don't include it in the hash here, because compilation
+        # results for different optimization levels are separated anyway.
+        # See doc/lazy-recompile.md for details.
+        builder.hash.add_uint64(hash_of_compiler().hash)
+
+        builder.llvm_module = LLVMModuleCreateWithName(jou_file.path)
+        builder.hash.add_string(jou_file.path)
+
+        assert global_compiler_state.target.ready
+
+        LLVMSetTarget(builder.llvm_module, global_compiler_state.target.triple)
+        builder.hash.add_string(global_compiler_state.target.triple)
+
+        LLVMSetDataLayout(builder.llvm_module, global_compiler_state.target.data_layout)
+        builder.hash.add_string(global_compiler_state.target.data_layout)
+
+    feed_file_to_builder(jou_file, &builder)
+
+    if we_are_making_object_file:
+        *hash_out = builder.hash
+        *llvm_out = LLVMWriteBitcodeToMemoryBuffer(builder.llvm_module)
+        assert *llvm_out != NULL
+        LLVMDisposeBuilder(builder.llvm_builder)
+        LLVMDisposeModule(builder.llvm_module)

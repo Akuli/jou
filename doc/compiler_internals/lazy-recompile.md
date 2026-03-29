@@ -80,10 +80,9 @@ The **content hash** depends on all data that is given to LLVM when compiling.
 It changes when LLVM would produce a different result.
 For example, it will stay the same if you fix a typo in a comment,
 but it will change if you modify `examples/hello.jou` to print something else than "Hello World".
-This is implemented by feeding the AST to
-[a builder](../../compiler/builders/hash_builder.jou) that is just like
-[the LLVM builder](../../compiler/builders/llvm_builder.jou)
-except that it builds a hash instead of LLVM IR.
+This is implemented by building a hash alongside with LLVM IR in
+[the `Builder` class](../../compiler/builder.jou).
+Basically, all inputs given to LLVM are also baked into the content hash.
 
 The **identifier hash** is a hash of the file path `"examples/hello.jou"` and a few other things.
 It is used to delete old object files.
