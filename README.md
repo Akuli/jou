@@ -66,10 +66,10 @@ def main() -> int:
     numbers.append(2)
     numbers.append(3)
 
-    # Output: 1 2 3
+    # Output: 1
+    # Output: 2
+    # Output: 3
     for i = 0; i < numbers.len; i++:
-        if i == 0:
-            printf(" ")
         printf("%d\n", numbers.ptr[i])
 
     free(numbers.ptr)
