@@ -39,7 +39,7 @@ jobs:
         # liblzma-dev is for testing the `link` keyword, there is a test that decompresseses .xz file
         run: |
           PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev"
-          sudo apt install -y $PACKAGES || (sudo apt update && sudo apt install -y $PACKAGES)
+          sudo apt update && sudo apt install -y $PACKAGES
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
       - name: "Compile and test"
