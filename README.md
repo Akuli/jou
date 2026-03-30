@@ -17,6 +17,7 @@ def main() -> int:
 ```
 
 Jou has classes. They can have methods, but otherwise they are very much like structs in C.
+There is no inheritance or other fancy features (see [design goals and non-goals](#design-goals-and-non-goals) below).
 
 ```python
 import "stdlib/io.jou"
@@ -33,9 +34,9 @@ def main() -> int:
     return 0
 ```
 
-Inheritance is not and will not ever be supported (see [design goals and non-goals](#design-goals-and-non-goals) below).
 However, classes can be generic (with some limitations),
-so it is possible to implement a dynamically growing array in Jou:
+so it is possible to implement reusable data structures in Jou.
+Here is an array that grows dynamically as items are appended to it:
 
 ```python
 import "stdlib/assert.jou"
@@ -76,6 +77,8 @@ def main() -> int:
 ```
 
 Note that usually you would import [`stdlib/list.jou`](stdlib/list.jou) instead of implementing this yourself.
+The implementation in `stdlib/list.jou` is slightly more complex than the above example,
+but still far more readable than standard libraries of most other programming languages.
 
 For now, Jou is great for writing programs that don't have a lot of dependencies.
 Here are things I have written in Jou:
@@ -98,8 +101,13 @@ I would recommend Jou for:
 I will try my best to **keep Jou simple**,
 and not turn it into yet another big language that doesn't feel like C,
 such as C++, Zig, Rust, and many others.
-For example, the recommended way to print things will be C's `printf()` function,
-as explained in [the Jou tutorial](./doc/tutorial.md#cs-standard-library-libc).
+For example:
+- The recommended way to print things will be C's `printf()` function,
+    as explained in [the Jou tutorial](./doc/tutorial.md#cs-standard-library-libc).
+- Inheritance is not and will not be supported.
+- The standard library is more readable than the standard libraries of most other programming languages.
+    The most blatant example of this is perhaps [stdlib/list.jou](./stdlib/list.jou).
+
 This also means that I reject many feature requests.
 
 Jou is not intended to be memory safe, because it would make Jou more difficult to use.
