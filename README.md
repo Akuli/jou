@@ -107,12 +107,10 @@ For example:
 - Inheritance is not and will not be supported.
 - The standard library is more readable than the standard libraries of most other programming languages.
     The most blatant example of this is perhaps [stdlib/list.jou](./stdlib/list.jou).
+- Jou is not perfectly memory-safe, because [low-level memory-safe languages are complicated](./doc/ub.md#rusts-approach-to-ub),
+    and if you want a high-level memory-safe language with Python's syntax, you can just use Python.
 
 This also means that I reject many feature requests.
-
-Jou is not intended to be memory safe, because it would make Jou more difficult to use.
-See [Jou's UB documentation](./doc/ub.md) for more discussion,
-including [thoughts on Rust](./doc/ub.md#rusts-approach-to-ub).
 
 Jou also eliminates some surprising things in C. For example:
 - In C, `char` may or may not be signed, depending on your OS,
