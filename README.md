@@ -16,8 +16,7 @@ def main() -> int:
     return 0
 ```
 
-Jou has classes. They can have methods, but that's about it:
-otherwise Jou classes are just like structs in C.
+Jou has classes. They can have methods, but otherwise they are very much like structs in C.
 
 ```python
 import "stdlib/io.jou"
@@ -34,20 +33,63 @@ def main() -> int:
     return 0
 ```
 
-See the [examples](./examples/) and [tests](./tests/) directories for more example programs
-or read [the Jou tutorial](./doc/tutorial.md).
+Inheritance is not and will not ever be supported (see [design goals and non-goals](#design-goals-and-non-goals) below).
+However, classes can be generic (with some limitations),
+so it is possible to implement a dynamically growing array in Jou:
+
+```python
+import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+class List[T]:
+    ptr: T*              # Pointer to first item of the list (may change when list grows)
+    len: intnative       # How many items are in the list
+    capacity: intnative  # How many items would fit into the allocated memory
+
+    @inline
+    def append(self, item: T) -> None:
+        if self.capacity == self.len:
+            if self.capacity == 0:
+                self.capacity = 4
+            else:
+                self.capacity *= 2
+            self.ptr = realloc(self.ptr, self.capacity * sizeof(self.ptr[0]))
+            assert self.ptr != NULL  # If this fails, we ran out of memory
+        self.ptr[self.len++] = item
+
+def main() -> int:
+    numbers = List[int]{}
+    numbers.append(1)
+    numbers.append(2)
+    numbers.append(3)
+
+    # Output: 1 2 3
+    for i = 0; i < numbers.len; i++:
+        if i == 0:
+            printf(" ")
+        printf("%d\n", numbers.ptr[i])
+
+    free(numbers.ptr)
+    return 0
+```
+
+Note that usually you would import [`stdlib/list.jou`](stdlib/list.jou) instead of implementing this yourself.
 
 For now, Jou is great for writing programs that don't have a lot of dependencies.
 Here are things I have written in Jou:
 - A klondike solitaire card game with curses UI: https://github.com/Akuli/curses-klondike/
 - Blue light filter: https://github.com/Akuli/himmeli
 - The Jou compiler (see [bootstrapping](#bootstrapping) below)
-- [Advent of Code 2023](https://adventofcode.com/2023/): [examples/aoc2023](./examples/aoc2023/)
-- [Advent of Code 2024](https://adventofcode.com/2024/): [examples/aoc2024](./examples/aoc2024/)
-- [Advent of Code 2025](https://adventofcode.com/2025/): [examples/aoc2025](./examples/aoc2025/)
+- [Advent of Code](https://adventofcode.com/) solutions:
+    [examples/aoc2023](./examples/aoc2023/), [examples/aoc2024](./examples/aoc2024/), [examples/aoc2025](./examples/aoc2025/)
+- Test runner: [tools/joutest/](./tools/joutest/) (documentation: [doc/joutest.md](./doc/joutest.md))
+- JSON library: [stdlib/json.jou](./stdlib/json.jou) (documentation: [doc/json-building.md](./doc/json-building.md) and [doc/json-parsing.md](./doc/json-parsing.md))
+- TOML parser: [stdlib/toml.jou](./stdlib/toml.jou) (documentation: [doc/toml.md](./doc/toml.md))
 
 I would recommend Jou for:
-- People who find C programming fun but like Python's syntax
+- People who find C programming fun but like Python's syntax (if this is you, you may want to read [the Jou tutorial](./doc/tutorial.md))
 - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
 
 
