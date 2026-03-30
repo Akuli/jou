@@ -16,8 +16,8 @@ def main() -> int:
     return 0
 ```
 
-Jou has classes. They can have methods, but that's about it:
-otherwise Jou classes are just like structs in C.
+Jou has classes. They can have methods, but otherwise they are very much like structs in C.
+There is no inheritance or other fancy features (see [design goals and non-goals](#design-goals-and-non-goals) below).
 
 ```python
 import "stdlib/io.jou"
@@ -34,20 +34,65 @@ def main() -> int:
     return 0
 ```
 
-See the [examples](./examples/) and [tests](./tests/) directories for more example programs
-or read [the Jou tutorial](./doc/tutorial.md).
+However, classes can be generic (with some limitations),
+so it is possible to implement reusable data structures in Jou.
+Here is an array that grows dynamically as items are appended to it:
+
+```python
+import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+class List[T]:
+    ptr: T*              # Pointer to first item of the list (may change when list grows)
+    len: intnative       # How many items are in the list
+    capacity: intnative  # How many items would fit into the allocated memory
+
+    @inline
+    def append(self, item: T) -> None:
+        if self.capacity == self.len:
+            if self.capacity == 0:
+                self.capacity = 4
+            else:
+                self.capacity *= 2
+            self.ptr = realloc(self.ptr, self.capacity * sizeof(self.ptr[0]))
+            assert self.ptr != NULL  # If this fails, we ran out of memory
+        self.ptr[self.len++] = item
+
+def main() -> int:
+    numbers = List[int]{}
+    numbers.append(1)
+    numbers.append(2)
+    numbers.append(3)
+
+    # Output: 1
+    # Output: 2
+    # Output: 3
+    for i = 0; i < numbers.len; i++:
+        printf("%d\n", numbers.ptr[i])
+
+    free(numbers.ptr)
+    return 0
+```
+
+Note that usually you would import [`stdlib/list.jou`](stdlib/list.jou) instead of implementing this yourself.
+The implementation in `stdlib/list.jou` is slightly more complex than the above example,
+but still far more readable than standard libraries of most other programming languages.
 
 For now, Jou is great for writing programs that don't have a lot of dependencies.
 Here are things I have written in Jou:
 - A klondike solitaire card game with curses UI: https://github.com/Akuli/curses-klondike/
 - Blue light filter: https://github.com/Akuli/himmeli
 - The Jou compiler (see [bootstrapping](#bootstrapping) below)
-- [Advent of Code 2023](https://adventofcode.com/2023/): [examples/aoc2023](./examples/aoc2023/)
-- [Advent of Code 2024](https://adventofcode.com/2024/): [examples/aoc2024](./examples/aoc2024/)
-- [Advent of Code 2025](https://adventofcode.com/2025/): [examples/aoc2025](./examples/aoc2025/)
+- [Advent of Code](https://adventofcode.com/) solutions:
+    [examples/aoc2023](./examples/aoc2023/), [examples/aoc2024](./examples/aoc2024/), [examples/aoc2025](./examples/aoc2025/)
+- Test runner: [tools/joutest/](./tools/joutest/) (documentation: [doc/joutest.md](./doc/joutest.md))
+- JSON library: [stdlib/json.jou](./stdlib/json.jou) (documentation: [doc/json-building.md](./doc/json-building.md) and [doc/json-parsing.md](./doc/json-parsing.md))
+- TOML parser: [stdlib/toml.jou](./stdlib/toml.jou) (documentation: [doc/toml.md](./doc/toml.md))
 
 I would recommend Jou for:
-- People who find C programming fun but like Python's syntax
+- People who find C programming fun but like Python's syntax (if this is you, you may want to read [the Jou tutorial](./doc/tutorial.md))
 - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
 
 
@@ -56,13 +101,16 @@ I would recommend Jou for:
 I will try my best to **keep Jou simple**,
 and not turn it into yet another big language that doesn't feel like C,
 such as C++, Zig, Rust, and many others.
-For example, the recommended way to print things will be C's `printf()` function,
-as explained in [the Jou tutorial](./doc/tutorial.md#cs-standard-library-libc).
-This also means that I reject many feature requests.
+For example:
+- The recommended way to print things will be C's `printf()` function,
+    as explained in [the Jou tutorial](./doc/tutorial.md#cs-standard-library-libc).
+- Inheritance is not and will not be supported.
+- The standard library is more readable than the standard libraries of most other programming languages.
+    The most blatant example of this is perhaps [stdlib/list.jou](./stdlib/list.jou).
+- Jou is not perfectly memory-safe, because [low-level memory-safe languages are complicated](./doc/ub.md#rusts-approach-to-ub),
+    and if you want a high-level memory-safe language with Python's syntax, you can just use Python.
 
-Jou is not intended to be memory safe, because it would make Jou more difficult to use.
-See [Jou's UB documentation](./doc/ub.md) for more discussion,
-including [thoughts on Rust](./doc/ub.md#rusts-approach-to-ub).
+This also means that I reject many feature requests.
 
 Jou also eliminates some surprising things in C. For example:
 - In C, `char` may or may not be signed, depending on your OS,
