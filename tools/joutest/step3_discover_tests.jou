@@ -1,4 +1,7 @@
+import "stdlib/ascii.jou"
 import "stdlib/assert.jou"
+import "stdlib/errno.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/sort.jou"
@@ -6,6 +9,7 @@ import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
 import "./fail.jou"
+import "./ftell.jou"
 import "./glob.jou"
 import "./state.jou"
 
@@ -13,44 +17,98 @@ import "./state.jou"
 class DiscoveryState:
     tests: List[Test]
 
-    # Suppose two different globs apply to the same markdown file.
-    #
-    # If the markdown file does contains tests, we find them when we glob the
-    # markdown file for a second time, so we know that there's no need to look
-    # inside the markdown file again.
-    #
-    # If the markdown file contains nothing we can test, we put it here to
-    # ensure we don't search for tests inside it again.
-    markdown_files_with_no_tests: List[byte*]
+    # With markdown files, it is possible we find 0 things to test in the file.
+    # So to prevent checking those files several times, we need this.
+    # Strings in this list are owned and must be free()'d.
+    files_already_checked: List[byte*]
 
     # The defaults_for_all_tests table
     defaults_toml: TOML*
+
+
+def create_test(
+    state: DiscoveryState*,
+    table: TOML*,
+    glob_toml: TOML*,
+    path: byte*,
+) -> Test:
+    test = Test{path = strdup(path), glob_toml = glob_toml, end_offset = -1}
+    if state.defaults_toml != NULL:
+        test.relevant_toml_tables.append(state.defaults_toml)
+    test.relevant_toml_tables.append(table)
+    return test
+
+
+global huge_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
+
+def add_tests_from_markdown(
+    state: DiscoveryState*,
+    table: TOML*,
+    glob_toml: TOML*,
+    path: byte*,
+) -> None:
+    message: byte[500]
+
+    f = fopen(path, "rb")
+    if f == NULL:
+        snprintf(message, sizeof(message), "failed to open file '%s': %s", path, strerror(get_errno()))
+        fail(message)
+
+    line_start: int64 = 0
+    code_start: int64 = -1
+
+    while fgets(huge_buffer, sizeof(huge_buffer), f) != NULL:
+        line_end = ftell(f)
+        if line_end == -1:
+            snprintf(message, sizeof(message), "getting current file position within file '%s' failed: %s", path, strerror(get_errno()))
+            fail(message)
+
+        trim_ascii_whitespace(huge_buffer)
+        if starts_with(huge_buffer, "```"):
+            lang = &huge_buffer[3]
+            if strcmp(lang, "jou") == 0:  # TODO: make this configurable
+                # Start of codeblock
+                code_start = line_end
+            elif *lang == '\0' and code_start != -1:
+                # End of code block
+                test = create_test(state, table, glob_toml, path)
+                test.start_offset = code_start
+                test.end_offset = line_start
+                state.tests.append(test)
+                code_start = -1
+            else:
+                # Whatever this is, it cannot occur in the middle of a code block
+                code_start = -1
+
+        line_start = line_end
+
+    if ferror(f) != 0:
+        snprintf(message, sizeof(message), "failed to read file '%s': %s", path, strerror(get_errno()))
+        fail_in_toml(glob_toml.lineno, message)
+
+    fclose(f)
 
 
 def add_or_update_tests_of_file(
     state: DiscoveryState*,
     table: TOML*,
     glob_toml: TOML*,
-    path_to_be_consumed: byte*,  # will be free()'d either right away or later
+    path: byte*,  # will be free()'d either right away or later
 ) -> None:
-    already_exists = False
-    for t = state.tests.ptr; t < state.tests.end(); t++:
-        if strcmp(t.path, path_to_be_consumed) == 0:
-            free(path_to_be_consumed)
-            t.relevant_toml_tables.append(table)
-            already_exists = True
-            break
+    for p = state.files_already_checked.ptr; p < state.files_already_checked.end(); p++:
+        if strcmp(*p, path) == 0:
+            # Update existing tests from this file with this configuration, if any
+            for t = state.tests.ptr; t < state.tests.end(); t++:
+                if strcmp(t.path, path) == 0:
+                    t.relevant_toml_tables.append(table)
+            return
 
-    if already_exists:
-        return
+    state.files_already_checked.append(strdup(path))
 
-    assert not ends_with(path_to_be_consumed, ".md")  # TODO
-
-    test = Test{path = path_to_be_consumed, glob_toml = glob_toml}
-    if state.defaults_toml != NULL:
-        test.relevant_toml_tables.append(state.defaults_toml)
-    test.relevant_toml_tables.append(table)
-    state.tests.append(test)
+    if ends_with(path, ".md") or ends_with(path, ".MD"):
+        add_tests_from_markdown(state, table, glob_toml, path)
+    else:
+        state.tests.append(create_test(state, table, glob_toml, path))
 
 
 def add_or_update_tests_of_glob(state: DiscoveryState*, settings_toml: TOML*, glob_toml: TOML*) -> None:

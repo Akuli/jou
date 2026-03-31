@@ -1,0 +1,13 @@
+import "stdlib/io.jou"
+
+# TODO: move to stdlib
+if WINDOWS:
+    declare _ftelli64(file: FILE*) -> int64
+    @public
+    def ftell(file: FILE*) -> int64:
+        return _ftelli64(file)
+else:
+    declare ftello(file: FILE*) -> int64
+    @public
+    def ftell(file: FILE*) -> int64:
+        return ftello(file)

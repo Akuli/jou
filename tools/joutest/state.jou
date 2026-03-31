@@ -28,6 +28,8 @@ class Test:
     path: byte*
     glob_toml: TOML*
     relevant_toml_tables: List[TOML*]
+    start_offset: int64
+    end_offset: int64   # -1 means use entire file (not sliced)
 
     # These are set in step 4 (configure tests)
     specified_command_list: List[byte*]  # may contain things like "{file}"
@@ -37,6 +39,7 @@ class Test:
     stderr_capture_mode: CaptureMode
     uses_output_capturing: bool
     output_comment_rules: List[byte*[2]]
+    cd_to_containing_directory: bool
     working_directory: byte*  # NULL means use current directory
     path_in_working_directory: byte*  # usually same as path, just file name if cd_to_containing_directory is used
     expected_exit_code: int

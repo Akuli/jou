@@ -1,3 +1,4 @@
+import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
@@ -5,6 +6,12 @@ import "stdlib/process.jou"
 @public
 def fail(message: byte*) -> noreturn:
     fprintf(get_stderr(), "joutest error: %s\n", message)
+    exit(1)
+
+
+@public
+def fail_errno(message: byte*) -> noreturn:
+    fprintf(get_stderr(), "joutest error: %s: %s\n", message, strerror(get_errno()))
     exit(1)
 
 

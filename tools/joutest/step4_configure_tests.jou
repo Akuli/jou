@@ -154,15 +154,9 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 test.stderr_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
             case "cd_to_containing_directory":
                 if toml_is_true(&kv.value):
-                    free(test.working_directory)
-                    temp = strdup(test.path)
-                    assert temp != NULL
-                    test.working_directory = strdup(dirname(temp))  # may modify temp string
-                    free(temp)
-                    assert test.working_directory != NULL
+                    test.cd_to_containing_directory = True
                 elif toml_is_false(&kv.value):
-                    free(test.working_directory)
-                    test.working_directory = NULL
+                    test.cd_to_containing_directory = False
                 else:
                     fail_in_toml(kv.value.lineno, "'cd_to_containing_directory' must be a boolean")
             case "expected_exit_code":
@@ -208,20 +202,29 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         for toml = test.relevant_toml_tables.ptr; toml < test.relevant_toml_tables.end(); toml++:
             apply_settings_to_test(*toml, test)
 
-        test.path_in_working_directory = test.path
-        if test.working_directory != NULL:
-            # Check that working_directory is the directory that contains the file.
-            # Currently that is the only possible way to set it.
-            temp = strdup(test.path)
-            assert temp != NULL
-            assert strcmp(dirname(temp), test.working_directory) == 0
-            free(temp)
+        assert test.working_directory == NULL
+        if test.end_offset != -1:
+            # Only a part of the file should be tested. It will be copied to temp folder.
+            if test.cd_to_containing_directory:
+                test.working_directory = "joutest_state"
+                test.path_in_working_directory = "doctest.jou"
+            else:
+                test.path_in_working_directory = "joutest_state/doctest.jou"
+        else:
+            # The whole file will be tested
+            if test.cd_to_containing_directory:
+                temp = strdup(test.path)
+                assert temp != NULL
+                test.working_directory = strdup(dirname(temp))  # may modify temp string
+                free(temp)
 
-            # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
-            p = &test.path[strlen(test.path)]
-            while p > test.path and not is_slash(p[-1]):
-                p--
-            test.path_in_working_directory = p
+                # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
+                p = &test.path[strlen(test.path)]
+                while p > test.path and not is_slash(p[-1]):
+                    p--
+                test.path_in_working_directory = p
+            else:
+                test.path_in_working_directory = test.path
 
         if test.specified_command_list.len == 0:
             test.specified_command_list.append("jou")

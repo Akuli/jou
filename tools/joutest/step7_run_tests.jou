@@ -11,9 +11,12 @@
 # broken in some way, and you should use fail() to stop the test runner.
 
 import "stdlib/assert.jou"
+import "stdlib/errno.jou"
+import "stdlib/fs.jou"
 import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
+import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
@@ -21,10 +24,6 @@ import "stdlib/str.jou"
 import "./ansi_colors.jou"
 import "./fail.jou"
 import "./state.jou"
-
-if not WINDOWS:
-    import "stdlib/errno.jou"
-    import "stdlib/fs.jou"
 
 
 def add_output_byte(out: List[byte]*, b: byte) -> None:
@@ -415,6 +414,72 @@ else:
             assert False
 
 
+global big_ol_buffer: byte[1_000_000]
+
+def slice_file(in_path: byte*, out_path: byte*, start_offset: int64, end_offset: int64) -> None:
+    message: byte[500]
+
+    f_in = fopen(in_path, "rb")
+    if f_in == NULL:
+        snprintf(message, sizeof(message), "cannot read \"%s\": %s", in_path, strerror(get_errno()))
+
+    f_out = fopen(out_path, "wb")
+    if f_out == NULL:
+        snprintf(message, sizeof(message), "cannot write \"%s\": %s", out_path, strerror(get_errno()))
+
+    # TODO: add seeking to standard library
+    for stupid_seek_loop = 0 as int64; stupid_seek_loop < start_offset; stupid_seek_loop++:
+        if fgetc(f_in) == EOF:
+            if ferror(f_in) != 0:
+                snprintf(message, sizeof(message), "cannot read \"%s\": %s", in_path, strerror(get_errno()))
+            else:
+                snprintf(message, sizeof(message), "cannot read \"%s\": unexpected end of file", in_path)
+            fail(message)
+
+    bytes_remaining = end_offset - start_offset
+    assert bytes_remaining > 0
+    while bytes_remaining > 0:
+        nread = fread(big_ol_buffer, 1, llmin(bytes_remaining, sizeof(big_ol_buffer)) as intnative, f_in)
+        if nread == 0:
+            if ferror(f_in) != 0:
+                snprintf(message, sizeof(message), "cannot read \"%s\": %s", in_path, strerror(get_errno()))
+            else:
+                snprintf(message, sizeof(message), "cannot read \"%s\": unexpected end of file", in_path)
+            fail(message)
+
+        if fwrite(big_ol_buffer, 1, nread, f_out) != nread:
+            snprintf(message, sizeof(message), "cannot write \"%s\": %s", out_path, strerror(get_errno()))
+            fail(message)
+
+        assert nread <= bytes_remaining
+        bytes_remaining -= nread
+
+    fclose(f_in)
+    fclose(f_out)
+
+
+global state_directory_is_ready: bool = False
+
+def prepare_state_directory() -> None:
+    if state_directory_is_ready:
+        return
+
+    mkdir("joutest_state", 0o777)
+
+    f = fopen("joutest_state/.gitignore", "r")
+    if f == NULL:
+        # write '*' into gitignore, so that git won't track joutest state
+        f = fopen("joutest_state/.gitignore", "w")
+        if f != NULL:
+            fprintf(f, "*")
+            fclose(f)
+    else:
+        # gitignore already exists, don't write anything
+        fclose(f)
+
+    state_directory_is_ready = True
+
+
 def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if args.verbose:
         printf("%srun:%s %s", BLUE, RESET, test.actual_command_string)
@@ -422,6 +487,11 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
             printf(" %sin %s%s", CYAN, test.working_directory, RESET)
         printf("\n")
         fflush(get_stdout())
+
+    if test.end_offset != -1:
+        # Only a part of the file should be test, extract it out
+        prepare_state_directory()
+        slice_file(test.path, "joutest_state/doctest.jou", test.start_offset, test.end_offset)
 
     run_command(test)
 
