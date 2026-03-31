@@ -8,11 +8,14 @@ import "./state.jou"
 
 
 def print_help(argv0: byte*) -> None:
-    printf("Usage: %s [--verbose] [--no-colors]\n", argv0)
+    printf("Usage: %s [--verbose] [--no-colors] [FILTER FILTER2 FILTER3 ...]\n", argv0)
     printf("\n")
     printf("Options:\n")
     printf("  -v / --verbose    show more output than by default\n")
     printf("  --no-colors       do not print with colors\n")
+    printf("\n")
+    printf("If FILTER arguments are given, only run the tests whose path contains one or\n")
+    printf("more FILTERs as a substring.\n")
 
 
 @public
