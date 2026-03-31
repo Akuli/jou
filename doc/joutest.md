@@ -50,6 +50,21 @@ run: jou "tests/test_klondike.jou"
 3 succeeded
 ```
 
+In a big project, running all tests is slow.
+To run only some of the tests, you can specify one or more command-line arguments to `joutest`.
+Only the tests whose path contains any of the given arguments as a substring will run:
+
+```
+akuli@Akuli-Desktop ~/curses-klondike $ joutest --verbose klon card
+run: jou tests/test_card.jou
+ ok  jou tests/test_card.jou
+run: jou tests/test_klondike.jou
+ ok  jou tests/test_klondike.jou
+
+
+2 succeeded
+```
+
 
 ## Output Comments
 

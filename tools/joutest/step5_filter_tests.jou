@@ -1,0 +1,26 @@
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+
+import "./state.jou"
+
+
+def name_contains_any_given_filter_string(test: Test*, filters: List[byte*]) -> bool:
+    for f = filters.ptr; f < filters.end(); f++:
+        if strstr(test.path, *f) != NULL:
+            return True
+    return False
+
+
+@public
+def step5_filter_tests(tests: List[Test]*, args: CommandLineArgs*) -> None:
+    if args.filter_strings.len == 0:
+        # No filters specified, run all tests
+        return
+
+    new_len = 0
+    for test = tests.ptr; test < tests.end(); test++:
+        if name_contains_any_given_filter_string(test, args.filter_strings):
+            # Preserve this test
+            tests.ptr[new_len++] = *test
+
+    tests.len = new_len
