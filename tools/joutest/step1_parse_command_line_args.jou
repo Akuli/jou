@@ -1,6 +1,7 @@
 import "stdlib/io.jou"
-import "stdlib/str.jou"
+import "stdlib/list.jou"
 import "stdlib/process.jou"
+import "stdlib/str.jou"
 
 import "./ansi_colors.jou"
 import "./state.jou"
@@ -43,8 +44,6 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 if argv[i][0] == '-':
                     fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
                     exit(2)
-                else:
-                    fprintf(get_stderr(), "%s: filtering which tests to run is not supported yet, sorry :(\n")
-                    exit(2)
+                args.filter_strings.append(argv[i++])
 
     return args

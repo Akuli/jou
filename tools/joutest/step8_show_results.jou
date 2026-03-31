@@ -1,15 +1,18 @@
-import "stdlib/str.jou"
+import "stdlib/assert.jou"
 import "stdlib/errno.jou"
+import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
+import "stdlib/mem.jou"
 import "stdlib/process.jou"
+import "stdlib/str.jou"
 
 import "./ansi_colors.jou"
 import "./diff.jou"
+import "./fail.jou"
 import "./state.jou"
 
 if WINDOWS:
-    import "stdlib/assert.jou"
     declare FormatMessageA(
         dwFlags: uint32,
         lpSource: void*,
@@ -73,8 +76,40 @@ def show_failures(tests: List[Test]) -> None:
     printf("\n")
 
 
+def fail_with_no_tests_found_error_including_filter_strings(filter_strings: List[byte*]) -> noreturn:
+    assert filter_strings.len >= 1
+
+    size: intnative = 200 + 10*filter_strings.len
+    for p = filter_strings.ptr; p < filter_strings.end(); p++:
+        size += strlen(*p)
+
+    error_message: byte* = malloc(size)
+    assert error_message != NULL
+
+    sprintf(error_message, "found no tests whose path contains \"%s\"", filter_strings.ptr[0])
+    for p = &filter_strings.ptr[1]; p < filter_strings.end(); p++:  # skip first
+        if p == &filter_strings.end()[-1]:
+            # the last one
+            strcat(error_message, " or ")
+        else:
+            strcat(error_message, ", ")
+        strcat(error_message, "\"")
+        strcat(error_message, *p)
+        strcat(error_message, "\"")
+    strcat(error_message, " as a substring")
+
+    fail(error_message)
+
+
 @public
-def step8_show_results(tests: List[Test]) -> noreturn:
+def step8_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
+    if tests.len == 0:
+        # No tests were ran. But why?
+        if args.filter_strings.len == 0:
+            fail("found no tests")
+        else:
+            fail_with_no_tests_found_error_including_filter_strings(args.filter_strings)
+
     printf("\n\n")
 
     succeeded = 0
