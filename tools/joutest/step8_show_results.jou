@@ -1,6 +1,5 @@
 import "stdlib/assert.jou"
 import "stdlib/errno.jou"
-import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
@@ -79,7 +78,7 @@ def show_failures(tests: List[Test]) -> None:
 def fail_with_no_tests_found_error_including_filter_strings(filter_strings: List[byte*]) -> noreturn:
     assert filter_strings.len >= 1
 
-    size: intnative = 200 + 10*filter_strings.len
+    size = 200 + 10*filter_strings.len
     for p = filter_strings.ptr; p < filter_strings.end(); p++:
         size += strlen(*p)
 
@@ -104,7 +103,7 @@ def fail_with_no_tests_found_error_including_filter_strings(filter_strings: List
 @public
 def step8_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
     if tests.len == 0:
-        # No tests were ran. But why?
+        # No tests were ran, likely because user filtered them all out on command line.
         if args.filter_strings.len == 0:
             fail("found no tests")
         else:
