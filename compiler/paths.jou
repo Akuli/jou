@@ -194,7 +194,7 @@ def get_simple_name(jou_file_path: byte*) -> byte[50]:
             break
 
         c = *jou_file_path++
-        if c == '.':
+        if c == '.' or c == '<' or c == '>':
             c = '_'
         result[result_len++] = c
 
