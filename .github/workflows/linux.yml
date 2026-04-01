@@ -61,6 +61,7 @@ jobs:
 
       - name: Install apt packages
         run: |
+          apt-config dump | grep Dir::Cache
           # Use cached files when installing (if any)
           sudo cp -v apt-cache/*.deb /var/cache/apt/archives/ || true
 
