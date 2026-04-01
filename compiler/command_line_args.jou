@@ -146,6 +146,8 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 exit(0)
 
     optlevel_set = False
+    stdin_name: byte* = NULL
+
     i = 1
     while i < argc:
         match argv[i] with strcmp:
@@ -186,6 +188,16 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                     exit(2)
                 args.linker_flags = argv[i+1]
                 i += 2
+            case "--stdin-name":
+                # TODO: document this, or intentionally leave undocumented?
+                if stdin_name != NULL:
+                    fprintf(get_stderr(), "%s: --stdin-name cannot be given multiple times\n", argv[0], argv[0])
+                    exit(2)
+                if argc-i < 2:
+                    fprintf(get_stderr(), "%s: there must be an argument after --stdin-name\n", argv[0], argv[0])
+                    exit(2)
+                stdin_name = argv[i+1]
+                i += 2
 
             # Options for debugging the compiler
             case "-v" | "-vv" | "-vvv" | "-vvvv" | "-vvvvv":
@@ -222,7 +234,10 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
 
     if strcmp(args.infile, "-") == 0:
         args.infile_is_stdin = True
-        args.infile = "<stdin>"
+        args.infile = "<stdin>" if stdin_name == NULL else stdin_name
+    elif stdin_name != NULL:
+        fprintf(get_stderr(), "%s: input file must be \"-\" (stdin) when --stdin-name is used\n", argv[0])
+        exit(2)
 
     check_args(&args, optlevel_set)
     return args

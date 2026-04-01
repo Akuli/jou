@@ -154,9 +154,23 @@ def main() -> int:
     else:
         system("tmp/tests/hello.exe")
 
-    # Compile from stdin.
+    # Compile from stdin
     # Output: Hello World
     run_jou("- < examples/hello.jou")
+
+    # Error with compiling from stdin
+    # Output: compiler error in file "<stdin>", line 1: not a valid statement
+    run_jou("- < tests/data/hellohellohello.txt")
+    # Output: compiler error in file "custom_name.lol", line 1: not a valid statement
+    run_jou("--stdin-name custom_name.lol - < tests/data/hellohellohello.txt")
+    # Output: <jouexe>: there must be an argument after --stdin-name
+    run_jou("--stdin-name")
+    # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
+    run_jou("--stdin-name custom_name.lol")
+    # Output: <jouexe>: input file must be "-" (stdin) when --stdin-name is used
+    run_jou("--stdin-name custom_name.lol examples/hello.jou")
+    # Output: <jouexe>: --stdin-name cannot be given multiple times
+    run_jou("--stdin-name a --stdin-name b -")
 
     # Compiler in weird place
     # TODO: make this test work with new (more robust) standard library finding logic?
