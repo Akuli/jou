@@ -51,6 +51,9 @@ jobs:
           # will install (name, version, architecture). So if what we install
           # changes for any reason, e.g. new version of package is available,
           # then the cache is not reused.
+          #
+          # This shows output with a bunch of "Inst" lines, but they don't mean
+          # installing. They represent packages that apt would install.
           apt-get --dry-run install $(cat apt-gonna-install.txt) | grep ^Inst | tee apt-cache-key-input.txt
 
       - name: Cache apt packages
