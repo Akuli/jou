@@ -629,21 +629,8 @@ class Parser:
 
     def parse_funcptr_type(self) -> AST:
         self.eat("funcptr")
-        self.eat("(")
-        argtypes = []
-        while self.tokens[0].code != ")":
-            argtypes.append(self.parse_type())
-            if self.tokens[0].code != ",":
-                break
-            self.eat(",")
-        self.eat(")")
-        self.eat("->")
-        return_type = self.parse_type()
-        return ("funcptr", argtypes, return_type)
 
     def parse_type(self) -> AST:
-        if self.tokens[0].code == "funcptr":
-            return self.parse_funcptr_type()
         t = self.tokens.pop(0)
         assert t.kind == "name" or t.code in (
             "None",
@@ -654,8 +641,24 @@ class Parser:
             "float",
             "double",
             "bool",
+            "funcptr",
         ), t
-        result: Any = ("named_type", t.code)
+
+        result: Any
+        if t.code == "funcptr":
+            self.eat("(")
+            argtypes = []
+            while self.tokens[0].code != ")":
+                argtypes.append(self.parse_type())
+                if self.tokens[0].code != ",":
+                    break
+                self.eat(",")
+            self.eat(")")
+            self.eat("->")
+            return_type = self.parse_type()
+            result = ("funcptr", argtypes, return_type)
+        else:
+            result = ("named_type", t.code)
 
         while self.tokens[0].code in ("*", "["):
             if self.tokens[0].code == "*":
@@ -1332,9 +1335,6 @@ def parse_file(path):
 
     with open(path, encoding="utf-8") as f:
         content = f.read()
-
-    # TODO: hacks to work around lack of function pointers support
-    content = content.replace("funcptr(void*) -> void*", "void*")  # declare pthread_create(...)
 
     tokens = tokenize(content, path)
 
