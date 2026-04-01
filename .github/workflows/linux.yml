@@ -67,7 +67,7 @@ jobs:
           # Actually install packages. We saved list of package names earlier.
           # Let's use them and also tell apt to not delete the .deb files once
           # it has finished installing them.
-          sudo apt install -o Binary::apt::APT::Keep-Downloaded-Packages=1 $(cat apt-gonna-install.txt)
+          sudo apt install -o APT::Keep-Downloaded-Packages=true $(cat apt-gonna-install.txt)
 
           # Recreate apt-cache directory with what we actually want to cache now
           rm -rf apt-cache
