@@ -35,11 +35,49 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
-      - name: "Install apt packages"
-        # liblzma-dev is for testing the `link` keyword, there is a test that decompresseses .xz file
+
+      # Using "sudo apt install ..." redownloads the same packages every time
+      # and often gets stuck for some reason. Let's hack around it by caching
+      # the downloaded packages.
+      - name: Get ready to install apt packages
         run: |
-          PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev"
-          sudo apt update && sudo apt install -y $PACKAGES
+          # Make sure apt knows about latest versions of the packages
+          sudo apt update
+
+          # Save list of packages we're installing so that we don't need to repeat it
+          echo llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev | tee apt-gonna-install.txt
+
+          # Create a cache key that depends on all details of packages that we
+          # will install (name, version, architecture). So if what we install
+          # changes for any reason, e.g. new version of package is available,
+          # then the cache is not reused.
+          #
+          # This shows output with a bunch of "Inst" lines, but nothing is
+          # actually installed here. Each "Inst" line represents a package that
+          # apt would install.
+          apt-get --dry-run install $(cat apt-gonna-install.txt) | grep ^Inst | tee apt-cache-key-input.txt
+
+      - name: Cache apt packages
+        uses: actions/cache@v5
+        with:
+          path: apt-cache
+          key: apt-${{ hashFiles('apt-cache-key-input.txt') }}
+
+      - name: Install apt packages
+        run: |
+          # Use cached files when installing (if any)
+          sudo cp -v apt-cache/*.deb /var/cache/apt/archives/ || true
+
+          # Actually install packages. We saved list of package names earlier.
+          # Let's use them and also tell apt to not delete the .deb files once
+          # it has finished installing them.
+          sudo apt install -o APT::Keep-Downloaded-Packages=true $(cat apt-gonna-install.txt)
+
+          # Recreate apt-cache directory with what we actually want to cache now
+          rm -rvf apt-cache
+          mkdir -v apt-cache
+          cp -v /var/cache/apt/archives/*.deb apt-cache/
+
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
       - name: "Compile and test"
