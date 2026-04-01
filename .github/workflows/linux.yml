@@ -70,11 +70,9 @@ jobs:
           sudo apt install -o APT::Keep-Downloaded-Packages=true $(cat apt-gonna-install.txt)
 
           # Recreate apt-cache directory with what we actually want to cache now
-          rm -rf apt-cache
-          mkdir apt-cache
-          sudo ls /var/cache/apt/archives
-          ls /var/cache/apt/archives
-          cp /var/cache/apt/archives/*.deb apt-cache/
+          rm -rvf apt-cache
+          mkdir -v apt-cache
+          cp -v /var/cache/apt/archives/*.deb apt-cache/
 
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
