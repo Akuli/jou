@@ -72,8 +72,8 @@ if ! [ -f disk.img ]; then
     # of things.
 
     # Step 1
-    truncate -s +3G disk.img
-    truncate -s +3G partition.img
+    truncate -s +1536M disk.img
+    truncate -s +1536M partition.img
 
     # Step 2
     /sbin/parted --script disk.img resizepart 2 100%
@@ -114,14 +114,14 @@ write key.pub /root/.ssh/authorized_keys
 set_inode_field /root/.ssh/authorized_keys mode 0100600' | /sbin/debugfs -w partition.img
     rm key.pub
 
-    echo "Adding 1GB swap file..."
+    echo "Adding 512MB swap file..."
     # I tried filling the file initially with zero bytes, but the zeros got
     # special-cased somewhere:
     #
     #    ~ # swapon /swapfile
     #    swapon: /swapfile: file has holes
     #
-    head -c 1G /dev/urandom > swapfile
+    head -c 512M /dev/urandom > swapfile
     /sbin/mkswap swapfile
     echo '
 write swapfile /swapfile

@@ -131,7 +131,7 @@ jobs:
             tests/vm/${{ matrix.os }}-${{ matrix.arch }}
             tests/vm/key
             tests/vm/key.pub
-          key: ${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('.github/workflows/vm.yml', 'tests/vm/${{ matrix.os }}.sh', 'tests/vm/download.sh') }}
+          key: ${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('.github/workflows/vm.yml', format('tests/vm/{0}.sh', matrix.os), 'tests/vm/download.sh') }}
 
       - name: "Create and start VM"
         run: tests/vm/${{ matrix.os }}.sh ${{ matrix.arch }}
