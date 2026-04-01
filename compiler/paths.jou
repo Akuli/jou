@@ -144,7 +144,12 @@ def get_path_to_jou_compiled_subfolder() -> byte*:
     mkdir(jou_compiled, 0o777)
     write_gitignore(jou_compiled)
 
-    name = skip_slashes(global_compiler_state.args.infile)
+    if global_compiler_state.args.infile_is_stdin:
+        # TODO: This might cause issues if multiple stdin's are compiled at the same time.
+        name = "stdin"
+    else:
+        name = skip_slashes(global_compiler_state.args.infile)
+
     name_len = strlen(name)
     if name_len > 4 and ends_with(name, ".jou"):
         name_len -= 4

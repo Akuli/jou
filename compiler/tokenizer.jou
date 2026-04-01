@@ -630,6 +630,7 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
     else:
         file = fopen(path, "rb")
         if file == NULL:
+            e = get_errno()  # will be used later, can change when we check if files exist etc
             message: byte[200]
             if import_statement == NULL:
                 # File is not imported
@@ -650,7 +651,7 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
                         import_statement.import_statement.specified_path,
                     )
                     fail(import_statement.location, message)
-            snprintf(message, sizeof(message), "cannot import from \"%s\": %s", path, strerror(get_errno()))
+            snprintf(message, sizeof(message), "cannot import from \"%s\": %s", path, strerror(e))
             fail(import_statement.location, message)
 
     bytes_list = List[byte]{}
