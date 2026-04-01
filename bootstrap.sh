@@ -24,7 +24,7 @@ numbered_commits=(
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=028_cb88ac4b437db34545d1249c93ff61605ae59644
+bootstrap_transpiler_numbered_commit=029_95e29106b13cda7ef33c7e934ed67158463a88e9
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate

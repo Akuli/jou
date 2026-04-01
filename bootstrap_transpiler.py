@@ -627,7 +627,23 @@ class Parser:
             path = simplify_path(path_spec)
         return ("import", path)
 
+    def parse_funcptr_type(self) -> AST:
+        self.eat("funcptr")
+        self.eat("(")
+        argtypes = []
+        while self.tokens[0].code != ")":
+            argtypes.append(self.parse_type())
+            if self.tokens[0].code != ",":
+                break
+            self.eat(",")
+        self.eat(")")
+        self.eat("->")
+        return_type = self.parse_type()
+        return ("funcptr", argtypes, return_type)
+
     def parse_type(self) -> AST:
+        if self.tokens[0].code == "funcptr":
+            return self.parse_funcptr_type()
         t = self.tokens.pop(0)
         assert t.kind == "name" or t.code in (
             "None",
@@ -1874,6 +1890,11 @@ def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouTy
         _, class_name, [param_type_ast] = ast
         param_type = type_from_ast(path, param_type_ast, typesub=typesub)
         return find_generic_class(path, class_name, param_type)
+    if ast[0] == "funcptr":
+        _, argtype_asts, return_type_ast = ast
+        argtypes = tuple(type_from_ast(path, at, typesub=typesub) for at in argtype_asts)
+        return_type = type_from_ast(path, return_type_ast, typesub=typesub) if return_type_ast != ("named_type", "None") else None
+        return funcptr_type(argtypes, return_type)
     raise NotImplementedError(ast)
 
 
