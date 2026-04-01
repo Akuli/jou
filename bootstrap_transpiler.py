@@ -638,8 +638,24 @@ class Parser:
             "float",
             "double",
             "bool",
+            "funcptr",
         ), t
-        result: Any = ("named_type", t.code)
+
+        result: Any
+        if t.code == "funcptr":
+            self.eat("(")
+            argtypes = []
+            while self.tokens[0].code != ")":
+                argtypes.append(self.parse_type())
+                if self.tokens[0].code != ",":
+                    break
+                self.eat(",")
+            self.eat(")")
+            self.eat("->")
+            return_type = self.parse_type()
+            result = ("funcptr", argtypes, return_type)
+        else:
+            result = ("named_type", t.code)
 
         while self.tokens[0].code in ("*", "["):
             if self.tokens[0].code == "*":
@@ -1317,9 +1333,6 @@ def parse_file(path):
     with open(path, encoding="utf-8") as f:
         content = f.read()
 
-    # TODO: hacks to work around lack of function pointers support
-    content = content.replace("funcptr(void*) -> void*", "void*")  # declare pthread_create(...)
-
     tokens = tokenize(content, path)
 
     parser = Parser(path, tokens)
@@ -1874,6 +1887,11 @@ def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouTy
         _, class_name, [param_type_ast] = ast
         param_type = type_from_ast(path, param_type_ast, typesub=typesub)
         return find_generic_class(path, class_name, param_type)
+    if ast[0] == "funcptr":
+        _, argtype_asts, return_type_ast = ast
+        argtypes = tuple(type_from_ast(path, at, typesub=typesub) for at in argtype_asts)
+        return_type = type_from_ast(path, return_type_ast, typesub=typesub) if return_type_ast != ("named_type", "None") else None
+        return funcptr_type(argtypes, return_type)
     raise NotImplementedError(ast)
 
 
