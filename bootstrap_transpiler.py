@@ -627,9 +627,6 @@ class Parser:
             path = simplify_path(path_spec)
         return ("import", path)
 
-    def parse_funcptr_type(self) -> AST:
-        self.eat("funcptr")
-
     def parse_type(self) -> AST:
         t = self.tokens.pop(0)
         assert t.kind == "name" or t.code in (
