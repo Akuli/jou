@@ -248,7 +248,12 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Ha
 def get_jou_compiled_exe_path() -> byte*:
     assert global_compiler_state.args.outfile == NULL
 
-    name = skip_slashes(global_compiler_state.args.infile)
+    if global_compiler_state.args.infile_is_stdin:
+        # TODO: This might cause issues if multiple stdin's are compiled at the same time.
+        name = "stdin"
+    else:
+        name = skip_slashes(global_compiler_state.args.infile)
+
     name_len = strlen(name)
     if name_len > 4 and ends_with(name, ".jou"):
         name_len -= 4
