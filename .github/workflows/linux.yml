@@ -45,7 +45,7 @@ jobs:
           sudo apt update
 
           # Save list of packages we're installing so that we don't need to repeat it
-          echo llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev > apt-gonna-install.txt
+          echo llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev | tee apt-gonna-install.txt
 
           # Create a cache key that depends on all details of packages that we
           # will install (name, version, architecture). So if what we install
@@ -70,6 +70,8 @@ jobs:
           # Recreate apt-cache directory with what we actually want to cache now
           rm -rf apt-cache
           mkdir apt-cache
+          sudo ls /var/cache/apt/archives
+          ls /var/cache/apt/archives
           cp /var/cache/apt/archives/*.deb apt-cache/
 
       - name: "Select LLVM version"
