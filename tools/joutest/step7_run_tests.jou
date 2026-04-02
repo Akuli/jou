@@ -155,7 +155,6 @@ class TestRunState:
         process_info: PROCESS_INFORMATION
     else:
         output_pipe_read: int  # parent process reads output of test
-        error_pipe_read: int  # parent reads errno value from child if the child can't exec
         child_pid: int
 
 
@@ -317,9 +316,14 @@ else:
         *read_end = pipefd[0]
         *write_end = pipefd[1]
 
-    def this_runs_in_child_process(run_state: TestRunState*, output_pipe_write: int, error_pipe_write: int) -> noreturn:
+    def this_runs_in_child_process(
+        run_state: TestRunState*,
+        output_pipe_write: int,
+        error_pipe_read: int,
+        error_pipe_write: int,
+    ) -> noreturn:
         # Close unused ends of pipes that only the parent uses
-        close(run_state.error_pipe_read)
+        close(error_pipe_read)
         if run_state.output_pipe_read != -1:
             close(run_state.output_pipe_read)
 
@@ -363,9 +367,9 @@ else:
 
         run_state.output_pipe_read = -1
 
-        # These are for the child process which is spawned here, so they don't
-        # need to be stored in the state.
+        # These are only accessed here, no need to put these to the state
         output_pipe_write: int
+        error_pipe_read: int
         error_pipe_write: int
 
         if run_state.test.uses_output_capturing:
@@ -374,7 +378,7 @@ else:
             run_state.output_pipe_read = -1
             output_pipe_write = -1
 
-        create_cloexec_pipe(&run_state.error_pipe_read, &error_pipe_write)
+        create_cloexec_pipe(&error_pipe_read, &error_pipe_write)
 
         pid = fork()
         if pid < 0:
@@ -382,7 +386,7 @@ else:
             snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
             fail(message)
         elif pid == 0:
-            this_runs_in_child_process(run_state, output_pipe_write, error_pipe_write)
+            this_runs_in_child_process(run_state, output_pipe_write, error_pipe_read, error_pipe_write)
 
         # If we get here, we are in the parent process.
         run_state.child_pid = pid
@@ -391,6 +395,20 @@ else:
         close(error_pipe_write)
         if output_pipe_write != -1:
             close(output_pipe_write)
+
+        # Detect errors before exec in child process. The pipe is cloexec, so
+        # it closes with no writing on successful exec.
+        #
+        # Note: This assumes that the whole error fits into the OS default pipe
+        #       buffer size. Otherwise the child process would get stuck
+        #       writing to the pipe while the parent is waiting for it.
+        e: int = 0
+        if read(error_pipe_read, &e, sizeof(e)) < 0:
+            snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
+            fail(message)
+
+        run_state.test.start_error = e
+        close(error_pipe_read)
 
     def read_output_of_test(run_state: TestRunState*) -> None:
         buf: byte[4096]
@@ -411,37 +429,24 @@ else:
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
         message: byte[300]
 
-        # Wait until it dies, either with exit code or with a signal
-        # TODO: retry if we get EINTR
-        wstatus = 0
-        ret = waitpid(run_state.child_pid, &wstatus, 0)
-        while ret != -1 and not WIFEXITED(wstatus) and not WIFSIGNALED(wstatus):
+        # Wait more until it dies, either with exit code or with a signal
+        while True:
+            wstatus = 0
             ret = waitpid(run_state.child_pid, &wstatus, 0)
 
-        if ret == -1:
-            snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
-            fail(message)
+            if ret == -1:
+                # TODO: retry if we get EINTR
+                snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
+                fail(message)
 
-        # Detect errors before exec in child process
-        #
-        # Note: This assumes that the whole error fits into the OS default pipe
-        #       buffer size. Otherwise the child process would get stuck
-        #       writing to the pipe while the parent is waiting for it.
-        e = 0
-        if read(run_state.error_pipe_read, &e, sizeof(e)) < 0:
-            snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
-            fail(message)
-        close(run_state.error_pipe_read)
+            if WIFEXITED(wstatus):
+                run_state.test.actual_exit_code = WEXITSTATUS(wstatus)
+                return
 
-        if e != 0:
-            run_state.test.start_error = e
-        elif WIFEXITED(wstatus):
-            run_state.test.actual_exit_code = WEXITSTATUS(wstatus)
-        elif WIFSIGNALED(wstatus):
-            assert WTERMSIG(wstatus) != 0
-            run_state.test.terminating_signal = WTERMSIG(wstatus)
-        else:
-            assert False
+            if WIFSIGNALED(wstatus):
+                assert WTERMSIG(wstatus) != 0
+                run_state.test.terminating_signal = WTERMSIG(wstatus)
+                return
 
 
 def run_command(test: Test*) -> None:
@@ -449,7 +454,6 @@ def run_command(test: Test*) -> None:
 
     create_pipes_and_spawn_child_process(&run_state)
     if test.start_error != 0:
-        # TODO(pr): can we report start errors on posix this early too?
         # TODO(pr): clean up resources
         return
 
