@@ -181,7 +181,7 @@ if WINDOWS:
         run_state.output_pipe_read = INVALID_HANDLE_VALUE
         run_state.output_pipe_write = INVALID_HANDLE_VALUE
 
-        if test.uses_output_capturing:
+        if run_state.test.uses_output_capturing:
             if CreatePipe(&run_state.output_pipe_read, &run_state.output_pipe_write, NULL, 0) == 0:
                 gle = windows_error_to_string(GetLastError())
                 snprintf(message, sizeof(message), "CreatePipe() failed: %s", gle)
@@ -202,7 +202,7 @@ if WINDOWS:
 
         startup_info = STARTUPINFOA{}
         startup_info.cb = sizeof(startup_info) as uint32
-        if test.uses_output_capturing:
+        if run_state.test.uses_output_capturing:
             startup_info.dwFlags = STARTF_USESTDHANDLES
             if test.stdout_capture_mode != CaptureMode.DoNotCapture:
                 startup_info.hStdOutput = run_state.output_pipe_write
@@ -222,7 +222,7 @@ if WINDOWS:
             string,
             NULL,
             NULL,
-            test.uses_output_capturing as int,
+            run_state.test.uses_output_capturing as int,
             0,
             NULL,
             test.working_directory,
@@ -241,7 +241,7 @@ if WINDOWS:
             CloseHandle(run_state.output_pipe_write)
 
     def read_output_of_test(run_state: TestRunState*) -> None:
-        assert test.uses_output_capturing
+        assert run_state.test.uses_output_capturing
 
         buf: byte[4096]
         while True:
