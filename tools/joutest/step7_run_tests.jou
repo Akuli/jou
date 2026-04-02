@@ -263,16 +263,18 @@ if WINDOWS:
         CloseHandle(run_state.output_pipe_read)
 
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
+        message: byte[300]
+
         if WaitForSingleObject(run_state.process_info.hProcess, INFINITE) != 0:
             gle = windows_error_to_string(GetLastError())
-            snprintf(error, sizeof(error), "WaitForSingleObject() failed: %s", gle)
-            fail(error)
+            snprintf(message, sizeof(message), "WaitForSingleObject() failed: %s", gle)
+            fail(message)
 
         exit_code: uint32 = 0
         if GetExitCodeProcess(run_state.process_info.hProcess, &exit_code) == 0:
             gle = windows_error_to_string(GetLastError())
-            snprintf(error, sizeof(error), "GetExitCodeProcess() failed: %s", gle)
-            fail(error)
+            snprintf(message, sizeof(message), "GetExitCodeProcess() failed: %s", gle)
+            fail(message)
 
         CloseHandle(run_state.process_info.hProcess)
         CloseHandle(run_state.process_info.hThread)
@@ -438,7 +440,9 @@ def run_command(test: Test*) -> None:
 
     create_pipes_and_spawn_child_process(&run_state)
     if test.start_error != 0:
-        return  # TODO: can we report start errors on posix this early too?
+        # TODO: can we report start errors on posix this early too?
+        # TODO: clean up resources
+        return
 
     if test.uses_output_capturing:
         read_output_of_test(&run_state)
