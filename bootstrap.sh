@@ -17,14 +17,13 @@ set -e -o pipefail
 # The numbering does not start from 0 for historical reasons. Commit 001 was
 # just before the original compiler written in C was deleted.
 numbered_commits=(
-    028_cb88ac4b437db34545d1249c93ff61605ae59644  # <--- bootstrap_transpiler.py starts here!
-    029_95e29106b13cda7ef33c7e934ed67158463a88e9  # support for INFINITY and NAN constants, array_end() built-in
+    029_95e29106b13cda7ef33c7e934ed67158463a88e9  # <--- bootstrap_transpiler.py starts here!
     030_bb3dc7d925fa28ce405fda5a4fc3c428f6f7c2b1  # <--- "./windows_setup.sh --small" starts from here! (release 2026-03-16-0500)
 )
 
 # This should be an item of the above list according to what
 # bootstrap_transpiler.py supports.
-bootstrap_transpiler_numbered_commit=028_cb88ac4b437db34545d1249c93ff61605ae59644
+bootstrap_transpiler_numbered_commit=029_95e29106b13cda7ef33c7e934ed67158463a88e9
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
     source activate

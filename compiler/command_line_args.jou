@@ -23,7 +23,8 @@ class CommandLineArgs:
 
     # Please keep the help printing up to date!
     argv0: byte*            # Program name
-    infile: byte*           # The "main" Jou file (can import other files)
+    infile: byte*           # The main Jou file given on command line, can be "<stdin>" or similar
+    infile_is_stdin: bool   # True if file "-" on command line, then infile is not really a file path
     outfile: byte*          # -o
     optlevel: int           # -O0, -O1, -O2, -O3
     parallelism: int        # -j1, -j2, ...
@@ -145,6 +146,8 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 exit(0)
 
     optlevel_set = False
+    stdin_name: byte* = NULL
+
     i = 1
     while i < argc:
         match argv[i] with strcmp:
@@ -185,6 +188,16 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                     exit(2)
                 args.linker_flags = argv[i+1]
                 i += 2
+            case "--stdin-name":
+                # TODO: document this, or intentionally leave undocumented?
+                if stdin_name != NULL:
+                    fprintf(get_stderr(), "%s: --stdin-name cannot be given multiple times\n", argv[0], argv[0])
+                    exit(2)
+                if argc-i < 2:
+                    fprintf(get_stderr(), "%s: there must be an argument after --stdin-name\n", argv[0], argv[0])
+                    exit(2)
+                stdin_name = argv[i+1]
+                i += 2
 
             # Options for debugging the compiler
             case "-v" | "-vv" | "-vvv" | "-vvvv" | "-vvvvv":
@@ -206,7 +219,7 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 if starts_with(argv[i], "-j") and is_ascii_digit(argv[i][2]) and 1 <= atoi(&argv[i][2]) and atoi(&argv[i][2]) <= 100:
                     args.parallelism = atoi(&argv[i][2])
                     i++
-                elif argv[i][0] == '-':
+                elif argv[i][0] == '-' and argv[i][1] != '\0':
                     fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
                     exit(2)
                 elif args.infile != NULL:
@@ -217,6 +230,13 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
 
     if args.infile == NULL:
         fprintf(get_stderr(), "%s: missing Jou file name (try \"%s --help\")\n", argv[0], argv[0])
+        exit(2)
+
+    if strcmp(args.infile, "-") == 0:
+        args.infile_is_stdin = True
+        args.infile = "<stdin>" if stdin_name == NULL else stdin_name
+    elif stdin_name != NULL:
+        fprintf(get_stderr(), "%s: input file must be \"-\" (stdin) when --stdin-name is used\n", argv[0])
         exit(2)
 
     check_args(&args, optlevel_set)
