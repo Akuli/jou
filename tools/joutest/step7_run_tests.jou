@@ -25,20 +25,6 @@ import "./fail.jou"
 import "./state.jou"
 
 
-def add_output_byte(out: List[byte]*, b: byte) -> None:
-    match b:
-        case '\0':
-            # TODO: Escaping similar to this could be good for other weird bytes too.
-            out.extend_from_ptr("<\\0>", 4)
-        case '\n':
-            # Windows line endings handling: \r\n --> \n
-            if out.len > 0 and out.end()[-1] == '\r':
-                out.pop()
-            out.append('\n')
-        case _:
-            out.append(b)
-
-
 if WINDOWS:
     class STARTUPINFOA:
         cb: uint32
@@ -122,6 +108,68 @@ if WINDOWS:
         )
         return result
 
+else:
+    declare fork() -> int
+    declare execvp(file: byte*, argv: byte**) -> int
+    declare dup2(oldfd: int, newfd: int) -> int
+    declare waitpid(pid: int, wstatus: int*, options: int) -> int
+    declare pipe(pipefd: int[2]*) -> int
+    declare close(fd: int) -> int
+    declare read(fd: int, buf: void*, count: intnative) -> intnative
+    declare write(fd: int, buf: void*, count: intnative) -> intnative
+    declare _exit(status: int) -> noreturn
+    declare fcntl(fd: int, op: int, ...) -> int
+
+    const F_SETFD: int = 2
+    const FD_CLOEXEC: int = 1
+
+    # Returns True if the process terminated with a signal
+    def WIFSIGNALED(s: int) -> bool:
+        # 127 means "stopped", see WIFSTOPPED(). We should never get that value.
+        return WTERMSIG(s) != 0 and WTERMSIG(s) != 127
+
+    # Returns True if the process exited normally.
+    def WIFEXITED(s: int) -> bool:
+        return WTERMSIG(s) == 0
+
+    # If the process terminated by exiting normally, returns the exit code.
+    def WEXITSTATUS(s: int) -> int:
+        return (s >> 8) & 0xff
+
+    # If the process terminated with a signal, returns the signal number.
+    def WTERMSIG(s: int) -> int:
+        return s & 0x7f
+
+
+# Holds all state needed to run one test.
+class TestRunState:
+    test: Test*
+    output: List[byte]
+
+    if WINDOWS:
+        pass  # TODO
+    else:
+        output_pipe_read: int  # parent reads output of test
+        output_pipe_write: int  # child writes output of test
+        error_pipe_read: int  # parent reads errno value from child if the child can't exec
+        error_pipe_write: int  # child writes reads errno if it can't exec
+
+
+def add_output_byte(run_state: TestRunState*, b: byte) -> None:
+    match b:
+        case '\0':
+            # TODO: Escaping similar to this could be good for other weird bytes too.
+            run_state.output.extend_from_ptr("<\\0>", 4)
+        case '\n':
+            # Windows line endings handling: \r\n --> \n
+            if run_state.output.len > 0 and run_state.output.end()[-1] == '\r':
+                run_state.output.pop()
+            run_state.output.append('\n')
+        case _:
+            run_state.output.append(b)
+
+
+if WINDOWS:
     def run_command(test: Test*) -> None:
         error: byte[300]
 
@@ -229,37 +277,6 @@ if WINDOWS:
         test.actual_exit_code = exit_code as int
 
 else:
-    declare fork() -> int
-    declare execvp(file: byte*, argv: byte**) -> int
-    declare dup2(oldfd: int, newfd: int) -> int
-    declare waitpid(pid: int, wstatus: int*, options: int) -> int
-    declare pipe(pipefd: int[2]*) -> int
-    declare close(fd: int) -> int
-    declare read(fd: int, buf: void*, count: intnative) -> intnative
-    declare write(fd: int, buf: void*, count: intnative) -> intnative
-    declare _exit(status: int) -> noreturn
-    declare fcntl(fd: int, op: int, ...) -> int
-
-    const F_SETFD: int = 2
-    const FD_CLOEXEC: int = 1
-
-    # Returns True if the process terminated with a signal
-    def WIFSIGNALED(s: int) -> bool:
-        # 127 means "stopped", see WIFSTOPPED(). We should never get that value.
-        return WTERMSIG(s) != 0 and WTERMSIG(s) != 127
-
-    # Returns True if the process exited normally.
-    def WIFEXITED(s: int) -> bool:
-        return WTERMSIG(s) == 0
-
-    # If the process terminated by exiting normally, returns the exit code.
-    def WEXITSTATUS(s: int) -> int:
-        return (s >> 8) & 0xff
-
-    # If the process terminated with a signal, returns the signal number.
-    def WTERMSIG(s: int) -> int:
-        return s & 0x7f
-
     # The CLOEXEC (close-on-exec) flag means that a successful exec closes the
     # pipe (or other file descriptor) instead of sharing it to the child. It is
     # basically the reasonable thing to do, but not the default behavior for
@@ -294,65 +311,63 @@ else:
         *read_end = pipefd[0]
         *write_end = pipefd[1]
 
-    class Pipes:
-        output_read: int  # parent reads output of test
-        output_write: int  # child writes output of test
-        error_read: int  # parent reads errno value from child if the child can't exec
-        error_write: int  # child writes reads errno if it can't exec
+    def create_pipes(run_state: TestRunState*) -> None:
+        assert run_state.test != NULL
 
-    def create_pipes(test: Test*) -> Pipes:
-        pipes = Pipes{}
-        if test.uses_output_capturing:
-            create_cloexec_pipe(&pipes.output_read, &pipes.output_write)
+        if run_state.test.uses_output_capturing:
+            create_cloexec_pipe(&run_state.output_pipe_read, &run_state.output_pipe_write)
         else:
-            pipes.output_read = -1
-            pipes.output_write = -1
-        create_cloexec_pipe(&pipes.error_read, &pipes.error_write)
-        return pipes
+            run_state.output_pipe_read = -1
+            run_state.output_pipe_write = -1
 
-    def this_runs_in_child_process(test: Test*, pipes: Pipes*) -> noreturn:
+        create_cloexec_pipe(&run_state.error_pipe_read, &run_state.error_pipe_write)
+
+    def this_runs_in_child_process(run_state: TestRunState*) -> noreturn:
         # Close unused ends of pipes that only the parent uses
-        close(pipes.error_read)
-        if pipes.output_read != -1:
-            close(pipes.output_read)
+        close(run_state.error_pipe_read)
+        if run_state.output_pipe_read != -1:
+            close(run_state.output_pipe_read)
 
         e: int
 
-        if test.stdout_capture_mode != CaptureMode.DoNotCapture:
-            if dup2(pipes.output_write, 1) == -1:
+        if run_state.test.stdout_capture_mode != CaptureMode.DoNotCapture:
+            if dup2(run_state.output_pipe_write, 1) == -1:
                 e = get_errno()
-                write(pipes.error_write, &e, sizeof(e))
+                write(run_state.error_pipe_write, &e, sizeof(e))
                 _exit(127)
 
-        if test.stderr_capture_mode != CaptureMode.DoNotCapture:
-            if dup2(pipes.output_write, 2) == -1:
+        if run_state.test.stderr_capture_mode != CaptureMode.DoNotCapture:
+            if dup2(run_state.output_pipe_write, 2) == -1:
                 e = get_errno()
-                write(pipes.error_write, &e, sizeof(e))
+                write(run_state.error_pipe_write, &e, sizeof(e))
                 _exit(127)
 
-        if test.working_directory != NULL:
-            if chdir(test.working_directory) != 0:
+        if run_state.test.working_directory != NULL:
+            if chdir(run_state.test.working_directory) != 0:
                 e = get_errno()
-                write(pipes.error_write, &e, sizeof(e))
+                write(run_state.error_pipe_write, &e, sizeof(e))
                 _exit(127)
 
         # Make sure the argument list ends with a NULL, needed for execvp()
-        test.actual_command_list.append(NULL)
-        test.actual_command_list.pop()  # does not free allocated memory
+        run_state.test.actual_command_list.append(NULL)
+        run_state.test.actual_command_list.pop()  # does not free allocated memory
 
-        execvp(test.actual_command_list.ptr[0], test.actual_command_list.ptr)
+        execvp(run_state.test.actual_command_list.ptr[0], run_state.test.actual_command_list.ptr)
 
         # We get here only if exec failed
         e = get_errno()
-        write(pipes.error_write, &e, sizeof(e))
+        write(run_state.error_pipe_write, &e, sizeof(e))
         _exit(127)
 
-    def read_output_of_test(pipes: Pipes*) -> byte*:
-        output = List[byte]{}
-        buf: byte[4096]
+    def read_output_of_test(run_state: TestRunState*) -> None:
+        assert run_state.test.actual_output == NULL
 
+        if not run_state.test.uses_output_capturing:
+            return
+
+        buf: byte[4096]
         while True:
-            n = read(pipes.output_read, buf, sizeof(buf))
+            n = read(run_state.output_pipe_read, buf, sizeof(buf))
             if n < 0:  # TODO: retry on EINTR
                 snprintf(buf, sizeof(buf), "reading output failed: %s", strerror(get_errno()))
                 fail(buf)
@@ -361,24 +376,24 @@ else:
             if n == 0:
                 break
             for i = 0; i < n; i++:
-                add_output_byte(&output, buf[i])
+                add_output_byte(run_state, buf[i])
 
-        close(pipes.output_read)
-        output.append('\0')
-        return output.ptr
+        close(run_state.output_pipe_read)
+        run_state.output.append('\0')
+        run_state.test.actual_output = run_state.output.ptr
 
     # Detects errors before exec in child process
-    def check_error_pipe(pipes: Pipes*) -> int:
+    def check_error_pipe(error_pipe: int) -> int:
         # Note: This assumes that the whole error fits into the OS default pipe
         #       buffer size. Otherwise the child process would get stuck
         #       writing to the pipe while the parent is waiting for it.
         e = 0
-        if read(pipes.error_read, &e, sizeof(e)) < 0:
+        if read(error_pipe, &e, sizeof(e)) < 0:
             message: byte[300]
             snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
             fail(message)
 
-        close(pipes.error_read)
+        close(error_pipe)
         return e
 
     # This uses the traditional fork()+exec() instead of posix_spawn(), because
@@ -388,23 +403,22 @@ else:
     def run_command(test: Test*) -> None:
         message: byte[300]
 
-        pipes = create_pipes(test)
+        run_state = TestRunState{test = test}
+        create_pipes(&run_state)
 
         pid = fork()
         if pid < 0:
             snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
             fail(message)
         elif pid == 0:
-            this_runs_in_child_process(test, &pipes)
+            this_runs_in_child_process(&run_state)
 
         # Parent process is not going to write to the pipes
-        close(pipes.error_write)
-        if pipes.output_write != -1:
-            close(pipes.output_write)
+        close(run_state.error_pipe_write)
+        if run_state.output_pipe_write != -1:
+            close(run_state.output_pipe_write)
 
-        assert test.actual_output == NULL
-        if test.uses_output_capturing:
-            test.actual_output = read_output_of_test(&pipes)
+        read_output_of_test(&run_state)
 
         # Wait until it dies, either with exit code or with a signal
         # TODO: retry if we get EINTR
@@ -416,7 +430,7 @@ else:
             snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
             fail(message)
 
-        e = check_error_pipe(&pipes)
+        e = check_error_pipe(run_state.error_pipe_read)
         if e != 0:
             test.start_error = e
         elif WIFEXITED(wstatus):
