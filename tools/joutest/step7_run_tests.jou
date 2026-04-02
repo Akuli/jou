@@ -261,6 +261,7 @@ if WINDOWS:
             for i = 0; i < n; i++:
                 add_output_byte(run_state, buf[i])
 
+    def close_output_pipe(run_state: TestRunState*) -> None:
         CloseHandle(run_state.output_pipe_read)
 
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
@@ -424,6 +425,7 @@ else:
             for i = 0; i < n; i++:
                 add_output_byte(run_state, buf[i])
 
+    def close_output_pipe(run_state: TestRunState*) -> None:
         close(run_state.output_pipe_read)
 
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
@@ -454,11 +456,13 @@ def run_command(test: Test*) -> None:
 
     create_pipes_and_spawn_child_process(&run_state)
     if test.start_error != 0:
-        # TODO(pr): clean up resources
+        close_output_pipe(&run_state)
         return
 
     if test.uses_output_capturing:
         read_output_of_test(&run_state)
+        close_output_pipe(&run_state)
+
         run_state.output.append('\0')
         test.actual_output = run_state.output.ptr
 
