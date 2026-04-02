@@ -45,6 +45,8 @@ def show_failures(tests: List[Test]) -> None:
                     FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                     NULL, test.start_error as uint32, 0, message, sizeof(message) as uint32, NULL,
                 )
+                while ends_with(message, "\r") or ends_with(message, "\n"):
+                    message[strlen(message)-1] = '\0'
                 puts(message)
             else:
                 puts(strerror(test.start_error))
