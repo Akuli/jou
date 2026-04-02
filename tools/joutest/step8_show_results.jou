@@ -45,7 +45,7 @@ def show_failures(tests: List[Test]) -> None:
                     FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                     NULL, test.start_error as uint32, 0, message, sizeof(message) as uint32, NULL,
                 )
-                puts(message)
+                printf("|%s|\n", message)
             else:
                 puts(strerror(test.start_error))
         elif test.terminating_signal != 0:
