@@ -153,6 +153,7 @@ class TestRunState:
         output_pipe_write: int  # child writes output of test
         error_pipe_read: int  # parent reads errno value from child if the child can't exec
         error_pipe_write: int  # child writes reads errno if it can't exec
+        child_pid: int
 
 
 def add_output_byte(run_state: TestRunState*, b: byte) -> None:
@@ -400,46 +401,54 @@ else:
     # there is no standard way to add a chdir() that runs in the child process of
     # posix_spawn(). Some platforms have posix_spawn_file_actions_addchdir_np(),
     # but others do not.
-    def run_command(test: Test*) -> None:
-        message: byte[300]
-
-        run_state = TestRunState{test = test}
-        create_pipes(&run_state)
-
+    def spawn_child_process(run_state: TestRunState*) -> None:
         pid = fork()
         if pid < 0:
+            message: byte[300]
             snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
             fail(message)
         elif pid == 0:
-            this_runs_in_child_process(&run_state)
+            this_runs_in_child_process(run_state)
+
+        # If we get here, we are in the parent process.
+        run_state.child_pid = pid
 
         # Parent process is not going to write to the pipes
         close(run_state.error_pipe_write)
         if run_state.output_pipe_write != -1:
             close(run_state.output_pipe_write)
 
-        read_output_of_test(&run_state)
-
+    def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
         # Wait until it dies, either with exit code or with a signal
         # TODO: retry if we get EINTR
         wstatus = 0
-        ret = waitpid(pid, &wstatus, 0)
+        ret = waitpid(run_state.child_pid, &wstatus, 0)
         while ret != -1 and not WIFEXITED(wstatus) and not WIFSIGNALED(wstatus):
-            ret = waitpid(pid, &wstatus, 0)
+            ret = waitpid(run_state.child_pid, &wstatus, 0)
+
         if ret == -1:
+            message: byte[300]
             snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
             fail(message)
 
         e = check_error_pipe(run_state.error_pipe_read)
         if e != 0:
-            test.start_error = e
+            run_state.test.start_error = e
         elif WIFEXITED(wstatus):
-            test.actual_exit_code = WEXITSTATUS(wstatus)
+            run_state.test.actual_exit_code = WEXITSTATUS(wstatus)
         elif WIFSIGNALED(wstatus):
             assert WTERMSIG(wstatus) != 0
-            test.terminating_signal = WTERMSIG(wstatus)
+            run_state.test.terminating_signal = WTERMSIG(wstatus)
         else:
             assert False
+
+
+def run_command(test: Test*) -> None:
+    run_state = TestRunState{test = test}
+    create_pipes(&run_state)
+    spawn_child_process(&run_state)
+    read_output_of_test(&run_state)
+    wait_for_termination_and_set_result(&run_state)
 
 
 def run_test(test: Test*, args: CommandLineArgs*) -> None:
