@@ -149,7 +149,9 @@ class TestRunState:
     output: List[byte]
 
     if WINDOWS:
-        pass  # TODO
+        output_pipe_read: intnative
+        output_pipe_write: intnative
+        process_info: PROCESS_INFORMATION
     else:
         output_pipe_read: int  # parent reads output of test
         output_pipe_write: int  # child writes output of test
@@ -173,24 +175,24 @@ def add_output_byte(run_state: TestRunState*, b: byte) -> None:
 
 
 if WINDOWS:
-    def run_command(test: Test*) -> None:
-        error: byte[300]
+    def create_pipes(run_state: TestRunState*) -> None:
+        message: byte[300]
 
-        pipe_read: intnative = INVALID_HANDLE_VALUE
-        pipe_write: intnative = INVALID_HANDLE_VALUE
+        run_state.output_pipe_read = INVALID_HANDLE_VALUE
+        run_state.output_pipe_write = INVALID_HANDLE_VALUE
 
         if test.uses_output_capturing:
-            if CreatePipe(&pipe_read, &pipe_write, NULL, 0) == 0:
+            if CreatePipe(&run_state.output_pipe_read, &run_state.output_pipe_write, NULL, 0) == 0:
                 gle = windows_error_to_string(GetLastError())
-                snprintf(error, sizeof(error), "CreatePipe() failed: %s", gle)
-                fail(error)
+                snprintf(message, sizeof(message), "CreatePipe() failed: %s", gle)
+                fail(message)
 
             # Mark the write end of the pipe as inheritable so the child
             # process can write to it.
-            if SetHandleInformation(pipe_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
+            if SetHandleInformation(run_state.output_pipe_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
                 gle = windows_error_to_string(GetLastError())
-                snprintf(error, sizeof(error), "SetHandleInformation() failed: %s", gle)
-                fail(error)
+                snprintf(message, sizeof(message), "SetHandleInformation() failed: %s", gle)
+                fail(message)
 
             # Threading note: If this code ever needs to be multi-threaded, it
             # needs some changes. At this point we have an inheritable handle,
@@ -198,15 +200,15 @@ if WINDOWS:
             # Instead, the handle should be inheritable only for the process
             # being launched here.
 
+    def spawn_child_process(run_state: TestRunState*) -> None:
         startup_info = STARTUPINFOA{}
         startup_info.cb = sizeof(startup_info) as uint32
         if test.uses_output_capturing:
             startup_info.dwFlags = STARTF_USESTDHANDLES
             if test.stdout_capture_mode != CaptureMode.DoNotCapture:
-                startup_info.hStdOutput = pipe_write
+                startup_info.hStdOutput = run_state.output_pipe_write
             if test.stderr_capture_mode != CaptureMode.DoNotCapture:
-                startup_info.hStdError = pipe_write
-        process_info = PROCESS_INFORMATION{}
+                startup_info.hStdError = run_state.output_pipe_write
 
         # This takes a string because that's how windows works. The command
         # line of a Windows process is a string at the lowest level. The
@@ -229,54 +231,52 @@ if WINDOWS:
             &process_info,
         )
         free(string)
+        if ret == 0:
+            test.start_error = GetLastError() as int
 
         # From now on, child is going to write and parent is going to read.
         #
         # This is an inheritable handle, so it's important to close it before
         # launching more processes.
-        if test.uses_output_capturing:
-            CloseHandle(pipe_write)
+        if run_state.output_pipe_write != INVALID_HANDLE_VALUE:
+            CloseHandle(run_state.output_pipe_write)
 
-        if ret == 0:
-            test.start_error = GetLastError() as int
-            if test.uses_output_capturing:
-                CloseHandle(pipe_write)
-            return
+    def read_output_of_test(run_state: TestRunState*) -> None:
+        assert test.uses_output_capturing
 
-        assert test.actual_output == NULL
-        if test.uses_output_capturing:
-            output = List[byte]{}
-            buf: byte[4096]
-            while True:
-                n: uint32 = 0
-                if ReadFile(pipe_read, buf, sizeof(buf) as uint32, &n, NULL) == 0:
-                    e = GetLastError()
-                    # This "error" happens at end of output when everything goes fine.
-                    if e != ERROR_BROKEN_PIPE:
-                        gle = windows_error_to_string(e)
-                        snprintf(error, sizeof(error), "ReadFile() failed: %s", gle)
-                        fail(error)
-                if n == 0:
-                    break
-                for i = 0; i < n; i++:
-                    add_output_byte(&output, buf[i])
-            CloseHandle(pipe_read)
-            output.append('\0')
-            test.actual_output = output.ptr
+        buf: byte[4096]
+        while True:
+            n: uint32 = 0
+            if ReadFile(run_state.output_pipe_read, buf, sizeof(buf) as uint32, &n, NULL) == 0:
+                e = GetLastError()
+                # Broken pipe "error" happens at end of output when everything goes fine.
+                if e != ERROR_BROKEN_PIPE:
+                    message: byte[300]
+                    gle = windows_error_to_string(e)
+                    snprintf(message, sizeof(message), "ReadFile() failed: %s", gle)
+                    fail(message)
+            if n == 0:
+                break
 
-        if WaitForSingleObject(process_info.hProcess, INFINITE) != 0:
+            for i = 0; i < n; i++:
+                add_output_byte(run_state, buf[i])
+
+        CloseHandle(run_state.output_pipe_read)
+
+    def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
+        if WaitForSingleObject(run_state.process_info.hProcess, INFINITE) != 0:
             gle = windows_error_to_string(GetLastError())
             snprintf(error, sizeof(error), "WaitForSingleObject() failed: %s", gle)
             fail(error)
 
         exit_code: uint32 = 0
-        if GetExitCodeProcess(process_info.hProcess, &exit_code) == 0:
+        if GetExitCodeProcess(run_state.process_info.hProcess, &exit_code) == 0:
             gle = windows_error_to_string(GetLastError())
             snprintf(error, sizeof(error), "GetExitCodeProcess() failed: %s", gle)
             fail(error)
 
-        CloseHandle(process_info.hProcess)
-        CloseHandle(process_info.hThread)
+        CloseHandle(run_state.process_info.hProcess)
+        CloseHandle(run_state.process_info.hThread)
         test.actual_exit_code = exit_code as int
 
 else:
@@ -362,43 +362,6 @@ else:
         write(run_state.error_pipe_write, &e, sizeof(e))
         _exit(127)
 
-    def read_output_of_test(run_state: TestRunState*) -> None:
-        assert run_state.test.actual_output == NULL
-
-        if not run_state.test.uses_output_capturing:
-            return
-
-        buf: byte[4096]
-        while True:
-            n = read(run_state.output_pipe_read, buf, sizeof(buf))
-            if n < 0:  # TODO: retry on EINTR
-                snprintf(buf, sizeof(buf), "reading output failed: %s", strerror(get_errno()))
-                fail(buf)
-
-            assert n >= 0  # TODO
-            if n == 0:
-                break
-            for i = 0; i < n; i++:
-                add_output_byte(run_state, buf[i])
-
-        close(run_state.output_pipe_read)
-        run_state.output.append('\0')
-        run_state.test.actual_output = run_state.output.ptr
-
-    # Detects errors before exec in child process
-    def check_error_pipe(error_pipe: int) -> int:
-        # Note: This assumes that the whole error fits into the OS default pipe
-        #       buffer size. Otherwise the child process would get stuck
-        #       writing to the pipe while the parent is waiting for it.
-        e = 0
-        if read(error_pipe, &e, sizeof(e)) < 0:
-            message: byte[300]
-            snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
-            fail(message)
-
-        close(error_pipe)
-        return e
-
     # This uses the traditional fork()+exec() instead of posix_spawn(), because
     # there is no standard way to add a chdir() that runs in the child process of
     # posix_spawn(). Some platforms have posix_spawn_file_actions_addchdir_np(),
@@ -420,7 +383,25 @@ else:
         if run_state.output_pipe_write != -1:
             close(run_state.output_pipe_write)
 
+    def read_output_of_test(run_state: TestRunState*) -> None:
+        buf: byte[4096]
+        while True:
+            n = read(run_state.output_pipe_read, buf, sizeof(buf))
+            if n < 0:  # TODO: retry on EINTR
+                snprintf(buf, sizeof(buf), "reading output failed: %s", strerror(get_errno()))
+                fail(buf)
+
+            assert n >= 0  # TODO
+            if n == 0:
+                break
+            for i = 0; i < n; i++:
+                add_output_byte(run_state, buf[i])
+
+        close(run_state.output_pipe_read)
+
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
+        message: byte[300]
+
         # Wait until it dies, either with exit code or with a signal
         # TODO: retry if we get EINTR
         wstatus = 0
@@ -429,11 +410,20 @@ else:
             ret = waitpid(run_state.child_pid, &wstatus, 0)
 
         if ret == -1:
-            message: byte[300]
             snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
             fail(message)
 
-        e = check_error_pipe(run_state.error_pipe_read)
+        # Detect errors before exec in child process
+        #
+        # Note: This assumes that the whole error fits into the OS default pipe
+        #       buffer size. Otherwise the child process would get stuck
+        #       writing to the pipe while the parent is waiting for it.
+        e = 0
+        if read(run_state.error_pipe_read, &e, sizeof(e)) < 0:
+            snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
+            fail(message)
+        close(run_state.error_pipe_read)
+
         if e != 0:
             run_state.test.start_error = e
         elif WIFEXITED(wstatus):
@@ -448,8 +438,16 @@ else:
 def run_command(test: Test*) -> None:
     run_state = TestRunState{test = test}
     create_pipes(&run_state)
+
     spawn_child_process(&run_state)
-    read_output_of_test(&run_state)
+    if test.start_error != 0:
+        return  # TODO: can we report start errors on posix this early too?
+
+    if test.uses_output_capturing:
+        read_output_of_test(&run_state)
+        run_state.output.append('\0')
+        test.actual_output = run_state.output.ptr
+
     wait_for_termination_and_set_result(&run_state)
 
 
