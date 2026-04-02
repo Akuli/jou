@@ -274,7 +274,7 @@ else:
     # and it is closed when exec succeeds. For example, if the command starts
     # some background job, it cannot keep the pipe open, which would cause
     # joutest to wait until the background job is done.
-    def create_cloexec_pipe() -> int[2]:
+    def create_cloexec_pipe(read_end: int*, write_end: int*) -> None:
         # We can't use pipe2() to create a pipe that already has the flag we
         # want, because MacOS doesn't have pipe2(). So we create the pipe and
         # set the flag separately. This would not be good in a multi-threaded
@@ -291,7 +291,95 @@ else:
             snprintf(message, sizeof(message), "fcntl() failed: %s", strerror(get_errno()))
             fail(message)
 
-        return pipefd
+        *read_end = pipefd[0]
+        *write_end = pipefd[1]
+
+    class Pipes:
+        output_read: int  # parent reads output of test
+        output_write: int  # child writes output of test
+        error_read: int  # parent reads errno value from child if the child can't exec
+        error_write: int  # child writes reads errno if it can't exec
+
+    def create_pipes(test: Test*) -> Pipes:
+        pipes = Pipes{}
+        if test.uses_output_capturing:
+            create_cloexec_pipe(&pipes.output_read, &pipes.output_write)
+        else:
+            pipes.output_read = -1
+            pipes.output_write = -1
+        create_cloexec_pipe(&pipes.error_read, &pipes.error_write)
+        return pipes
+
+    def this_runs_in_child_process(test: Test*, pipes: Pipes*) -> noreturn:
+        # Close unused ends of pipes that only the parent uses
+        close(pipes.error_read)
+        if pipes.output_read != -1:
+            close(pipes.output_read)
+
+        e: int
+
+        if test.stdout_capture_mode != CaptureMode.DoNotCapture:
+            if dup2(pipes.output_write, 1) == -1:
+                e = get_errno()
+                write(pipes.error_write, &e, sizeof(e))
+                _exit(127)
+
+        if test.stderr_capture_mode != CaptureMode.DoNotCapture:
+            if dup2(pipes.output_write, 2) == -1:
+                e = get_errno()
+                write(pipes.error_write, &e, sizeof(e))
+                _exit(127)
+
+        if test.working_directory != NULL:
+            if chdir(test.working_directory) != 0:
+                e = get_errno()
+                write(pipes.error_write, &e, sizeof(e))
+                _exit(127)
+
+        # Make sure the argument list ends with a NULL, needed for execvp()
+        test.actual_command_list.append(NULL)
+        test.actual_command_list.pop()  # does not free allocated memory
+
+        execvp(test.actual_command_list.ptr[0], test.actual_command_list.ptr)
+
+        # We get here only if exec failed
+        e = get_errno()
+        write(pipes.error_write, &e, sizeof(e))
+        _exit(127)
+
+    def read_output_of_test(pipes: Pipes*) -> byte*:
+        output = List[byte]{}
+        buf: byte[4096]
+
+        while True:
+            n = read(pipes.output_read, buf, sizeof(buf))
+            if n < 0:  # TODO: retry on EINTR
+                snprintf(buf, sizeof(buf), "reading output failed: %s", strerror(get_errno()))
+                fail(buf)
+
+            assert n >= 0  # TODO
+            if n == 0:
+                break
+            for i = 0; i < n; i++:
+                add_output_byte(&output, buf[i])
+
+        close(pipes.output_read)
+        output.append('\0')
+        return output.ptr
+
+    # Detects errors before exec in child process
+    def check_error_pipe(pipes: Pipes*) -> int:
+        # Note: This assumes that the whole error fits into the OS default pipe
+        #       buffer size. Otherwise the child process would get stuck
+        #       writing to the pipe while the parent is waiting for it.
+        e = 0
+        if read(pipes.error_read, &e, sizeof(e)) < 0:
+            message: byte[300]
+            snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
+            fail(message)
+
+        close(pipes.error_read)
+        return e
 
     # This uses the traditional fork()+exec() instead of posix_spawn(), because
     # there is no standard way to add a chdir() that runs in the child process of
@@ -300,85 +388,23 @@ else:
     def run_command(test: Test*) -> None:
         message: byte[300]
 
-        error_pipe = create_cloexec_pipe()
-        error_pipe_read = error_pipe[0]
-        error_pipe_write = error_pipe[1]
-
-        if test.uses_output_capturing:
-            output_pipe = create_cloexec_pipe()
-            output_pipe_read = output_pipe[0]
-            output_pipe_write = output_pipe[1]
-        else:
-            output_pipe_read = -1
-            output_pipe_write = -1
-
-        stdout_goes_to_pipe = (test.stdout_capture_mode != CaptureMode.DoNotCapture)
-        stderr_goes_to_pipe = (test.stderr_capture_mode != CaptureMode.DoNotCapture)
-
-        # Make sure the argument list ends with a NULL, needed for execvp()
-        test.actual_command_list.append(NULL)
-        test.actual_command_list.pop()  # does not free allocated memory
-        assert test.actual_command_list.len > 0
+        pipes = create_pipes(test)
 
         pid = fork()
         if pid < 0:
             snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
             fail(message)
         elif pid == 0:
-            # This is the child process. We should do the bare minimum we
-            # can here. For example, no printing.
-
-            # Child process is not going to read from either pipe
-            close(error_pipe_read)
-            if output_pipe_read != -1:
-                close(output_pipe_read)
-
-            e: int
-            if stdout_goes_to_pipe:
-                if dup2(output_pipe_write, 1) == -1:
-                    e = get_errno()
-                    write(error_pipe_write, &e, sizeof(e))
-                    _exit(127)
-            if stderr_goes_to_pipe:
-                if dup2(output_pipe_write, 2) == -1:
-                    e = get_errno()
-                    write(error_pipe_write, &e, sizeof(e))
-                    _exit(127)
-            if test.working_directory != NULL:
-                if chdir(test.working_directory) != 0:
-                    e = get_errno()
-                    write(error_pipe_write, &e, sizeof(e))
-                    _exit(127)
-
-            execvp(test.actual_command_list.ptr[0], test.actual_command_list.ptr)
-
-            # We get here only if exec failed
-            e = get_errno()
-            write(error_pipe_write, &e, sizeof(e))
-            _exit(127)
+            this_runs_in_child_process(test, &pipes)
 
         # Parent process is not going to write to the pipes
-        close(error_pipe_write)
-        if output_pipe_write != -1:
-            close(output_pipe_write)
+        close(pipes.error_write)
+        if pipes.output_write != -1:
+            close(pipes.output_write)
 
         assert test.actual_output == NULL
         if test.uses_output_capturing:
-            output = List[byte]{}
-            buf: byte[4096]
-            while True:
-                n = read(output_pipe_read, buf, sizeof(buf))
-                if n < 0:  # TODO: retry on EINTR
-                    snprintf(message, sizeof(message), "reading output failed: %s", strerror(get_errno()))
-                    fail(message)
-                assert n >= 0  # TODO
-                if n == 0:
-                    break
-                for i = 0; i < n; i++:
-                    add_output_byte(&output, buf[i])
-            close(output_pipe_read)
-            output.append('\0')
-            test.actual_output = output.ptr
+            test.actual_output = read_output_of_test(&pipes)
 
         # Wait until it dies, either with exit code or with a signal
         # TODO: retry if we get EINTR
@@ -390,18 +416,7 @@ else:
             snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
             fail(message)
 
-        # Detect errors before exec in child process
-        #
-        # Note: This assumes that the whole error fits into the OS default pipe
-        #       buffer size. Otherwise the child process would get stuck
-        #       writing to the pipe while the parent is waiting for it.
-        e = 0
-        if read(error_pipe_read, &e, sizeof(e)) < 0:
-            snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
-            fail(message)
-
-        close(error_pipe_read)
-
+        e = check_error_pipe(&pipes)
         if e != 0:
             test.start_error = e
         elif WIFEXITED(wstatus):
