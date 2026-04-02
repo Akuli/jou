@@ -175,7 +175,7 @@ def add_output_byte(run_state: TestRunState*, b: byte) -> None:
 
 
 if WINDOWS:
-    def create_pipes(run_state: TestRunState*) -> None:
+    def create_pipes_and_spawn_child_process(run_state: TestRunState*) -> None:
         message: byte[300]
 
         run_state.output_pipe_read = INVALID_HANDLE_VALUE
@@ -200,7 +200,6 @@ if WINDOWS:
             # Instead, the handle should be inheritable only for the process
             # being launched here.
 
-    def spawn_child_process(run_state: TestRunState*) -> None:
         startup_info = STARTUPINFOA{}
         startup_info.cb = sizeof(startup_info) as uint32
         if test.uses_output_capturing:
@@ -314,17 +313,6 @@ else:
         *read_end = pipefd[0]
         *write_end = pipefd[1]
 
-    def create_pipes(run_state: TestRunState*) -> None:
-        assert run_state.test != NULL
-
-        if run_state.test.uses_output_capturing:
-            create_cloexec_pipe(&run_state.output_pipe_read, &run_state.output_pipe_write)
-        else:
-            run_state.output_pipe_read = -1
-            run_state.output_pipe_write = -1
-
-        create_cloexec_pipe(&run_state.error_pipe_read, &run_state.error_pipe_write)
-
     def this_runs_in_child_process(run_state: TestRunState*) -> noreturn:
         # Close unused ends of pipes that only the parent uses
         close(run_state.error_pipe_read)
@@ -366,7 +354,17 @@ else:
     # there is no standard way to add a chdir() that runs in the child process of
     # posix_spawn(). Some platforms have posix_spawn_file_actions_addchdir_np(),
     # but others do not.
-    def spawn_child_process(run_state: TestRunState*) -> None:
+    def create_pipes_and_spawn_child_process(run_state: TestRunState*) -> None:
+        assert run_state.test != NULL
+
+        if run_state.test.uses_output_capturing:
+            create_cloexec_pipe(&run_state.output_pipe_read, &run_state.output_pipe_write)
+        else:
+            run_state.output_pipe_read = -1
+            run_state.output_pipe_write = -1
+
+        create_cloexec_pipe(&run_state.error_pipe_read, &run_state.error_pipe_write)
+
         pid = fork()
         if pid < 0:
             message: byte[300]
@@ -437,9 +435,8 @@ else:
 
 def run_command(test: Test*) -> None:
     run_state = TestRunState{test = test}
-    create_pipes(&run_state)
 
-    spawn_child_process(&run_state)
+    create_pipes_and_spawn_child_process(&run_state)
     if test.start_error != 0:
         return  # TODO: can we report start errors on posix this early too?
 
