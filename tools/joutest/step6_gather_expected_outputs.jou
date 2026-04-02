@@ -3,9 +3,9 @@ import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/math.jou"
 
 import "./fail.jou"
-import "./ftell.jou"
 import "./string_formatter.jou"
 import "./state.jou"
 
@@ -64,41 +64,44 @@ def find_expected_output_from_line(
                 return
 
 
-global huge_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
+global big_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
+
 
 def find_expected_output(test: Test*) -> None:
+    result = List[byte]{}
     message: byte[300]
 
-    f = fopen(test.path, "rb")
-    if f != NULL:
-        if test.end_offset != -1:
-            # TODO: add seeking
-            for stupid_seek_loop = 0 as int64; stupid_seek_loop < test.start_offset; stupid_seek_loop++:
-                if fgetc(f) == EOF:
-                    # TODO: can fail silently if file truncates between test discovery stage and this
-                    break
+    if test.code_in_markdown == NULL:
+        f = fopen(test.path, "rb")
+        if f == NULL:
+            snprintf(message, sizeof(message), "reading expected output from '%s' failed: %s", strerror(get_errno()))
+            fail(message)
 
-        result = List[byte]{}
-        lineno = 0
-        while True:
-            t = ftell(f)
-            if t == -1 or (test.end_offset != -1 and t >= test.end_offset):
-                break
+        lineno = 1
+        while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
+            if ends_with(big_buffer, "\r\n"):
+                big_buffer[strlen(big_buffer) - 2] = '\0'
+            elif ends_with(big_buffer, "\n"):
+                big_buffer[strlen(big_buffer) - 1] = '\0'
+            find_expected_output_from_line(test, lineno++, big_buffer, &result)
 
-            if fgets(huge_buffer, sizeof(huge_buffer), f) == NULL:
-                break
+        fclose(f)
+    else:
+        p = test.code_in_markdown
+        lineno = test.lineno_in_markdown
 
-            if ends_with(huge_buffer, "\r\n"):
-                huge_buffer[strlen(huge_buffer) - 2] = '\0'
-            if ends_with(huge_buffer, "\n"):
-                huge_buffer[strlen(huge_buffer) - 1] = '\0'
-            find_expected_output_from_line(test, ++lineno, huge_buffer, &result)
+        while *p != '\0':
+            line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1)
+            memcpy(big_buffer, p, line_len)
+            big_buffer[line_len] = '\0'
+            p = &p[line_len]
+            if *p == '\r':
+                p++
+            if *p == '\n':
+                p++
 
-    if f == NULL or ferror(f) != 0:
-        snprintf(message, sizeof(message), "reading expected output from '%s' failed: %s", strerror(get_errno()))
-        fail(message)
+            find_expected_output_from_line(test, lineno++, big_buffer, &result)
 
-    fclose(f)
     result.append('\0')
     test.expected_output = result.ptr
 

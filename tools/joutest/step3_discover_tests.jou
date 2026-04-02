@@ -9,7 +9,6 @@ import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
 import "./fail.jou"
-import "./ftell.jou"
 import "./glob.jou"
 import "./state.jou"
 
@@ -32,7 +31,7 @@ def create_test(
     glob_toml: TOML*,
     path: byte*,
 ) -> Test:
-    test = Test{path = strdup(path), glob_toml = glob_toml, end_offset = -1}
+    test = Test{path = strdup(path), glob_toml = glob_toml}
     if state.defaults_toml != NULL:
         test.relevant_toml_tables.append(state.defaults_toml)
     test.relevant_toml_tables.append(table)
@@ -55,34 +54,42 @@ def add_tests_from_markdown(
         snprintf(message, sizeof(message), "failed to open file '%s': %s", path, strerror(get_errno()))
         fail(message)
 
-    line_start: int64 = 0
-    code_start: int64 = -1
+    lineno = 0
+    code_start_lineno = 0  # 0 if not inside a code block
+    code = List[byte]{}
 
     while fgets(huge_buffer, sizeof(huge_buffer), f) != NULL:
-        line_end = ftell(f)
-        if line_end == -1:
-            snprintf(message, sizeof(message), "getting current file position within file '%s' failed: %s", path, strerror(get_errno()))
-            fail(message)
+        lineno++
 
-        trim_ascii_whitespace(huge_buffer)
-        if starts_with(huge_buffer, "```"):
-            lang = &huge_buffer[3]
+        p = &huge_buffer[0]
+        while is_ascii_whitespace(*p):
+            p++
+        if starts_with(p, "```"):
+            lang = &p[3]
+            trim_ascii_whitespace(lang)
             if strcmp(lang, "python") == 0:  # TODO: make this configurable
-                # Start of codeblock
-                code_start = line_end
-            elif *lang == '\0' and code_start != -1:
+                # Start of code block
+                code_start_lineno = lineno
+                assert code.len == 0
+            elif *lang == '\0' and code_start_lineno != 0:
                 # End of code block
                 test = create_test(state, table, glob_toml, path)
-                test.start_offset = code_start
-                test.end_offset = line_start
-                state.tests.append(test)
+                test.lineno_in_markdown = code_start_lineno
+                code.append('\0')
+                test.code_in_markdown = strdup(code.ptr)
+                assert test.code_in_markdown != NULL
                 ntests++
-                code_start = -1
+                code_start_lineno = 0
+                code.len = 0
             else:
                 # Whatever this is, it cannot occur in the middle of a code block
-                code_start = -1
+                code_start_lineno = 0
+                code.len = 0
+        elif code_start_lineno != 0:
+            # Line inside a code block
+            code.extend_from_ptr(huge_buffer, strlen(huge_buffer))
 
-        line_start = line_end
+    free(code.ptr)
 
     if ferror(f) != 0:
         snprintf(message, sizeof(message), "failed to read file '%s': %s", path, strerror(get_errno()))
