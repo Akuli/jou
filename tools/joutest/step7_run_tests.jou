@@ -151,16 +151,11 @@ class TestRunState:
     output: List[byte]
 
     if WINDOWS:
-        # TODO(pr): do we need all this here?
-        output_pipe_read: intnative
-        output_pipe_write: intnative
+        output_pipe_read: intnative  # parent process reads output of test
         process_info: PROCESS_INFORMATION
     else:
-        # TODO(pr): do we need all this here?
-        output_pipe_read: int  # parent reads output of test
-        output_pipe_write: int  # child writes output of test
+        output_pipe_read: int  # parent process reads output of test
         error_pipe_read: int  # parent reads errno value from child if the child can't exec
-        error_pipe_write: int  # child writes reads errno if it can't exec
         child_pid: int
 
 
@@ -183,17 +178,20 @@ if WINDOWS:
         message: byte[300]
 
         run_state.output_pipe_read = INVALID_HANDLE_VALUE
-        run_state.output_pipe_write = INVALID_HANDLE_VALUE
+
+        # This is no longer needed once process has been spawned, so it's a
+        # local variable and not in the state.
+        output_pipe_write = INVALID_HANDLE_VALUE
 
         if run_state.test.uses_output_capturing:
-            if CreatePipe(&run_state.output_pipe_read, &run_state.output_pipe_write, NULL, 0) == 0:
+            if CreatePipe(&run_state.output_pipe_read, &output_pipe_write, NULL, 0) == 0:
                 gle = windows_error_to_string(GetLastError())
                 snprintf(message, sizeof(message), "CreatePipe() failed: %s", gle)
                 fail(message)
 
             # Mark the write end of the pipe as inheritable so the child
             # process can write to it.
-            if SetHandleInformation(run_state.output_pipe_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
+            if SetHandleInformation(output_pipe_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
                 gle = windows_error_to_string(GetLastError())
                 snprintf(message, sizeof(message), "SetHandleInformation() failed: %s", gle)
                 fail(message)
@@ -209,9 +207,9 @@ if WINDOWS:
         if run_state.test.uses_output_capturing:
             startup_info.dwFlags = STARTF_USESTDHANDLES
             if run_state.test.stdout_capture_mode != CaptureMode.DoNotCapture:
-                startup_info.hStdOutput = run_state.output_pipe_write
+                startup_info.hStdOutput = output_pipe_write
             if run_state.test.stderr_capture_mode != CaptureMode.DoNotCapture:
-                startup_info.hStdError = run_state.output_pipe_write
+                startup_info.hStdError = output_pipe_write
 
         # This takes a string because that's how windows works. The command
         # line of a Windows process is a string at the lowest level. The
@@ -241,8 +239,8 @@ if WINDOWS:
         #
         # This is an inheritable handle, so it's important to close it before
         # launching more processes.
-        if run_state.output_pipe_write != INVALID_HANDLE_VALUE:
-            CloseHandle(run_state.output_pipe_write)
+        if output_pipe_write != INVALID_HANDLE_VALUE:
+            CloseHandle(output_pipe_write)
 
     def read_output_of_test(run_state: TestRunState*) -> None:
         assert run_state.test.uses_output_capturing
@@ -319,7 +317,7 @@ else:
         *read_end = pipefd[0]
         *write_end = pipefd[1]
 
-    def this_runs_in_child_process(run_state: TestRunState*) -> noreturn:
+    def this_runs_in_child_process(run_state: TestRunState*, output_pipe_write: int, error_pipe_write: int) -> noreturn:
         # Close unused ends of pipes that only the parent uses
         close(run_state.error_pipe_read)
         if run_state.output_pipe_read != -1:
@@ -328,21 +326,21 @@ else:
         e: int
 
         if run_state.test.stdout_capture_mode != CaptureMode.DoNotCapture:
-            if dup2(run_state.output_pipe_write, 1) == -1:
+            if dup2(output_pipe_write, 1) == -1:
                 e = get_errno()
-                write(run_state.error_pipe_write, &e, sizeof(e))
+                write(error_pipe_write, &e, sizeof(e))
                 _exit(127)
 
         if run_state.test.stderr_capture_mode != CaptureMode.DoNotCapture:
-            if dup2(run_state.output_pipe_write, 2) == -1:
+            if dup2(output_pipe_write, 2) == -1:
                 e = get_errno()
-                write(run_state.error_pipe_write, &e, sizeof(e))
+                write(error_pipe_write, &e, sizeof(e))
                 _exit(127)
 
         if run_state.test.working_directory != NULL:
             if chdir(run_state.test.working_directory) != 0:
                 e = get_errno()
-                write(run_state.error_pipe_write, &e, sizeof(e))
+                write(error_pipe_write, &e, sizeof(e))
                 _exit(127)
 
         # Make sure the argument list ends with a NULL, needed for execvp()
@@ -353,7 +351,7 @@ else:
 
         # We get here only if exec failed
         e = get_errno()
-        write(run_state.error_pipe_write, &e, sizeof(e))
+        write(error_pipe_write, &e, sizeof(e))
         _exit(127)
 
     # This uses the traditional fork()+exec() instead of posix_spawn(), because
@@ -363,13 +361,20 @@ else:
     def create_pipes_and_spawn_child_process(run_state: TestRunState*) -> None:
         assert run_state.test != NULL
 
+        run_state.output_pipe_read = -1
+
+        # These are for the child process which is spawned here, so they don't
+        # need to be stored in the state.
+        output_pipe_write: int
+        error_pipe_write: int
+
         if run_state.test.uses_output_capturing:
-            create_cloexec_pipe(&run_state.output_pipe_read, &run_state.output_pipe_write)
+            create_cloexec_pipe(&run_state.output_pipe_read, &output_pipe_write)
         else:
             run_state.output_pipe_read = -1
-            run_state.output_pipe_write = -1
+            output_pipe_write = -1
 
-        create_cloexec_pipe(&run_state.error_pipe_read, &run_state.error_pipe_write)
+        create_cloexec_pipe(&run_state.error_pipe_read, &error_pipe_write)
 
         pid = fork()
         if pid < 0:
@@ -377,15 +382,15 @@ else:
             snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
             fail(message)
         elif pid == 0:
-            this_runs_in_child_process(run_state)
+            this_runs_in_child_process(run_state, output_pipe_write, error_pipe_write)
 
         # If we get here, we are in the parent process.
         run_state.child_pid = pid
 
         # Parent process is not going to write to the pipes
-        close(run_state.error_pipe_write)
-        if run_state.output_pipe_write != -1:
-            close(run_state.output_pipe_write)
+        close(error_pipe_write)
+        if output_pipe_write != -1:
+            close(output_pipe_write)
 
     def read_output_of_test(run_state: TestRunState*) -> None:
         buf: byte[4096]
