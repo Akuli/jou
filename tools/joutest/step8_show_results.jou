@@ -47,7 +47,7 @@ def show_failures(tests: List[Test]) -> None:
                 )
                 while ends_with(message, "\r") or ends_with(message, "\n"):
                     message[strlen(message)-1] = '\0'
-                printf("|%s|\n", message)
+                puts(message)
             else:
                 puts(strerror(test.start_error))
         elif test.terminating_signal != 0:

@@ -11,7 +11,7 @@ def main() -> int:
     while fgets(line, sizeof(line) as int, get_stdin()) != NULL:
         if starts_with(line, "Process failed to start: "):
             newline = &line[strcspn(line, "\r\n")]
-            printf("Process failed to start: No such file or directory<%s>", newline)
+            printf("Process failed to start: No such file or directory%s", newline)
         else:
             printf("%s", line)
 
