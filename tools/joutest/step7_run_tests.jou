@@ -151,10 +151,12 @@ class TestRunState:
     output: List[byte]
 
     if WINDOWS:
+        # TODO(pr): do we need all this here?
         output_pipe_read: intnative
         output_pipe_write: intnative
         process_info: PROCESS_INFORMATION
     else:
+        # TODO(pr): do we need all this here?
         output_pipe_read: int  # parent reads output of test
         output_pipe_write: int  # child writes output of test
         error_pipe_read: int  # parent reads errno value from child if the child can't exec
@@ -231,9 +233,9 @@ if WINDOWS:
             &startup_info,
             &run_state.process_info,
         )
-        free(string)
         if ret == 0:
             run_state.test.start_error = GetLastError() as int
+        free(string)
 
         # From now on, child is going to write and parent is going to read.
         #
@@ -442,8 +444,8 @@ def run_command(test: Test*) -> None:
 
     create_pipes_and_spawn_child_process(&run_state)
     if test.start_error != 0:
-        # TODO: can we report start errors on posix this early too?
-        # TODO: clean up resources
+        # TODO(pr): can we report start errors on posix this early too?
+        # TODO(pr): clean up resources
         return
 
     if test.uses_output_capturing:
