@@ -204,9 +204,9 @@ if WINDOWS:
         startup_info.cb = sizeof(startup_info) as uint32
         if run_state.test.uses_output_capturing:
             startup_info.dwFlags = STARTF_USESTDHANDLES
-            if test.stdout_capture_mode != CaptureMode.DoNotCapture:
+            if run_state.test.stdout_capture_mode != CaptureMode.DoNotCapture:
                 startup_info.hStdOutput = run_state.output_pipe_write
-            if test.stderr_capture_mode != CaptureMode.DoNotCapture:
+            if run_state.test.stderr_capture_mode != CaptureMode.DoNotCapture:
                 startup_info.hStdError = run_state.output_pipe_write
 
         # This takes a string because that's how windows works. The command
@@ -216,7 +216,7 @@ if WINDOWS:
         # arguments.
         #
         # This does not pass the given string to a shell.
-        string = strdup(test.actual_command_string)  # Apparently windows may modify it, don't know why...
+        string = strdup(run_state.test.actual_command_string)  # Apparently windows may modify it, don't know why...
         ret = CreateProcessA(
             NULL,  # Program name is a part of our arguments string
             string,
@@ -225,13 +225,13 @@ if WINDOWS:
             run_state.test.uses_output_capturing as int,
             0,
             NULL,
-            test.working_directory,
+            run_state.test.working_directory,
             &startup_info,
             &process_info,
         )
         free(string)
         if ret == 0:
-            test.start_error = GetLastError() as int
+            run_state.test.start_error = GetLastError() as int
 
         # From now on, child is going to write and parent is going to read.
         #
@@ -276,7 +276,7 @@ if WINDOWS:
 
         CloseHandle(run_state.process_info.hProcess)
         CloseHandle(run_state.process_info.hThread)
-        test.actual_exit_code = exit_code as int
+        run_state.test.actual_exit_code = exit_code as int
 
 else:
     # The CLOEXEC (close-on-exec) flag means that a successful exec closes the
