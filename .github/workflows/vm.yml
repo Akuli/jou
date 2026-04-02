@@ -54,7 +54,7 @@ jobs:
                 printf '%s\n' $fast $slow > what_to_run.txt
               else
                 echo "Let's run the fast VMs (no '$label' label)"
-                touch what_to_run.txt
+                printf '%s\n' $fast > what_to_run.txt
                 for vm in $slow; do
                   script=tests/vm/$(echo $vm | cut -d- -f1).sh
                   if ! git diff --quiet --exit-code origin/main... $script; then

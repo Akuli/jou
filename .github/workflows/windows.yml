@@ -17,7 +17,6 @@ jobs:
   build-zip:
     runs-on: windows-latest
     timeout-minutes: 10  # may need to bootstrap
-    if: false
     steps:
       - uses: actions/checkout@v6
         with:
@@ -143,22 +142,18 @@ jobs:
       - run: ./windows_setup.sh --small
         shell: bash
       - name: "Compile and test"
-        if: false
         run: source activate && ./runtests.sh --verbose
         shell: bash
       - name: "Compile the compiler with itself"
-        if: false
         run: source activate && ./jou -o jou2 compiler/main.jou && mv jou2.exe jou.exe
         shell: bash
       - name: "Compile and test again"
-        if: false
         # Skip tests that check various error cases to save about 3 minutes of
         # CI time. That is important, because before this was the slowest
         # thing in CI.
         run: source activate && ./runtests.sh should_succeed --verbose
         shell: bash
       - run: source activate && ./doctest.sh
-        if: false
         shell: bash
       - name: "Run the new test runner"
         run: source activate && make && ./joutest.exe --verbose
@@ -168,7 +163,6 @@ jobs:
     needs: build-zip
     runs-on: windows-latest
     timeout-minutes: 10
-    if: false
     steps:
       - uses: actions/checkout@v6
         with:
