@@ -103,12 +103,14 @@ if WINDOWS:
     const ERROR_BROKEN_PIPE: uint32 = 109
 
     def windows_error_to_string(error: uint32) -> byte[300]:
-        result: byte[300] = ""
+        message: byte[300] = ""
         FormatMessageA(
             FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, error, 0, result, sizeof(result) as uint32, NULL,
+            NULL, error, 0, message, sizeof(message) as uint32, NULL,
         )
-        return result
+        while ends_with(message, "\r") or ends_with(message, "\n"):
+            message[strlen(message)-1] = '\0'
+        return message
 
 else:
     declare fork() -> int
