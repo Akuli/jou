@@ -1,0 +1,19 @@
+# On Windows, the file not found error message is in the user's language, not
+# english, so we can't hard-code it in the tests. This script replaces it with
+# a generic error message.
+
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+def main() -> int:
+    line: byte[1024]
+
+    while fgets(line, sizeof(line) as int, get_stdin()) != NULL:
+        if starts_with(line, "Process failed to start: "):
+            newline = &line[strcspn(line, "\r\n")]
+            printf("Process failed to start: No such file or directory%s", newline)
+        else:
+            printf("%s", line)
+
+    # Test runner sees the exit status of this script, not joutest
+    return 1
