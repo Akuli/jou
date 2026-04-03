@@ -390,8 +390,6 @@ else:
     def create_pipes_and_spawn_child_process(run_state: TestRunState*) -> None:
         assert run_state.test != NULL
 
-        run_state.output_pipe_read = -1
-
         # These are only accessed here, no need to put these to the state
         input_pipe_read: int
         output_pipe_write: int
@@ -424,12 +422,11 @@ else:
         run_state.child_pid = pid
 
         # Close pipes that parent process does not use
-        close(error_pipe_write)
+        if input_pipe_read != -1:
+            close(input_pipe_read)
         if output_pipe_write != -1:
             close(output_pipe_write)
-
-        if run_state.output_pipe_read != -1:
-            set_nonblocking(run_state.output_pipe_read)
+        close(error_pipe_write)
 
         # Detect errors before exec in child process. The pipe is cloexec, so
         # it closes with no writing on successful exec.
@@ -448,10 +445,10 @@ else:
     def write_input_and_read_output(run_state: TestRunState*) -> None:
         message: byte[300]
 
-        if run_state.output_pipe_read != -1:
-            set_nonblocking(run_state.output_pipe_read)
         if run_state.input_pipe_write != -1:
             set_nonblocking(run_state.input_pipe_write)
+        if run_state.output_pipe_read != -1:
+            set_nonblocking(run_state.output_pipe_read)
 
         input = run_state.test.stdin_input
         stdout_closed = False
@@ -490,6 +487,7 @@ else:
                         close(run_state.output_pipe_read)
                         run_state.output_pipe_read = -1
                     else:
+                        printf("Got output: %.*s\n", n as int, output_buf)
                         for i = 0; i < n; i++:
                             add_output_byte(run_state, output_buf[i])
 
@@ -514,6 +512,7 @@ else:
                     # Just consider it closed.
                     close(p.fd)
                     if p.fd == run_state.output_pipe_read:
+                        printf("Considering output closed %#x\n", p.revents)
                         run_state.output_pipe_read = -1
                     elif p.fd == run_state.input_pipe_write:
                         run_state.input_pipe_write = -1
