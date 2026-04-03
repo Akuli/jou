@@ -79,8 +79,8 @@ def add_tests_from_markdown(
                 test = create_test(state, table, glob_toml, path)
                 test.lineno_in_markdown = code_start_lineno
                 code.append('\0')
-                test.code_in_markdown = strdup(code.ptr)
-                assert test.code_in_markdown != NULL
+                test.stdin_input = strdup(code.ptr)  # TODO: pad newlines
+                assert test.stdin_input != NULL
                 state.tests.append(test)
                 ntests++
 

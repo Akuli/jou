@@ -219,8 +219,7 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
 
         if test.specified_command_list.len == 0:
             test.specified_command_list.append("jou")
-            if test.code_in_markdown != NULL:
-                # Code will be fed to compiler through stdin
+            if test.stdin_input != NULL:
                 test.specified_command_list.append("-")
             else:
                 test.specified_command_list.append("{file}")

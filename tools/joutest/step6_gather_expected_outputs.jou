@@ -70,14 +70,14 @@ global big_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
 def find_expected_output(test: Test*) -> None:
     result = List[byte]{}
     message: byte[300]
+    lineno = 1
 
-    if test.code_in_markdown == NULL:
+    if test.stdin_input == NULL:
         f = fopen(test.path, "rb")
         if f == NULL:
             snprintf(message, sizeof(message), "reading expected output from '%s' failed: %s", strerror(get_errno()))
             fail(message)
 
-        lineno = 1
         while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
             if ends_with(big_buffer, "\r\n"):
                 big_buffer[strlen(big_buffer) - 2] = '\0'
@@ -86,10 +86,9 @@ def find_expected_output(test: Test*) -> None:
             find_expected_output_from_line(test, lineno++, big_buffer, &result)
 
         fclose(f)
-    else:
-        p = test.code_in_markdown
-        lineno = test.lineno_in_markdown
 
+    else:
+        p = test.stdin_input
         while *p != '\0':
             line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1)
             memcpy(big_buffer, p, line_len)
@@ -99,7 +98,6 @@ def find_expected_output(test: Test*) -> None:
                 p++
             if *p == '\n':
                 p++
-
             find_expected_output_from_line(test, lineno++, big_buffer, &result)
 
     result.append('\0')

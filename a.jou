@@ -5,30 +5,9 @@ import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/errno.jou"
 import "stdlib/process.jou"
+import "stdlib/intnative.jou"
 
-if LINUX:
-    import "stdlib/intnative.jou"
-
-assert LINUX or MACOS or NETBSD
-
-
-class pollfd:
-    fd: int
-    events: int16
-    revents: int16
-
-if LINUX:
-    declare poll(fds: pollfd*, nfds: intnative, timeout: int) -> int
-elif MACOS or NETBSD:
-    declare poll(fds: pollfd*, nfds: int, timeout: int) -> int
-else:
-    assert False
-
-const POLLIN: int16 = 0x001
-const POLLOUT: int16 = 0x004
-const POLLERR: int16 = 0x008
-const POLLHUP: int16 = 0x010
-const POLLNVAL: int16 = 0x020
+import "./tools/joutest/poll.jou"
 
 declare read(fd: int, buf: void*, count: intnative) -> intnative
 declare pipe(pipefd: int[2]*) -> int
@@ -39,7 +18,6 @@ declare fork() -> int
 declare _exit(status: int) -> noreturn
 declare write(fd: int, buf: void*, count: intnative) -> intnative
 declare fcntl(fd: int, op: int, ...) -> int
-declare sleep(seconds: uint32) -> uint32
 
 # pipe ends
 const READ: int = 0
@@ -56,7 +34,7 @@ else:
     assert False
 
 
-def make_nonblocking(fd: int) -> None:
+def set_nonblocking(fd: int) -> None:
     flags = fcntl(fd, F_GETFL, 0)
     printf("flags = %d\n", flags)
     if fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1:
@@ -93,8 +71,8 @@ def main() -> int:
     while strlen(input) < approx_input_size:
         sprintf(&input[strlen(input)], "This is a test. This test input is quite big. Line %d\n", ++lineno)
 
-    make_nonblocking(outpipe[READ])
-    make_nonblocking(inpipe[WRITE])
+    set_nonblocking(outpipe[READ])
+    set_nonblocking(inpipe[WRITE])
 
     polls = [
         pollfd{fd = outpipe[READ], events = POLLIN},
@@ -117,5 +95,3 @@ def main() -> int:
             assert n != -1
             input = &input[n]
             printf("Wrote %zd bytes of input, %zd bytes remaining.\n", n, strlen(input))
-
-    return 0

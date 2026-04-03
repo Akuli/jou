@@ -1,0 +1,33 @@
+# TODO: put this to stdlib?
+
+if LINUX:
+    import "stdlib/intnative.jou"
+
+
+assert LINUX or MACOS or NETBSD
+
+@public
+class pollfd:
+    fd: int
+    events: int16
+    revents: int16
+
+if LINUX:
+    @public
+    declare poll(fds: pollfd*, nfds: intnative, timeout: int) -> int
+elif MACOS or NETBSD:
+    @public
+    declare poll(fds: pollfd*, nfds: int, timeout: int) -> int
+else:
+    assert False
+
+@public
+const POLLIN: int16 = 0x001
+@public
+const POLLOUT: int16 = 0x004
+@public
+const POLLERR: int16 = 0x008
+@public
+const POLLHUP: int16 = 0x010
+@public
+const POLLNVAL: int16 = 0x020
