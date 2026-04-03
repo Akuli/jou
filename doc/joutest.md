@@ -193,7 +193,9 @@ files = "hello.md"
 markdown_code_block_languages = ["python"]
 ```
 
-Any file whose name ends with `.md` (case-insensitive) is considered to be a markdown file.
+You can omit the `markdown_code_block_languages` setting if the markdown files use ` ```jou `.
+To distinguish markdown files from other files, `joutest` looks at the file extension:
+files whose name ends with `.md` (case-insensitive) are treated as markdown.
 
 
 ## Condition Tables
