@@ -137,8 +137,7 @@ class DiffPrinter:
     def finish(self) -> None:
         for i = 0; i < array_count(self.context_buf); i++:
             if self.context_buf[i] != NULL:
-                if self.last_discarded_line == NULL:
-                    self.last_discarded_line = self.context_buf[i]
+                self.last_discarded_line = self.context_buf[i]
                 self.skip_count++
         self.print_skip()
 
