@@ -23,6 +23,7 @@ import "stdlib/str.jou"
 import "./ansi_colors.jou"
 import "./fail.jou"
 import "./state.jou"
+import "./print_test_info.jou"
 
 
 if WINDOWS:
@@ -566,9 +567,8 @@ def run_command(test: Test*) -> None:
 
 def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if args.verbose:
-        printf("%srun:%s %s", BLUE, RESET, test.actual_command_string)
-        if test.working_directory != NULL:
-            printf(" %sin %s%s", CYAN, test.working_directory, RESET)
+        printf("%srun:%s ", BLUE, RESET)
+        print_test_info_without_newlines(test)
         printf("\n")
         fflush(get_stdout())
 
@@ -590,13 +590,12 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if args.verbose:
         match test.simple_result:
             case SimpleResult.Success:
-                printf("%s ok %s %s", GREEN, RESET, test.actual_command_string)
+                printf("%s ok %s ", GREEN, RESET)
             case SimpleResult.Failed:
-                printf("%sFAIL%s %s", RED, RESET, test.actual_command_string)
+                printf("%sFAIL%s ", RED, RESET)
             case SimpleResult.Skipped:
-                printf("%sskip%s %s", YELLOW, RESET, test.actual_command_string)
-        if test.working_directory != NULL:
-            printf(" %sin %s%s", CYAN, test.working_directory, RESET)
+                printf("%sskip%s ", YELLOW, RESET)
+        print_test_info_without_newlines(test)
         printf("\n")
     else:
         match test.simple_result:

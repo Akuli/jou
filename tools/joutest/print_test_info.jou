@@ -1,0 +1,34 @@
+import "stdlib/io.jou"
+
+import "./ansi_colors.jou"
+import "./state.jou"
+
+
+@public
+def print_test_info_without_newlines(test: Test*) -> None:
+    printf("%s%s", RESET, test.actual_command_string)
+    if test.working_directory != NULL:
+        printf(" %s(in %s)%s", CYAN, test.working_directory, RESET)
+    if test.stdin_input != NULL:
+        # Please keep this in 'file "foo", line 123' form. Output like that
+        # becomes clickable in some editors, at least porcupine.
+        printf(
+            " %s(input file \"%s\", line %d to line %d)%s",
+            CYAN,
+            test.path,
+            test.markdown_start_lineno,
+            test.markdown_end_lineno,
+            RESET,
+        )
+
+
+@public
+def print_test_info_multiline(test: Test*) -> None:
+    printf("%s*** Command: %s\n", YELLOW, test.actual_command_string)
+    if test.working_directory != NULL:
+        printf("    Working directory: %s\n", test.working_directory)
+    if test.stdin_input != NULL:
+        # Please keep this in 'file "foo", line 123' form. Output like that
+        # becomes clickable in some editors, at least porcupine.
+        printf("    Input: file \"%s\", line %d to line %d\n", test.path, test.markdown_start_lineno, test.markdown_end_lineno)
+    printf("%s", RESET)
