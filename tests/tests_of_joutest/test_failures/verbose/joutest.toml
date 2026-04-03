@@ -1,0 +1,26 @@
+[[tests]]
+files = ["hello.jou", "markdown_file.md"]
+
+[[tests]]
+files = "subdir/subdir_hello.jou"
+cd_to_containing_directory = true
+
+# Output: run: jou hello.jou
+# Output: FAIL jou hello.jou
+# Output: run: jou - (input file "markdown_file.md", line 1 to line 6)
+# Output: FAIL jou - (input file "markdown_file.md", line 1 to line 6)
+# Output: run: jou subdir_hello.jou (in subdir)
+# Output: FAIL jou subdir_hello.jou (in subdir)
+# Output:
+# Output:
+# Output: *** Command: jou hello.jou
+# Output: -Hello World
+# Output: +Hello Wroold
+# Output:
+# Output: *** Command: jou subdir_hello.jou
+# Output:     Working directory: subdir
+# Output: -Hello World
+# Output: +Hello Wroold
+# Output:
+# Output:
+# Output: 0 succeeded, 3 failed
