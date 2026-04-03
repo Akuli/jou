@@ -68,9 +68,13 @@ def add_tests_from_markdown(
 
             if *lang != '\0' and strlen(lang) < sizeof(code_language):
                 # Start of code block
+                strcpy(code_language, lang)
                 code_first_lineno = lineno + 1
                 assert code.len == 0
-                strcpy(code_language, lang)
+                # If code starts on line 5, add 4 blank lines to beginning so
+                # line numbers align correctly.
+                for i = 0; i < code_first_lineno - 1; i++:
+                    code.append('\n')
 
             elif *lang == '\0' and code_first_lineno != 0:
                 # End of code block
