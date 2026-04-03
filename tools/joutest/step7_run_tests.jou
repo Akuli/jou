@@ -487,7 +487,6 @@ else:
                         close(run_state.output_pipe_read)
                         run_state.output_pipe_read = -1
                     else:
-                        printf("Got output: %.*s\n", n as int, output_buf)
                         for i = 0; i < n; i++:
                             add_output_byte(run_state, output_buf[i])
 
@@ -507,12 +506,11 @@ else:
                     else:
                         input = &input[n]
 
-                else:
-                    # Maybe some kind of error, but no good way to get error message.
-                    # Just consider it closed.
+                # There's no good way to get error message for POLLERR.
+                # So just consider it as EOF.
+                elif p.revents & (POLLHUP | POLLERR) != 0:
                     close(p.fd)
                     if p.fd == run_state.output_pipe_read:
-                        printf("Considering output closed %#x\n", p.revents)
                         run_state.output_pipe_read = -1
                     elif p.fd == run_state.input_pipe_write:
                         run_state.input_pipe_write = -1
