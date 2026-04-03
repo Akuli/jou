@@ -55,7 +55,7 @@ After calling `.next()`, you can use the following fields:
     and zero if no error has occurred.
     On Windows, this is [a Windows API error number](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-)
     as [`uint32`](types.md#integers).
-    On other systems, this is [errno value](../stdlib/errno.jou) as `int`.
+    On other systems, this is an [errno value](../stdlib/errno.jou) as `int`.
 - `error_message: byte[512]` is a human-readable error message,
     or an empty string if no error has occurred.
 
