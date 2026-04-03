@@ -77,7 +77,8 @@ def add_tests_from_markdown(
             elif *lang == '\0' and code_start_lineno != 0:
                 # End of code block
                 test = create_test(state, table, glob_toml, path)
-                test.lineno_in_markdown = code_start_lineno
+                test.markdown_start_lineno = code_start_lineno
+                test.markdown_end_lineno = lineno
                 code.append('\0')
                 test.stdin_input = strdup(code.ptr)  # TODO: pad newlines
                 assert test.stdin_input != NULL

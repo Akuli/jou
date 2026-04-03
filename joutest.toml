@@ -13,7 +13,10 @@ files = "tests/tests_of_joutest/should_succeed/verbose*/joutest.toml"
 command = ["joutest", "--no-colors", "--verbose"]
 
 [[tests]]
-files = "tests/tests_of_joutest/bad_configs/**/joutest.toml"
+files = [
+    "tests/tests_of_joutest/bad_configs/**/joutest.toml",
+    "tests/tests_of_joutest/test_failures/**/joutest.toml",
+]
 expected_exit_code = 1
 
 [[tests]]
