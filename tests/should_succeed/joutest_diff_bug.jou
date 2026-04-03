@@ -1,0 +1,16 @@
+import "../../tools/joutest/ansi_colors.jou"
+import "../../tools/joutest/diff.jou"
+
+# Output:  a
+# Output:  b
+# Output: -c1
+# Output: +c2
+# Output:  d
+# Output:  e
+# Output:  f
+# Output:  g
+
+def main() -> int:
+    disable_colors()
+    print_diff("a\nb\nc1\nd\ne\nf\ng\n", "a\nb\nc2\nd\ne\nf\ng\n")
+    return 0
