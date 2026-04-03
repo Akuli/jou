@@ -1,4 +1,6 @@
-# Test joutest with itself
+############################
+# Test joutest with itself #
+############################
 [[tests]]
 files = "tests/tests_of_joutest/**/joutest.toml"
 command = ["joutest", "--no-colors"]
@@ -26,5 +28,15 @@ command = {
     default = ['joutest', '--no-colors'],
 }
 
+###############################
+# Test code in markdown files #
+###############################
 [[tests]]
-files = "README.md"
+files = [
+    "doc/bitwise.md",
+    "doc/enums.md",
+    "doc/inline.md",
+    "doc/joutest.md",
+    "doc/json-parsing.md",
+    "doc/loops.md",
+]
