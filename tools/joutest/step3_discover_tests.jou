@@ -55,7 +55,7 @@ def add_tests_from_markdown(
         fail(message)
 
     lineno = 0
-    code_start_lineno = 0  # 0 if not inside a code block
+    code_first_lineno = 0  # 0 if not inside a code block
     code = List[byte]{}
 
     while fgets(huge_buffer, sizeof(huge_buffer), f) != NULL:
@@ -71,29 +71,29 @@ def add_tests_from_markdown(
 
             if strcmp(lang, "python") == 0:  # TODO: make this configurable
                 # Start of code block
-                code_start_lineno = lineno
+                code_first_lineno = lineno + 1
                 assert code.len == 0
 
-            elif *lang == '\0' and code_start_lineno != 0:
+            elif *lang == '\0' and code_first_lineno != 0:
                 # End of code block
                 test = create_test(state, table, glob_toml, path)
-                test.markdown_start_lineno = code_start_lineno
-                test.markdown_end_lineno = lineno
+                test.first_markdown_lineno = code_first_lineno
+                test.last_markdown_lineno = lineno - 1
                 code.append('\0')
                 test.stdin_input = strdup(code.ptr)  # TODO: pad newlines
                 assert test.stdin_input != NULL
                 state.tests.append(test)
                 ntests++
 
-                code_start_lineno = 0
+                code_first_lineno = 0
                 code.len = 0
 
             else:
                 # Whatever this is, it cannot occur in the middle of a code block
-                code_start_lineno = 0
+                code_first_lineno = 0
                 code.len = 0
 
-        elif code_start_lineno != 0:
+        elif code_first_lineno != 0:
             # Line inside a code block
             code.extend_from_ptr(huge_buffer, strlen(huge_buffer))
 

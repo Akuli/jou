@@ -102,7 +102,7 @@ For example, changing `printf("Bla4\n")` to `printf("Baa4\n")` above produces th
 ```diff
 F
 
-*** Command: jou test.jou ***
+*** Command: jou test.jou
 @@ 3 lines not shown @@
  Bla1
  Bla2
@@ -150,7 +150,7 @@ For example, commenting out or removing `test_minus()` from `main()` in the abov
 ```diff
 F
 
-*** Command: jou a.jou ***
+*** Command: jou a.jou
 +compiler warning for file "a.jou", line 7: function 'test_minus' defined but not used
  3
  579

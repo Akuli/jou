@@ -16,8 +16,8 @@ def print_test_info_without_newlines(test: Test*) -> None:
             " %s(input file \"%s\", line %d to line %d)%s",
             CYAN,
             test.path,
-            test.markdown_start_lineno,
-            test.markdown_end_lineno,
+            test.first_markdown_lineno,
+            test.last_markdown_lineno,
             RESET,
         )
 
@@ -30,5 +30,5 @@ def print_test_info_multiline(test: Test*) -> None:
     if test.stdin_input != NULL:
         # Please keep this in 'file "foo", line 123' form. Output like that
         # becomes clickable in some editors, at least porcupine.
-        printf("    Input: file \"%s\", line %d to line %d\n", test.path, test.markdown_start_lineno, test.markdown_end_lineno)
+        printf("    Input: file \"%s\", line %d to line %d\n", test.path, test.first_markdown_lineno, test.last_markdown_lineno)
     printf("%s", RESET)

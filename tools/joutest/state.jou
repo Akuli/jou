@@ -29,8 +29,8 @@ class Test:
     glob_toml: TOML*
     relevant_toml_tables: List[TOML*]
     stdin_input: byte*  # For markdown files, code in the code block, NULL if not used
-    markdown_start_lineno: int  # Line number if markdown file, 0 if not markdown file
-    markdown_end_lineno: int    # Line number if markdown file, 0 if not markdown file
+    first_markdown_lineno: int  # Line number if markdown file, 0 if not markdown file
+    last_markdown_lineno: int   # Line number if markdown file, 0 if not markdown file
 
     # These are set in step 4 (configure tests)
     specified_command_list: List[byte*]  # may contain things like "{file}"
