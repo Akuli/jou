@@ -4,7 +4,19 @@ import "stdlib/str.jou"
 import "./state.jou"
 
 
-def name_contains_any_given_filter_string(test: Test*, filters: List[byte*]) -> bool:
+def test_should_run(test: Test*, filters: List[byte*]) -> bool:
+    # TODO: this shouldn't be here I think
+    if test.markdown_code_block_language[0] != '\0':
+        found = False
+        for p = test.markdown_code_block_languages.ptr; p < test.markdown_code_block_languages.end(); p++:
+            if strcmp(*p, test.markdown_code_block_language) == 0:
+                found = True
+                break
+        if not found:
+            return False
+
+    if filters.len == 0:
+        return True
     for f = filters.ptr; f < filters.end(); f++:
         if strstr(test.path, *f) != NULL:
             return True
@@ -13,13 +25,9 @@ def name_contains_any_given_filter_string(test: Test*, filters: List[byte*]) -> 
 
 @public
 def step5_filter_tests(tests: List[Test]*, args: CommandLineArgs*) -> None:
-    if args.filter_strings.len == 0:
-        # No filters specified, run all tests
-        return
-
     new_len = 0
     for test = tests.ptr; test < tests.end(); test++:
-        if name_contains_any_given_filter_string(test, args.filter_strings):
+        if test_should_run(test, args.filter_strings):
             # Preserve this test
             tests.ptr[new_len++] = *test
 

@@ -56,29 +56,28 @@ def add_tests_from_markdown(
 
     lineno = 0
     code_first_lineno = 0  # 0 if not inside a code block
+    code_language: byte[100] = ""
     code = List[byte]{}
 
     while fgets(huge_buffer, sizeof(huge_buffer), f) != NULL:
         lineno++
 
-        p = &huge_buffer[0]
-        while is_ascii_whitespace(*p):
-            p++
-
-        if starts_with(p, "```"):
-            lang = &p[3]
+        if starts_with(huge_buffer, "```"):
+            lang = &huge_buffer[3]
             trim_ascii_whitespace(lang)
 
-            if strcmp(lang, "python") == 0:  # TODO: make this configurable
+            if *lang != '\0' and strlen(lang) < sizeof(code_language):
                 # Start of code block
                 code_first_lineno = lineno + 1
                 assert code.len == 0
+                strcpy(code_language, lang)
 
             elif *lang == '\0' and code_first_lineno != 0:
                 # End of code block
                 test = create_test(state, table, glob_toml, path)
                 test.first_markdown_lineno = code_first_lineno
                 test.last_markdown_lineno = lineno - 1
+                test.markdown_code_block_language = code_language
                 code.append('\0')
                 test.stdin_input = strdup(code.ptr)  # TODO: pad newlines
                 assert test.stdin_input != NULL
@@ -125,7 +124,13 @@ def add_or_update_tests_of_file(
 
     state.files_already_checked.append(strdup(path))
 
-    if ends_with(path, ".md") or ends_with(path, ".MD"):
+    if (
+        # This is documented as being case-insensitive
+        ends_with(path, ".md")
+        or ends_with(path, ".mD")
+        or ends_with(path, ".Md")
+        or ends_with(path, ".MD")
+    ):
         return add_tests_from_markdown(state, table, glob_toml, path)
     else:
         state.tests.append(create_test(state, table, glob_toml, path))

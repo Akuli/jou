@@ -162,6 +162,40 @@ F
 ```
 
 
+## Markdown files
+
+You can use `joutest` to check that example code in your documentation stays up to date.
+
+For example, suppose that `hello.md` contains the following:
+
+    # My markdown document
+
+    Bla bla bla.
+
+    ```python
+    import "stdlib/io.jou"
+
+    def main() -> int:
+        printf("Hello World\n")  # Output: Hello World
+        return 0
+    ```
+
+Here ` ```python ` tricks GitHub to use Python syntax highlight for the code example,
+which works reasonably well most of the time.
+You can use ` ```jou ` instead if everything that parses your documentation
+supports it well enough for you.
+
+To test the code example in `hello.md`, place the following to `joutest.toml`:
+
+```toml
+[[tests]]
+files = "hello.md"
+markdown_code_block_languages = ["python"]
+```
+
+Any file whose name ends with `.md` (case-insensitive) is considered to be a markdown file.
+
+
 ## Condition Tables
 
 Let's say that for whatever reason, you have separate test files
@@ -258,8 +292,12 @@ Everything else is optional.
             The first line of the file is line 1.
         - `{{` is replaced with a `{` character.
         - `}}` is replaced with a `}` character.
-    - `command` (default: `["jou", "{file}"]`) is the command that `joutest` invokes to run the test.
-        It is an array of strings like `["jou", "{file}"]`.
+    - `command` (default: `["jou", "{file}"]` or `["jou", "-"]`)
+        is the command that `joutest` invokes to run the test.
+        For [tests in markdown files](#markdown-files),
+        `joutest` writes a part of the markdown file to the stdin of the test process,
+        and the default command is `["jou", "-"]` to compile and run Jou code from the compiler's stdin.
+        For other files, the default command is `["jou", "{file}"]`.
         Inside each string, the following replacements are done:
         - `{file}` is replaced with a relative path to the test file.
             Backslashes are used on Windows, and forward slashes are used on other operating systems.
@@ -275,6 +313,9 @@ Everything else is optional.
     - `expected_exit_code` (default: `0`) is the correct
         [exit code](tutorial.md#main-function-and-binaries) for the test as an integer.
         If errors are expected, you probably want to set this to `1`.
+    - `markdown_code_block_languages` (default: `["jou"]`) is an array of strings
+        to determine what to [test in markdown files](#markdown-files).
+        This is ignored for non-markdown files.
 - `defaults_for_all_tests` (default: empty table) is just like each table of the `tests` array,
     except that you cannot specify `files`.
     As the name suggests, these settings are used
@@ -314,7 +355,6 @@ parallel = true
 [defaults_for_all_tests]
 command = ["jou", "{file}"]
 run_compiler_under_valgrind = false
-markdown.languages_to_test_as_jou = ["jou"]
 timeout_seconds = 60
 stdout = "compare_to_comments"
 stderr = "compare_to_comments"
@@ -350,13 +390,13 @@ Plan and status:
     - `--valgrind`
     - `--jou-flags`
     - [DONE] `--no-colors`
-    - test name filter
+    - [DONE] test name filter
 2. [DONE] parse joutest.toml
     - [DONE] eliminate condition tables
     - [DONE] don't validate everything or place into nice data structures here
 3. discover tests
     - [DONE] do the globs
-    - markdown files: find code block start/end byte offsets
+    - [DONE] markdown files: find code blocks
     - [DONE] figure out which configurations apply to each test
     - [DONE] do not apply the configurations yet!!!
     - sort tests by:
@@ -364,13 +404,13 @@ Plan and status:
         - start offset (needed for markdown, `qsort()` is not a stable sort)
     - in TOML, use:
         - [DONE] `files`
-        - `markdown.languages_to_test_as_jou`
+        - [DONE] `markdown_code_block_languages`
 4. [DONE] configure tests
     - [DONE] walk through and apply each relevant TOML section
-    - this is where most of the validation should happen
-5. gather expected outputs
+    - [DONE] this is where most of the validation should happen
+5. [DONE] gather expected outputs
     - [DONE] read files and parse for comments
-    - markdown: must seek
+    - [DONE] markdown special-casing
 6. run tests
     - pre-test command like `make`
         - TODO: how about `./runtests.sh --dont-run-make`?
