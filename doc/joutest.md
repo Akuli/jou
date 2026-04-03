@@ -164,7 +164,7 @@ F
 
 ## Markdown files
 
-You can use `joutest` to check that example code in your documentation stays up to date.
+You can use `joutest` to ensure that example code in your documentation stays up to date.
 
 For example, suppose that `hello.md` contains the following:
 
@@ -180,7 +180,7 @@ For example, suppose that `hello.md` contains the following:
         return 0
     ```
 
-Here ` ```python ` tricks GitHub to use Python syntax highlight for the code example,
+Here ` ```python ` tricks GitHub to use Python syntax highlighting for the Jou code,
 which works reasonably well most of the time.
 You can use ` ```jou ` instead if everything that parses your documentation
 supports it well enough for you.
@@ -292,11 +292,11 @@ Everything else is optional.
             The first line of the file is line 1.
         - `{{` is replaced with a `{` character.
         - `}}` is replaced with a `}` character.
-    - `command` (default: `["jou", "{file}"]` or `["jou", "-"]`)
+    - `command` (default: `["jou", "{file}"]` or `["jou", "--stdin-name", "{file}", "-"]`)
         is the command that `joutest` invokes to run the test.
         For [tests in markdown files](#markdown-files),
         `joutest` writes a part of the markdown file to the stdin of the test process,
-        and the default command is `["jou", "-"]` to compile and run Jou code from the compiler's stdin.
+        and the default command tells the Jou compiler to run code from its stdin.
         For other files, the default command is `["jou", "{file}"]`.
         Inside each string, the following replacements are done:
         - `{file}` is replaced with a relative path to the test file.
