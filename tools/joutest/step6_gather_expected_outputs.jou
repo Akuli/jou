@@ -90,7 +90,7 @@ def find_expected_output(test: Test*) -> None:
     else:
         p = test.stdin_input
         while *p != '\0':
-            line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1)
+            line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1) as intnative
             memcpy(big_buffer, p, line_len)
             big_buffer[line_len] = '\0'
             p = &p[line_len]
