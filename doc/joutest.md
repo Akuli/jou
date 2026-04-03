@@ -317,6 +317,7 @@ Everything else is optional.
         If errors are expected, you probably want to set this to `1`.
     - `markdown_code_block_languages` (default: `["jou"]`) is an array of strings
         to determine what to [test in markdown files](#markdown-files).
+        Code blocks whose language is not in this array are silently ignored.
         This is ignored for non-markdown files.
 - `defaults_for_all_tests` (default: empty table) is just like each table of the `tests` array,
     except that you cannot specify `files`.
