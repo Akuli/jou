@@ -113,6 +113,14 @@ def test_dir_iter_funny_paths() -> None:
     chdir("../../../..")
 
 
+def error_message_sanity_check(msg: byte*) -> None:
+    assert strlen(msg) >= 10
+
+    # On Windows, FormatMessage appends \r\n, make sure that is stripped out
+    assert strstr(msg, "\r") == NULL
+    assert strstr(msg, "\n") == NULL
+
+
 def test_dir_iter_corner_cases() -> None:
     # Default slash
     iter = DirIter{dir = "tests/data/folder_2files_1dir"}
@@ -140,20 +148,20 @@ def test_dir_iter_corner_cases() -> None:
     iter = DirIter{dir = "does_not_exist"}
     assert not iter.next()
     assert iter.error_code == (3 if WINDOWS else 2)
-    assert strlen(iter.error_message) >= 10  # exact message depends on system
+    error_message_sanity_check(iter.error_message)  # exact message depends on system
     assert not iter.next()
     assert iter.error_code == (3 if WINDOWS else 2)
-    assert strlen(iter.error_message) >= 10  # exact message depends on system
+    error_message_sanity_check(iter.error_message)  # exact message depends on system
 
     puts("Empty string")  # Output: Empty string
     # Same behavior as if dir doesn't exist
     iter = DirIter{dir = ""}
     assert not iter.next()
     assert iter.error_code == (3 if WINDOWS else 2)
-    assert strlen(iter.error_message) >= 10  # exact message depends on system
+    error_message_sanity_check(iter.error_message)  # exact message depends on system
     assert not iter.next()
     assert iter.error_code == (3 if WINDOWS else 2)
-    assert strlen(iter.error_message) >= 10  # exact message depends on system
+    error_message_sanity_check(iter.error_message)  # exact message depends on system
 
     puts("Empty directory")  # Output: Empty directory
     mkdir("tmp", 0o777)
@@ -176,10 +184,10 @@ def test_dir_iter_corner_cases() -> None:
     iter = DirIter{dir = "README.md"}
     assert not iter.next()
     assert iter.error_code == (267 if WINDOWS else 20)
-    assert strlen(iter.error_message) >= 10  # exact message depends on system
+    error_message_sanity_check(iter.error_message)  # exact message depends on system
     assert not iter.next()
     assert iter.error_code == (267 if WINDOWS else 20)
-    assert strlen(iter.error_message) >= 10  # exact message depends on system
+    error_message_sanity_check(iter.error_message)  # exact message depends on system
 
 
 def test_find_exe() -> None:
