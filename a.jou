@@ -1,0 +1,121 @@
+import "stdlib/assert.jou"
+import "stdlib/math.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/errno.jou"
+import "stdlib/process.jou"
+
+if LINUX:
+    import "stdlib/intnative.jou"
+
+assert LINUX or MACOS or NETBSD
+
+
+class pollfd:
+    fd: int
+    events: int16
+    revents: int16
+
+if LINUX:
+    declare poll(fds: pollfd*, nfds: intnative, timeout: int) -> int
+elif MACOS or NETBSD:
+    declare poll(fds: pollfd*, nfds: int, timeout: int) -> int
+else:
+    assert False
+
+const POLLIN: int16 = 0x001
+const POLLOUT: int16 = 0x004
+const POLLERR: int16 = 0x008
+const POLLHUP: int16 = 0x010
+const POLLNVAL: int16 = 0x020
+
+declare read(fd: int, buf: void*, count: intnative) -> intnative
+declare pipe(pipefd: int[2]*) -> int
+declare execvp(file: byte*, argv: byte**) -> int
+declare dup2(oldfd: int, newfd: int) -> int
+declare close(fd: int) -> int
+declare fork() -> int
+declare _exit(status: int) -> noreturn
+declare write(fd: int, buf: void*, count: intnative) -> intnative
+declare fcntl(fd: int, op: int, ...) -> int
+declare sleep(seconds: uint32) -> uint32
+
+# pipe ends
+const READ: int = 0
+const WRITE: int = 1
+
+const F_GETFL: int = 3
+const F_SETFL: int = 4
+
+if LINUX:
+    const O_NONBLOCK: int = 0o4000
+elif MACOS or NETBSD:
+    const O_NONBLOCK: int = 0x00000004
+else:
+    assert False
+
+
+def make_nonblocking(fd: int) -> None:
+    flags = fcntl(fd, F_GETFL, 0)
+    printf("flags = %d\n", flags)
+    if fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1:
+        printf("ERROR %s\n", strerror(get_errno()))
+        exit(1)
+    flags = fcntl(fd, F_GETFL, 0)
+    printf("flags = %d\n", flags)
+
+
+def main() -> int:
+    inpipe: int[2]
+    outpipe: int[2]
+    pipe(&inpipe)
+    pipe(&outpipe)
+
+    child_pid = fork()
+    if child_pid == 0:
+        # this is the child process
+        dup2(inpipe[READ], 0)
+        dup2(outpipe[WRITE], 1)
+        close(inpipe[WRITE])
+        close(outpipe[READ])
+        args = ["python3", "-c", "import time\nwhile True:\n    print(input(),end='',flush=True)\n    time.sleep(0.1)", NULL]
+        execvp(args[0], args)
+        _exit(127)
+
+    close(inpipe[READ])
+    close(outpipe[WRITE])
+
+    approx_input_size = 1_000_000
+    input: byte* = malloc(approx_input_size + 1234)
+    assert input != NULL
+    lineno = 0
+    while strlen(input) < approx_input_size:
+        sprintf(&input[strlen(input)], "This is a test. This test input is quite big. Line %d\n", ++lineno)
+
+    make_nonblocking(outpipe[READ])
+    make_nonblocking(inpipe[WRITE])
+
+    polls = [
+        pollfd{fd = outpipe[READ], events = POLLIN},
+        pollfd{fd = inpipe[WRITE], events = POLLOUT},
+    ]
+
+    while True:
+        ret = poll(polls, array_count(polls), -1)
+        assert ret != -1
+
+        if polls[0].revents & POLLIN != 0:
+            buf: byte[30]
+            n = read(outpipe[READ], buf, sizeof(buf)-1)
+            assert n >= 0
+            buf[n] = '\0'
+            printf("Read %zd bytes: %s\n", n, buf)
+
+        if polls[1].revents & POLLOUT != 0:
+            n = write(inpipe[WRITE], input, min(strlen(input) as int, 1000))
+            assert n != -1
+            input = &input[n]
+            printf("Wrote %zd bytes of input, %zd bytes remaining.\n", n, strlen(input))
+
+    return 0
