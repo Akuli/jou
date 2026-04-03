@@ -89,9 +89,9 @@ class DiffPrinter:
             case 1:
                 # Do not print "@@ 1 line not shown @@". That looks dumb and
                 # makes the user wonder why we aren't just printing the line.
-                # So let's just print the line if we know it.
-                if self.last_discarded_line != NULL:
-                    print_line(NULL, ' ', self.last_discarded_line)
+                # So let's just print the line.
+                assert self.last_discarded_line != NULL
+                print_line(NULL, ' ', self.last_discarded_line)
             case _:
                 printf("%s@@ %d lines not shown @@%s\n", CYAN, self.skip_count, RESET)
         self.skip_count = 0
@@ -139,7 +139,6 @@ class DiffPrinter:
             if self.context_buf[i] != NULL:
                 self.last_discarded_line = self.context_buf[i]
                 self.skip_count++
-
         self.print_skip()
 
 
