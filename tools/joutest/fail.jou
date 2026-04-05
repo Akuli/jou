@@ -2,6 +2,9 @@ import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 
+if WINDOWS:
+    import "stdlib/str.jou"
+
 
 @public
 def fail(message: byte*) -> noreturn:
@@ -27,7 +30,6 @@ def fail_with_errno(message: byte*, errno_value: int) -> noreturn:
 
 
 if WINDOWS:
-    @public
     declare FormatMessageA(
         dwFlags: uint32,
         lpSource: void*,
@@ -37,21 +39,25 @@ if WINDOWS:
         nSize: uint32,
         Arguments: void*,  # actually va_list*
     ) -> uint32
-    @public
-    declare GetLastError() -> uint32
-    @public
     const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
-    @public
     const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
 
     @public
-    def fail_with_windows_error(message: byte*, error_code: uint32) -> noreturn:
-        error_string: byte[1024] = ""
+    declare GetLastError() -> uint32
+
+    @public
+    def windows_error_to_string(error_code: uint32) -> byte[500]:
+        result: byte[500] = ""
         FormatMessageA(
             FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, error_code, 0, error_string, sizeof(error_string) as uint32, NULL,
+            NULL, error_code, 0, result, sizeof(result) as uint32, NULL,
         )
+        while ends_with(result, "\r") or ends_with(result, "\n"):
+            result[strlen(result) - 1] = '\0'
+        return result
 
-        # The error string already has \r\n at the end, let's rely on that because why not
-        fprintf(get_stderr(), "joutest error: %s: %s", message, error_string)
+    @public
+    def fail_with_windows_error(message: byte*, error_code: uint32) -> noreturn:
+        error_string = windows_error_to_string(error_code)
+        fprintf(get_stderr(), "joutest error: %s: %s\n", message, error_string)
         exit(1)
