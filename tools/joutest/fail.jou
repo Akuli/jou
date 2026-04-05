@@ -27,6 +27,7 @@ def fail_with_errno(message: byte*, errno_value: int) -> noreturn:
 
 
 if WINDOWS:
+    @public
     declare FormatMessageA(
         dwFlags: uint32,
         lpSource: void*,
@@ -36,11 +37,12 @@ if WINDOWS:
         nSize: uint32,
         Arguments: void*,  # actually va_list*
     ) -> uint32
-    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
-    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
-
     @public
     declare GetLastError() -> uint32
+    @public
+    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
+    @public
+    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
 
     @public
     def fail_with_windows_error(message: byte*, error_code: uint32) -> noreturn:
