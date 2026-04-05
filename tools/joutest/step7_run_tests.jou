@@ -147,6 +147,7 @@ if WINDOWS:
         lpNumberOfBytesTransferred: uint32*,
         bWait: int,
     ) -> int
+    declare ResetEvent(hEvent: intnative) -> int
 
     const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
     const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
@@ -280,7 +281,7 @@ if WINDOWS:
             0,  # default timeout if not specified later
             NULL,
         )
-        printf("create_overlapped_pipe: read_end = %zd\n", *read_end)
+        printf("*read_end = %zd\n", *read_end)
         if *read_end == INVALID_HANDLE_VALUE:
             gle = windows_error_to_string(GetLastError())
             snprintf(message, sizeof(message), "CreateNamedPipeA() failed: %s", gle)
@@ -295,7 +296,7 @@ if WINDOWS:
             FILE_ATTRIBUTE_NORMAL | (FILE_FLAG_OVERLAPPED if read_end_overlapped else (0 as uint32)),
             0,  # no template file
         )
-        printf("create_overlapped_pipe: write_end = %zd\n", *read_end)
+        printf("*write_end = %zd\n", *write_end)
         if *write_end == INVALID_HANDLE_VALUE:
             gle = windows_error_to_string(GetLastError())
             snprintf(message, sizeof(message), "CreateFileA() failed: %s", gle)
@@ -432,10 +433,8 @@ if WINDOWS:
             handles: intnative[2]
             nhandles: uint32 = 0
             if input_overlapped.hEvent != INVALID_HANDLE_VALUE:
-                printf("Got input\n")
                 handles[nhandles++] = input_overlapped.hEvent
             if output_overlapped.hEvent != INVALID_HANDLE_VALUE:
-                printf("Got output\n")
                 handles[nhandles++] = output_overlapped.hEvent
             if nhandles == 0:
                 break
@@ -446,11 +445,12 @@ if WINDOWS:
                 gle = windows_error_to_string(GetLastError())
                 snprintf(message, sizeof(message), "WaitForMultipleObjects() failed: %s", gle)
                 fail(message)
+            printf("WaitForMultipleObjects --> %u\n", i)
 
             assert handles[i] != INVALID_HANDLE_VALUE
             if handles[i] == input_overlapped.hEvent:
                 bytes_written: uint32
-                if GetOverlappedResult(run_state.input_pipe_write, &input_overlapped, &bytes_written, False as int) != 0:
+                if GetOverlappedResult(run_state.input_pipe_write, &input_overlapped, &bytes_written, False as int) == 0:
                     gle = windows_error_to_string(GetLastError())
                     snprintf(message, sizeof(message), "GetOverlappedResult() failed: %s", gle)
                     fail(message)
@@ -458,6 +458,14 @@ if WINDOWS:
                 assert bytes_written < strlen(input)
                 assert bytes_written > 0  # TODO: how does it all end?
                 input = &input[bytes_written]
+
+                # Reset the event, zero out everything else
+                input_overlapped = OVERLAPPED{hEvent = input_overlapped.hEvent}
+                if ResetEvent(input_overlapped.hEvent) == 0:
+                    gle = windows_error_to_string(GetLastError())
+                    snprintf(message, sizeof(message), "ResetEvent() failed: %s", gle)
+                    fail(message)
+
                 # Write more data
                 if WriteFile(run_state.input_pipe_write, input, llmin(strlen(input), UINT32_MAX) as uint32, &dummy, &input_overlapped) == 0:
                     # WriteFile "fails" when the overlapping IO starts correctly
@@ -470,17 +478,31 @@ if WINDOWS:
 
             elif handles[i] == output_overlapped.hEvent:
                 bytes_read: uint32 = 0
-                printf("GetOverlappedResult from output_pipe_read = %zd\n", run_state.output_pipe_read)
-                if GetOverlappedResult(run_state.output_pipe_read, &output_overlapped, &bytes_read, False as int) != 0:
-                    printf("out\n")
+                if GetOverlappedResult(run_state.output_pipe_read, &output_overlapped, &bytes_read, False as int) == 0:
                     gle = windows_error_to_string(GetLastError())
                     snprintf(message, sizeof(message), "GetOverlappedResult() failed: %s", gle)
                     fail(message)
 
                 assert bytes_read <= sizeof(output_buf)
                 assert bytes_read > 0  # TODO: how does it all end?
+                printf("Got %u bytes of output\n", bytes_read)
                 for i = 0; i < bytes_read; i++:
                     add_output_byte(run_state, output_buf[i])
+
+                # Reset the event, zero out everything else
+                output_overlapped = OVERLAPPED{hEvent = output_overlapped.hEvent}
+                if ResetEvent(output_overlapped.hEvent) == 0:
+                    gle = windows_error_to_string(GetLastError())
+                    snprintf(message, sizeof(message), "ResetEvent() failed: %s", gle)
+                    fail(message)
+
+                # Read more data
+                if ReadFile(run_state.output_pipe_read, output_buf, sizeof(output_buf) as uint32, &dummy, &output_overlapped) == 0:
+                    # ReadFile "fails" when the overlapping IO starts correctly
+                    if GetLastError() != ERROR_IO_PENDING:
+                        gle = windows_error_to_string(GetLastError())
+                        snprintf(message, sizeof(message), "ReadFile() failed: %s", gle)
+                        fail(message)
 
             else:
                 assert False
