@@ -1,5 +1,4 @@
 import "stdlib/assert.jou"
-import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
@@ -11,19 +10,8 @@ import "./diff.jou"
 import "./fail.jou"
 import "./state.jou"
 
-if WINDOWS:
-    declare FormatMessageA(
-        dwFlags: uint32,
-        lpSource: void*,
-        dwMessageId: uint32,
-        dwLanguageId: uint32,
-        lpBuffer: byte*,
-        nSize: uint32,
-        Arguments: void*,  # actually va_list*
-    ) -> uint32
-    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
-    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
-else:
+if not WINDOWS:
+    import "stdlib/errno.jou"
     declare strsignal(sig: int) -> byte*
 
 
@@ -44,13 +32,7 @@ def show_failures(tests: List[Test]) -> None:
         if test.start_error != 0:
             printf("Process failed to start: ")
             if WINDOWS:
-                message: byte[300] = ""
-                FormatMessageA(
-                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                    NULL, test.start_error as uint32, 0, message, sizeof(message) as uint32, NULL,
-                )
-                while ends_with(message, "\r") or ends_with(message, "\n"):
-                    message[strlen(message)-1] = '\0'
+                message: byte[500] = windows_error_to_string(test.start_error as uint32)
                 puts(message)
             else:
                 puts(strerror(test.start_error))

@@ -1,12 +1,15 @@
+import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
+
+if WINDOWS:
+    import "stdlib/str.jou"
 
 
 @public
 def fail(message: byte*) -> noreturn:
     fprintf(get_stderr(), "joutest error: %s\n", message)
     exit(1)
-
 
 # This should only be used for syntax errors. Don't use this when the TOML file
 # contains valid TOML that doesn't mean anything reasonable in joutest.
@@ -15,8 +18,46 @@ def fail_with_toml_syntax_error(toml_lineno: int, message: byte*) -> noreturn:
     fprintf(get_stderr(), "TOML syntax error in file \"joutest.toml\", line %d: %s\n", toml_lineno, message)
     exit(1)
 
-
 @public
 def fail_in_toml(toml_lineno: int, message: byte*) -> noreturn:
     fprintf(get_stderr(), "joutest error in file \"joutest.toml\", line %d: %s\n", toml_lineno, message)
     exit(1)
+
+@public
+def fail_with_errno(message: byte*, errno_value: int) -> noreturn:
+    fprintf(get_stderr(), "joutest error: %s: %s\n", message, strerror(errno_value))
+    exit(1)
+
+
+if WINDOWS:
+    declare FormatMessageA(
+        dwFlags: uint32,
+        lpSource: void*,
+        dwMessageId: uint32,
+        dwLanguageId: uint32,
+        lpBuffer: byte*,
+        nSize: uint32,
+        Arguments: void*,  # actually va_list*
+    ) -> uint32
+    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
+    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
+
+    @public
+    declare GetLastError() -> uint32
+
+    @public
+    def windows_error_to_string(error_code: uint32) -> byte[500]:
+        result: byte[500] = ""
+        FormatMessageA(
+            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            NULL, error_code, 0, result, sizeof(result) as uint32, NULL,
+        )
+        while ends_with(result, "\r") or ends_with(result, "\n"):
+            result[strlen(result) - 1] = '\0'
+        return result
+
+    @public
+    def fail_with_windows_error(message: byte*, error_code: uint32) -> noreturn:
+        error_string = windows_error_to_string(error_code)
+        fprintf(get_stderr(), "joutest error: %s: %s\n", message, error_string)
+        exit(1)
