@@ -92,6 +92,7 @@ if WINDOWS:
         lpNumberOfBytesRead: uint32*,
         lpOverlapped: void*,  # actually OVERLAPPED*
     ) -> int
+    declare GetStdHandle(nStdHandle: uint32) -> intnative
 
     const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
     const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
@@ -100,6 +101,9 @@ if WINDOWS:
     const HANDLE_FLAG_INHERIT: uint32 = 0x00000001
     const STARTF_USESTDHANDLES: uint32 = 0x00000100
     const ERROR_BROKEN_PIPE: uint32 = 109
+    const STD_INPUT_HANDLE: uint32 = 0xfffffff6  # TODO(Jou): -10 as uint32
+    const STD_OUTPUT_HANDLE: uint32 = 0xfffffff5  # TODO(Jou): -11 as uint32
+    const STD_ERROR_HANDLE: uint32 = 0xfffffff4  # TODO(Jou): -12 as uint32
 
     def windows_error_to_string(error: uint32) -> byte[300]:
         message: byte[300] = ""
@@ -217,9 +221,14 @@ if WINDOWS:
         startup_info.cb = sizeof(startup_info) as uint32
         if run_state.test.uses_output_capturing:
             startup_info.dwFlags = STARTF_USESTDHANDLES
-            if run_state.test.stdout_capture_mode != CaptureMode.DoNotCapture:
+            startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE)
+            if run_state.test.stdout_capture_mode == CaptureMode.DoNotCapture:
+                startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE)
+            else:
                 startup_info.hStdOutput = output_pipe_write
-            if run_state.test.stderr_capture_mode != CaptureMode.DoNotCapture:
+            if run_state.test.stderr_capture_mode == CaptureMode.DoNotCapture:
+                startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE)
+            else:
                 startup_info.hStdError = output_pipe_write
 
         # This takes a string because that's how windows works. The command
