@@ -350,6 +350,7 @@ if WINDOWS:
         if output_pipe_write != INVALID_HANDLE_VALUE:
             CloseHandle(output_pipe_write)
 
+    # TODO: This function is huge! Clean up the copy/pasta.
     def write_input_and_read_output(run_state: TestRunState*) -> None:
         input_overlapped = OVERLAPPED{hEvent = INVALID_HANDLE_VALUE}
         output_overlapped = OVERLAPPED{hEvent = INVALID_HANDLE_VALUE}
@@ -494,7 +495,10 @@ if WINDOWS:
                 assert False
 
     def close_input_and_output_pipes(run_state: TestRunState*) -> None:
-        CloseHandle(run_state.output_pipe_read)
+        if run_state.output_pipe_read != INVALID_HANDLE_VALUE:
+            CloseHandle(run_state.output_pipe_read)
+        if run_state.input_pipe_write != INVALID_HANDLE_VALUE:
+            CloseHandle(run_state.input_pipe_write)
 
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
         if WaitForSingleObject(run_state.process_info.hProcess, INFINITE) != 0:
