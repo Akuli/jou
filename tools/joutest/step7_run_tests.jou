@@ -261,7 +261,6 @@ if WINDOWS:
         )
         if *read_end == INVALID_HANDLE_VALUE:
             fail_with_windows_error("CreateNamedPipeA() failed", GetLastError())
-        printf("*read_end = %zd\n", *read_end)
 
         *write_end = CreateFileA(
             pipe_name,
@@ -269,12 +268,11 @@ if WINDOWS:
             0,  # do not share for other processes
             NULL,
             OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL | (FILE_FLAG_OVERLAPPED if read_end_overlapped else (0 as uint32)),
+            FILE_ATTRIBUTE_NORMAL | (FILE_FLAG_OVERLAPPED if write_end_overlapped else (0 as uint32)),
             0,  # no template file
         )
         if *write_end == INVALID_HANDLE_VALUE:
             fail_with_windows_error("CreateFileA() failed", GetLastError())
-        printf("*write_end = %zd\n", *write_end)
 
     def make_inheritable(handle: intnative) -> None:
         if SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
@@ -368,11 +366,17 @@ if WINDOWS:
 
             # Start writing input
             if WriteFile(run_state.input_pipe_write, input, llmin(strlen(input), UINT32_MAX) as uint32, &dummy, &input_overlapped) == 0:
-                # WriteFile "fails" when the overlapping IO starts correctly
-                # TODO: is that true?
-                #if GetLastError() != ERROR_IO_PENDING:
-                if True:
-                    fail_with_windows_error("WriteFile() failed", GetLastError())
+                match GetLastError():
+                    case ERROR_IO_PENDING:  # Nothing written yet, we get it later
+                        pass
+                    case ERROR_BROKEN_PIPE:  # It does not want to receive any more input
+                        input = NULL
+                        CloseHandle(input_overlapped.hEvent)
+                        input_overlapped.hEvent = INVALID_HANDLE_VALUE
+                        CloseHandle(run_state.input_pipe_write)
+                        run_state.input_pipe_write = INVALID_HANDLE_VALUE
+                    case _:
+                        fail_with_windows_error("WriteFile() failed", GetLastError())
 
         output_buf: byte[5]  # TODO: use bigger buffer size (e.g. 4k) when debugging is done
         if run_state.test.uses_output_capturing:
@@ -405,17 +409,19 @@ if WINDOWS:
             if nhandles == 0:
                 break
 
-            printf("Waiting for %u handles\n", nhandles)
             i: uint32 = WaitForMultipleObjects(nhandles, handles, False as int, INFINITE)
             if i >= nhandles:
                 fail_with_windows_error("WaitForMultipleObjects() failed", GetLastError())
-            printf("WaitForMultipleObjects --> %u\n", i)
 
             assert handles[i] != INVALID_HANDLE_VALUE
             if handles[i] == input_overlapped.hEvent:
                 bytes_written: uint32
                 if GetOverlappedResult(run_state.input_pipe_write, &input_overlapped, &bytes_written, False as int) == 0:
-                    fail_with_windows_error("GetOverlappedResult() failed when writing input to test", GetLastError())
+                    match GetLastError():
+                        case ERROR_BROKEN_PIPE:  # It does not want to receive any more input
+                            bytes_written = 0
+                        case _:
+                            fail_with_windows_error("GetOverlappedResult() failed when writing input to test", GetLastError())
 
                 assert bytes_written <= strlen(input)
                 if bytes_written == 0:
@@ -435,26 +441,28 @@ if WINDOWS:
 
                     # Write more data
                     if WriteFile(run_state.input_pipe_write, input, llmin(strlen(input), UINT32_MAX) as uint32, &dummy, &input_overlapped) == 0:
-                        # WriteFile "fails" when the overlapping IO starts correctly
-                        # TODO: is that true?
-                        #if GetLastError() != ERROR_IO_PENDING:
-                        if True:
-                            fail_with_windows_error("WriteFile() failed when writing input to test", GetLastError())
+                        match GetLastError():
+                            case ERROR_IO_PENDING:  # Nothing written yet, we get it later
+                                pass
+                            case ERROR_BROKEN_PIPE:  # It does not want to receive any more input
+                                input = NULL
+                                CloseHandle(input_overlapped.hEvent)
+                                input_overlapped.hEvent = INVALID_HANDLE_VALUE
+                                CloseHandle(run_state.input_pipe_write)
+                                run_state.input_pipe_write = INVALID_HANDLE_VALUE
+                            case _:
+                                fail_with_windows_error("WriteFile() failed when writing input to test", GetLastError())
 
             elif handles[i] == output_overlapped.hEvent:
                 bytes_read: uint32 = 0
                 if GetOverlappedResult(run_state.output_pipe_read, &output_overlapped, &bytes_read, False as int) == 0:
                     match GetLastError():
-                        case ERROR_IO_PENDING:  # No more output yet, we get it later
-                            pass
                         case ERROR_BROKEN_PIPE:  # End of output
                             bytes_read = 0
                         case _:
                             fail_with_windows_error("GetOverlappedResult() failed when reading output of test", GetLastError())
 
                 assert bytes_read <= sizeof(output_buf)
-                printf("Got %u bytes of output\n", bytes_read)
-
                 if bytes_read == 0:
                     CloseHandle(output_overlapped.hEvent)
                     output_overlapped.hEvent = INVALID_HANDLE_VALUE
