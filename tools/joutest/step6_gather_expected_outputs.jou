@@ -64,12 +64,12 @@ def find_expected_output_from_line(
 
 
 def find_expected_output(test: Test*) -> None:
-    message: byte[300]
-
     f = fopen(test.path, "rb")
     if f == NULL:
-        snprintf(message, sizeof(message), "reading expected output from '%s' failed: %s", strerror(get_errno()))
-        fail(message)
+        e = get_errno()
+        message: byte[300]
+        snprintf(message, sizeof(message), "reading expected output from '%s' failed", test.path)
+        fail_with_errno(message, e)
 
     result = List[byte]{}
     line: byte[4096]
