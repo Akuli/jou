@@ -84,7 +84,6 @@ if WINDOWS:
         lpStartupInfo: STARTUPINFOA*,
         lpProcessInformation: PROCESS_INFORMATION*,
     ) -> int
-    declare GetLastError() -> uint32
     declare WaitForSingleObject(handle: intnative, dwMilliseconds: uint32) -> uint32
     declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
     declare CloseHandle(hObject: intnative) -> int
@@ -168,16 +167,6 @@ if WINDOWS:
     const GENERIC_WRITE: uint32 = 0x40000000
     const OPEN_EXISTING: uint32 = 3
     const FILE_ATTRIBUTE_NORMAL: uint32 = 0x80
-
-    def windows_error_to_string(error: uint32) -> byte[300]:
-        message: byte[300] = ""
-        FormatMessageA(
-            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, error, 0, message, sizeof(message) as uint32, NULL,
-        )
-        while ends_with(message, "\r") or ends_with(message, "\n"):
-            message[strlen(message)-1] = '\0'
-        return message
 
 else:
     import "./poll.jou"
