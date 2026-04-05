@@ -197,8 +197,11 @@ def handle_one_item_of_tests(state: DiscoveryState*, toml: TOML*) -> None:
 
 
 def compare_tests(t1: Test*, t2: Test*) -> int:
-    # TODO: For markdown files, should also compare offsets if paths are equal
-    return strcmp(t1.path, t2.path)
+    result = strcmp(t1.path, t2.path)
+    if result == 0:
+        # One markdown file can contain multiple tests, sort by line number
+        result = t1.first_markdown_lineno - t2.first_markdown_lineno
+    return result
 
 
 @public

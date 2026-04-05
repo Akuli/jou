@@ -397,15 +397,15 @@ Plan and status:
 2. [DONE] parse joutest.toml
     - [DONE] eliminate condition tables
     - [DONE] don't validate everything or place into nice data structures here
-3. discover tests
+3. [DONE] discover tests
     - [DONE] do the globs
     - [DONE] markdown files: find code blocks
     - [DONE] figure out which configurations apply to each test
     - [DONE] do not apply the configurations yet!!!
-    - sort tests by:
+    - [DONE] sort tests by:
         - [DONE] file name
-        - start offset (needed for markdown, `qsort()` is not a stable sort)
-    - in TOML, use:
+        - [DONE] start offset (needed for markdown, `qsort()` is not a stable sort)
+    - [DONE] in TOML, use:
         - [DONE] `files`
         - [DONE] `markdown_code_block_languages`
 4. [DONE] configure tests
