@@ -3,6 +3,8 @@ import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/math.jou"
+import "stdlib/intnative.jou"
 
 import "./fail.jou"
 import "./string_formatter.jou"
@@ -63,26 +65,41 @@ def find_expected_output_from_line(
                 return
 
 
+global big_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
+
+
 def find_expected_output(test: Test*) -> None:
-    f = fopen(test.path, "rb")
-    if f == NULL:
-        e = get_errno()
-        message: byte[300]
-        snprintf(message, sizeof(message), "reading expected output from '%s' failed", test.path)
-        fail_with_errno(message, e)
-
     result = List[byte]{}
-    line: byte[4096]
-    lineno = 0
-    while fgets(line, sizeof(line), f) != NULL:
-        if ends_with(line, "\r\n"):
-            strcpy(strrchr(line, '\r'), "\n")
-        if ends_with(line, "\n"):
-            lineno++  # Having this here helps with handling very long lines.
-            line[strlen(line) - 1] = '\0'
-        find_expected_output_from_line(test, lineno, line, &result)
+    lineno = 1
 
-    fclose(f)
+    if test.stdin_input == NULL:
+        f = fopen(test.path, "rb")
+        if f == NULL:
+            e = get_errno()
+            message: byte[300]
+            snprintf(message, sizeof(message), "reading expected output from '%s' failed", test.path)
+            fail_with_errno(message, e)
+
+        while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
+            big_buffer[strcspn(big_buffer, "\r\n")] = '\0'
+            find_expected_output_from_line(test, lineno++, big_buffer, &result)
+
+        fclose(f)
+
+    else:
+        p = test.stdin_input
+        while *p != '\0':
+            line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1) as intnative
+            memcpy(big_buffer, p, line_len)
+            big_buffer[line_len] = '\0'
+            find_expected_output_from_line(test, lineno++, big_buffer, &result)
+
+            p = &p[line_len]
+            if *p == '\r':
+                p++
+            if *p == '\n':
+                p++
+
     result.append('\0')
     test.expected_output = result.ptr
 

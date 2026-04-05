@@ -1,4 +1,6 @@
-# Test joutest with itself
+############################
+# Test joutest with itself #
+############################
 [[tests]]
 files = "tests/tests_of_joutest/**/joutest.toml"
 command = ["joutest", "--no-colors"]
@@ -9,11 +11,14 @@ output_comment_rules = {
 }
 
 [[tests]]
-files = "tests/tests_of_joutest/should_succeed/verbose*/joutest.toml"
+files = "tests/tests_of_joutest/**/*verbose*/joutest.toml"
 command = ["joutest", "--no-colors", "--verbose"]
 
 [[tests]]
-files = "tests/tests_of_joutest/bad_configs/**/joutest.toml"
+files = [
+    "tests/tests_of_joutest/bad_configs/**/joutest.toml",
+    "tests/tests_of_joutest/test_failures/**/joutest.toml",
+]
 expected_exit_code = 1
 
 [[tests]]
@@ -22,3 +27,17 @@ command = {
     windows = ['cmd', '/c', '..\..\..\..\joutest --no-colors | ..\..\..\..\jou windows_output_hack.jou'],
     default = ['joutest', '--no-colors'],
 }
+
+###############################
+# Test code in markdown files #
+###############################
+[[tests]]
+files = [
+    "doc/bitwise.md",
+    "doc/enums.md",
+    "doc/inline.md",
+    "doc/joutest.md",
+    "doc/json-parsing.md",
+    "doc/loops.md",
+]
+markdown_code_block_languages = ["python"]

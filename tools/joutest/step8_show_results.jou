@@ -20,10 +20,14 @@ def show_failures(tests: List[Test]) -> None:
         if test.simple_result != SimpleResult.Failed:
             continue
 
-        if test.working_directory == NULL:
-            printf("%s*** Command: %s ***%s\n", YELLOW, test.actual_command_string, RESET)
-        else:
-            printf("%s*** Command: %s %sin %s%s ***%s\n", YELLOW, test.actual_command_string, CYAN, test.working_directory, YELLOW, RESET)
+        printf("%s*** Command: %s\n", YELLOW, test.actual_command_string)
+        if test.working_directory != NULL:
+            printf("    Working directory: %s\n", test.working_directory)
+        if test.stdin_input != NULL:
+            # Please keep this in 'file "foo", line 123' form. Output like that
+            # becomes clickable in some editors, at least porcupine.
+            printf("    Input: file \"%s\", line %d to line %d\n", test.path, test.first_markdown_lineno, test.last_markdown_lineno)
+        printf("%s", RESET)
 
         if test.start_error != 0:
             printf("Process failed to start: ")

@@ -116,6 +116,15 @@ def is_table_with_string_values(toml: TOML*) -> bool:
     return True
 
 
+def is_array_of_strings(toml: TOML*) -> bool:
+    if toml.type != TOMLType.Array:
+        return False
+    for item = toml.array.ptr; item < toml.array.end(); item++:
+        if toml_to_string(item) == NULL:
+            return False
+    return True
+
+
 declare dirname(path: byte*) -> byte*
 
 def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
@@ -154,15 +163,9 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                 test.stderr_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
             case "cd_to_containing_directory":
                 if toml_is_true(&kv.value):
-                    free(test.working_directory)
-                    temp = strdup(test.path)
-                    assert temp != NULL
-                    test.working_directory = strdup(dirname(temp))  # may modify temp string
-                    free(temp)
-                    assert test.working_directory != NULL
+                    test.cd_to_containing_directory = True
                 elif toml_is_false(&kv.value):
-                    free(test.working_directory)
-                    test.working_directory = NULL
+                    test.cd_to_containing_directory = False
                 else:
                     fail_in_toml(kv.value.lineno, "'cd_to_containing_directory' must be a boolean")
             case "expected_exit_code":
@@ -185,6 +188,14 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
                     allowed[FormatParam.Comment as int] = True
                     validate_format_string_in_toml(s, inner_kv.value.lineno, [True,True,True])
                     test.output_comment_rules.append([inner_kv.key, s])
+            case "markdown_code_block_languages":
+                if not is_array_of_strings(&kv.value):
+                    fail_in_toml(kv.value.lineno, "'markdown_code_block_languages' must be an array of strings")
+                test.markdown_code_block_languages.len = 0
+                for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
+                    s = toml_to_string(item)
+                    assert s != NULL
+                    test.markdown_code_block_languages.append(s)
             case _:
                 snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
                 fail_in_toml(kv.value.lineno, error)
@@ -197,9 +208,11 @@ def is_slash(b: byte) -> bool:
 @public
 def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        # This is here because it is possible to override it with empty
+        # These are here because it is possible to override with empty
         assert test.output_comment_rules.len == 0
         test.output_comment_rules.append(["Output", "{comment}"])
+        assert test.markdown_code_block_languages.len == 0
+        test.markdown_code_block_languages.append("jou")
 
         # TODO: It might be better to loop backwards and explicitly ignore
         #       settings that have been already set. This way we can mark the
@@ -208,13 +221,11 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         for toml = test.relevant_toml_tables.ptr; toml < test.relevant_toml_tables.end(); toml++:
             apply_settings_to_test(*toml, test)
 
-        test.path_in_working_directory = test.path
-        if test.working_directory != NULL:
-            # Check that working_directory is the directory that contains the file.
-            # Currently that is the only possible way to set it.
+        assert test.working_directory == NULL
+        if test.cd_to_containing_directory:
             temp = strdup(test.path)
             assert temp != NULL
-            assert strcmp(dirname(temp), test.working_directory) == 0
+            test.working_directory = strdup(dirname(temp))  # may modify temp string
             free(temp)
 
             # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
@@ -222,10 +233,18 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             while p > test.path and not is_slash(p[-1]):
                 p--
             test.path_in_working_directory = p
+        else:
+            test.path_in_working_directory = test.path
 
         if test.specified_command_list.len == 0:
-            test.specified_command_list.append("jou")
-            test.specified_command_list.append("{file}")
+            if test.stdin_input != NULL:
+                test.specified_command_list.append("jou")
+                test.specified_command_list.append("--stdin-name")
+                test.specified_command_list.append("{file}")
+                test.specified_command_list.append("-")
+            else:
+                test.specified_command_list.append("jou")
+                test.specified_command_list.append("{file}")
 
         params: byte*[enum_count(FormatParam)]
         memset(params, 0, sizeof(params))

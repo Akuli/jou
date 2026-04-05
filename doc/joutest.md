@@ -102,7 +102,7 @@ For example, changing `printf("Bla4\n")` to `printf("Baa4\n")` above produces th
 ```diff
 F
 
-*** Command: jou test.jou ***
+*** Command: jou test.jou
 @@ 3 lines not shown @@
  Bla1
  Bla2
@@ -150,7 +150,7 @@ For example, commenting out or removing `test_minus()` from `main()` in the abov
 ```diff
 F
 
-*** Command: jou a.jou ***
+*** Command: jou a.jou
 +compiler warning for file "a.jou", line 7: function 'test_minus' defined but not used
  3
  579
@@ -160,6 +160,70 @@ F
 
 0 succeeded, 1 failed
 ```
+
+
+## Markdown files
+
+You can use `joutest` to ensure that example code in your documentation stays up to date.
+To help with that, `joutest` has some special-casing for markdown files.
+Any file whose name ends with `.md` (case-insensitive) is treated as markdown.
+
+For example, suppose that `hello.md` contains the following:
+
+    # My markdown document
+
+    Bla bla bla.
+
+    ```python
+    import "stdlib/io.jou"
+
+    def main() -> int:
+        printf("Hello World\n")  # Output: Hello World
+        return 0
+    ```
+
+    The example below contains a syntax error:
+
+    ```python
+    import "stdlib/io.jou"
+
+    def main() -> int:
+        printf("Hello World)  # Output: Hello World
+        return 0
+    ```
+
+Here ` ```python ` tricks GitHub to use Python syntax highlighting for the Jou code,
+which works reasonably well most of the time.
+You can use ` ```jou ` instead if everything that parses your documentation
+supports it well enough for you.
+
+To test the code example in `hello.md`, place the following to `joutest.toml`:
+
+```toml
+[[tests]]
+files = "hello.md"
+markdown_code_block_languages = ["python"]
+```
+
+You can omit the `markdown_code_block_languages` setting if the markdown files use ` ```jou `.
+
+Here's the output of `joutest`:
+
+```diff
+.F
+
+*** Command: jou --stdin-name hello.md -
+    Input: file "hello.md", line 16 to line 20
+-Hello World
++compiler error in file "hello.md", line 19: missing " to end the string
+Process exited with code 1. The correct exit code would be 0.
+
+
+1 succeeded, 1 failed
+```
+
+Note that the file name and line number in the error message correctly point to the markdown file.
+The command and input that `joutest` uses are set up to do exactly that.
 
 
 ## Condition Tables
@@ -258,8 +322,12 @@ Everything else is optional.
             The first line of the file is line 1.
         - `{{` is replaced with a `{` character.
         - `}}` is replaced with a `}` character.
-    - `command` (default: `["jou", "{file}"]`) is the command that `joutest` invokes to run the test.
-        It is an array of strings like `["jou", "{file}"]`.
+    - `command` (default: `["jou", "{file}"]` or `["jou", "--stdin-name", "{file}", "-"]`)
+        is the command that `joutest` invokes to run the test.
+        For [tests in markdown files](#markdown-files),
+        `joutest` writes a part of the markdown file to the stdin of the test process,
+        and the default command tells the Jou compiler to run code from its stdin.
+        For other files, the default command is `["jou", "{file}"]`.
         Inside each string, the following replacements are done:
         - `{file}` is replaced with a relative path to the test file.
             Backslashes are used on Windows, and forward slashes are used on other operating systems.
@@ -275,6 +343,10 @@ Everything else is optional.
     - `expected_exit_code` (default: `0`) is the correct
         [exit code](tutorial.md#main-function-and-binaries) for the test as an integer.
         If errors are expected, you probably want to set this to `1`.
+    - `markdown_code_block_languages` (default: `["jou"]`) is an array of strings
+        to determine what to [test in markdown files](#markdown-files).
+        Code blocks whose language is not in this array are silently ignored.
+        This is ignored for non-markdown files.
 - `defaults_for_all_tests` (default: empty table) is just like each table of the `tests` array,
     except that you cannot specify `files`.
     As the name suggests, these settings are used
@@ -314,7 +386,6 @@ parallel = true
 [defaults_for_all_tests]
 command = ["jou", "{file}"]
 run_compiler_under_valgrind = false
-markdown.languages_to_test_as_jou = ["jou"]
 timeout_seconds = 60
 stdout = "compare_to_comments"
 stderr = "compare_to_comments"
@@ -330,16 +401,7 @@ cd_to_containing_directory = false
 skip = false
 ```
 
-The main thing to note here is `"compare_to_comments"` and `special_output_comments`.
-This means that `joutest` will look for comments like `# Output: hello` in the file it's testing,
-and ensure that `hello` is actually printed when running the file.
-
-It will be possible to pass markdown files to `joutest`,
-and `joutest` will extract code blocks from the markdown and run them as tests.
-This is useful to ensure that your documentation stays up to date.
-
-The Jou project itself already has scripts for doing these things,
-and they will eventually be replaced by `joutest`:
+The Jou project has scripts that will eventually be replaced by `joutest`:
 - [`runtests.sh`](../runtests.sh) runs tests with `# Output:` comment handling
 - [`doctest.sh`](../doctest.sh) runs tests in markdown files, also with `# Output:` comment handling
 
@@ -350,27 +412,27 @@ Plan and status:
     - `--valgrind`
     - `--jou-flags`
     - [DONE] `--no-colors`
-    - test name filter
+    - [DONE] test name filter
 2. [DONE] parse joutest.toml
     - [DONE] eliminate condition tables
     - [DONE] don't validate everything or place into nice data structures here
-3. discover tests
+3. [DONE] discover tests
     - [DONE] do the globs
-    - markdown files: find code block start/end byte offsets
+    - [DONE] markdown files: find code blocks
     - [DONE] figure out which configurations apply to each test
     - [DONE] do not apply the configurations yet!!!
-    - sort tests by:
+    - [DONE] sort tests by:
         - [DONE] file name
-        - start offset (needed for markdown, `qsort()` is not a stable sort)
-    - in TOML, use:
+        - [DONE] start offset (needed for markdown, `qsort()` is not a stable sort)
+    - [DONE] in TOML, use:
         - [DONE] `files`
-        - `markdown.languages_to_test_as_jou`
+        - [DONE] `markdown_code_block_languages`
 4. [DONE] configure tests
     - [DONE] walk through and apply each relevant TOML section
-    - this is where most of the validation should happen
-5. gather expected outputs
+    - [DONE] this is where most of the validation should happen
+5. [DONE] gather expected outputs
     - [DONE] read files and parse for comments
-    - markdown: must seek
+    - [DONE] markdown special-casing
 6. run tests
     - pre-test command like `make`
         - TODO: how about `./runtests.sh --dont-run-make`?

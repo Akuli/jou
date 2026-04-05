@@ -20,11 +20,16 @@ import "stdlib/str.jou"
 import "./ansi_colors.jou"
 import "./fail.jou"
 import "./state.jou"
+import "./print_test_info.jou"
 
-if not WINDOWS:
+if WINDOWS:
+    import "stdlib/math.jou"
+    import "stdlib/limits.jou"
+else:
     import "stdlib/errno.jou"
     import "stdlib/fs.jou"
     import "stdlib/process.jou"
+    import "./poll.jou"
 
 
 if WINDOWS:
@@ -54,6 +59,14 @@ if WINDOWS:
         dwProcessId: uint32
         dwThreadId: uint32
 
+    class OVERLAPPED:
+        Internal: intnative
+        InternalHigh: intnative
+        union:
+            Offset: uint64  # In C this is a pair (Offset, OffsetHigh)
+            Pointer: void*
+        hEvent: intnative
+
     declare CreateProcessA(
         lpApplicationName: byte*,
         lpCommandLine: byte*,  # may be modified! at least in the W version. Windows is weird...
@@ -69,26 +82,77 @@ if WINDOWS:
     declare WaitForSingleObject(handle: intnative, dwMilliseconds: uint32) -> uint32
     declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
     declare CloseHandle(hObject: intnative) -> int
-    declare CreatePipe(
-        hReadPipe: intnative*,
-        hWritePipe: intnative*,
-        lpPipeAttributes: void*,  # actually SECURITY_ATTRIBUTES*
-        nSize: uint32,
-    ) -> int
     declare SetHandleInformation(hObject: intnative, dwMask: uint32, dwFlags: uint32) -> int
     declare ReadFile(
         hFile: intnative,
         lpBuffer: void*,
         nNumberOfBytesToRead: uint32,
         lpNumberOfBytesRead: uint32*,
-        lpOverlapped: void*,  # actually OVERLAPPED*
+        lpOverlapped: OVERLAPPED*,
     ) -> int
+    declare GetStdHandle(nStdHandle: uint32) -> intnative
+    declare GetCurrentProcessId() -> uint32
+    declare CreateNamedPipeA(
+        lpName: byte*,
+        dwOpenMode: uint32,
+        dwPipeMode: uint32,
+        nMaxInstances: uint32,
+        nOutBufferSize: uint32,
+        nInBufferSize: uint32,
+        nDefaultTimeOut: uint32,
+        lpSecurityAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+    ) -> intnative
+    declare CreateFileA(
+        lpFileName: byte*,
+        dwDesiredAccess: uint32,
+        dwShareMode: uint32,
+        lpSecurityAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+        dwCreationDisposition: uint32,dwFlagsAndAttributes: uint32,
+        hTemplateFile: intnative,
+    ) -> intnative
+    declare CreateEventA(
+        lpSecurityAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+        bManualReset: int,
+        bInitialState: int,
+        lpName: byte*,
+    ) -> intnative  # On failure, return value is 0, not INVALID_HANDLE_VALUE!!!
+    declare WaitForMultipleObjects(
+        nCount: uint32,
+        lpHandles: intnative*,
+        bWaitAll: int,
+        dwMilliseconds: uint32,
+    ) -> uint32
+    declare WriteFile(
+        hFile: intnative,
+        lpBuffer: void*,
+        nNumberOfBytesToWrite: uint32,
+        lpNumberOfBytesWritten: uint32*,
+        lpOverlapped: OVERLAPPED*,
+    ) -> int
+    declare GetOverlappedResult(
+        hFile: intnative,
+        lpOverlapped: OVERLAPPED*,
+        lpNumberOfBytesTransferred: uint32*,
+        bWait: int,
+    ) -> int
+    declare ResetEvent(hEvent: intnative) -> int
 
     const INFINITE: uint32 = 0xffff_ffff
     const INVALID_HANDLE_VALUE: intnative = -1
     const HANDLE_FLAG_INHERIT: uint32 = 0x00000001
     const STARTF_USESTDHANDLES: uint32 = 0x00000100
+    const ERROR_IO_PENDING: uint32 = 997
     const ERROR_BROKEN_PIPE: uint32 = 109
+    const STD_INPUT_HANDLE: uint32 = 0xfffffff6  # TODO(Jou): -10 as uint32
+    const STD_OUTPUT_HANDLE: uint32 = 0xfffffff5  # TODO(Jou): -11 as uint32
+    const STD_ERROR_HANDLE: uint32 = 0xfffffff4  # TODO(Jou): -12 as uint32
+    const PIPE_ACCESS_INBOUND: uint32 = 0x00000001
+    const FILE_FLAG_OVERLAPPED: uint32 = 0x40000000
+    const PIPE_TYPE_BYTE: uint32 = 0x00000000
+    const PIPE_WAIT: uint32 = 0x00000000
+    const GENERIC_WRITE: uint32 = 0x40000000
+    const OPEN_EXISTING: uint32 = 3
+    const FILE_ATTRIBUTE_NORMAL: uint32 = 0x80
 
 else:
     declare fork() -> int
@@ -103,7 +167,17 @@ else:
     declare fcntl(fd: int, op: int, ...) -> int
 
     const F_SETFD: int = 2
+    const F_GETFL: int = 3
+    const F_SETFL: int = 4
+
     const FD_CLOEXEC: int = 1
+
+    if LINUX:
+        const O_NONBLOCK: int = 0o4000
+    elif MACOS or NETBSD:
+        const O_NONBLOCK: int = 0x00000004
+    else:
+        assert False
 
     # Returns True if the process terminated with a signal
     def WIFSIGNALED(s: int) -> bool:
@@ -129,9 +203,13 @@ class TestRunState:
     output: List[byte]
 
     if WINDOWS:
+        input_pipe_write: intnative  # parent process writes stdin to test
+        input_pipe_write_overlapped: OVERLAPPED
         output_pipe_read: intnative  # parent process reads output of test
+        output_pipe_read_overlapped: OVERLAPPED
         process_info: PROCESS_INFORMATION
     else:
+        input_pipe_write: int  # parent process writes stdin to test
         output_pipe_read: int  # parent process reads output of test
         child_pid: int
 
@@ -151,35 +229,85 @@ def add_output_byte(run_state: TestRunState*, b: byte) -> None:
 
 
 if WINDOWS:
+    global pipe_name_counter: int64 = 0
+
+    def create_overlapped_pipe(
+        read_end: intnative*,
+        read_end_overlapped: bool,  # overlapped in Windows means nonblocking
+        write_end: intnative*,
+        write_end_overlapped: bool,
+    ) -> None:
+        # Based on: https://stackoverflow.com/a/419736
+
+        pipe_name: byte[100]
+        sprintf(pipe_name, "\\\\.\\pipe\\joutest_%u_%lld", GetCurrentProcessId(), pipe_name_counter++)
+
+        *read_end = CreateNamedPipeA(
+            pipe_name,
+            PIPE_ACCESS_INBOUND | (FILE_FLAG_OVERLAPPED if read_end_overlapped else (0 as uint32)),
+            PIPE_TYPE_BYTE | PIPE_WAIT,
+            1,  # one instance of the pipe
+            0,  # default output buffer size
+            0,  # default input buffer size
+            0,  # default timeout if not specified later
+            NULL,
+        )
+        if *read_end == INVALID_HANDLE_VALUE:
+            fail_with_windows_error("CreateNamedPipeA() failed", GetLastError())
+
+        *write_end = CreateFileA(
+            pipe_name,
+            GENERIC_WRITE,
+            0,  # do not share for other processes
+            NULL,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL | (FILE_FLAG_OVERLAPPED if write_end_overlapped else (0 as uint32)),
+            0,  # no template file
+        )
+        if *write_end == INVALID_HANDLE_VALUE:
+            fail_with_windows_error("CreateFileA() failed", GetLastError())
+
+    def make_inheritable(handle: intnative) -> None:
+        if SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
+            fail_with_windows_error("SetHandleInformation() failed", GetLastError())
+
+        # Threading note: If this code ever needs to be multi-threaded, it
+        # needs some changes. At this point we have an inheritable handle,
+        # and ANY process started now would inherit it, which is bad.
+        # Instead, the handle should be inheritable only for the process
+        # being launched here.
+
     def create_pipes_and_spawn_child_process(run_state: TestRunState*) -> None:
         run_state.output_pipe_read = INVALID_HANDLE_VALUE
 
-        # This is no longer needed once process has been spawned, so it's a
-        # local variable and not in the state.
+        # These are no longer needed once process has been spawned, so these
+        # don't need to be in the state object.
+        input_pipe_read = INVALID_HANDLE_VALUE
         output_pipe_write = INVALID_HANDLE_VALUE
 
+        if run_state.test.stdin_input != NULL:
+            create_overlapped_pipe(&input_pipe_read, False, &run_state.input_pipe_write, True)
+            make_inheritable(input_pipe_read)
+
         if run_state.test.uses_output_capturing:
-            if CreatePipe(&run_state.output_pipe_read, &output_pipe_write, NULL, 0) == 0:
-                fail_with_windows_error("CreatePipe() failed", GetLastError())
-
-            # Mark the write end of the pipe as inheritable so the child
-            # process can write to it.
-            if SetHandleInformation(output_pipe_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
-                fail_with_windows_error("SetHandleInformation() failed", GetLastError())
-
-            # Threading note: If this code ever needs to be multi-threaded, it
-            # needs some changes. At this point we have an inheritable handle,
-            # and ANY process started now would inherit it, which is bad.
-            # Instead, the handle should be inheritable only for the process
-            # being launched here.
+            create_overlapped_pipe(&run_state.output_pipe_read, True, &output_pipe_write, False)
+            make_inheritable(output_pipe_write)
 
         startup_info = STARTUPINFOA{}
         startup_info.cb = sizeof(startup_info) as uint32
         if run_state.test.uses_output_capturing:
             startup_info.dwFlags = STARTF_USESTDHANDLES
-            if run_state.test.stdout_capture_mode != CaptureMode.DoNotCapture:
+            if run_state.test.stdin_input == NULL:
+                startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE)
+            else:
+                startup_info.hStdInput = input_pipe_read
+            if run_state.test.stdout_capture_mode == CaptureMode.DoNotCapture:
+                startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE)
+            else:
                 startup_info.hStdOutput = output_pipe_write
-            if run_state.test.stderr_capture_mode != CaptureMode.DoNotCapture:
+            if run_state.test.stderr_capture_mode == CaptureMode.DoNotCapture:
+                startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE)
+            else:
                 startup_info.hStdError = output_pipe_write
 
         # This takes a string because that's how windows works. The command
@@ -208,29 +336,162 @@ if WINDOWS:
 
         # From now on, child is going to write and parent is going to read.
         #
-        # This is an inheritable handle, so it's important to close it before
-        # launching more processes.
+        # These are inheritable handles, so it's important to close these
+        # before launching more processes.
+        if input_pipe_read != INVALID_HANDLE_VALUE:
+            CloseHandle(input_pipe_read)
         if output_pipe_write != INVALID_HANDLE_VALUE:
             CloseHandle(output_pipe_write)
 
-    def read_output_of_test(run_state: TestRunState*) -> None:
-        assert run_state.test.uses_output_capturing
+    # TODO: This function is huge! Clean up the copy/pasta.
+    def write_input_and_read_output(run_state: TestRunState*) -> None:
+        input_overlapped = OVERLAPPED{hEvent = INVALID_HANDLE_VALUE}
+        output_overlapped = OVERLAPPED{hEvent = INVALID_HANDLE_VALUE}
 
-        buf: byte[4096]
+        dummy: uint32
+
+        input = run_state.test.stdin_input
+        if input != NULL:
+            input_overlapped.hEvent = CreateEventA(NULL, True as int, False as int, NULL)
+            # When CreateEventA fails, it returns 0 (NULL in C), not INVALID_HANDLE_VALUE
+            assert input_overlapped.hEvent != INVALID_HANDLE_VALUE
+            if input_overlapped.hEvent == 0:
+                fail_with_windows_error("CreateEventA() failed", GetLastError())
+
+            # Start writing input
+            if WriteFile(run_state.input_pipe_write, input, llmin(strlen(input), UINT32_MAX) as uint32, &dummy, &input_overlapped) == 0:
+                match GetLastError():
+                    case ERROR_IO_PENDING:  # Nothing written yet, we will find out later how it went
+                        pass
+                    case ERROR_BROKEN_PIPE:  # It does not want to receive any more input
+                        input = NULL
+                        CloseHandle(input_overlapped.hEvent)
+                        input_overlapped.hEvent = INVALID_HANDLE_VALUE
+                        CloseHandle(run_state.input_pipe_write)
+                        run_state.input_pipe_write = INVALID_HANDLE_VALUE
+                    case _:
+                        fail_with_windows_error("WriteFile() failed", GetLastError())
+
+        output_buf: byte[1024]
+        if run_state.test.uses_output_capturing:
+            output_overlapped.hEvent = CreateEventA(NULL, True as int, False as int, NULL)
+            assert output_overlapped.hEvent != INVALID_HANDLE_VALUE
+            if output_overlapped.hEvent == 0:
+                fail_with_windows_error("CreateEventA() failed", GetLastError())
+
+            # Start reading output
+            if ReadFile(run_state.output_pipe_read, output_buf, sizeof(output_buf) as uint32, &dummy, &output_overlapped) == 0:
+                match GetLastError():
+                    case ERROR_IO_PENDING:  # No more output yet, we get it later
+                        pass
+                    case ERROR_BROKEN_PIPE:  # End of output
+                        CloseHandle(output_overlapped.hEvent)
+                        output_overlapped.hEvent = INVALID_HANDLE_VALUE
+                        CloseHandle(run_state.output_pipe_read)
+                        run_state.output_pipe_read = INVALID_HANDLE_VALUE
+                    case _:
+                        fail_with_windows_error("ReadFile() failed", GetLastError())
+
         while True:
-            n: uint32 = 0
-            if ReadFile(run_state.output_pipe_read, buf, sizeof(buf) as uint32, &n, NULL) == 0:
-                # Broken pipe "error" happens at end of output when everything goes fine.
-                if GetLastError() != ERROR_BROKEN_PIPE:
-                    fail_with_windows_error("ReadFile() failed", GetLastError())
-            if n == 0:
+            # Wait until we can read or write more
+            handles: intnative[2]
+            nhandles: uint32 = 0
+            if input_overlapped.hEvent != INVALID_HANDLE_VALUE:
+                handles[nhandles++] = input_overlapped.hEvent
+            if output_overlapped.hEvent != INVALID_HANDLE_VALUE:
+                handles[nhandles++] = output_overlapped.hEvent
+            if nhandles == 0:
                 break
 
-            for i = 0; i < n; i++:
-                add_output_byte(run_state, buf[i])
+            i: uint32 = WaitForMultipleObjects(nhandles, handles, False as int, INFINITE)
+            if i >= nhandles:
+                fail_with_windows_error("WaitForMultipleObjects() failed", GetLastError())
 
-    def close_output_pipe(run_state: TestRunState*) -> None:
-        CloseHandle(run_state.output_pipe_read)
+            assert handles[i] != INVALID_HANDLE_VALUE
+            if handles[i] == input_overlapped.hEvent:
+                bytes_written: uint32
+                if GetOverlappedResult(run_state.input_pipe_write, &input_overlapped, &bytes_written, False as int) == 0:
+                    match GetLastError():
+                        case ERROR_BROKEN_PIPE:  # It does not want to receive any more input
+                            bytes_written = 0
+                        case _:
+                            fail_with_windows_error("GetOverlappedResult() failed when writing input to test", GetLastError())
+
+                assert bytes_written <= strlen(input)
+                if bytes_written == 0:
+                    # It doesn't accept any more input
+                    input = NULL
+                    CloseHandle(input_overlapped.hEvent)
+                    input_overlapped.hEvent = INVALID_HANDLE_VALUE
+                    CloseHandle(run_state.input_pipe_write)
+                    run_state.input_pipe_write = INVALID_HANDLE_VALUE
+                else:
+                    input = &input[bytes_written]
+
+                    # Reset the event, zero out everything else
+                    input_overlapped = OVERLAPPED{hEvent = input_overlapped.hEvent}
+                    if ResetEvent(input_overlapped.hEvent) == 0:
+                        fail_with_windows_error("ResetEvent() failed", GetLastError())
+
+                    # Write more data
+                    if WriteFile(run_state.input_pipe_write, input, llmin(strlen(input), UINT32_MAX) as uint32, &dummy, &input_overlapped) == 0:
+                        match GetLastError():
+                            case ERROR_IO_PENDING:  # Nothing written yet, we will find out later how it went
+                                pass
+                            case ERROR_BROKEN_PIPE:  # It does not want to receive any more input
+                                input = NULL
+                                CloseHandle(input_overlapped.hEvent)
+                                input_overlapped.hEvent = INVALID_HANDLE_VALUE
+                                CloseHandle(run_state.input_pipe_write)
+                                run_state.input_pipe_write = INVALID_HANDLE_VALUE
+                            case _:
+                                fail_with_windows_error("WriteFile() failed when writing input to test", GetLastError())
+
+            elif handles[i] == output_overlapped.hEvent:
+                bytes_read: uint32 = 0
+                if GetOverlappedResult(run_state.output_pipe_read, &output_overlapped, &bytes_read, False as int) == 0:
+                    match GetLastError():
+                        case ERROR_BROKEN_PIPE:  # End of output
+                            bytes_read = 0
+                        case _:
+                            fail_with_windows_error("GetOverlappedResult() failed when reading output of test", GetLastError())
+
+                assert bytes_read <= sizeof(output_buf)
+                if bytes_read == 0:
+                    CloseHandle(output_overlapped.hEvent)
+                    output_overlapped.hEvent = INVALID_HANDLE_VALUE
+                    CloseHandle(run_state.output_pipe_read)
+                    run_state.output_pipe_read = INVALID_HANDLE_VALUE
+                else:
+                    for i = 0; i < bytes_read; i++:
+                        add_output_byte(run_state, output_buf[i])
+
+                    # Reset the event, zero out everything else
+                    output_overlapped = OVERLAPPED{hEvent = output_overlapped.hEvent}
+                    if ResetEvent(output_overlapped.hEvent) == 0:
+                        fail_with_windows_error("ResetEvent() failed", GetLastError())
+
+                    # Read more data
+                    if ReadFile(run_state.output_pipe_read, output_buf, sizeof(output_buf) as uint32, &dummy, &output_overlapped) == 0:
+                        match GetLastError():
+                            case ERROR_IO_PENDING:  # No more output yet, we get it later
+                                pass
+                            case ERROR_BROKEN_PIPE:  # End of output
+                                CloseHandle(output_overlapped.hEvent)
+                                output_overlapped.hEvent = INVALID_HANDLE_VALUE
+                                CloseHandle(run_state.output_pipe_read)
+                                run_state.output_pipe_read = INVALID_HANDLE_VALUE
+                            case _:
+                                fail_with_windows_error("ReadFile() failed when reading output of test", GetLastError())
+
+            else:
+                assert False
+
+    def close_input_and_output_pipes(run_state: TestRunState*) -> None:
+        if run_state.output_pipe_read != INVALID_HANDLE_VALUE:
+            CloseHandle(run_state.output_pipe_read)
+        if run_state.input_pipe_write != INVALID_HANDLE_VALUE:
+            CloseHandle(run_state.input_pipe_write)
 
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
         if WaitForSingleObject(run_state.process_info.hProcess, INFINITE) != 0:
@@ -275,47 +536,55 @@ else:
         *read_end = pipefd[0]
         *write_end = pipefd[1]
 
+    def set_nonblocking(fd: int) -> None:
+        flags = fcntl(fd, F_GETFL, 0)
+        if flags == -1:
+            fail_with_errno("fcntl() failed", get_errno())
+        if fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1:
+            fail_with_errno("fcntl() failed", get_errno())
+
+    def fail_child_process_before_exec(error_pipe_write: int) -> None:
+        e: int = get_errno()
+        write(error_pipe_write, &e, sizeof(e))
+        _exit(127)
+
     def this_runs_in_child_process(
         run_state: TestRunState*,
+        input_pipe_read: int,
         output_pipe_write: int,
         error_pipe_read: int,
         error_pipe_write: int,
     ) -> noreturn:
-        # Close unused ends of pipes that only the parent uses
-        close(error_pipe_read)
+        # Close ends of pipes that only the parent uses
+        if run_state.input_pipe_write != -1:
+            close(run_state.input_pipe_write)
         if run_state.output_pipe_read != -1:
             close(run_state.output_pipe_read)
+        close(error_pipe_read)
 
         e: int
 
+        if input_pipe_read != -1:
+            if dup2(input_pipe_read, 0) == -1:
+                fail_child_process_before_exec(error_pipe_write)
+
         if run_state.test.stdout_capture_mode != CaptureMode.DoNotCapture:
             if dup2(output_pipe_write, 1) == -1:
-                e = get_errno()
-                write(error_pipe_write, &e, sizeof(e))
-                _exit(127)
+                fail_child_process_before_exec(error_pipe_write)
 
         if run_state.test.stderr_capture_mode != CaptureMode.DoNotCapture:
             if dup2(output_pipe_write, 2) == -1:
-                e = get_errno()
-                write(error_pipe_write, &e, sizeof(e))
-                _exit(127)
+                fail_child_process_before_exec(error_pipe_write)
 
         if run_state.test.working_directory != NULL:
             if chdir(run_state.test.working_directory) != 0:
-                e = get_errno()
-                write(error_pipe_write, &e, sizeof(e))
-                _exit(127)
+                fail_child_process_before_exec(error_pipe_write)
 
-        # Make sure the argument list ends with a NULL, needed for execvp()
         run_state.test.actual_command_list.append(NULL)
-        run_state.test.actual_command_list.pop()  # does not free allocated memory
-
         execvp(run_state.test.actual_command_list.ptr[0], run_state.test.actual_command_list.ptr)
 
         # We get here only if exec failed
-        e = get_errno()
-        write(error_pipe_write, &e, sizeof(e))
-        _exit(127)
+        fail_child_process_before_exec(error_pipe_write)
 
     # This uses the traditional fork()+exec() instead of posix_spawn(), because
     # there is no standard way to add a chdir() that runs in the child process of
@@ -324,9 +593,8 @@ else:
     def create_pipes_and_spawn_child_process(run_state: TestRunState*) -> None:
         assert run_state.test != NULL
 
-        run_state.output_pipe_read = -1
-
         # These are only accessed here, no need to put these to the state
+        input_pipe_read: int
         output_pipe_write: int
         error_pipe_read: int
         error_pipe_write: int
@@ -337,21 +605,29 @@ else:
             run_state.output_pipe_read = -1
             output_pipe_write = -1
 
+        if run_state.test.stdin_input != NULL:
+            create_cloexec_pipe(&input_pipe_read, &run_state.input_pipe_write)
+        else:
+            input_pipe_read = -1
+            run_state.input_pipe_write = -1
+
         create_cloexec_pipe(&error_pipe_read, &error_pipe_write)
 
         pid = fork()
         if pid < 0:
             fail_with_errno("fork() failed", get_errno())
         elif pid == 0:
-            this_runs_in_child_process(run_state, output_pipe_write, error_pipe_read, error_pipe_write)
+            this_runs_in_child_process(run_state, input_pipe_read, output_pipe_write, error_pipe_read, error_pipe_write)
 
         # If we get here, we are in the parent process.
         run_state.child_pid = pid
 
-        # Parent process is not going to write to the pipes
-        close(error_pipe_write)
+        # Close pipes that parent process does not use
+        if input_pipe_read != -1:
+            close(input_pipe_read)
         if output_pipe_write != -1:
             close(output_pipe_write)
+        close(error_pipe_write)
 
         # Detect errors before exec in child process. The pipe is cloexec, so
         # it closes with no writing on successful exec.
@@ -366,21 +642,80 @@ else:
         run_state.test.start_error = e
         close(error_pipe_read)
 
-    def read_output_of_test(run_state: TestRunState*) -> None:
-        buf: byte[4096]
+    def write_input_and_read_output(run_state: TestRunState*) -> None:
+        if run_state.input_pipe_write != -1:
+            set_nonblocking(run_state.input_pipe_write)
+        if run_state.output_pipe_read != -1:
+            set_nonblocking(run_state.output_pipe_read)
+
+        input = run_state.test.stdin_input
+        stdout_closed = False
+
         while True:
-            n = read(run_state.output_pipe_read, buf, sizeof(buf))
-            if n < 0:  # TODO: retry on EINTR
-                fail_with_errno("reading output failed", get_errno())
+            polls: pollfd[2]
+            npolls = 0
 
-            assert n >= 0
-            if n == 0:
-                break
-            for i = 0; i < n; i++:
-                add_output_byte(run_state, buf[i])
+            if run_state.input_pipe_write != -1:
+                polls[npolls++] = pollfd{fd = run_state.input_pipe_write, events = POLLOUT}
+            if run_state.output_pipe_read != -1:
+                polls[npolls++] = pollfd{fd = run_state.output_pipe_read, events = POLLIN}
 
-    def close_output_pipe(run_state: TestRunState*) -> None:
-        close(run_state.output_pipe_read)
+            if npolls == 0:
+                return
+
+            ret = poll(polls, npolls, -1)
+            if ret == -1:
+                fail_with_errno("poll() failed", get_errno())
+
+            for p = &polls[0]; p < &polls[npolls]; p++:
+                assert p.revents & POLLNVAL == 0
+
+                if p.revents & POLLIN != 0:
+                    assert p.fd == run_state.output_pipe_read
+                    output_buf: byte[1024]
+
+                    n = read(p.fd, output_buf, sizeof(output_buf))
+                    if n < 0:  # TODO: retry on EINTR
+                        fail_with_errno("read() failed", get_errno())
+                    elif n == 0:
+                        # No more output
+                        close(run_state.output_pipe_read)
+                        run_state.output_pipe_read = -1
+                    else:
+                        for i = 0; i < n; i++:
+                            add_output_byte(run_state, output_buf[i])
+
+                elif p.revents & POLLOUT != 0:
+                    assert p.fd == run_state.input_pipe_write
+                    assert input != NULL
+
+                    n = write(p.fd, input, strlen(input))
+                    if n < 0:
+                        fail_with_errno("write() failed", get_errno())
+                    elif n == 0:
+                        # Process closed its stdin or we got to the end of input
+                        close(run_state.input_pipe_write)
+                        run_state.input_pipe_write = -1
+                        input = NULL
+                    else:
+                        input = &input[n]
+
+                # There's no good way to get error message for POLLERR.
+                # So just consider it as EOF.
+                elif p.revents & (POLLHUP | POLLERR) != 0:
+                    close(p.fd)
+                    if p.fd == run_state.output_pipe_read:
+                        run_state.output_pipe_read = -1
+                    elif p.fd == run_state.input_pipe_write:
+                        run_state.input_pipe_write = -1
+                    else:
+                        assert False
+
+    def close_input_and_output_pipes(run_state: TestRunState*) -> None:
+        if run_state.output_pipe_read != -1:
+            close(run_state.output_pipe_read)
+        if run_state.input_pipe_write != -1:
+            close(run_state.input_pipe_write)
 
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
         # Wait more until it dies, either with exit code or with a signal
@@ -407,13 +742,13 @@ def run_command(test: Test*) -> None:
 
     create_pipes_and_spawn_child_process(&run_state)
     if test.start_error != 0:
-        close_output_pipe(&run_state)
+        close_input_and_output_pipes(&run_state)
         return
 
-    if test.uses_output_capturing:
-        read_output_of_test(&run_state)
-        close_output_pipe(&run_state)
+    if test.uses_output_capturing or test.stdin_input != NULL:
+        write_input_and_read_output(&run_state)
 
+    if test.uses_output_capturing:
         run_state.output.append('\0')
         test.actual_output = run_state.output.ptr
 
@@ -422,9 +757,8 @@ def run_command(test: Test*) -> None:
 
 def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if args.verbose:
-        printf("%srun:%s %s", BLUE, RESET, test.actual_command_string)
-        if test.working_directory != NULL:
-            printf(" %sin %s%s", CYAN, test.working_directory, RESET)
+        printf("%srun:%s ", BLUE, RESET)
+        print_test_info_without_newlines(test)
         printf("\n")
         fflush(get_stdout())
 
@@ -446,13 +780,12 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if args.verbose:
         match test.simple_result:
             case SimpleResult.Success:
-                printf("%s ok %s %s", GREEN, RESET, test.actual_command_string)
+                printf("%s ok %s ", GREEN, RESET)
             case SimpleResult.Failed:
-                printf("%sFAIL%s %s", RED, RESET, test.actual_command_string)
+                printf("%sFAIL%s ", RED, RESET)
             case SimpleResult.Skipped:
-                printf("%sskip%s %s", YELLOW, RESET, test.actual_command_string)
-        if test.working_directory != NULL:
-            printf(" %sin %s%s", CYAN, test.working_directory, RESET)
+                printf("%sskip%s ", YELLOW, RESET)
+        print_test_info_without_newlines(test)
         printf("\n")
     else:
         match test.simple_result:
