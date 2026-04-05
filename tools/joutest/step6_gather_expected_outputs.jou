@@ -76,14 +76,13 @@ def find_expected_output(test: Test*) -> None:
     if test.stdin_input == NULL:
         f = fopen(test.path, "rb")
         if f == NULL:
-            snprintf(message, sizeof(message), "reading expected output from '%s' failed: %s", strerror(get_errno()))
-            fail(message)
+            e = get_errno()
+            message: byte[300]
+            snprintf(message, sizeof(message), "reading expected output from '%s' failed", test.path)
+            fail_with_errno(message, e)
 
         while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
-            if ends_with(big_buffer, "\r\n"):
-                big_buffer[strlen(big_buffer) - 2] = '\0'
-            elif ends_with(big_buffer, "\n"):
-                big_buffer[strlen(big_buffer) - 1] = '\0'
+            big_buffer[strcspn(big_buffer, "\r\n")] = '\0'
             find_expected_output_from_line(test, lineno++, big_buffer, &result)
 
         fclose(f)
@@ -94,12 +93,13 @@ def find_expected_output(test: Test*) -> None:
             line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1) as intnative
             memcpy(big_buffer, p, line_len)
             big_buffer[line_len] = '\0'
+            find_expected_output_from_line(test, lineno++, big_buffer, &result)
+
             p = &p[line_len]
             if *p == '\r':
                 p++
             if *p == '\n':
                 p++
-            find_expected_output_from_line(test, lineno++, big_buffer, &result)
 
     result.append('\0')
     test.expected_output = result.ptr

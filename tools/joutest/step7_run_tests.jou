@@ -82,12 +82,6 @@ if WINDOWS:
     declare WaitForSingleObject(handle: intnative, dwMilliseconds: uint32) -> uint32
     declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
     declare CloseHandle(hObject: intnative) -> int
-#    declare CreatePipe(
-#        hReadPipe: intnative*,
-#        hWritePipe: intnative*,
-#        lpPipeAttributes: void*,  # actually SECURITY_ATTRIBUTES*
-#        nSize: uint32,
-#    ) -> int
     declare SetHandleInformation(hObject: intnative, dwMask: uint32, dwFlags: uint32) -> int
     declare ReadFile(
         hFile: intnative,
@@ -153,7 +147,6 @@ if WINDOWS:
     const STD_OUTPUT_HANDLE: uint32 = 0xfffffff5  # TODO(Jou): -11 as uint32
     const STD_ERROR_HANDLE: uint32 = 0xfffffff4  # TODO(Jou): -12 as uint32
     const PIPE_ACCESS_INBOUND: uint32 = 0x00000001
-#    const PIPE_ACCESS_OUTBOUND: uint32 = 0x00000002
     const FILE_FLAG_OVERLAPPED: uint32 = 0x40000000
     const PIPE_TYPE_BYTE: uint32 = 0x00000000
     const PIPE_WAIT: uint32 = 0x00000000
@@ -368,7 +361,7 @@ if WINDOWS:
             # Start writing input
             if WriteFile(run_state.input_pipe_write, input, llmin(strlen(input), UINT32_MAX) as uint32, &dummy, &input_overlapped) == 0:
                 match GetLastError():
-                    case ERROR_IO_PENDING:  # Nothing written yet, we get it later
+                    case ERROR_IO_PENDING:  # Nothing written yet, we will find out later how it went
                         pass
                     case ERROR_BROKEN_PIPE:  # It does not want to receive any more input
                         input = NULL
@@ -379,7 +372,7 @@ if WINDOWS:
                     case _:
                         fail_with_windows_error("WriteFile() failed", GetLastError())
 
-        output_buf: byte[5]  # TODO: use bigger buffer size (e.g. 4k) when debugging is done
+        output_buf: byte[1024]
         if run_state.test.uses_output_capturing:
             output_overlapped.hEvent = CreateEventA(NULL, True as int, False as int, NULL)
             assert output_overlapped.hEvent != INVALID_HANDLE_VALUE
@@ -443,7 +436,7 @@ if WINDOWS:
                     # Write more data
                     if WriteFile(run_state.input_pipe_write, input, llmin(strlen(input), UINT32_MAX) as uint32, &dummy, &input_overlapped) == 0:
                         match GetLastError():
-                            case ERROR_IO_PENDING:  # Nothing written yet, we get it later
+                            case ERROR_IO_PENDING:  # Nothing written yet, we will find out later how it went
                                 pass
                             case ERROR_BROKEN_PIPE:  # It does not want to receive any more input
                                 input = NULL
@@ -534,9 +527,9 @@ else:
         # program, because another thread could fork+exec between creating the
         # pipe and setting the flag.
         pipefd: int[2]
-
         if pipe(&pipefd) != 0:
             fail_with_errno("pipe() failed", get_errno())
+
         if fcntl(pipefd[0], F_SETFD, FD_CLOEXEC) != 0 or fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0:
             fail_with_errno("fcntl() failed", get_errno())
 
@@ -679,8 +672,7 @@ else:
 
                 if p.revents & POLLIN != 0:
                     assert p.fd == run_state.output_pipe_read
-                    #output_buf: byte[4096]
-                    output_buf: byte[5]  # TODO: bump up the size when testing is done
+                    output_buf: byte[1024]
 
                     n = read(p.fd, output_buf, sizeof(output_buf))
                     if n < 0:  # TODO: retry on EINTR

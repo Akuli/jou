@@ -237,12 +237,13 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             test.path_in_working_directory = test.path
 
         if test.specified_command_list.len == 0:
-            test.specified_command_list.append("jou")
             if test.stdin_input != NULL:
+                test.specified_command_list.append("jou")
                 test.specified_command_list.append("--stdin-name")
                 test.specified_command_list.append("{file}")
                 test.specified_command_list.append("-")
             else:
+                test.specified_command_list.append("jou")
                 test.specified_command_list.append("{file}")
 
         params: byte*[enum_count(FormatParam)]
