@@ -707,6 +707,7 @@ else:
                     else:
                         assert False
 
+    def close_input_and_output_pipes(run_state: TestRunState*) -> None:
         if run_state.output_pipe_read != -1:
             close(run_state.output_pipe_read)
         if run_state.input_pipe_write != -1:
