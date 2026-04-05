@@ -51,10 +51,11 @@ After calling `.next()`, you can use the following fields:
     Similarly to `iter.path`, this is only valid until the following call to `.next()`
     and you may need to make a copy.
     This field is `NULL` if `iter.next()` returned `False`.
-- `error_code: int` is nonzero if `iter.next()` returned `False` due to an error,
+- `error_code` is nonzero if `iter.next()` returned `False` due to an error,
     and zero if no error has occurred.
-    This is [a Windows API error number](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-) on Windows
-    and an [errno value](../stdlib/errno.jou) on other systems.
+    On Windows, this is [a Windows API error number](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-)
+    as [`uint32`](types.md#integers).
+    On other systems, this is an [errno value](../stdlib/errno.jou) as `int`.
 - `error_message: byte[512]` is a human-readable error message,
     or an empty string if no error has occurred.
 

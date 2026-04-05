@@ -41,6 +41,14 @@ if WINDOWS:
     const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
     const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
 
+    def windows_error_to_string(e: uint32, message: byte*, message_size: int) -> None:
+        FormatMessageA(
+            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            NULL, e, 0, message, message_size as uint32, NULL,
+        )
+        while ends_with(message, "\r") or ends_with(message, "\n"):
+            message[strlen(message) - 1] = '\0'
+
 else:
     import "stdlib/errno.jou"
     import "stdlib/intnative.jou"
@@ -124,7 +132,10 @@ class DirIter:
     path: byte*
     name: byte*
 
-    error_code: int  # errno or GetLastError
+    if WINDOWS:
+        error_code: uint32  # GetLastError value
+    else:
+        error_code: int  # errno value
     error_message: byte[512]
 
     # Internal state
@@ -164,11 +175,8 @@ class DirIter:
         if WINDOWS:
             if self.dir[0] == '\0':
                 # "\\*" would search the root of the current drive. Let's not do that.
-                self.error_code = ERROR_PATH_NOT_FOUND as int
-                FormatMessageA(
-                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                    NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message) as uint32, NULL,
-                )
+                self.error_code = ERROR_PATH_NOT_FOUND
+                windows_error_to_string(self.error_code, self.error_message, sizeof(self.error_message))
                 return False
 
             # Jou initializes everything to zero, but INVALID_HANDLE_VALUE is
@@ -196,7 +204,7 @@ class DirIter:
                     return True
                 found = (FindNextFileA(self.handle, &find_data) != 0)
 
-            e = GetLastError() as int
+            e = GetLastError()
 
             free(self.path_list.ptr)
             if self.handle != INVALID_HANDLE_VALUE:
@@ -206,10 +214,7 @@ class DirIter:
             if e != ERROR_NO_MORE_FILES:
                 # It failed
                 self.error_code = e
-                FormatMessageA(
-                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                    NULL, self.error_code as uint32, 0, self.error_message, sizeof(self.error_message) as uint32, NULL,
-                )
+                windows_error_to_string(self.error_code, self.error_message, sizeof(self.error_message))
 
             return False
 
