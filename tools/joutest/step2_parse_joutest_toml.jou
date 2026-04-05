@@ -1,3 +1,4 @@
+import "stdlib/mem.jou"
 import "stdlib/assert.jou"
 import "stdlib/errno.jou"
 import "stdlib/io.jou"
@@ -6,6 +7,8 @@ import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
 import "./fail.jou"
+import "./string_formatter.jou"
+import "./state.jou"
 
 
 enum Condition:
@@ -97,8 +100,8 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
 
 global big_file_content_buffer: byte[1_000_000]
 
-@public
-def step2_parse_joutest_toml() -> TOML:
+
+def read_joutest_toml_and_parse_to_toml_object() -> TOML:
     f = fopen("joutest.toml", "rb")
     if f == NULL:
         fail_with_errno("cannot open joutest.toml", get_errno())
@@ -121,5 +124,206 @@ def step2_parse_joutest_toml() -> TOML:
     if toml.type == TOMLType.Error:
         fail_with_toml_syntax_error(toml.lineno, toml.error_message)
 
-    eliminate_condition_tables(&toml, 0)
     return toml
+
+
+def array_of_strings_from_toml(kv: TOMLKeyVal*) -> List[byte*]:
+    error: byte[200]
+    snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
+
+    if kv.value.type != TOMLType.Array:
+        fail_in_toml(kv.value.lineno, error)
+
+    result = List[byte*]{}
+    for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
+        if toml_to_string(item) == NULL:
+            fail_in_toml(item.lineno, error)
+        result.append(toml_to_string(item))
+
+    return result
+
+
+def table_with_string_values_from_toml(kv: TOMLKeyVal*) -> List[byte*[2]]:
+    error: byte[200]
+    snprintf(error, sizeof(error), "'%s' must be a table with string keys and string values", kv.key)
+
+    if kv.value.type != TOMLType.Table:
+        fail_in_toml(kv.value.lineno, error)
+
+    result = List[byte*[2]]{}
+    for inner_kv = kv.value.table.ptr; inner_kv < kv.value.table.end(); inner_kv++:
+        if toml_to_string(&inner_kv.value) == NULL:
+            fail_in_toml(inner_kv.value.lineno, error)
+        result.append([inner_kv.key, toml_to_string(&inner_kv.value)])
+
+    return result
+
+
+def enum_from_toml_keyval(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> int:
+    # Sanity checks, so that creating the error message below is simpler
+    # This ensures that the strings themselves take up less than 1.1kB.
+    assert strlen(kv.key) < 100
+    assert nstrings > 0
+    assert nstrings <= 10
+    for i = 0; i < nstrings; i++:
+        assert strlen(strings[i]) < 100
+
+    s = toml_to_string(&kv.value)
+    if s != NULL:
+        for i = 0; i < nstrings; i++:
+            if strcmp(s, strings[i]) == 0:
+                return i
+
+    error: byte[2000]  # surely big enough, see above
+    sprintf(error, "'%s' must be \"%s\"", kv.key, strings[0])
+    for i = 1; i < nstrings; i++:
+        if i == nstrings - 1:
+            sprintf(&error[strlen(error)], " or \"%s\"", strings[i])
+        else:
+            sprintf(&error[strlen(error)], ", \"%s\"", strings[i])
+    fail_in_toml(kv.value.lineno, error)
+
+
+def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*) -> None:
+    allowed: bool[enum_count(FormatParam)]
+    error: byte[500]  # surely big enough, see above
+
+    match opt:
+        case TestConfigOption.Files:
+            s = toml_to_string(&kv.value)
+            if s == NULL:
+                if kv.value.type != TOMLType.Array:
+                    fail_in_toml(kv.value.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
+                free(config.files.ptr)
+                config.files = array_of_strings_from_toml(kv)
+            else:
+                free(config.files.ptr)
+                config.files = List[byte*]{}
+                config.files.append(s)
+
+        case TestConfigOption.Stdout:
+            config.stdout = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
+
+        case TestConfigOption.Stderr:
+            config.stdout = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
+
+        case TestConfigOption.OutputCommentRules:
+            free(config.output_comment_rules.ptr)
+            config.output_comment_rules = table_with_string_values_from_toml(kv)
+
+            assert kv.value.type == TOMLType.Table
+            for inner_kv = kv.value.table.ptr; inner_kv < kv.value.table.end(); inner_kv++:
+                if strstr(inner_kv.key, ":") != NULL or strstr(inner_kv.key, "#") != NULL:
+                    fail_in_toml(inner_kv.value.lineno, "keys of 'output_comment_rules' cannot contain '#' or ':' characters")
+
+                s = toml_to_string(&inner_kv.value)
+                assert s != NULL
+
+                memset(allowed, 0, sizeof(allowed))
+                allowed[FormatParam.File as int] = True
+                allowed[FormatParam.Line as int] = True
+                allowed[FormatParam.Comment as int] = True
+                validate_format_string_in_toml(s, inner_kv.value.lineno, allowed)
+
+        case TestConfigOption.Command:
+            free(config.command.ptr)
+            config.command = array_of_strings_from_toml(kv)
+
+            if config.command.len == 0:
+                snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
+                fail_in_toml(kv.value.lineno, error)
+
+            assert kv.value.type == TOMLType.Table
+            for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
+                arg = toml_to_string(item)
+                assert arg != NULL
+                memset(allowed, 0, sizeof(allowed))
+                allowed[FormatParam.File as int] = True
+                validate_format_string_in_toml(arg, item.lineno, allowed)
+
+        case TestConfigOption.CdToContainingDirectory:
+            if toml_is_true(&kv.value):
+                config.cd_to_containing_directory = True
+            elif toml_is_false(&kv.value):
+                config.cd_to_containing_directory = False
+            else:
+                fail_in_toml(kv.value.lineno, "'cd_to_containing_directory' must be a boolean")
+
+        case TestConfigOption.ExpectedExitCode:
+            config.expected_exit_code = toml_to_int(&kv.value, -1)
+            if config.expected_exit_code < 0 or config.expected_exit_code > 255:
+                fail_in_toml(kv.value.lineno, "'expected_exit_code' must be an integer between 0 and 255")
+
+        case TestConfigOption.MarkdownCodeBlockLanguages:
+            free(config.markdown_code_block_languages.ptr)
+            config.markdown_code_block_languages = array_of_strings_from_toml(kv)
+
+
+def toml_to_config(toml: TOML*, config: TestConfig*, this_is_the_defaults_for_all_tests: bool) -> None:
+    assert toml != NULL
+
+    if toml.type != TOMLType.Table:
+        if this_is_the_defaults_for_all_tests:
+            fail_in_toml(toml.lineno, "'defaults_for_all_tests' must be a table")
+        else:
+            fail_in_toml(toml.lineno, "each item of 'tests' must be a table")
+
+    error: byte[500]
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        opt = 0 as TestConfigOption
+        found = False
+        for i = 0; i < enum_count(TestConfigOption); i++:
+            if strcmp(kv.key, TEST_CONFIG_OPTION_NAMES[i]) == 0:
+                opt = i as TestConfigOption
+                found = True
+                break
+
+        if not found:
+            snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
+            fail_in_toml(kv.value.lineno, error)
+
+        if this_is_the_defaults_for_all_tests and opt == TestConfigOption.Files:
+            fail_in_toml(kv.value.lineno, "you cannot specify 'files' inside defaults_for_all_tests")
+
+        option_to_config(opt, kv, config)
+        config.value_present[opt as int] = True
+
+
+def parse_tests_array(defaults_for_all_tests: TestConfig, toml: TOML*) -> List[TestConfig]:
+    assert toml != NULL
+    if toml.type != TOMLType.Array:
+        fail_in_toml(toml.lineno, "'tests' must be an array")
+    if toml.array.len == 0:
+        fail_in_toml(toml.lineno, "the 'tests' array cannot be empty")
+
+    result = List[TestConfig]{}
+    for p = toml.array.ptr; p < toml.array.end(); p++:
+        conf = defaults_for_all_tests
+        toml_to_config(p, &conf, False)
+        result.append(conf)
+    return result
+
+
+@public
+def step2_parse_joutest_toml() -> List[TestConfig]:
+    toml = read_joutest_toml_and_parse_to_toml_object()
+    eliminate_condition_tables(&toml, 0)
+
+    tests_toml: TOML* = NULL
+    defaults_for_all_tests = TestConfig{}
+
+    assert toml.type == TOMLType.Table
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        match kv.key with strcmp:
+            case "tests":
+                tests_toml = &kv.value
+            case "defaults_for_all_tests":
+                toml_to_config(&kv.value, &defaults_for_all_tests, True)
+            case _:
+                error: byte[200]
+                snprintf(error, sizeof(error), "unknown setting '%s'", kv.key)
+                fail_in_toml(kv.value.lineno, error)
+
+    if tests_toml == NULL:
+        fail("joutest.toml must define an array named 'tests'")
+    return parse_tests_array(defaults_for_all_tests, tests_toml)

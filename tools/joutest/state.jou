@@ -1,5 +1,4 @@
 import "stdlib/list.jou"
-import "stdlib/toml.jou"
 
 
 @public
@@ -9,12 +8,6 @@ class CommandLineArgs:
 
 
 @public
-enum SimpleResult:
-    Success
-    Failed
-    Skipped
-
-@public
 enum CaptureMode:
     CompareToComments   # (default) expected output comes from comments like "# Output: hello"
     DoNotCapture        # do nothing with the output, let it go to console
@@ -22,30 +15,69 @@ enum CaptureMode:
 @public
 global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comments", "do_not_capture"]
 
+
+@public
+enum TestConfigOption:
+    Files
+    Stdout
+    Stderr
+    OutputCommentRules
+    Command
+    CdToContainingDirectory
+    ExpectedExitCode
+    MarkdownCodeBlockLanguages
+
+@public
+global TEST_CONFIG_OPTION_NAMES: byte*[enum_count(TestConfigOption)] = [
+    "files",
+    "stdout",
+    "stderr",
+    "output_comment_rules",
+    "command",
+    "cd_to_containing_directory",
+    "expected_exit_code",
+    "markdown_code_block_languages",
+]
+
+@public
+class TestConfig:
+    value_present: bool[enum_count(TestConfigOption)]  # True if the TOML assigns some value for the option
+
+    files: List[byte*]  # may contain globs
+    stdout: CaptureMode
+    stderr: CaptureMode
+    output_comment_rules: List[byte*[2]]
+    command: List[byte*]  # may contain things like "{file}"
+    cd_to_containing_directory: bool
+    expected_exit_code: int
+    markdown_code_block_languages: List[byte*]
+
+
+@public
+enum SimpleResult:
+    Success
+    Failed
+    Skipped
+
 @public
 class Test:
     # These are set in step 3 (discover tests)
     path: byte*
-    glob_toml: TOML*
-    relevant_toml_tables: List[TOML*]
+    config: TestConfig
+    #glob_toml: TOML*  # TODO: still needed?
+    #relevant_toml_tables: List[TOML*]  # TODO: still needed?
     stdin_input: byte*  # For markdown files, code in the code block, NULL if not used
     first_markdown_lineno: int  # Line number if markdown file, 0 if not markdown file
     last_markdown_lineno: int   # Line number if markdown file, 0 if not markdown file
     markdown_code_block_language: byte[100]
 
     # These are set in step 4 (configure tests)
-    specified_command_list: List[byte*]  # may contain things like "{file}"
+    path_in_working_directory: byte*  # usually same as path, just file name if cd_to_containing_directory is used
     actual_command_list: List[byte*]
     actual_command_string: byte*
-    stdout_capture_mode: CaptureMode
-    stderr_capture_mode: CaptureMode
     uses_output_capturing: bool
     output_comment_rules: List[byte*[2]]
-    cd_to_containing_directory: bool  # TODO: do we need this?
     working_directory: byte*  # NULL means use current directory
-    path_in_working_directory: byte*  # usually same as path, just file name if cd_to_containing_directory is used
-    expected_exit_code: int
-    markdown_code_block_languages: List[byte*]
 
     # These are set in step 5 (gather expected output)
     expected_output: byte*

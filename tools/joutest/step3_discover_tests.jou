@@ -209,32 +209,6 @@ def step3_discover_tests(toml: TOML*) -> List[Test]:
     tests_toml: TOML* = NULL
     defaults_toml: TOML* = NULL
 
-    assert toml.type == TOMLType.Table
-    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-        match kv.key with strcmp:
-            case "tests":
-                tests_toml = &kv.value
-            case "defaults_for_all_tests":
-                defaults_toml = &kv.value
-            case _:
-                error: byte[200]
-                snprintf(error, sizeof(error), "unknown setting '%s'", kv.key)
-                fail_in_toml(kv.value.lineno, error)
-
-    if tests_toml == NULL:
-        fail("joutest.toml must define an array named 'tests'")
-    if tests_toml.type != TOMLType.Array:
-        fail_in_toml(tests_toml.lineno, "'tests' must be an array")
-    if tests_toml.array.len == 0:
-        fail_in_toml(tests_toml.lineno, "the 'tests' array cannot be empty")
-
-    if defaults_toml != NULL:
-        if defaults_toml.type != TOMLType.Table:
-            fail_in_toml(defaults_toml.lineno, "'defaults_for_all_tests' must be a table")
-        files = toml_get(defaults_toml, "files")
-        if files != NULL:
-            fail_in_toml(files.lineno, "you cannot specify 'files' inside defaults_for_all_tests")
-
     state = DiscoveryState{defaults_toml = defaults_toml}
     for p = tests_toml.array.ptr; p < tests_toml.array.end(); p++:
         handle_one_item_of_tests(&state, p)

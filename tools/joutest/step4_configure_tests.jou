@@ -82,31 +82,6 @@ if not WINDOWS:
         return result.ptr
 
 
-def enum_from_toml_keyval(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> int:
-    # Sanity checks, so that creating the error message below is simpler
-    # This ensures that the strings themselves take up less than 1.1kB.
-    assert strlen(kv.key) < 100
-    assert nstrings > 0
-    assert nstrings <= 10
-    for i = 0; i < nstrings; i++:
-        assert strlen(strings[i]) < 100
-
-    s = toml_to_string(&kv.value)
-    if s != NULL:
-        for i = 0; i < nstrings; i++:
-            if strcmp(s, strings[i]) == 0:
-                return i
-
-    error: byte[2000]  # surely big enough, see above
-    sprintf(error, "'%s' must be \"%s\"", kv.key, strings[0])
-    for i = 1; i < nstrings; i++:
-        if i == nstrings - 1:
-            sprintf(&error[strlen(error)], " or \"%s\"", strings[i])
-        else:
-            sprintf(&error[strlen(error)], ", \"%s\"", strings[i])
-    fail_in_toml(kv.value.lineno, error)
-
-
 def is_table_with_string_values(toml: TOML*) -> bool:
     if toml.type != TOMLType.Table:
         return False
@@ -131,74 +106,7 @@ def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
     assert toml != NULL
     assert toml.type == TOMLType.Table
     assert test != NULL
-
-    error: byte[200]
-    allowed: bool[enum_count(FormatParam)]
-
-    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-        match kv.key with strcmp:
-            case "files":
-                # Already handled in previous step that created the test
-                pass
-            case "command":
-                test.specified_command_list.len = 0
-                if kv.value.type != TOMLType.Array:
-                    snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
-                    fail_in_toml(kv.value.lineno, error)
-                memset(allowed, 0, sizeof(allowed))
-                allowed[FormatParam.File as int] = True
-                for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
-                    arg = toml_to_string(item)
-                    if arg == NULL:
-                        snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
-                        fail_in_toml(item.lineno, error)
-                    validate_format_string_in_toml(arg, item.lineno, allowed)
-                    test.specified_command_list.append(arg)
-                if test.specified_command_list.len == 0:
-                    snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
-                    fail_in_toml(kv.value.lineno, error)
-            case "stdout":
-                test.stdout_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
-            case "stderr":
-                test.stderr_capture_mode = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
-            case "cd_to_containing_directory":
-                if toml_is_true(&kv.value):
-                    test.cd_to_containing_directory = True
-                elif toml_is_false(&kv.value):
-                    test.cd_to_containing_directory = False
-                else:
-                    fail_in_toml(kv.value.lineno, "'cd_to_containing_directory' must be a boolean")
-            case "expected_exit_code":
-                test.expected_exit_code = toml_to_int(&kv.value, -1)
-                if test.expected_exit_code < 0 or test.expected_exit_code > 255:
-                    fail_in_toml(kv.value.lineno, "'expected_exit_code' must be an integer between 0 and 255")
-            case "output_comment_rules":
-                if not is_table_with_string_values(&kv.value):
-                    snprintf(error, sizeof(error), "'%s' must be a table with string keys and string values", kv.key)
-                    fail_in_toml(kv.value.lineno, error)  # TODO: test
-                test.output_comment_rules.len = 0
-                for inner_kv = kv.value.table.ptr; inner_kv < kv.value.table.end(); inner_kv++:
-                    if strstr(inner_kv.key, ":") != NULL or strstr(inner_kv.key, "#") != NULL:
-                        fail_in_toml(inner_kv.value.lineno, "keys of 'output_comment_rules' cannot contain '#' or ':' characters")
-                    s = toml_to_string(&inner_kv.value)
-                    assert s != NULL
-                    memset(allowed, 0, sizeof(allowed))
-                    allowed[FormatParam.File as int] = True
-                    allowed[FormatParam.Line as int] = True
-                    allowed[FormatParam.Comment as int] = True
-                    validate_format_string_in_toml(s, inner_kv.value.lineno, [True,True,True])
-                    test.output_comment_rules.append([inner_kv.key, s])
-            case "markdown_code_block_languages":
-                if not is_array_of_strings(&kv.value):
-                    fail_in_toml(kv.value.lineno, "'markdown_code_block_languages' must be an array of strings")
-                test.markdown_code_block_languages.len = 0
-                for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
-                    s = toml_to_string(item)
-                    assert s != NULL
-                    test.markdown_code_block_languages.append(s)
-            case _:
-                snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
-                fail_in_toml(kv.value.lineno, error)
+    assert False  # TODO
 
 
 def is_slash(b: byte) -> bool:
@@ -208,11 +116,13 @@ def is_slash(b: byte) -> bool:
 @public
 def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        # These are here because it is possible to override with empty
-        assert test.output_comment_rules.len == 0
-        test.output_comment_rules.append(["Output", "{comment}"])
-        assert test.markdown_code_block_languages.len == 0
-        test.markdown_code_block_languages.append("jou")
+        if not test.config.value_present[ConfigOption.OutputCommentRules as int]
+            assert test.output_comment_rules.len == 0
+            test.output_comment_rules.append(["Output", "{comment}"])
+
+        if not test.config.value_present[ConfigOption.MarkdownCodeBlockLanguages as int]
+            assert test.markdown_code_block_languages.len == 0
+            test.markdown_code_block_languages.append("jou")
 
         # TODO: It might be better to loop backwards and explicitly ignore
         #       settings that have been already set. This way we can mark the
