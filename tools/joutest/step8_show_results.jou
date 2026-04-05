@@ -1,5 +1,4 @@
 import "stdlib/assert.jou"
-import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
@@ -24,6 +23,7 @@ if WINDOWS:
     const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
     const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
 else:
+    import "stdlib/errno.jou"
     declare strsignal(sig: int) -> byte*
 
 

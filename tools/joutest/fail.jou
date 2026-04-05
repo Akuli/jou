@@ -24,3 +24,32 @@ def fail_in_toml(toml_lineno: int, message: byte*) -> noreturn:
 def fail_with_errno(message: byte*, errno_value: int) -> noreturn:
     fprintf(get_stderr(), "joutest error: %s: %s\n", message, strerror(errno_value))
     exit(1)
+
+
+if WINDOWS:
+    declare FormatMessageA(
+        dwFlags: uint32,
+        lpSource: void*,
+        dwMessageId: uint32,
+        dwLanguageId: uint32,
+        lpBuffer: byte*,
+        nSize: uint32,
+        Arguments: void*,  # actually va_list*
+    ) -> uint32
+    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
+    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
+
+    @public
+    declare GetLastError() -> uint32
+
+    @public
+    def fail_with_windows_error(message: byte*, error_code: uint32) -> noreturn:
+        error_string: byte[1024] = ""
+        FormatMessageA(
+            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            NULL, error_code, 0, error_string, sizeof(error_string) as uint32, NULL,
+        )
+
+        # The error string already has \r\n at the end, let's rely on that because why not
+        fprintf(get_stderr(), "joutest error: %s: %s", message, error_string)
+        exit(1)

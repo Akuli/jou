@@ -15,7 +15,6 @@ import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
-import "stdlib/process.jou"
 import "stdlib/str.jou"
 
 import "./ansi_colors.jou"
@@ -25,6 +24,7 @@ import "./state.jou"
 if not WINDOWS:
     import "stdlib/errno.jou"
     import "stdlib/fs.jou"
+    import "stdlib/process.jou"
 
 
 if WINDOWS:
@@ -54,15 +54,6 @@ if WINDOWS:
         dwProcessId: uint32
         dwThreadId: uint32
 
-    declare FormatMessageA(
-        dwFlags: uint32,
-        lpSource: void*,
-        dwMessageId: uint32,
-        dwLanguageId: uint32,
-        lpBuffer: byte*,
-        nSize: uint32,
-        Arguments: void*,  # actually va_list*
-    ) -> uint32
     declare CreateProcessA(
         lpApplicationName: byte*,
         lpCommandLine: byte*,  # may be modified! at least in the W version. Windows is weird...
@@ -75,7 +66,6 @@ if WINDOWS:
         lpStartupInfo: STARTUPINFOA*,
         lpProcessInformation: PROCESS_INFORMATION*,
     ) -> int
-    declare GetLastError() -> uint32
     declare WaitForSingleObject(handle: intnative, dwMilliseconds: uint32) -> uint32
     declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
     declare CloseHandle(hObject: intnative) -> int
@@ -94,23 +84,11 @@ if WINDOWS:
         lpOverlapped: void*,  # actually OVERLAPPED*
     ) -> int
 
-    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
-    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
     const INFINITE: uint32 = 0xffff_ffff
     const INVALID_HANDLE_VALUE: intnative = -1
     const HANDLE_FLAG_INHERIT: uint32 = 0x00000001
     const STARTF_USESTDHANDLES: uint32 = 0x00000100
     const ERROR_BROKEN_PIPE: uint32 = 109
-
-    def windows_error_to_string(error: uint32) -> byte[300]:
-        message: byte[300] = ""
-        FormatMessageA(
-            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, error, 0, message, sizeof(message) as uint32, NULL,
-        )
-        while ends_with(message, "\r") or ends_with(message, "\n"):
-            message[strlen(message)-1] = '\0'
-        return message
 
 else:
     declare fork() -> int
@@ -174,8 +152,6 @@ def add_output_byte(run_state: TestRunState*, b: byte) -> None:
 
 if WINDOWS:
     def create_pipes_and_spawn_child_process(run_state: TestRunState*) -> None:
-        message: byte[300]
-
         run_state.output_pipe_read = INVALID_HANDLE_VALUE
 
         # This is no longer needed once process has been spawned, so it's a
@@ -184,16 +160,12 @@ if WINDOWS:
 
         if run_state.test.uses_output_capturing:
             if CreatePipe(&run_state.output_pipe_read, &output_pipe_write, NULL, 0) == 0:
-                gle = windows_error_to_string(GetLastError())
-                snprintf(message, sizeof(message), "CreatePipe() failed: %s", gle)
-                fail(message)
+                fail_with_windows_error("CreatePipe() failed", GetLastError())
 
             # Mark the write end of the pipe as inheritable so the child
             # process can write to it.
             if SetHandleInformation(output_pipe_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
-                gle = windows_error_to_string(GetLastError())
-                snprintf(message, sizeof(message), "SetHandleInformation() failed: %s", gle)
-                fail(message)
+                fail_with_windows_error("SetHandleInformation() failed", GetLastError())
 
             # Threading note: If this code ever needs to be multi-threaded, it
             # needs some changes. At this point we have an inheritable handle,
@@ -248,13 +220,9 @@ if WINDOWS:
         while True:
             n: uint32 = 0
             if ReadFile(run_state.output_pipe_read, buf, sizeof(buf) as uint32, &n, NULL) == 0:
-                e = GetLastError()
                 # Broken pipe "error" happens at end of output when everything goes fine.
-                if e != ERROR_BROKEN_PIPE:
-                    message: byte[300]
-                    gle = windows_error_to_string(e)
-                    snprintf(message, sizeof(message), "ReadFile() failed: %s", gle)
-                    fail(message)
+                if GetLastError() != ERROR_BROKEN_PIPE:
+                    fail_with_windows_error("ReadFile() failed", GetLastError())
             if n == 0:
                 break
 
@@ -265,18 +233,12 @@ if WINDOWS:
         CloseHandle(run_state.output_pipe_read)
 
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
-        message: byte[300]
-
         if WaitForSingleObject(run_state.process_info.hProcess, INFINITE) != 0:
-            gle = windows_error_to_string(GetLastError())
-            snprintf(message, sizeof(message), "WaitForSingleObject() failed: %s", gle)
-            fail(message)
+            fail_with_windows_error("WaitForSingleObject() failed", GetLastError())
 
         exit_code: uint32 = 0
         if GetExitCodeProcess(run_state.process_info.hProcess, &exit_code) == 0:
-            gle = windows_error_to_string(GetLastError())
-            snprintf(message, sizeof(message), "GetExitCodeProcess() failed: %s", gle)
-            fail(message)
+            fail_with_windows_error("GetExitCodeProcess() failed", GetLastError())
 
         CloseHandle(run_state.process_info.hProcess)
         CloseHandle(run_state.process_info.hThread)
