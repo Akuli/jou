@@ -165,6 +165,8 @@ F
 ## Markdown files
 
 You can use `joutest` to ensure that example code in your documentation stays up to date.
+To help with that, `joutest` has some special-casing for markdown files.
+Any file whose name ends with `.md` (case-insensitive) is treated as markdown.
 
 For example, suppose that `hello.md` contains the following:
 
@@ -177,6 +179,16 @@ For example, suppose that `hello.md` contains the following:
 
     def main() -> int:
         printf("Hello World\n")  # Output: Hello World
+        return 0
+    ```
+
+    The example below contains a syntax error:
+
+    ```python
+    import "stdlib/io.jou"
+
+    def main() -> int:
+        printf("Hello World)  # Output: Hello World
         return 0
     ```
 
@@ -194,8 +206,24 @@ markdown_code_block_languages = ["python"]
 ```
 
 You can omit the `markdown_code_block_languages` setting if the markdown files use ` ```jou `.
-To distinguish markdown files from other files, `joutest` looks at the file extension:
-files whose name ends with `.md` (case-insensitive) are treated as markdown.
+
+Here's the output of `joutest`:
+
+```diff
+.F
+
+*** Command: jou --stdin-name hello.md -
+    Input: file "hello.md", line 16 to line 20
+-Hello World
++compiler error in file "hello.md", line 19: missing " to end the string
+Process exited with code 1. The correct exit code would be 0.
+
+
+1 succeeded, 1 failed
+```
+
+Note that the file name and line number in the error message correctly point to the markdown file.
+The command and input that `joutest` uses are set up to do exactly that.
 
 
 ## Condition Tables
@@ -373,16 +401,7 @@ cd_to_containing_directory = false
 skip = false
 ```
 
-The main thing to note here is `"compare_to_comments"` and `special_output_comments`.
-This means that `joutest` will look for comments like `# Output: hello` in the file it's testing,
-and ensure that `hello` is actually printed when running the file.
-
-It will be possible to pass markdown files to `joutest`,
-and `joutest` will extract code blocks from the markdown and run them as tests.
-This is useful to ensure that your documentation stays up to date.
-
-The Jou project itself already has scripts for doing these things,
-and they will eventually be replaced by `joutest`:
+The Jou project has scripts that will eventually be replaced by `joutest`:
 - [`runtests.sh`](../runtests.sh) runs tests with `# Output:` comment handling
 - [`doctest.sh`](../doctest.sh) runs tests in markdown files, also with `# Output:` comment handling
 
