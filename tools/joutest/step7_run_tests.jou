@@ -11,21 +11,25 @@
 # broken in some way, and you should use fail() to stop the test runner.
 
 import "stdlib/assert.jou"
-import "stdlib/errno.jou"
-import "stdlib/fs.jou"
 import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
-import "stdlib/process.jou"
 import "stdlib/str.jou"
-import "stdlib/math.jou"
-import "stdlib/limits.jou"
 
 import "./ansi_colors.jou"
 import "./fail.jou"
 import "./state.jou"
 import "./print_test_info.jou"
+
+if WINDOWS:
+    import "stdlib/math.jou"
+    import "stdlib/limits.jou"
+else:
+    import "stdlib/errno.jou"
+    import "stdlib/fs.jou"
+    import "stdlib/process.jou"
+    import "./poll.jou"
 
 
 if WINDOWS:
@@ -63,15 +67,6 @@ if WINDOWS:
             Pointer: void*
         hEvent: intnative
 
-    declare FormatMessageA(
-        dwFlags: uint32,
-        lpSource: void*,
-        dwMessageId: uint32,
-        dwLanguageId: uint32,
-        lpBuffer: byte*,
-        nSize: uint32,
-        Arguments: void*,  # actually va_list*
-    ) -> uint32
     declare CreateProcessA(
         lpApplicationName: byte*,
         lpCommandLine: byte*,  # may be modified! at least in the W version. Windows is weird...
@@ -148,13 +143,10 @@ if WINDOWS:
     ) -> int
     declare ResetEvent(hEvent: intnative) -> int
 
-    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
-    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
     const INFINITE: uint32 = 0xffff_ffff
     const INVALID_HANDLE_VALUE: intnative = -1
     const HANDLE_FLAG_INHERIT: uint32 = 0x00000001
     const STARTF_USESTDHANDLES: uint32 = 0x00000100
-    const ERROR_BROKEN_PIPE: uint32 = 109
     const ERROR_IO_PENDING: uint32 = 997
     const STD_INPUT_HANDLE: uint32 = 0xfffffff6  # TODO(Jou): -10 as uint32
     const STD_OUTPUT_HANDLE: uint32 = 0xfffffff5  # TODO(Jou): -11 as uint32
@@ -169,8 +161,6 @@ if WINDOWS:
     const FILE_ATTRIBUTE_NORMAL: uint32 = 0x80
 
 else:
-    import "./poll.jou"
-
     declare fork() -> int
     declare execvp(file: byte*, argv: byte**) -> int
     declare dup2(oldfd: int, newfd: int) -> int
@@ -255,8 +245,6 @@ if WINDOWS:
     ) -> None:
         # Based on: https://stackoverflow.com/a/419736
 
-        message: byte[300]
-
         pipe_name: byte[100]
         sprintf(pipe_name, "\\\\.\\pipe\\joutest_%u_%lld", GetCurrentProcessId(), pipe_name_counter++)
 
@@ -270,11 +258,9 @@ if WINDOWS:
             0,  # default timeout if not specified later
             NULL,
         )
-        printf("*read_end = %zd\n", *read_end)
         if *read_end == INVALID_HANDLE_VALUE:
-            gle = windows_error_to_string(GetLastError())
-            snprintf(message, sizeof(message), "CreateNamedPipeA() failed: %s", gle)
-            fail(message)
+            fail_with_windows_error("CreateNamedPipeA() failed", GetLastError())
+        printf("*read_end = %zd\n", *read_end)
 
         *write_end = CreateFileA(
             pipe_name,
@@ -285,19 +271,14 @@ if WINDOWS:
             FILE_ATTRIBUTE_NORMAL | (FILE_FLAG_OVERLAPPED if read_end_overlapped else (0 as uint32)),
             0,  # no template file
         )
-        printf("*write_end = %zd\n", *write_end)
         if *write_end == INVALID_HANDLE_VALUE:
-            gle = windows_error_to_string(GetLastError())
-            snprintf(message, sizeof(message), "CreateFileA() failed: %s", gle)
-            fail(message)
+            fail_with_windows_error("CreateFileA() failed", GetLastError())
+        printf("*write_end = %zd\n", *write_end)
 
     def make_inheritable(handle: intnative) -> None:
-        message: byte[300]
-
         if SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
-            gle = windows_error_to_string(GetLastError())
-            snprintf(message, sizeof(message), "SetHandleInformation() failed: %s", gle)
-            fail(message)
+            fail_with_windows_error("SetHandleInformation() failed", GetLastError())
+
         # Threading note: If this code ever needs to be multi-threaded, it
         # needs some changes. At this point we have an inheritable handle,
         # and ANY process started now would inherit it, which is bad.
@@ -305,8 +286,6 @@ if WINDOWS:
         # being launched here.
 
     def create_pipes_and_spawn_child_process(run_state: TestRunState*) -> None:
-        message: byte[300]
-
         run_state.output_pipe_read = INVALID_HANDLE_VALUE
 
         # These are no longer needed once process has been spawned, so these
@@ -373,8 +352,6 @@ if WINDOWS:
             CloseHandle(output_pipe_write)
 
     def write_input_and_read_output(run_state: TestRunState*) -> None:
-        message: byte[300]
-
         input_overlapped = OVERLAPPED{hEvent = INVALID_HANDLE_VALUE}
         output_overlapped = OVERLAPPED{hEvent = INVALID_HANDLE_VALUE}
 
@@ -386,9 +363,7 @@ if WINDOWS:
             # When CreateEventA fails, it returns 0 (NULL in C), not INVALID_HANDLE_VALUE
             assert input_overlapped.hEvent != INVALID_HANDLE_VALUE
             if input_overlapped.hEvent == 0:
-                gle = windows_error_to_string(GetLastError())
-                snprintf(message, sizeof(message), "CreateEventA() failed: %s", gle)
-                fail(message)
+                fail_with_windows_error("CreateEventA() failed", GetLastError())
 
             # Start writing input
             if WriteFile(run_state.input_pipe_write, input, llmin(strlen(input), UINT32_MAX) as uint32, &dummy, &input_overlapped) == 0:
@@ -396,26 +371,20 @@ if WINDOWS:
                 # TODO: is that true?
                 #if GetLastError() != ERROR_IO_PENDING:
                 if True:
-                    gle = windows_error_to_string(GetLastError())
-                    snprintf(message, sizeof(message), "WriteFile() failed: %s", gle)
-                    fail(message)
+                    fail_with_windows_error("WriteFile() failed", GetLastError())
 
         output_buf: byte[5]  # TODO: use bigger buffer size (e.g. 4k) when debugging is done
         if run_state.test.uses_output_capturing:
             output_overlapped.hEvent = CreateEventA(NULL, True as int, False as int, NULL)
             assert output_overlapped.hEvent != INVALID_HANDLE_VALUE
             if output_overlapped.hEvent == 0:
-                gle = windows_error_to_string(GetLastError())
-                snprintf(message, sizeof(message), "CreateEventA() failed: %s", gle)
-                fail(message)
+                fail_with_windows_error("CreateEventA() failed", GetLastError())
 
             # Start reading output
             if ReadFile(run_state.output_pipe_read, output_buf, sizeof(output_buf) as uint32, &dummy, &output_overlapped) == 0:
                 # ReadFile "fails" when the overlapping IO starts correctly
                 if GetLastError() != ERROR_IO_PENDING:
-                    gle = windows_error_to_string(GetLastError())
-                    snprintf(message, sizeof(message), "ReadFile() failed: %s", gle)
-                    fail(message)
+                    fail_with_windows_error("ReadFile() failed", GetLastError())
 
         while True:
             # Wait until we can read or write more
@@ -431,18 +400,14 @@ if WINDOWS:
             printf("Waiting for %u handles\n", nhandles)
             i: uint32 = WaitForMultipleObjects(nhandles, handles, False as int, INFINITE)
             if i >= nhandles:
-                gle = windows_error_to_string(GetLastError())
-                snprintf(message, sizeof(message), "WaitForMultipleObjects() failed: %s", gle)
-                fail(message)
+                fail_with_windows_error("WaitForMultipleObjects() failed", GetLastError())
             printf("WaitForMultipleObjects --> %u\n", i)
 
             assert handles[i] != INVALID_HANDLE_VALUE
             if handles[i] == input_overlapped.hEvent:
                 bytes_written: uint32
                 if GetOverlappedResult(run_state.input_pipe_write, &input_overlapped, &bytes_written, False as int) == 0:
-                    gle = windows_error_to_string(GetLastError())
-                    snprintf(message, sizeof(message), "GetOverlappedResult() failed: %s", gle)
-                    fail(message)
+                    fail_with_windows_error("GetOverlappedResult() failed", GetLastError())
 
                 assert bytes_written < strlen(input)
                 assert bytes_written > 0  # TODO: how does it all end?
@@ -451,9 +416,7 @@ if WINDOWS:
                 # Reset the event, zero out everything else
                 input_overlapped = OVERLAPPED{hEvent = input_overlapped.hEvent}
                 if ResetEvent(input_overlapped.hEvent) == 0:
-                    gle = windows_error_to_string(GetLastError())
-                    snprintf(message, sizeof(message), "ResetEvent() failed: %s", gle)
-                    fail(message)
+                    fail_with_windows_error("ResetEvent() failed", GetLastError())
 
                 # Write more data
                 if WriteFile(run_state.input_pipe_write, input, llmin(strlen(input), UINT32_MAX) as uint32, &dummy, &input_overlapped) == 0:
@@ -461,16 +424,12 @@ if WINDOWS:
                     # TODO: is that true?
                     #if GetLastError() != ERROR_IO_PENDING:
                     if True:
-                        gle = windows_error_to_string(GetLastError())
-                        snprintf(message, sizeof(message), "WriteFile() failed: %s", gle)
-                        fail(message)
+                        fail_with_windows_error("WriteFile() failed", GetLastError())
 
             elif handles[i] == output_overlapped.hEvent:
                 bytes_read: uint32 = 0
                 if GetOverlappedResult(run_state.output_pipe_read, &output_overlapped, &bytes_read, False as int) == 0:
-                    gle = windows_error_to_string(GetLastError())
-                    snprintf(message, sizeof(message), "GetOverlappedResult() failed: %s", gle)
-                    fail(message)
+                    fail_with_windows_error("GetOverlappedResult() failed", GetLastError())
 
                 assert bytes_read <= sizeof(output_buf)
                 assert bytes_read > 0  # TODO: how does it all end?
@@ -481,17 +440,13 @@ if WINDOWS:
                 # Reset the event, zero out everything else
                 output_overlapped = OVERLAPPED{hEvent = output_overlapped.hEvent}
                 if ResetEvent(output_overlapped.hEvent) == 0:
-                    gle = windows_error_to_string(GetLastError())
-                    snprintf(message, sizeof(message), "ResetEvent() failed: %s", gle)
-                    fail(message)
+                    fail_with_windows_error("ResetEvent() failed", GetLastError())
 
                 # Read more data
                 if ReadFile(run_state.output_pipe_read, output_buf, sizeof(output_buf) as uint32, &dummy, &output_overlapped) == 0:
                     # ReadFile "fails" when the overlapping IO starts correctly
                     if GetLastError() != ERROR_IO_PENDING:
-                        gle = windows_error_to_string(GetLastError())
-                        snprintf(message, sizeof(message), "ReadFile() failed: %s", gle)
-                        fail(message)
+                        fail_with_windows_error("ReadFile() failed", GetLastError())
 
             else:
                 assert False
@@ -500,18 +455,12 @@ if WINDOWS:
         CloseHandle(run_state.output_pipe_read)
 
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
-        message: byte[300]
-
         if WaitForSingleObject(run_state.process_info.hProcess, INFINITE) != 0:
-            gle = windows_error_to_string(GetLastError())
-            snprintf(message, sizeof(message), "WaitForSingleObject() failed: %s", gle)
-            fail(message)
+            fail_with_windows_error("WaitForSingleObject() failed", GetLastError())
 
         exit_code: uint32 = 0
         if GetExitCodeProcess(run_state.process_info.hProcess, &exit_code) == 0:
-            gle = windows_error_to_string(GetLastError())
-            snprintf(message, sizeof(message), "GetExitCodeProcess() failed: %s", gle)
-            fail(message)
+            fail_with_windows_error("GetExitCodeProcess() failed", GetLastError())
 
         CloseHandle(run_state.process_info.hProcess)
         CloseHandle(run_state.process_info.hThread)
@@ -539,30 +488,21 @@ else:
         # program, because another thread could fork+exec between creating the
         # pipe and setting the flag.
         pipefd: int[2]
-        message: byte[300]
 
         if pipe(&pipefd) != 0:
-            snprintf(message, sizeof(message), "pipe() failed: %s", strerror(get_errno()))
-            fail(message)
-
+            fail_with_errno("pipe() failed", get_errno())
         if fcntl(pipefd[0], F_SETFD, FD_CLOEXEC) != 0 or fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0:
-            snprintf(message, sizeof(message), "fcntl() failed: %s", strerror(get_errno()))
-            fail(message)
+            fail_with_errno("fcntl() failed", get_errno())
 
         *read_end = pipefd[0]
         *write_end = pipefd[1]
 
     def set_nonblocking(fd: int) -> None:
-        message: byte[300]
-
         flags = fcntl(fd, F_GETFL, 0)
         if flags == -1:
-            snprintf(message, sizeof(message), "fcntl() failed: %s", strerror(get_errno()))
-            fail(message)
-
+            fail_with_errno("fcntl() failed", get_errno())
         if fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1:
-            snprintf(message, sizeof(message), "fcntl() failed: %s", strerror(get_errno()))
-            fail(message)
+            fail_with_errno("fcntl() failed", get_errno())
 
     def fail_child_process_before_exec(error_pipe_write: int) -> None:
         e: int = get_errno()
@@ -636,9 +576,7 @@ else:
 
         pid = fork()
         if pid < 0:
-            message: byte[300]
-            snprintf(message, sizeof(message), "fork() failed: %s", strerror(get_errno()))
-            fail(message)
+            fail_with_errno("fork() failed", get_errno())
         elif pid == 0:
             this_runs_in_child_process(run_state, input_pipe_read, output_pipe_write, error_pipe_read, error_pipe_write)
 
@@ -660,15 +598,12 @@ else:
         #       writing to the pipe while the parent is waiting for it.
         e: int = 0
         if read(error_pipe_read, &e, sizeof(e)) < 0:
-            snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
-            fail(message)
+            fail_with_errno("read() failed", get_errno())
 
         run_state.test.start_error = e
         close(error_pipe_read)
 
     def write_input_and_read_output(run_state: TestRunState*) -> None:
-        message: byte[300]
-
         if run_state.input_pipe_write != -1:
             set_nonblocking(run_state.input_pipe_write)
         if run_state.output_pipe_read != -1:
@@ -691,8 +626,7 @@ else:
 
             ret = poll(polls, npolls, -1)
             if ret == -1:
-                snprintf(message, sizeof(message), "poll() failed: %s", strerror(get_errno()))
-                fail(message)
+                fail_with_errno("poll() failed", get_errno())
 
             for p = &polls[0]; p < &polls[npolls]; p++:
                 assert p.revents & POLLNVAL == 0
@@ -704,8 +638,7 @@ else:
 
                     n = read(p.fd, output_buf, sizeof(output_buf))
                     if n < 0:  # TODO: retry on EINTR
-                        snprintf(message, sizeof(message), "read() failed: %s", strerror(get_errno()))
-                        fail(message)
+                        fail_with_errno("read() failed", get_errno())
                     elif n == 0:
                         # No more output
                         close(run_state.output_pipe_read)
@@ -720,8 +653,7 @@ else:
 
                     n = write(p.fd, input, strlen(input))
                     if n < 0:
-                        snprintf(message, sizeof(message), "write() failed: %s", strerror(get_errno()))
-                        fail(message)
+                        fail_with_errno("write() failed", get_errno())
                     elif n == 0:
                         # Process closed its stdin or we got to the end of input
                         close(run_state.input_pipe_write)
@@ -748,8 +680,6 @@ else:
             close(run_state.input_pipe_write)
 
     def wait_for_termination_and_set_result(run_state: TestRunState*) -> None:
-        message: byte[300]
-
         # Wait more until it dies, either with exit code or with a signal
         while True:
             wstatus = 0
@@ -757,8 +687,7 @@ else:
 
             if ret == -1:
                 # TODO: retry if we get EINTR
-                snprintf(message, sizeof(message), "waitpid() failed: %s", strerror(get_errno()))
-                fail(message)
+                fail_with_errno("waitpid() failed", get_errno())
 
             if WIFEXITED(wstatus):
                 run_state.test.actual_exit_code = WEXITSTATUS(wstatus)
