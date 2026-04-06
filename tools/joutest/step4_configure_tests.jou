@@ -3,10 +3,8 @@
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
-import "stdlib/toml.jou"
 import "stdlib/mem.jou"
 
-import "./fail.jou"
 import "./state.jou"
 import "./string_formatter.jou"
 
@@ -84,32 +82,7 @@ if not WINDOWS:
         return result.ptr
 
 
-def is_table_with_string_values(toml: TOML*) -> bool:
-    if toml.type != TOMLType.Table:
-        return False
-    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-        if toml_to_string(&kv.value) == NULL:
-            return False
-    return True
-
-
-def is_array_of_strings(toml: TOML*) -> bool:
-    if toml.type != TOMLType.Array:
-        return False
-    for item = toml.array.ptr; item < toml.array.end(); item++:
-        if toml_to_string(item) == NULL:
-            return False
-    return True
-
-
 declare dirname(path: byte*) -> byte*
-
-def apply_settings_to_test(toml: TOML*, test: Test*) -> None:
-    assert toml != NULL
-    assert toml.type == TOMLType.Table
-    assert test != NULL
-    assert False  # TODO
-
 
 def is_slash(b: byte) -> bool:
     return b == '/' or (b == '\\' and WINDOWS)
