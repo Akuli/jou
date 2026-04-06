@@ -173,7 +173,6 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
 
     for config = parsed_joutest_toml.tests.ptr; config < parsed_joutest_toml.tests.end(); config++:
         if not config.value_present[TestConfigOption.Files as int]:
-            assert False  # TODO: does this ever run?
             fail_in_toml(config.lineno, "each 'tests' table must contain 'files'")
 
         for i = 0; i < config.files.len; i++:

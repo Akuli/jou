@@ -128,9 +128,11 @@ def read_joutest_toml_and_parse_to_toml_object() -> TOML:
     return toml
 
 
-def array_of_strings_from_toml(kv: TOMLKeyVal*) -> List[byte*]:
-    error: byte[200]
-    snprintf(error, sizeof(error), "'%s' must be an array of strings", kv.key)
+def array_of_strings_from_toml(kv: TOMLKeyVal*, error: byte*) -> List[byte*]:
+    default_error: byte[200]
+    if error == NULL:
+        snprintf(default_error, sizeof(default_error), "'%s' must be an array of strings", kv.key)
+        error = default_error
 
     if kv.value.type != TOMLType.Array:
         fail_in_toml(kv.value.lineno, error)
@@ -193,10 +195,8 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
         case TestConfigOption.Files:
             s = toml_to_string(&kv.value)
             if s == NULL:
-                if kv.value.type != TOMLType.Array:
-                    fail_in_toml(kv.value.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
                 free(config.files.ptr)
-                config.files = array_of_strings_from_toml(kv)
+                config.files = array_of_strings_from_toml(kv, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
                 config.files_linenos.len = 0
                 for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
                     config.files_linenos.append(item.lineno)
@@ -242,7 +242,7 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
 
         case TestConfigOption.Command:
             free(config.command.ptr)
-            config.command = array_of_strings_from_toml(kv)
+            config.command = array_of_strings_from_toml(kv, NULL)
 
             if config.command.len == 0:
                 snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
@@ -271,7 +271,7 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
 
         case TestConfigOption.MarkdownCodeBlockLanguages:
             free(config.markdown_code_block_languages.ptr)
-            config.markdown_code_block_languages = array_of_strings_from_toml(kv)
+            config.markdown_code_block_languages = array_of_strings_from_toml(kv, NULL)
 
 
 def toml_to_config(toml: TOML*, this_is_the_defaults_for_all_tests: bool) -> TestConfig:
@@ -283,7 +283,7 @@ def toml_to_config(toml: TOML*, this_is_the_defaults_for_all_tests: bool) -> Tes
         else:
             fail_in_toml(toml.lineno, "each item of 'tests' must be a table")
 
-    config = TestConfig{}
+    config = TestConfig{lineno = toml.lineno}
     error: byte[500]
 
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
