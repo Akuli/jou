@@ -196,10 +196,15 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
                     fail_in_toml(kv.value.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
                 free(config.files.ptr)
                 config.files = array_of_strings_from_toml(kv)
+                config.files_linenos.len = 0
+                for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
+                    config.files_linenos.append(item.lineno)
+                assert config.files.len == config.files_linenos.len
             else:
-                free(config.files.ptr)
-                config.files = List[byte*]{}
+                config.files.len = 0
                 config.files.append(s)
+                config.files_linenos.len = 0
+                config.files_linenos.append(kv.value.lineno)
 
         case TestConfigOption.Stdout:
             config.stdout = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
@@ -233,7 +238,7 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
                 snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
                 fail_in_toml(kv.value.lineno, error)
 
-            assert kv.value.type == TOMLType.Table
+            assert kv.value.type == TOMLType.Array
             for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
                 arg = toml_to_string(item)
                 assert arg != NULL
@@ -287,6 +292,7 @@ def toml_to_config(toml: TOML*, config: TestConfig*, this_is_the_defaults_for_al
 
         option_to_config(opt, kv, config)
         config.value_present[opt as int] = True
+        config.value_linenos[opt as int] = kv.value.lineno
 
 
 def parse_tests_array(defaults_for_all_tests: TestConfig, toml: TOML*) -> List[TestConfig]:

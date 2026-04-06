@@ -41,9 +41,14 @@ global TEST_CONFIG_OPTION_NAMES: byte*[enum_count(TestConfigOption)] = [
 
 @public
 class TestConfig:
+    lineno: int
+
     value_present: bool[enum_count(TestConfigOption)]  # True if the TOML assigns some value for the option
+    value_linenos: int[enum_count(TestConfigOption)]
 
     files: List[byte*]  # may contain globs
+    files_linenos: List[int]  # same length as files
+    nfiles: int
     stdout: CaptureMode
     stderr: CaptureMode
     output_comment_rules: List[byte*[2]]
@@ -63,7 +68,7 @@ enum SimpleResult:
 class Test:
     # These are set in step 3 (discover tests)
     path: byte*
-    config: TestConfig
+    config: TestConfig*
     #glob_toml: TOML*  # TODO: still needed?
     #relevant_toml_tables: List[TOML*]  # TODO: still needed?
     stdin_input: byte*  # For markdown files, code in the code block, NULL if not used

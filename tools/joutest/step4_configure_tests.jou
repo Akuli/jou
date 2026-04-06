@@ -1,3 +1,5 @@
+# TODO: This step is kinda dumb and could probably be deleted.
+
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
@@ -116,23 +118,16 @@ def is_slash(b: byte) -> bool:
 @public
 def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        if not test.config.value_present[ConfigOption.OutputCommentRules as int]
-            assert test.output_comment_rules.len == 0
-            test.output_comment_rules.append(["Output", "{comment}"])
+        if not test.config.value_present[TestConfigOption.OutputCommentRules as int]:
+            assert test.config.output_comment_rules.len == 0
+            test.config.output_comment_rules.append(["Output", "{comment}"])
 
-        if not test.config.value_present[ConfigOption.MarkdownCodeBlockLanguages as int]
-            assert test.markdown_code_block_languages.len == 0
-            test.markdown_code_block_languages.append("jou")
-
-        # TODO: It might be better to loop backwards and explicitly ignore
-        #       settings that have been already set. This way we can mark the
-        #       used parts of TOML and later show warning about stuff that was
-        #       ignored entirely.
-        for toml = test.relevant_toml_tables.ptr; toml < test.relevant_toml_tables.end(); toml++:
-            apply_settings_to_test(*toml, test)
+        if not test.config.value_present[TestConfigOption.MarkdownCodeBlockLanguages as int]:
+            assert test.config.markdown_code_block_languages.len == 0
+            test.config.markdown_code_block_languages.append("jou")
 
         assert test.working_directory == NULL
-        if test.cd_to_containing_directory:
+        if test.config.cd_to_containing_directory:
             temp = strdup(test.path)
             assert temp != NULL
             test.working_directory = strdup(dirname(temp))  # may modify temp string
@@ -146,22 +141,23 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         else:
             test.path_in_working_directory = test.path
 
-        if test.specified_command_list.len == 0:
+        if not test.config.value_present[TestConfigOption.Command as int]:
+            assert test.config.command.len == 0
             if test.stdin_input != NULL:
-                test.specified_command_list.append("jou")
-                test.specified_command_list.append("--stdin-name")
-                test.specified_command_list.append("{file}")
-                test.specified_command_list.append("-")
+                test.config.command.append("jou")
+                test.config.command.append("--stdin-name")
+                test.config.command.append("{file}")
+                test.config.command.append("-")
             else:
-                test.specified_command_list.append("jou")
-                test.specified_command_list.append("{file}")
+                test.config.command.append("jou")
+                test.config.command.append("{file}")
 
         params: byte*[enum_count(FormatParam)]
         memset(params, 0, sizeof(params))
         params[FormatParam.File as int] = test.path_in_working_directory
 
         assert test.actual_command_list.len == 0
-        for arg = test.specified_command_list.ptr; arg < test.specified_command_list.end(); arg++:
+        for arg = test.config.command.ptr; arg < test.config.command.end(); arg++:
             test.actual_command_list.append(format_string(*arg, params))
 
         assert test.actual_command_string == NULL
@@ -171,6 +167,6 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             test.actual_command_string = command_to_string_posix(test.actual_command_list)
 
         test.uses_output_capturing = (
-            test.stdout_capture_mode != CaptureMode.DoNotCapture
-            or test.stderr_capture_mode != CaptureMode.DoNotCapture
+            test.config.stdout != CaptureMode.DoNotCapture
+            or test.config.stderr != CaptureMode.DoNotCapture
         )
