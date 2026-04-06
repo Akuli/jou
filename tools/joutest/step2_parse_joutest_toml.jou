@@ -274,7 +274,7 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
             config.markdown_code_block_languages = array_of_strings_from_toml(kv)
 
 
-def toml_to_config(toml: TOML*, config: TestConfig*, this_is_the_defaults_for_all_tests: bool) -> None:
+def toml_to_config(toml: TOML*, this_is_the_defaults_for_all_tests: bool) -> TestConfig:
     assert toml != NULL
 
     if toml.type != TOMLType.Table:
@@ -283,7 +283,9 @@ def toml_to_config(toml: TOML*, config: TestConfig*, this_is_the_defaults_for_al
         else:
             fail_in_toml(toml.lineno, "each item of 'tests' must be a table")
 
+    config = TestConfig{}
     error: byte[500]
+
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
         opt = 0 as TestConfigOption
         found = False
@@ -300,9 +302,12 @@ def toml_to_config(toml: TOML*, config: TestConfig*, this_is_the_defaults_for_al
         if this_is_the_defaults_for_all_tests and opt == TestConfigOption.Files:
             fail_in_toml(kv.value.lineno, "you cannot specify 'files' inside defaults_for_all_tests")
 
-        option_to_config(opt, kv, config)
+        assert not config.value_present[opt as int]
+        option_to_config(opt, kv, &config)
         config.value_present[opt as int] = True
         config.value_linenos[opt as int] = kv.value.lineno
+
+    return config
 
 
 def parse_tests_array(defaults_for_all_tests: TestConfig*, toml: TOML*) -> List[TestConfig]:
@@ -314,26 +319,17 @@ def parse_tests_array(defaults_for_all_tests: TestConfig*, toml: TOML*) -> List[
 
     result = List[TestConfig]{}
     for p = toml.array.ptr; p < toml.array.end(); p++:
-        conf = TestConfig{}
-        defaults_for_all_tests.assign_to(&conf)
-        toml_to_config(p, &conf, False)
-        result.append(conf)
+        result.append(toml_to_config(p, False))
     return result
 
 
 @public
-def step2_parse_joutest_toml() -> List[TestConfig]:
+def step2_parse_joutest_toml() -> ParsedJoutestToml:
     toml = read_joutest_toml_and_parse_to_toml_object()
     eliminate_condition_tables(&toml, 0)
 
     tests_toml: TOML* = NULL
     defaults_for_all_tests = TestConfig{}
-
-    defaults_for_all_tests.output_comment_rules.append(["Output", "{comment}"])
-    defaults_for_all_tests.value_present[TestConfigOption.OutputCommentRules as int] = True
-
-    defaults_for_all_tests.markdown_code_block_languages.append("jou")
-    defaults_for_all_tests.value_present[TestConfigOption.OutputCommentRules as int] = True
 
     assert toml.type == TOMLType.Table
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
@@ -341,7 +337,7 @@ def step2_parse_joutest_toml() -> List[TestConfig]:
             case "tests":
                 tests_toml = &kv.value
             case "defaults_for_all_tests":
-                toml_to_config(&kv.value, &defaults_for_all_tests, True)
+                defaults_for_all_tests = toml_to_config(&kv.value, True)
             case _:
                 error: byte[200]
                 snprintf(error, sizeof(error), "unknown setting '%s'", kv.key)
@@ -349,4 +345,18 @@ def step2_parse_joutest_toml() -> List[TestConfig]:
 
     if tests_toml == NULL:
         fail("joutest.toml must define an array named 'tests'")
-    return parse_tests_array(&defaults_for_all_tests, tests_toml)
+
+    return ParsedJoutestToml{
+        tests = parse_tests_array(&defaults_for_all_tests, tests_toml),
+        defaults_for_all_tests = defaults_for_all_tests,
+    }
+#    
+#
+#    actual_defaults = TestConfig{}
+#    actual_defaults.output_comment_rules.append(["Output", "{comment}"])
+#    actual_defaults.value_present[TestConfigOption.OutputCommentRules as int] = True
+#    actual_defaults.markdown_code_block_languages.append("jou")
+#    actual_defaults.value_present[TestConfigOption.OutputCommentRules as int] = True
+#    defaults_for_all_tests.assign_to(actual_defaults)
+#
+#    

@@ -139,8 +139,30 @@ class PathAndTestConfig:
     config: TestConfig
 
 
+def get_default_config(markdown: bool) -> TestConfig:
+    defaults = TestConfig{}
+
+    defaults.output_comment_rules.append(["Output", "{comment}"])
+    defaults.value_present[TestConfigOption.OutputCommentRules as int] = True
+
+    defaults.markdown_code_block_languages.append("jou")
+    defaults.value_present[TestConfigOption.MarkdownCodeBlockLanguages as int] = True
+
+    if markdown:
+        defaults.command.append("jou")
+        defaults.command.append("--stdin-name")
+        defaults.command.append("{file}")
+        defaults.command.append("-")
+    else:
+        defaults.command.append("jou")
+        defaults.command.append("{file}")
+    defaults.value_present[TestConfigOption.Command as int] = True
+
+    return defaults
+
+
 @public
-def step3_discover_tests(configs: List[TestConfig]) -> List[Test]:
+def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
     # We can't do this in one pass (that is, loop through just once), because
     # multiple sections of joutest.toml can apply to the same file, and we
     # already need to know the final/merged configuration when extracting tests
@@ -149,7 +171,7 @@ def step3_discover_tests(configs: List[TestConfig]) -> List[Test]:
     # We first figure out how each file should be configured.
     merged_configs = List[PathAndTestConfig]{}
 
-    for config = configs.ptr; config < configs.end(); config++:
+    for config = parsed_joutest_toml.tests.ptr; config < parsed_joutest_toml.tests.end(); config++:
         if not config.value_present[TestConfigOption.Files as int]:
             assert False  # TODO: does this ever run?
             fail_in_toml(config.lineno, "each 'tests' table must contain 'files'")
@@ -176,7 +198,11 @@ def step3_discover_tests(configs: List[TestConfig]) -> List[Test]:
                         merged_config = m
                         break
                 if merged_config == NULL:
-                    merged_configs.append(PathAndTestConfig{path = *path, glob_lineno = glob_lineno})
+                    merged_configs.append(PathAndTestConfig{
+                        path = *path,
+                        glob_lineno = glob_lineno,
+                        config = get_default_config(is_markdown_file(*path)),
+                    })
                     merged_config = &merged_configs.end()[-1]
                 config.assign_to(&merged_config.config)
 

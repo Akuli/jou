@@ -107,7 +107,5 @@ def find_expected_output(test: Test*) -> None:
 @public
 def step6_gather_expected_outputs(tests: List[Test]) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        printf("uses_output_capturing = %d (%zd rules)\n", test.uses_output_capturing, test.config.output_comment_rules.len)
         if test.uses_output_capturing:
             find_expected_output(test)
-            printf("  --> <<<%s>>>\n", test.expected_output)

@@ -133,26 +133,14 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         else:
             test.path_in_working_directory = test.path
 
-        default_command: byte*[4]
-        if test.config.value_present[TestConfigOption.Command as int]:
-            configured_command = test.config.command.ptr
-            configured_command_len = test.config.command.len
-        elif test.stdin_input != NULL:
-            default_command = ["jou", "--stdin-name", "{file}", "-"]
-            configured_command = default_command
-            configured_command_len = 4
-        else:
-            default_command = ["jou", "{file}", NULL, NULL]
-            configured_command = default_command
-            configured_command_len = 2
-
         params: byte*[enum_count(FormatParam)]
         memset(params, 0, sizeof(params))
         params[FormatParam.File as int] = test.path_in_working_directory
 
+        assert test.config.value_present[TestConfigOption.Command as int]
         assert test.actual_command_list.len == 0
-        for i = 0; i < configured_command_len; i++:
-            test.actual_command_list.append(format_string(configured_command[i], params))
+        for arg = test.config.command.ptr; arg < test.config.command.end(); arg++:
+            test.actual_command_list.append(format_string(*arg, params))
 
         assert test.actual_command_string == NULL
         if WINDOWS:

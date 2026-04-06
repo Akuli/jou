@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 
 
@@ -58,18 +59,58 @@ class TestConfig:
     markdown_code_block_languages: List[byte*]
 
     @public
+    def print(self) -> None:
+        printf("TestConfig:\n")
+        # Written weirdly as a loop to get compiler error here when adding a new option.
+        for opt = 0; opt < enum_count(TestConfigOption); opt++:
+            if not self.value_present[opt]:
+                continue
+
+            printf("  %s: ", TEST_CONFIG_OPTION_NAMES[opt])
+            match opt as TestConfigOption:
+                case TestConfigOption.Files:
+                    printf("\n")
+                    assert self.files.len == self.files_linenos.len
+                    for i = 0 ; i < self.files.len; i++:
+                        printf("    %s (line %d)\n", self.files.ptr[i], self.files_linenos.ptr[i])
+                case TestConfigOption.Stdout:
+                    puts(CAPTURE_MODE_NAMES[self.stdout as int])
+                case TestConfigOption.Stderr:
+                    puts(CAPTURE_MODE_NAMES[self.stderr as int])
+                case TestConfigOption.OutputCommentRules:
+                    printf("\n")
+                    for pair_ptr = self.output_comment_rules.ptr; pair_ptr < self.output_comment_rules.end(); pair_ptr++:
+                        printf("    '# %s:' --> %s\n", (*pair_ptr)[0], (*pair_ptr)[1])
+                case TestConfigOption.Command:
+                    printf("\n")
+                    for i = 0; i < self.command.len; i++:
+                        printf("    %s\n", self.command.ptr[i])
+                case TestConfigOption.CdToContainingDirectory:
+                    if self.cd_to_containing_directory:
+                        puts("True")
+                    else:
+                        puts("False")
+                case TestConfigOption.ExpectedExitCode:
+                    printf("%s\n", self.expected_exit_code)
+                case TestConfigOption.MarkdownCodeBlockLanguages:
+                    printf("\n")
+                    for i = 0; i < self.markdown_code_block_languages.len; i++:
+                        printf("    %s\n", self.markdown_code_block_languages.ptr[i])
+        printf("\n")
+
+    @public
     def assign_to(self, dest: TestConfig*) -> None:
         assert self != dest  # prevents a bunch of weird corner cases
 
         # Written weirdly as a loop to get compiler error here when adding a new option.
-        for i = 0; i < enum_count(TestConfigOption); i++:
-            if not self.value_present[i]:
+        for opt = 0; opt < enum_count(TestConfigOption); opt++:
+            if not self.value_present[opt]:
                 continue
 
-            dest.value_present[i] = True
-            dest.value_linenos[i] = self.value_linenos[i]
+            dest.value_present[opt] = True
+            dest.value_linenos[opt] = self.value_linenos[opt]
 
-            match i as TestConfigOption:
+            match opt as TestConfigOption:
                 case TestConfigOption.Files:
                     dest.files.len = 0
                     dest.files.extend(self.files)
@@ -93,21 +134,17 @@ class TestConfig:
                     dest.markdown_code_block_languages.len = 0
                     dest.markdown_code_block_languages.extend(self.markdown_code_block_languages)
 
-#    @public
-#    def copy(self) -> TestConfig:
-#        result = *self
-#        result.files = List[byte*]{}
-#        result.files.extend(self.files)
-#        result.files_linenos = List[int]{}
-#        result.files_linenos.extend(self.files_linenos)
-#        result.output_comment_rules = List[byte*[2]]{}
-#        result.output_comment_rules.extend(self.output_comment_rules)
-#        result.command = List[byte*]{}
-#        result.command.extend(self.command)
-#        result.markdown_code_block_languages = List[byte*]{}
-#        result.markdown_code_block_languages.extend(self.markdown_code_block_languages)
-#        return result
-#
+
+@public
+class ParsedJoutestToml:
+    tests: List[TestConfig]
+
+    # These can't be merged into each config immediately, because they would
+    # mess up overriding settings from one item of `tests` with another. That
+    # happens when multiple items of `tests` specify the same file, typically
+    # with a glob.
+    defaults_for_all_tests: TestConfig
+
 
 @public
 enum SimpleResult:
