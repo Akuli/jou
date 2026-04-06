@@ -57,6 +57,21 @@ class TestConfig:
     expected_exit_code: int
     markdown_code_block_languages: List[byte*]
 
+    @public
+    def copy(self) -> TestConfig:
+        result = *self
+        result.files = List[byte*]{}
+        result.files.extend(self.files)
+        result.files_linenos = List[int]{}
+        result.files_linenos.extend(self.files_linenos)
+        result.output_comment_rules = List[byte*[2]]{}
+        result.output_comment_rules.extend(self.output_comment_rules)
+        result.command = List[byte*]{}
+        result.command.extend(self.command)
+        result.markdown_code_block_languages = List[byte*]{}
+        result.markdown_code_block_languages.extend(self.markdown_code_block_languages)
+        return result
+
 
 @public
 enum SimpleResult:
@@ -69,19 +84,15 @@ class Test:
     # These are set in step 3 (discover tests)
     path: byte*
     config: TestConfig*
-    #glob_toml: TOML*  # TODO: still needed?
-    #relevant_toml_tables: List[TOML*]  # TODO: still needed?
     stdin_input: byte*  # For markdown files, code in the code block, NULL if not used
     first_markdown_lineno: int  # Line number if markdown file, 0 if not markdown file
     last_markdown_lineno: int   # Line number if markdown file, 0 if not markdown file
-    markdown_code_block_language: byte[100]
 
     # These are set in step 4 (configure tests)
     path_in_working_directory: byte*  # usually same as path, just file name if cd_to_containing_directory is used
     actual_command_list: List[byte*]
     actual_command_string: byte*
     uses_output_capturing: bool
-    output_comment_rules: List[byte*[2]]
     working_directory: byte*  # NULL means use current directory
 
     # These are set in step 5 (gather expected output)

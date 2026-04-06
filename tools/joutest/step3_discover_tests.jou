@@ -21,6 +21,13 @@ class DiscoveryState:
     files_already_checked: List[byte*]
 
 
+def list_contains_string(list: List[byte*], string: byte*) -> bool:
+    for p = list.ptr; p < list.end(); p++:
+        if strcmp(*p, string) == 0:
+            return True
+    return False
+
+
 global huge_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
 
 def add_tests_from_markdown(
@@ -39,7 +46,6 @@ def add_tests_from_markdown(
 
     lineno = 0
     code_first_lineno = 0  # 0 if not inside a code block
-    code_language: byte[100] = ""
     code = List[byte]{}
 
     while fgets(huge_buffer, sizeof(huge_buffer), f) != NULL:
@@ -49,9 +55,8 @@ def add_tests_from_markdown(
             lang = &huge_buffer[3]
             trim_ascii_whitespace(lang)
 
-            if *lang != '\0' and strlen(lang) < sizeof(code_language):
+            if *lang != '\0' and list_contains_string(config.markdown_code_block_languages, lang):
                 # Start of code block
-                strcpy(code_language, lang)
                 code_first_lineno = lineno + 1
                 assert code.len == 0
                 # If code starts on line 5, add 4 blank lines to beginning so
@@ -67,7 +72,6 @@ def add_tests_from_markdown(
                     config = config,
                     first_markdown_lineno = code_first_lineno,
                     last_markdown_lineno = lineno - 1,
-                    markdown_code_block_language = code_language,
                     stdin_input = strdup(code.ptr),
                 }
                 assert test.stdin_input != NULL
@@ -115,7 +119,6 @@ def add_or_update_tests_of_file(state: DiscoveryState*, path: byte*, config: Tes
 
 
 def add_or_update_tests_of_glob(state: DiscoveryState*, glob: byte*, glob_lineno: int, config: TestConfig*) -> None:
-    printf("hello\n")
     if strstr(glob, "\\") != NULL:
         fail_in_toml(glob_lineno, "please use forward slashes instead of backslashes")
 
@@ -167,9 +170,7 @@ def step3_discover_tests(configs: List[TestConfig]) -> List[Test]:
             fail_in_toml(config.lineno, "each 'tests' table must contain 'files'")
         assert config.files.len == config.files_linenos.len
         for i = 0; i < config.files.len; i++:
-            printf("step3: i = %d\n", i)
             add_or_update_tests_of_glob(&state, config.files.ptr[i], config.files_linenos.ptr[i], config)
-            printf("step3: i = %d DONE\n", i)
 
     Sorter[Test]{}.sort(state.tests.ptr, state.tests.len, compare_tests)
     return state.tests

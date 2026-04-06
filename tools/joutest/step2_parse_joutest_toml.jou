@@ -295,7 +295,7 @@ def toml_to_config(toml: TOML*, config: TestConfig*, this_is_the_defaults_for_al
         config.value_linenos[opt as int] = kv.value.lineno
 
 
-def parse_tests_array(defaults_for_all_tests: TestConfig, toml: TOML*) -> List[TestConfig]:
+def parse_tests_array(defaults_for_all_tests: TestConfig*, toml: TOML*) -> List[TestConfig]:
     assert toml != NULL
     if toml.type != TOMLType.Array:
         fail_in_toml(toml.lineno, "'tests' must be an array")
@@ -304,7 +304,7 @@ def parse_tests_array(defaults_for_all_tests: TestConfig, toml: TOML*) -> List[T
 
     result = List[TestConfig]{}
     for p = toml.array.ptr; p < toml.array.end(); p++:
-        conf = defaults_for_all_tests
+        conf = defaults_for_all_tests.copy()
         toml_to_config(p, &conf, False)
         result.append(conf)
     return result
@@ -317,6 +317,12 @@ def step2_parse_joutest_toml() -> List[TestConfig]:
 
     tests_toml: TOML* = NULL
     defaults_for_all_tests = TestConfig{}
+
+    defaults_for_all_tests.output_comment_rules.append(["Output", "{comment}"])
+    defaults_for_all_tests.value_present[TestConfigOption.OutputCommentRules as int] = True
+
+    defaults_for_all_tests.markdown_code_block_languages.append("jou")
+    defaults_for_all_tests.value_present[TestConfigOption.OutputCommentRules as int] = True
 
     assert toml.type == TOMLType.Table
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
@@ -332,4 +338,4 @@ def step2_parse_joutest_toml() -> List[TestConfig]:
 
     if tests_toml == NULL:
         fail("joutest.toml must define an array named 'tests'")
-    return parse_tests_array(defaults_for_all_tests, tests_toml)
+    return parse_tests_array(&defaults_for_all_tests, tests_toml)
