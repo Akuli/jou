@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"
 import "stdlib/list.jou"
 
 
@@ -48,7 +49,6 @@ class TestConfig:
 
     files: List[byte*]  # may contain globs
     files_linenos: List[int]  # same length as files
-    nfiles: int
     stdout: CaptureMode
     stderr: CaptureMode
     output_comment_rules: List[byte*[2]]
@@ -58,20 +58,56 @@ class TestConfig:
     markdown_code_block_languages: List[byte*]
 
     @public
-    def copy(self) -> TestConfig:
-        result = *self
-        result.files = List[byte*]{}
-        result.files.extend(self.files)
-        result.files_linenos = List[int]{}
-        result.files_linenos.extend(self.files_linenos)
-        result.output_comment_rules = List[byte*[2]]{}
-        result.output_comment_rules.extend(self.output_comment_rules)
-        result.command = List[byte*]{}
-        result.command.extend(self.command)
-        result.markdown_code_block_languages = List[byte*]{}
-        result.markdown_code_block_languages.extend(self.markdown_code_block_languages)
-        return result
+    def assign_to(self, dest: TestConfig*) -> None:
+        assert self != dest  # prevents a bunch of weird corner cases
 
+        # Written weirdly as a loop to get compiler error here when adding a new option.
+        for i = 0; i < enum_count(TestConfigOption); i++:
+            if not self.value_present[i]:
+                continue
+
+            dest.value_present[i] = True
+            dest.value_linenos[i] = self.value_linenos[i]
+
+            match i as TestConfigOption:
+                case TestConfigOption.Files:
+                    dest.files.len = 0
+                    dest.files.extend(self.files)
+                    dest.files_linenos.len = 0
+                    dest.files_linenos.extend(self.files_linenos)
+                case TestConfigOption.Stdout:
+                    dest.stdout = self.stdout
+                case TestConfigOption.Stderr:
+                    dest.stderr = self.stderr
+                case TestConfigOption.OutputCommentRules:
+                    dest.output_comment_rules.len = 0
+                    dest.output_comment_rules.extend(self.output_comment_rules)
+                case TestConfigOption.Command:
+                    dest.command.len = 0
+                    dest.command.extend(self.command)
+                case TestConfigOption.CdToContainingDirectory:
+                    dest.cd_to_containing_directory = self.cd_to_containing_directory
+                case TestConfigOption.ExpectedExitCode:
+                    dest.expected_exit_code = self.expected_exit_code
+                case TestConfigOption.MarkdownCodeBlockLanguages:
+                    dest.markdown_code_block_languages.len = 0
+                    dest.markdown_code_block_languages.extend(self.markdown_code_block_languages)
+
+#    @public
+#    def copy(self) -> TestConfig:
+#        result = *self
+#        result.files = List[byte*]{}
+#        result.files.extend(self.files)
+#        result.files_linenos = List[int]{}
+#        result.files_linenos.extend(self.files_linenos)
+#        result.output_comment_rules = List[byte*[2]]{}
+#        result.output_comment_rules.extend(self.output_comment_rules)
+#        result.command = List[byte*]{}
+#        result.command.extend(self.command)
+#        result.markdown_code_block_languages = List[byte*]{}
+#        result.markdown_code_block_languages.extend(self.markdown_code_block_languages)
+#        return result
+#
 
 @public
 enum SimpleResult:

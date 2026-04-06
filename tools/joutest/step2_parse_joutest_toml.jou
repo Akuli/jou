@@ -7,6 +7,7 @@ import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
 import "./fail.jou"
+import "./glob.jou"
 import "./string_formatter.jou"
 import "./state.jou"
 
@@ -199,12 +200,21 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
                 config.files_linenos.len = 0
                 for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
                     config.files_linenos.append(item.lineno)
-                assert config.files.len == config.files_linenos.len
             else:
                 config.files.len = 0
                 config.files.append(s)
                 config.files_linenos.len = 0
                 config.files_linenos.append(kv.value.lineno)
+
+            assert config.files.len == config.files_linenos.len
+            for i = 0; i < config.files.len; i++:
+                glob = config.files.ptr[i]
+                glob_lineno = config.files_linenos.ptr[i]
+                if strstr(glob, "\\") != NULL:
+                    fail_in_toml(glob_lineno, "please use forward slashes instead of backslashes")
+                if not glob_is_valid(glob):
+                    snprintf(error, sizeof(error), "invalid path or glob pattern: %s", glob)
+                    fail_in_toml(glob_lineno, error)
 
         case TestConfigOption.Stdout:
             config.stdout = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
@@ -304,7 +314,8 @@ def parse_tests_array(defaults_for_all_tests: TestConfig*, toml: TOML*) -> List[
 
     result = List[TestConfig]{}
     for p = toml.array.ptr; p < toml.array.end(); p++:
-        conf = defaults_for_all_tests.copy()
+        conf = TestConfig{}
+        defaults_for_all_tests.assign_to(&conf)
         toml_to_config(p, &conf, False)
         result.append(conf)
     return result

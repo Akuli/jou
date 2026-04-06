@@ -13,14 +13,6 @@ import "./glob.jou"
 import "./state.jou"
 
 
-class DiscoveryState:
-    tests: List[Test]
-
-    # With markdown files, it is possible we find 0 things to test in the file.
-    # So to prevent checking those files several times, we need this.
-    files_already_checked: List[byte*]
-
-
 def list_contains_string(list: List[byte*], string: byte*) -> bool:
     for p = list.ptr; p < list.end(); p++:
         if strcmp(*p, string) == 0:
@@ -31,13 +23,12 @@ def list_contains_string(list: List[byte*], string: byte*) -> bool:
 global huge_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
 
 def add_tests_from_markdown(
-    state: DiscoveryState*,
+    tests: List[Test]*,
     path: byte*,
     config: TestConfig*,
     glob_lineno: int,
-) -> int:
+) -> None:
     message: byte[500]
-    ntests = 0
 
     f = fopen(path, "rb")
     if f == NULL:
@@ -75,8 +66,7 @@ def add_tests_from_markdown(
                     stdin_input = strdup(code.ptr),
                 }
                 assert test.stdin_input != NULL
-                state.tests.append(test)
-                ntests++
+                tests.append(test)
 
                 code_first_lineno = 0
                 code.len = 0
@@ -97,7 +87,6 @@ def add_tests_from_markdown(
         fail_in_toml(glob_lineno, message)
 
     fclose(f)
-    return ntests
 
 
 def is_markdown_file(path: byte*) -> bool:
@@ -110,48 +99,31 @@ def is_markdown_file(path: byte*) -> bool:
     )
 
 
-def add_or_update_tests_of_file(state: DiscoveryState*, path: byte*, config: TestConfig*, glob_lineno: int) -> int:
-    if is_markdown_file(path):
-        return add_tests_from_markdown(state, path, config, glob_lineno)
-    else:
-        state.tests.append(Test{path = path, config = config})
-        return 1
-
-
-def add_or_update_tests_of_glob(state: DiscoveryState*, glob: byte*, glob_lineno: int, config: TestConfig*) -> None:
-    if strstr(glob, "\\") != NULL:
-        fail_in_toml(glob_lineno, "please use forward slashes instead of backslashes")
-
-    error: byte[200]
-
-    if not glob_is_valid(glob):
-        snprintf(error, sizeof(error), "invalid path or glob pattern: %s", glob)
-        fail_in_toml(glob_lineno, error)
-
-    paths = List[byte*]{}
-    # TODO: don't hard-code the glob depth limit
-    do_glob(glob, ".", &paths, 10)
-    if paths.len == 0:
-        if strstr(glob, "*") == NULL:
-            # not really a glob
-            snprintf(error, sizeof(error), "file not found: %s", glob)
-        else:
-            snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
-        fail_in_toml(glob_lineno, error)
-
-    # TODO: normalize . and .. components?
-    # TODO: normalize case on windows?
-
-    ntests = 0
-    for p = paths.ptr; p < paths.end(); p++:
-        ntests += add_or_update_tests_of_file(state, *p, config, glob_lineno)
-    free(paths.ptr)
-
-    if ntests == 0:
-        # TODO: test this
-        snprintf(error, sizeof(error), "no tests found in '%s'", glob)
-        fail_in_toml(glob_lineno, error)
-
+#def add_or_update_tests_of_glob(state: DiscoveryState*, glob: byte*, glob_lineno: int, config: TestConfig*) -> None:
+#    paths = List[byte*]{}
+#    # TODO: don't hard-code the glob depth limit
+#    do_glob(glob, ".", &paths, 10)
+#    if paths.len == 0:
+#        if strstr(glob, "*") == NULL:
+#            # not really a glob
+#            snprintf(error, sizeof(error), "file not found: %s", glob)
+#        else:
+#            snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
+#        fail_in_toml(glob_lineno, error)
+#
+#    # TODO: normalize . and .. components?
+#    # TODO: normalize case on windows?
+#
+#    ntests = 0
+#    for p = paths.ptr; p < paths.end(); p++:
+#        ntests += add_or_update_tests_of_file(state, *p, config, glob_lineno)
+#    free(paths.ptr)
+#
+#    if ntests == 0:
+#        # TODO: test this
+#        snprintf(error, sizeof(error), "no tests found in '%s'", glob)
+#        fail_in_toml(glob_lineno, error)
+#
 
 def compare_tests(t1: Test*, t2: Test*) -> int:
     result = strcmp(t1.path, t2.path)
@@ -161,16 +133,63 @@ def compare_tests(t1: Test*, t2: Test*) -> int:
     return result
 
 
+class PathAndTestConfig:
+    path: byte*
+    glob_lineno: int
+    config: TestConfig
+
+
 @public
 def step3_discover_tests(configs: List[TestConfig]) -> List[Test]:
-    state = DiscoveryState{}
+    # We can't do this in one pass (that is, loop through just once), because
+    # multiple sections of joutest.toml can apply to the same file, and we
+    # already need to know the final/merged configuration when extracting tests
+    # from markdown files.
+    #
+    # We first figure out how each file should be configured.
+    merged_configs = List[PathAndTestConfig]{}
 
     for config = configs.ptr; config < configs.end(); config++:
         if not config.value_present[TestConfigOption.Files as int]:
+            assert False  # TODO: does this ever run?
             fail_in_toml(config.lineno, "each 'tests' table must contain 'files'")
-        assert config.files.len == config.files_linenos.len
-        for i = 0; i < config.files.len; i++:
-            add_or_update_tests_of_glob(&state, config.files.ptr[i], config.files_linenos.ptr[i], config)
 
-    Sorter[Test]{}.sort(state.tests.ptr, state.tests.len, compare_tests)
-    return state.tests
+        for i = 0; i < config.files.len; i++:
+            glob = config.files.ptr[i]
+            glob_lineno = config.files_linenos.ptr[i]
+
+            glob_result = List[byte*]{}
+            do_glob(glob, ".", &glob_result, 10)  # TODO: don't hard-code depth limit?
+            if glob_result.len == 0:
+                error: byte[500]
+                if strstr(glob, "*") == NULL:
+                    # not really a glob
+                    snprintf(error, sizeof(error), "file not found: %s", glob)
+                else:
+                    snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
+                fail_in_toml(glob_lineno, error)
+
+            for path = glob_result.ptr; path < glob_result.end(); path++:
+                merged_config: PathAndTestConfig* = NULL
+                for m = merged_configs.ptr; m < merged_configs.end(); m++:
+                    if strcmp(m.path, *path) == 0:
+                        merged_config = m
+                        break
+                if merged_config == NULL:
+                    merged_configs.append(PathAndTestConfig{path = *path, glob_lineno = glob_lineno})
+                    merged_config = &merged_configs.end()[-1]
+                config.assign_to(&merged_config.config)
+
+            free(glob_result.ptr)
+
+    # Now create tests from each file
+    tests = List[Test]{}
+    for merged_config = merged_configs.ptr; merged_config < merged_configs.end(); merged_config++:
+        if is_markdown_file(merged_config.path):
+            add_tests_from_markdown(&tests, merged_config.path, &merged_config.config, merged_config.glob_lineno)
+        else:
+            tests.append(Test{path = merged_config.path, config = &merged_config.config})
+    Sorter[Test]{}.sort(tests.ptr, tests.len, compare_tests)
+
+    # Can't free merged_configs, tests contain pointers to its configs now
+    return tests
