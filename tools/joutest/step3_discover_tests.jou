@@ -107,7 +107,7 @@ class PathAndTestConfig:
     config: TestConfig
 
 
-def get_default_config(markdown: bool) -> TestConfig:
+def get_default_config(defaults_for_all_tests: TestConfig*, markdown: bool) -> TestConfig:
     defaults = TestConfig{}
 
     defaults.output_comment_rules.append(["Output", "{comment}"])
@@ -126,6 +126,7 @@ def get_default_config(markdown: bool) -> TestConfig:
         defaults.command.append("{file}")
     defaults.value_present[TestConfigOption.Command as int] = True
 
+    defaults_for_all_tests.assign_to(&defaults)
     return defaults
 
 
@@ -168,7 +169,10 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
                     merged_configs.append(PathAndTestConfig{
                         path = *path,
                         glob_lineno = glob_lineno,
-                        config = get_default_config(is_markdown_file(*path)),
+                        config = get_default_config(
+                            &parsed_joutest_toml.defaults_for_all_tests,
+                            is_markdown_file(*path),
+                        ),
                     })
                     merged_config = &merged_configs.end()[-1]
                 config.assign_to(&merged_config.config)
