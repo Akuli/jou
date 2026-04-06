@@ -21,12 +21,7 @@ def list_contains_string(list: List[byte*], string: byte*) -> bool:
 
 global huge_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
 
-def add_tests_from_markdown(
-    tests: List[Test]*,
-    path: byte*,
-    config: TestConfig*,
-    glob_lineno: int,
-) -> None:
+def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*, glob_lineno: int) -> None:
     message: byte[500]
 
     f = fopen(path, "rb")
