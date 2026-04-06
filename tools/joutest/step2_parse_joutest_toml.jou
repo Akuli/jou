@@ -162,7 +162,7 @@ def table_with_string_values_from_toml(kv: TOMLKeyVal*) -> List[byte*[2]]:
     return result
 
 
-def enum_from_toml_keyval(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> int:
+def enum_from_toml(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> int:
     # Sanity checks, so that creating the error message below is simpler
     # This ensures that the strings themselves take up less than 1.1kB.
     assert strlen(kv.key) < 100
@@ -217,10 +217,10 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
                     fail_in_toml(glob_lineno, error)
 
         case TestConfigOption.Stdout:
-            config.stdout = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
+            config.stdout = enum_from_toml(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
 
         case TestConfigOption.Stderr:
-            config.stdout = enum_from_toml_keyval(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
+            config.stdout = enum_from_toml(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
 
         case TestConfigOption.OutputCommentRules:
             free(config.output_comment_rules.ptr)
