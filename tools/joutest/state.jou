@@ -1,5 +1,4 @@
 import "stdlib/assert.jou"
-import "stdlib/io.jou"
 import "stdlib/list.jou"
 
 
@@ -57,46 +56,6 @@ class TestConfig:
     cd_to_containing_directory: bool
     expected_exit_code: int
     markdown_code_block_languages: List[byte*]
-
-    @public
-    def print(self) -> None:
-        printf("TestConfig:\n")
-        # Written weirdly as a loop to get compiler error here when adding a new option.
-        for opt = 0; opt < enum_count(TestConfigOption); opt++:
-            if not self.value_present[opt]:
-                continue
-
-            printf("  %s: ", TEST_CONFIG_OPTION_NAMES[opt])
-            match opt as TestConfigOption:
-                case TestConfigOption.Files:
-                    printf("\n")
-                    assert self.files.len == self.files_linenos.len
-                    for i = 0 ; i < self.files.len; i++:
-                        printf("    %s (line %d)\n", self.files.ptr[i], self.files_linenos.ptr[i])
-                case TestConfigOption.Stdout:
-                    puts(CAPTURE_MODE_NAMES[self.stdout as int])
-                case TestConfigOption.Stderr:
-                    puts(CAPTURE_MODE_NAMES[self.stderr as int])
-                case TestConfigOption.OutputCommentRules:
-                    printf("\n")
-                    for pair_ptr = self.output_comment_rules.ptr; pair_ptr < self.output_comment_rules.end(); pair_ptr++:
-                        printf("    '# %s:' --> %s\n", (*pair_ptr)[0], (*pair_ptr)[1])
-                case TestConfigOption.Command:
-                    printf("\n")
-                    for i = 0; i < self.command.len; i++:
-                        printf("    %s\n", self.command.ptr[i])
-                case TestConfigOption.CdToContainingDirectory:
-                    if self.cd_to_containing_directory:
-                        puts("True")
-                    else:
-                        puts("False")
-                case TestConfigOption.ExpectedExitCode:
-                    printf("%s\n", self.expected_exit_code)
-                case TestConfigOption.MarkdownCodeBlockLanguages:
-                    printf("\n")
-                    for i = 0; i < self.markdown_code_block_languages.len; i++:
-                        printf("    %s\n", self.markdown_code_block_languages.ptr[i])
-        printf("\n")
 
     @public
     def assign_to(self, dest: TestConfig*) -> None:
