@@ -93,14 +93,6 @@ def is_markdown_file(path: byte*) -> bool:
     )
 
 
-def compare_tests(t1: Test*, t2: Test*) -> int:
-    result = strcmp(t1.path, t2.path)
-    if result == 0:
-        # One markdown file can contain multiple tests, sort by line number
-        result = t1.first_markdown_lineno - t2.first_markdown_lineno
-    return result
-
-
 class PathAndTestConfig:
     path: byte*
     glob_lineno: int
@@ -159,6 +151,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
                     snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
                 fail_in_toml(glob_lineno, error)
 
+            sort_strings(glob_result.ptr, glob_result.len)
             for path = glob_result.ptr; path < glob_result.end(); path++:
                 merged_config: PathAndTestConfig* = NULL
                 for m = merged_configs.ptr; m < merged_configs.end(); m++:
@@ -186,7 +179,6 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
             add_tests_from_markdown(&tests, merged_config.path, &merged_config.config, merged_config.glob_lineno)
         else:
             tests.append(Test{path = merged_config.path, config = &merged_config.config})
-    Sorter[Test]{}.sort(tests.ptr, tests.len, compare_tests)
 
     # Can't free merged_configs, tests contain pointers to its configs now
     return tests
