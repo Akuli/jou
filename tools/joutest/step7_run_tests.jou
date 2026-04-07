@@ -301,11 +301,11 @@ if WINDOWS:
                 startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE)
             else:
                 startup_info.hStdInput = input_pipe_read
-            if run_state.test.stdout_capture_mode == CaptureMode.DoNotCapture:
+            if run_state.test.config.stdout == CaptureMode.DoNotCapture:
                 startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE)
             else:
                 startup_info.hStdOutput = output_pipe_write
-            if run_state.test.stderr_capture_mode == CaptureMode.DoNotCapture:
+            if run_state.test.config.stderr == CaptureMode.DoNotCapture:
                 startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE)
             else:
                 startup_info.hStdError = output_pipe_write
