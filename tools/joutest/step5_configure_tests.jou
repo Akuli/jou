@@ -96,6 +96,8 @@ def configure_skip(test: Test*, filters: List[byte*]) -> None:
             return
 
     test.skip = test.config.skip_mode
+
+    # The "highest" skip mode wins (no skip specified < normal skip < silent skip)
     if (
         *test.expected_output == '\0'
         and (test.config.skip_mode_if_no_expected_output as int) > (test.skip as int)
