@@ -127,19 +127,17 @@ class Test:
     first_markdown_lineno: int  # Line number if markdown file, 0 if not markdown file
     last_markdown_lineno: int   # Line number if markdown file, 0 if not markdown file
 
-    # These are set in step 4 (configure tests)
+    # These are set in step 4 (gather expected output)
+    expected_output: byte*
+
+    # These are set in step 5 (configure tests)
+    skip: SkipMode
     actual_command_list: List[byte*]
     actual_command_string: byte*
     uses_output_capturing: bool
     working_directory: byte*  # NULL means use current directory
 
-    # These are set in step 5 (gather expected output)
-    expected_output: byte*
-
-    # These are set in step 6 (filter tests)
-    skip: SkipMode
-
-    # These are set in step 7 (run tests)
+    # These are set in step 6 (run tests)
     start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
     terminating_signal: int  # (POSIX only) signal number that killed the test while running
     actual_exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
