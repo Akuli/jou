@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/assert.jou"
 
 import "./ansi_colors.jou"
 import "./state.jou"
@@ -32,3 +33,42 @@ def print_test_info_multiline(test: Test*) -> None:
         # becomes clickable in some editors, at least porcupine.
         printf("    Input: file \"%s\", line %d to line %d\n", test.path, test.first_markdown_lineno, test.last_markdown_lineno)
     printf("%s", RESET)
+
+
+@public
+def print_run(test: Test*, verbose: bool) -> None:
+    assert verbose  # In non-verbose mode you shouldn't print anything when the test starts
+    printf("%srun:%s ", BLUE, RESET)
+    print_test_info_without_newlines(test)
+    printf("\n")
+    fflush(get_stdout())
+
+@public
+def print_ok(test: Test*, verbose: bool) -> None:
+    if verbose:
+        printf("%s ok %s ", GREEN, RESET)
+        print_test_info_without_newlines(test)
+        printf("\n")
+    else:
+        printf("%s.%s", GREEN, RESET)
+    fflush(get_stdout())
+
+@public
+def print_skip(test: Test*, verbose: bool) -> None:
+    if verbose:
+        printf("%sskip%s ", YELLOW, RESET)
+        print_test_info_without_newlines(test)
+        printf("\n")
+    else:
+        printf("%ss%s", YELLOW, RESET)
+    fflush(get_stdout())
+
+@public
+def print_fail(test: Test*, verbose: bool) -> None:
+    if verbose:
+        printf("%sFAIL%s ", RED, RESET)
+        print_test_info_without_newlines(test)
+        printf("\n")
+    else:
+        printf("%sF%s", RED, RESET)
+    fflush(get_stdout())

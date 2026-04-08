@@ -95,6 +95,13 @@ def configure_skip(test: Test*, filters: List[byte*]) -> None:
             test.skip = SkipMode.SkipSilently
             return
 
+    test.skip = test.config.skip_mode
+    if (
+        *test.expected_output == '\0'
+        and (test.config.skip_mode_if_no_expected_output as int) > (test.skip as int)
+    ):
+        test.skip = test.config.skip_mode_if_no_expected_output
+
 
 declare dirname(path: byte*) -> byte*
 

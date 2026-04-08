@@ -101,8 +101,8 @@ def step7_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
                         succeeded++
                     case SimpleResult.Failed:
                         failed++
-            #case SkipMode.SkipNormally:  # TODO
-            #    skipped++
+            case SkipMode.SkipNormally:
+                skipped++
             case SkipMode.SkipSilently:
                 pass
 

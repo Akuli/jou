@@ -21,8 +21,11 @@ global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comment
 @public
 enum SkipMode:
     DontSkip
-    #SkipNormally  # TODO
+    SkipNormally
     SkipSilently
+
+@public
+global SKIP_MODE_NAMES: byte*[enum_count(SkipMode)] = ["dont_skip", "skip_normally", "skip_silently"]
 
 
 @public
@@ -31,6 +34,8 @@ enum TestConfigOption:
     Stdout
     Stderr
     OutputCommentRules
+    SkipMode
+    SkipModeIfNoExpectedOutput
     Command
     CdToContainingDirectory
     ExpectedExitCode
@@ -42,6 +47,8 @@ global TEST_CONFIG_OPTION_NAMES: byte*[enum_count(TestConfigOption)] = [
     "stdout",
     "stderr",
     "output_comment_rules",
+    "skip_mode",
+    "skip_mode_if_no_expected_output",
     "command",
     "cd_to_containing_directory",
     "expected_exit_code",
@@ -60,6 +67,8 @@ class TestConfig:
     stdout: CaptureMode
     stderr: CaptureMode
     output_comment_rules: List[byte*[2]]
+    skip_mode: SkipMode
+    skip_mode_if_no_expected_output: SkipMode
     command: List[byte*]  # may contain things like "{file}"
     cd_to_containing_directory: bool
     expected_exit_code: int
@@ -90,6 +99,10 @@ class TestConfig:
                 case TestConfigOption.OutputCommentRules:
                     dest.output_comment_rules.len = 0
                     dest.output_comment_rules.extend(self.output_comment_rules)
+                case TestConfigOption.SkipMode:
+                    dest.skip_mode = self.skip_mode
+                case TestConfigOption.SkipModeIfNoExpectedOutput:
+                    dest.skip_mode_if_no_expected_output = self.skip_mode_if_no_expected_output
                 case TestConfigOption.Command:
                     dest.command.len = 0
                     dest.command.extend(self.command)

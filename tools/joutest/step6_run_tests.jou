@@ -12,12 +12,10 @@
 
 import "stdlib/assert.jou"
 import "stdlib/intnative.jou"
-import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 
-import "./ansi_colors.jou"
 import "./fail.jou"
 import "./state.jou"
 import "./print_test_info.jou"
@@ -761,12 +759,9 @@ def run_command(test: Test*) -> None:
     wait_for_termination_and_set_result(&run_state)
 
 
-def run_test(test: Test*, args: CommandLineArgs*) -> None:
-    if args.verbose:
-        printf("%srun:%s ", BLUE, RESET)
-        print_test_info_without_newlines(test)
-        printf("\n")
-        fflush(get_stdout())
+def run_test(test: Test*, verbose: bool) -> None:
+    if verbose:
+        print_run(test, verbose)
 
     run_command(test)
 
@@ -783,21 +778,11 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     else:
         test.simple_result = SimpleResult.Failed
 
-    if args.verbose:
-        match test.simple_result:
-            case SimpleResult.Success:
-                printf("%s ok %s ", GREEN, RESET)
-            case SimpleResult.Failed:
-                printf("%sFAIL%s ", RED, RESET)
-        print_test_info_without_newlines(test)
-        printf("\n")
-    else:
-        match test.simple_result:
-            case SimpleResult.Success:
-                printf("%s.%s", GREEN, RESET)
-            case SimpleResult.Failed:
-                printf("%sF%s", RED, RESET)
-    fflush(get_stdout())
+    match test.simple_result:
+        case SimpleResult.Success:
+            print_ok(test, verbose)
+        case SimpleResult.Failed:
+            print_fail(test, verbose)
 
 
 if not WINDOWS:
@@ -836,10 +821,12 @@ def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         old_path = strdup(old_path)
         add_joutest_dir_to_PATH()
 
-    for t = tests.ptr; t < tests.end(); t++:
-        match t.skip:
+    for test = tests.ptr; test < tests.end(); test++:
+        match test.skip:
             case SkipMode.DontSkip:
-                run_test(t, args)
+                run_test(test, args.verbose)
+            case SkipMode.SkipNormally:
+                print_skip(test, args.verbose)
             case SkipMode.SkipSilently:
                 pass
 
