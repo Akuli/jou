@@ -301,11 +301,11 @@ if WINDOWS:
                 startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE)
             else:
                 startup_info.hStdInput = input_pipe_read
-            if run_state.test.stdout_capture_mode == CaptureMode.DoNotCapture:
+            if run_state.test.config.stdout == CaptureMode.DoNotCapture:
                 startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE)
             else:
                 startup_info.hStdOutput = output_pipe_write
-            if run_state.test.stderr_capture_mode == CaptureMode.DoNotCapture:
+            if run_state.test.config.stderr == CaptureMode.DoNotCapture:
                 startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE)
             else:
                 startup_info.hStdError = output_pipe_write
@@ -568,13 +568,19 @@ else:
             if dup2(input_pipe_read, 0) == -1:
                 fail_child_process_before_exec(error_pipe_write)
 
-        if run_state.test.stdout_capture_mode != CaptureMode.DoNotCapture:
-            if dup2(output_pipe_write, 1) == -1:
-                fail_child_process_before_exec(error_pipe_write)
+        match run_state.test.config.stdout:
+            case CaptureMode.CompareToComments:
+                if dup2(output_pipe_write, 1) == -1:
+                    fail_child_process_before_exec(error_pipe_write)
+            case CaptureMode.DoNotCapture:
+                pass
 
-        if run_state.test.stderr_capture_mode != CaptureMode.DoNotCapture:
-            if dup2(output_pipe_write, 2) == -1:
-                fail_child_process_before_exec(error_pipe_write)
+        match run_state.test.config.stderr:
+            case CaptureMode.CompareToComments:
+                if dup2(output_pipe_write, 2) == -1:
+                    fail_child_process_before_exec(error_pipe_write)
+            case CaptureMode.DoNotCapture:
+                pass
 
         if run_state.test.working_directory != NULL:
             if chdir(run_state.test.working_directory) != 0:
@@ -767,7 +773,7 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
     if (
         test.start_error == 0
         and test.terminating_signal == 0
-        and test.expected_exit_code == test.actual_exit_code
+        and test.config.expected_exit_code == test.actual_exit_code
         and (
             (not test.uses_output_capturing)
             or strcmp(test.expected_output, test.actual_output) == 0

@@ -6,48 +6,23 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/sort.jou"
 import "stdlib/str.jou"
-import "stdlib/toml.jou"
 
 import "./fail.jou"
 import "./glob.jou"
 import "./state.jou"
 
 
-class DiscoveryState:
-    tests: List[Test]
-
-    # With markdown files, it is possible we find 0 things to test in the file.
-    # So to prevent checking those files several times, we need this.
-    # Strings in this list are owned and must be free()'d.
-    files_already_checked: List[byte*]
-
-    # The defaults_for_all_tests table
-    defaults_toml: TOML*
-
-
-def create_test(
-    state: DiscoveryState*,
-    table: TOML*,
-    glob_toml: TOML*,
-    path: byte*,
-) -> Test:
-    test = Test{path = strdup(path), glob_toml = glob_toml}
-    if state.defaults_toml != NULL:
-        test.relevant_toml_tables.append(state.defaults_toml)
-    test.relevant_toml_tables.append(table)
-    return test
+def list_contains_string(list: List[byte*], string: byte*) -> bool:
+    for p = list.ptr; p < list.end(); p++:
+        if strcmp(*p, string) == 0:
+            return True
+    return False
 
 
 global huge_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
 
-def add_tests_from_markdown(
-    state: DiscoveryState*,
-    table: TOML*,
-    glob_toml: TOML*,
-    path: byte*,
-) -> int:
+def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*, glob_lineno: int) -> None:
     message: byte[500]
-    ntests = 0
 
     f = fopen(path, "rb")
     if f == NULL:
@@ -56,7 +31,6 @@ def add_tests_from_markdown(
 
     lineno = 0
     code_first_lineno = 0  # 0 if not inside a code block
-    code_language: byte[100] = ""
     code = List[byte]{}
 
     while fgets(huge_buffer, sizeof(huge_buffer), f) != NULL:
@@ -66,9 +40,8 @@ def add_tests_from_markdown(
             lang = &huge_buffer[3]
             trim_ascii_whitespace(lang)
 
-            if *lang != '\0' and strlen(lang) < sizeof(code_language):
+            if *lang != '\0' and list_contains_string(config.markdown_code_block_languages, lang):
                 # Start of code block
-                strcpy(code_language, lang)
                 code_first_lineno = lineno + 1
                 assert code.len == 0
                 # If code starts on line 5, add 4 blank lines to beginning so
@@ -78,15 +51,16 @@ def add_tests_from_markdown(
 
             elif *lang == '\0' and code_first_lineno != 0:
                 # End of code block
-                test = create_test(state, table, glob_toml, path)
-                test.first_markdown_lineno = code_first_lineno
-                test.last_markdown_lineno = lineno - 1
-                test.markdown_code_block_language = code_language
                 code.append('\0')
-                test.stdin_input = strdup(code.ptr)  # TODO: pad newlines
+                test = Test{
+                    path = strdup(path),
+                    config = config,
+                    first_markdown_lineno = code_first_lineno,
+                    last_markdown_lineno = lineno - 1,
+                    stdin_input = strdup(code.ptr),
+                }
                 assert test.stdin_input != NULL
-                state.tests.append(test)
-                ntests++
+                tests.append(test)
 
                 code_first_lineno = 0
                 code.len = 0
@@ -104,140 +78,107 @@ def add_tests_from_markdown(
 
     if ferror(f) != 0:
         snprintf(message, sizeof(message), "failed to read file '%s': %s", path, strerror(get_errno()))
-        fail_in_toml(glob_toml.lineno, message)
+        fail_in_toml(glob_lineno, message)
 
     fclose(f)
-    return ntests
 
 
-def add_or_update_tests_of_file(
-    state: DiscoveryState*,
-    table: TOML*,
-    glob_toml: TOML*,
-    path: byte*,  # will be free()'d either right away or later
-) -> int:
-    for p = state.files_already_checked.ptr; p < state.files_already_checked.end(); p++:
-        if strcmp(*p, path) == 0:
-            # Update existing tests from this file with this configuration, if any
-            ntests = 0
-            for t = state.tests.ptr; t < state.tests.end(); t++:
-                if strcmp(t.path, path) == 0:
-                    ntests++
-                    t.relevant_toml_tables.append(table)
-            return ntests
-
-    state.files_already_checked.append(strdup(path))
-
-    if (
-        # This is documented as being case-insensitive
+def is_markdown_file(path: byte*) -> bool:
+    # This is documented as being case-insensitive
+    return (
         ends_with(path, ".md")
         or ends_with(path, ".mD")
         or ends_with(path, ".Md")
         or ends_with(path, ".MD")
-    ):
-        return add_tests_from_markdown(state, table, glob_toml, path)
+    )
+
+
+class PathAndTestConfig:
+    path: byte*
+    glob_lineno: int
+    config: TestConfig
+
+
+def get_default_config(defaults_for_all_tests: TestConfig*, markdown: bool) -> TestConfig:
+    defaults = TestConfig{}
+
+    defaults.output_comment_rules.append(["Output", "{comment}"])
+    defaults.value_present[TestConfigOption.OutputCommentRules as int] = True
+
+    defaults.markdown_code_block_languages.append("jou")
+    defaults.value_present[TestConfigOption.MarkdownCodeBlockLanguages as int] = True
+
+    if markdown:
+        defaults.command.append("jou")
+        defaults.command.append("--stdin-name")
+        defaults.command.append("{file}")
+        defaults.command.append("-")
     else:
-        state.tests.append(create_test(state, table, glob_toml, path))
-        return 1
+        defaults.command.append("jou")
+        defaults.command.append("{file}")
+    defaults.value_present[TestConfigOption.Command as int] = True
 
-
-def add_or_update_tests_of_glob(state: DiscoveryState*, settings_toml: TOML*, glob_toml: TOML*) -> None:
-    glob = toml_to_string(glob_toml)
-    if glob == NULL:
-        fail_in_toml(glob_toml.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
-    if strstr(glob, "\\") != NULL:
-        fail_in_toml(glob_toml.lineno, "please use forward slashes instead of backslashes")
-
-    error: byte[200]
-
-    if not glob_is_valid(glob):
-        snprintf(error, sizeof(error), "invalid path or glob pattern: %s", glob)
-        fail_in_toml(glob_toml.lineno, error)
-
-    paths = List[byte*]{}
-    # TODO: don't hard-code the glob depth limit
-    do_glob(glob, ".", &paths, 10)
-    if paths.len == 0:
-        if strstr(glob, "*") == NULL:
-            # not really a glob
-            snprintf(error, sizeof(error), "file not found: %s", glob)
-        else:
-            snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
-        fail_in_toml(glob_toml.lineno, error)
-
-    # TODO: normalize . and .. components?
-    # TODO: normalize case on windows?
-
-    ntests = 0
-    for p = paths.ptr; p < paths.end(); p++:
-        ntests += add_or_update_tests_of_file(state, settings_toml, glob_toml, *p)
-    free(paths.ptr)
-
-    if ntests == 0:
-        # TODO: test this
-        snprintf(error, sizeof(error), "no tests found in '%s'", glob)
-        fail_in_toml(glob_toml.lineno, error)
-
-
-def handle_one_item_of_tests(state: DiscoveryState*, toml: TOML*) -> None:
-    assert toml != NULL
-    if toml.type != TOMLType.Table:
-        fail_in_toml(toml.lineno, "each item of 'tests' must be a table")
-
-    toml_files = toml_get(toml, "files")
-    if toml_files == NULL:
-        fail_in_toml(toml.lineno, "each 'tests' table must contain 'files'")
-
-    # files can be a string or an array of strings
-    if toml_files.type == TOMLType.Array:
-        for item = toml_files.array.ptr; item < toml_files.array.end(); item++:
-            add_or_update_tests_of_glob(state, toml, item)
-    else:
-        add_or_update_tests_of_glob(state, toml, toml_files)
-
-
-def compare_tests(t1: Test*, t2: Test*) -> int:
-    result = strcmp(t1.path, t2.path)
-    if result == 0:
-        # One markdown file can contain multiple tests, sort by line number
-        result = t1.first_markdown_lineno - t2.first_markdown_lineno
-    return result
+    defaults_for_all_tests.assign_to(&defaults)
+    return defaults
 
 
 @public
-def step3_discover_tests(toml: TOML*) -> List[Test]:
-    tests_toml: TOML* = NULL
-    defaults_toml: TOML* = NULL
+def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
+    # We can't do this in one pass (that is, loop through just once), because
+    # multiple sections of joutest.toml can apply to the same file, and we
+    # already need to know the final/merged configuration when extracting tests
+    # from markdown files.
+    #
+    # We first figure out how each file should be configured.
+    merged_configs = List[PathAndTestConfig]{}
 
-    assert toml.type == TOMLType.Table
-    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-        match kv.key with strcmp:
-            case "tests":
-                tests_toml = &kv.value
-            case "defaults_for_all_tests":
-                defaults_toml = &kv.value
-            case _:
-                error: byte[200]
-                snprintf(error, sizeof(error), "unknown setting '%s'", kv.key)
-                fail_in_toml(kv.value.lineno, error)
+    for config = parsed_joutest_toml.tests.ptr; config < parsed_joutest_toml.tests.end(); config++:
+        if not config.value_present[TestConfigOption.Files as int]:
+            fail_in_toml(config.lineno, "each 'tests' table must contain 'files'")
 
-    if tests_toml == NULL:
-        fail("joutest.toml must define an array named 'tests'")
-    if tests_toml.type != TOMLType.Array:
-        fail_in_toml(tests_toml.lineno, "'tests' must be an array")
-    if tests_toml.array.len == 0:
-        fail_in_toml(tests_toml.lineno, "the 'tests' array cannot be empty")
+        for i = 0; i < config.files.len; i++:
+            glob = config.files.ptr[i]
+            glob_lineno = config.files_linenos.ptr[i]
 
-    if defaults_toml != NULL:
-        if defaults_toml.type != TOMLType.Table:
-            fail_in_toml(defaults_toml.lineno, "'defaults_for_all_tests' must be a table")
-        files = toml_get(defaults_toml, "files")
-        if files != NULL:
-            fail_in_toml(files.lineno, "you cannot specify 'files' inside defaults_for_all_tests")
+            glob_result = List[byte*]{}
+            do_glob(glob, ".", &glob_result, 10)  # TODO: don't hard-code depth limit?
+            if glob_result.len == 0:
+                error: byte[500]
+                if strstr(glob, "*") == NULL:
+                    # not really a glob
+                    snprintf(error, sizeof(error), "file not found: %s", glob)
+                else:
+                    snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
+                fail_in_toml(glob_lineno, error)
 
-    state = DiscoveryState{defaults_toml = defaults_toml}
-    for p = tests_toml.array.ptr; p < tests_toml.array.end(); p++:
-        handle_one_item_of_tests(&state, p)
+            sort_strings(glob_result.ptr, glob_result.len)
+            for path = glob_result.ptr; path < glob_result.end(); path++:
+                merged_config: PathAndTestConfig* = NULL
+                for m = merged_configs.ptr; m < merged_configs.end(); m++:
+                    if strcmp(m.path, *path) == 0:
+                        merged_config = m
+                        break
+                if merged_config == NULL:
+                    merged_configs.append(PathAndTestConfig{
+                        path = *path,
+                        glob_lineno = glob_lineno,
+                        config = get_default_config(
+                            &parsed_joutest_toml.defaults_for_all_tests,
+                            is_markdown_file(*path),
+                        ),
+                    })
+                    merged_config = &merged_configs.end()[-1]
+                config.assign_to(&merged_config.config)
 
-    Sorter[Test]{}.sort(state.tests.ptr, state.tests.len, compare_tests)
-    return state.tests
+            free(glob_result.ptr)
+
+    # Now create tests from each file
+    tests = List[Test]{}
+    for merged_config = merged_configs.ptr; merged_config < merged_configs.end(); merged_config++:
+        if is_markdown_file(merged_config.path):
+            add_tests_from_markdown(&tests, merged_config.path, &merged_config.config, merged_config.glob_lineno)
+        else:
+            tests.append(Test{path = merged_config.path, config = &merged_config.config})
+
+    # Can't free merged_configs, tests contain pointers to its configs now
+    return tests

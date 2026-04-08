@@ -43,7 +43,7 @@ def find_expected_output_from_line(
     out: List[byte]*,
 ) -> None:
     for p = &line[strlen(line)]; p >= &line[0]; p--:
-        for m = test.output_comment_rules.ptr; m < test.output_comment_rules.end(); m++:
+        for m = test.config.output_comment_rules.ptr; m < test.config.output_comment_rules.end(); m++:
             marker = (*m)[0]
             template = (*m)[1]
 

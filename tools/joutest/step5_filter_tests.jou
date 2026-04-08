@@ -5,16 +5,6 @@ import "./state.jou"
 
 
 def test_should_run(test: Test*, filters: List[byte*]) -> bool:
-    # TODO: this shouldn't be here I think
-    if test.markdown_code_block_language[0] != '\0':
-        found = False
-        for p = test.markdown_code_block_languages.ptr; p < test.markdown_code_block_languages.end(); p++:
-            if strcmp(*p, test.markdown_code_block_language) == 0:
-                found = True
-                break
-        if not found:
-            return False
-
     if filters.len == 0:
         return True
     for f = filters.ptr; f < filters.end(); f++:
