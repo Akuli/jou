@@ -831,19 +831,9 @@ if not WINDOWS:
         free(new_path)
 
 
-if LINUX:  # TODO: other systems
-    declare signal(signum: int, handler: void*) -> void*
-    const SIGPIPE: int = 13
-    def SIG_IGN() -> void*:  # TODO(Jou): currently this cannot be a const
-        return (1 as intnative) as void*
-
-
 @public
 def step7_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     if not WINDOWS:
-        if LINUX:  # TODO: other systems
-            signal(SIGPIPE, SIG_IGN())
-
         old_path = getenv("PATH")
         if old_path == NULL:
             fail("no PATH environment variable")
