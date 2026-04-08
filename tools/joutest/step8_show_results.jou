@@ -90,7 +90,23 @@ def fail_with_no_tests_found_error_including_filter_strings(filter_strings: List
 
 @public
 def step8_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
-    if tests.len == 0:
+    succeeded = 0
+    failed = 0
+    skipped = 0
+    for test = tests.ptr; test < tests.end(); test++:
+        match test.skip:
+            case SkipMode.DontSkip:
+                match test.simple_result:
+                    case SimpleResult.Success:
+                        succeeded++
+                    case SimpleResult.Failed:
+                        failed++
+            #case SkipMode.SkipNormally:  # TODO
+            #    skipped++
+            case SkipMode.SkipSilently:
+                pass
+
+    if succeeded == 0 and failed == 0 and skipped == 0:
         # No tests were ran, likely because user filtered them all out on command line.
         if args.filter_strings.len == 0:
             fail("found no tests")
@@ -98,18 +114,6 @@ def step8_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
             fail_with_no_tests_found_error_including_filter_strings(args.filter_strings)
 
     printf("\n\n")
-
-    succeeded = 0
-    failed = 0
-    skipped = 0
-    for test = tests.ptr; test < tests.end(); test++:
-        match test.simple_result:
-            case SimpleResult.Success:
-                succeeded++
-            case SimpleResult.Failed:
-                failed++
-            case SimpleResult.Skipped:
-                skipped++
 
     if failed != 0:
         show_failures(tests)

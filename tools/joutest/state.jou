@@ -18,6 +18,13 @@ global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comment
 
 
 @public
+enum SkipMode:
+    DontSkip
+    #SkipNormally  # TODO
+    SkipSilently
+
+
+@public
 enum TestConfigOption:
     Files
     Stdout
@@ -109,7 +116,6 @@ class ParsedJoutestToml:
 enum SimpleResult:
     Success
     Failed
-    Skipped
 
 @public
 class Test:
@@ -127,10 +133,13 @@ class Test:
     uses_output_capturing: bool
     working_directory: byte*  # NULL means use current directory
 
-    # These are set in step 5 (gather expected output)
+    # These are set in step 5 (filter tests)
+    skip: SkipMode
+
+    # These are set in step 6 (gather expected output)
     expected_output: byte*
 
-    # These are set in step 6 (run tests)
+    # These are set in step 7 (run tests)
     start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
     terminating_signal: int  # (POSIX only) signal number that killed the test while running
     actual_exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code

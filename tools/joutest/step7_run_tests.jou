@@ -789,8 +789,6 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
                 printf("%s ok %s ", GREEN, RESET)
             case SimpleResult.Failed:
                 printf("%sFAIL%s ", RED, RESET)
-            case SimpleResult.Skipped:
-                printf("%sskip%s ", YELLOW, RESET)
         print_test_info_without_newlines(test)
         printf("\n")
     else:
@@ -799,8 +797,6 @@ def run_test(test: Test*, args: CommandLineArgs*) -> None:
                 printf("%s.%s", GREEN, RESET)
             case SimpleResult.Failed:
                 printf("%sF%s", RED, RESET)
-            case SimpleResult.Skipped:
-                printf("%ss%s", YELLOW, RESET)
     fflush(get_stdout())
 
 
@@ -841,7 +837,11 @@ def step7_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         add_joutest_dir_to_PATH()
 
     for t = tests.ptr; t < tests.end(); t++:
-        run_test(t, args)
+        match t.skip:
+            case SkipMode.DontSkip:
+                run_test(t, args)
+            case SkipMode.SkipSilently:
+                pass
 
     if not WINDOWS:
         setenv("PATH", old_path, True as int)
