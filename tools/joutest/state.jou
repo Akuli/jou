@@ -144,6 +144,8 @@ class Test:
     actual_output: byte*
     simple_result: SimpleResult
 
+    # This is a getter because it must be always available, even before the
+    # "configure tests" step that sets up many of the members here.
     @public
     def get_relative_path(self) -> byte*:
         if self.config.cd_to_containing_directory:

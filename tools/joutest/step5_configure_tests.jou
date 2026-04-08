@@ -107,21 +107,10 @@ def configure_working_directory(test: Test*) -> None:
         free(temp)
 
 
-def is_slash(b: byte) -> bool:
-    return b == '/' or (b == '\\' and WINDOWS)
-
 def configure_command(test: Test*) -> None:
     params: byte*[enum_count(FormatParam)]
     memset(params, 0, sizeof(params))
-
-    if test.config.cd_to_containing_directory:
-        # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
-        p = &test.path[strlen(test.path)]
-        while p > test.path and not is_slash(p[-1]):
-            p--
-        params[FormatParam.File as int] = p
-    else:
-        params[FormatParam.File as int] = test.path
+    params[FormatParam.File as int] = test.get_relative_path()
 
     assert test.config.value_present[TestConfigOption.Command as int]
     assert test.actual_command_list.len == 0
