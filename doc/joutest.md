@@ -350,6 +350,7 @@ Everything else is optional.
     - `skip_mode_if_no_expected_output` (default: `"dont_skip"`) is like `skip_mode`,
         but it only applies if the expected output specified with [output comments](#output-comments) is empty.
         In other words, this determines whether tests with no output comments are skipped.
+        By default, having or not having output comments does not affect skipping.
     - `command` (default: `["jou", "{file}"]` or `["jou", "--stdin-name", "{file}", "-"]`)
         is the command that `joutest` invokes to run the test.
         For [tests in markdown files](#markdown-files),
