@@ -14,7 +14,7 @@ def test_should_run(test: Test*, filters: List[byte*]) -> bool:
 
 
 @public
-def step5_filter_tests(tests: List[Test]*, args: CommandLineArgs*) -> None:
+def step6_filter_tests(tests: List[Test]*, args: CommandLineArgs*) -> None:
     for test = tests.ptr; test < tests.end(); test++:
         if test_should_run(test, args.filter_strings):
             test.skip = SkipMode.DontSkip

@@ -2,8 +2,8 @@ import "./step1_parse_command_line_args.jou"
 import "./step2_parse_joutest_toml.jou"
 import "./step3_discover_tests.jou"
 import "./step4_configure_tests.jou"
-import "./step5_filter_tests.jou"
-import "./step6_gather_expected_outputs.jou"
+import "./step5_gather_expected_outputs.jou"
+import "./step6_filter_tests.jou"
 import "./step7_run_tests.jou"
 import "./step8_show_results.jou"
 
@@ -13,7 +13,7 @@ def main(argc: int, argv: byte**) -> int:
     test_configs = step2_parse_joutest_toml()
     tests = step3_discover_tests(test_configs)
     step4_configure_tests(tests, &args)
-    step5_filter_tests(&tests, &args)  # After configuring, so we check all tests for bad configuration
-    step6_gather_expected_outputs(tests)
+    step5_gather_expected_outputs(tests)
+    step6_filter_tests(&tests, &args)
     step7_run_tests(tests, &args)
     step8_show_results(tests, &args)
