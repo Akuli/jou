@@ -240,6 +240,12 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
                 allowed[FormatParam.Comment as int] = True
                 validate_format_string_in_toml(s, inner_kv.value.lineno, allowed)
 
+        case TestConfigOption.SkipMode:
+            config.skip_mode = enum_from_toml(kv, SKIP_MODE_NAMES, enum_count(SkipMode)) as SkipMode
+
+        case TestConfigOption.SkipModeIfNoExpectedOutput:
+            config.skip_mode_if_no_expected_output = enum_from_toml(kv, SKIP_MODE_NAMES, enum_count(SkipMode)) as SkipMode
+
         case TestConfigOption.Command:
             free(config.command.ptr)
             config.command = array_of_strings_from_toml(kv, NULL)

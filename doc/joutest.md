@@ -35,6 +35,16 @@ There is no hidden file finding logic: `joutest` literally does `fopen("joutest.
 and the content of `joutest.toml` specifies where to find the files to be tested.
 
 Each dot means that a file ran successfully.
+Here are all the things you may see instead of a dot:
+
+| Character in `joutest` output | Meaning           |
+|-------------------------------|-------------------|
+| `.` (green)                   | test succeeded    |
+| `s` (yellow)                  | test was skipped  |
+| `F` (red)                     | test failed       |
+
+Many other test runners (e.g. Python's [pytest](https://docs.pytest.org/en/stable/)) use similar abbreviations.
+
 You can also try `--verbose` (or `-v`, that does the same thing):
 
 ```
@@ -64,6 +74,12 @@ run: jou tests/test_klondike.jou
 
 2 succeeded
 ```
+
+Note that when you select the tests to run,
+`joutest` does not show other tests as skipped.
+To understand why, consider what happens when you want to run one test
+in a project that has hundreds of tests (like Jou itself):
+you will see just the one test you asked for without hundreds of skips.
 
 
 ## Output Comments
@@ -322,6 +338,19 @@ Everything else is optional.
             The first line of the file is line 1.
         - `{{` is replaced with a `{` character.
         - `}}` is replaced with a `}` character.
+    - `skip_mode` (default: `"dont_skip"`) defines whether and how the test is skipped:
+        - `"dont_skip"` means that the test will run unless something else causes it to be skipped.
+            This is the default.
+        - `"skip_normally"` means that the test does not run,
+            and the test shows up as skipped (yellow `s`) when you run `joutest`.
+            However, if something else causes the test to be skipped silently,
+            then that happens instead, and the test does not show up at all in the output.
+        - `"skip_silently"` means that the test is ignored entirely.
+            It does not show up at all when you run `joutest`.
+    - `skip_mode_if_no_expected_output` (default: `"dont_skip"`) is like `skip_mode`,
+        but it only applies if the expected output specified with [output comments](#output-comments) is empty.
+        In other words, this determines whether tests with no output comments are skipped.
+        By default, having or not having output comments does not affect skipping.
     - `command` (default: `["jou", "{file}"]` or `["jou", "--stdin-name", "{file}", "-"]`)
         is the command that `joutest` invokes to run the test.
         For [tests in markdown files](#markdown-files),

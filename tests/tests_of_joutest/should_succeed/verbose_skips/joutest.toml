@@ -1,0 +1,36 @@
+[[tests]]
+files = "dont_skip.jou"
+skip_mode = "dont_skip"  # this should be the default
+
+[[tests]]
+files = "skip_normally.jou"
+skip_mode = "skip_normally"
+skip_mode_if_no_expected_output = "skip_silently"  # should be ignored
+
+[[tests]]
+files = "skip_silently.jou"
+skip_mode = "skip_silently"
+
+[[tests]]
+files = "skip_normally_no_output.jou"
+skip_mode_if_no_expected_output = "skip_normally"
+
+[[tests]]
+files = "skip_silently_no_output1.jou"
+skip_mode = "skip_normally"  # ignored, silent wins
+skip_mode_if_no_expected_output = "skip_silently"
+
+[[tests]]
+files = "skip_silently_no_output2.jou"
+skip_mode = "skip_silently"
+skip_mode_if_no_expected_output = "skip_normally"  # ignored, silent wins
+
+# This is invoked with "joutest --verbose"
+
+# Output: run: jou dont_skip.jou
+# Output:  ok  jou dont_skip.jou
+# Output: skip jou skip_normally.jou
+# Output: skip jou skip_normally_no_output.jou
+# Output:
+# Output:
+# Output: 1 succeeded, 2 skipped

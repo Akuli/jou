@@ -82,46 +82,70 @@ if not WINDOWS:
         return result.ptr
 
 
+def configure_skip(test: Test*, filters: List[byte*]) -> None:
+    assert test.skip == SkipMode.DontSkip
+
+    if filters.len > 0:
+        matches_some_filter = False
+        for f = filters.ptr; f < filters.end(); f++:
+            if strstr(test.path, *f) != NULL:
+                matches_some_filter = True
+                break
+        if not matches_some_filter:
+            test.skip = SkipMode.SkipSilently
+            return
+
+    test.skip = test.config.skip_mode
+
+    # The "highest" skip mode wins (no skip specified < normal skip < silent skip)
+    if (
+        *test.expected_output == '\0'
+        and (test.config.skip_mode_if_no_expected_output as int) > (test.skip as int)
+    ):
+        test.skip = test.config.skip_mode_if_no_expected_output
+
+
 declare dirname(path: byte*) -> byte*
 
-def is_slash(b: byte) -> bool:
-    return b == '/' or (b == '\\' and WINDOWS)
+def configure_working_directory(test: Test*) -> None:
+    assert test.working_directory == NULL
+    if test.config.cd_to_containing_directory:
+        temp = strdup(test.path)
+        assert temp != NULL
+        test.working_directory = strdup(dirname(temp))  # may modify temp string
+        free(temp)
+
+
+def configure_command(test: Test*) -> None:
+    params: byte*[enum_count(FormatParam)]
+    memset(params, 0, sizeof(params))
+    params[FormatParam.File as int] = test.get_relative_path()
+
+    assert test.config.value_present[TestConfigOption.Command as int]
+    assert test.actual_command_list.len == 0
+    for arg = test.config.command.ptr; arg < test.config.command.end(); arg++:
+        test.actual_command_list.append(format_string(*arg, params))
+
+    assert test.actual_command_string == NULL
+    if WINDOWS:
+        test.actual_command_string = command_to_string_windows(test.actual_command_list)
+    else:
+        test.actual_command_string = command_to_string_posix(test.actual_command_list)
+
+
+def configure_uses_output_capturing(test: Test*) -> None:
+    test.uses_output_capturing = (
+        test.config.stdout != CaptureMode.DoNotCapture
+        or test.config.stderr != CaptureMode.DoNotCapture
+    )
 
 
 @public
-def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
+def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        assert test.working_directory == NULL
-        if test.config.cd_to_containing_directory:
-            temp = strdup(test.path)
-            assert temp != NULL
-            test.working_directory = strdup(dirname(temp))  # may modify temp string
-            free(temp)
-
-            # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
-            p = &test.path[strlen(test.path)]
-            while p > test.path and not is_slash(p[-1]):
-                p--
-            test.path_in_working_directory = p
-        else:
-            test.path_in_working_directory = test.path
-
-        params: byte*[enum_count(FormatParam)]
-        memset(params, 0, sizeof(params))
-        params[FormatParam.File as int] = test.path_in_working_directory
-
-        assert test.config.value_present[TestConfigOption.Command as int]
-        assert test.actual_command_list.len == 0
-        for arg = test.config.command.ptr; arg < test.config.command.end(); arg++:
-            test.actual_command_list.append(format_string(*arg, params))
-
-        assert test.actual_command_string == NULL
-        if WINDOWS:
-            test.actual_command_string = command_to_string_windows(test.actual_command_list)
-        else:
-            test.actual_command_string = command_to_string_posix(test.actual_command_list)
-
-        test.uses_output_capturing = (
-            test.config.stdout != CaptureMode.DoNotCapture
-            or test.config.stderr != CaptureMode.DoNotCapture
-        )
+        configure_skip(test, args.filter_strings)
+        if test.skip == SkipMode.SkipSilently:
+            continue
+        configure_working_directory(test)
+        configure_command(test)
+        configure_uses_output_capturing(test)

@@ -1,5 +1,6 @@
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
+import "stdlib/str.jou"
 
 
 @public
@@ -18,11 +19,23 @@ global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comment
 
 
 @public
+enum SkipMode:
+    DontSkip
+    SkipNormally
+    SkipSilently
+
+@public
+global SKIP_MODE_NAMES: byte*[enum_count(SkipMode)] = ["dont_skip", "skip_normally", "skip_silently"]
+
+
+@public
 enum TestConfigOption:
     Files
     Stdout
     Stderr
     OutputCommentRules
+    SkipMode
+    SkipModeIfNoExpectedOutput
     Command
     CdToContainingDirectory
     ExpectedExitCode
@@ -34,6 +47,8 @@ global TEST_CONFIG_OPTION_NAMES: byte*[enum_count(TestConfigOption)] = [
     "stdout",
     "stderr",
     "output_comment_rules",
+    "skip_mode",
+    "skip_mode_if_no_expected_output",
     "command",
     "cd_to_containing_directory",
     "expected_exit_code",
@@ -52,6 +67,8 @@ class TestConfig:
     stdout: CaptureMode
     stderr: CaptureMode
     output_comment_rules: List[byte*[2]]
+    skip_mode: SkipMode
+    skip_mode_if_no_expected_output: SkipMode
     command: List[byte*]  # may contain things like "{file}"
     cd_to_containing_directory: bool
     expected_exit_code: int
@@ -82,6 +99,10 @@ class TestConfig:
                 case TestConfigOption.OutputCommentRules:
                     dest.output_comment_rules.len = 0
                     dest.output_comment_rules.extend(self.output_comment_rules)
+                case TestConfigOption.SkipMode:
+                    dest.skip_mode = self.skip_mode
+                case TestConfigOption.SkipModeIfNoExpectedOutput:
+                    dest.skip_mode_if_no_expected_output = self.skip_mode_if_no_expected_output
                 case TestConfigOption.Command:
                     dest.command.len = 0
                     dest.command.extend(self.command)
@@ -109,7 +130,6 @@ class ParsedJoutestToml:
 enum SimpleResult:
     Success
     Failed
-    Skipped
 
 @public
 class Test:
@@ -120,15 +140,15 @@ class Test:
     first_markdown_lineno: int  # Line number if markdown file, 0 if not markdown file
     last_markdown_lineno: int   # Line number if markdown file, 0 if not markdown file
 
-    # These are set in step 4 (configure tests)
-    path_in_working_directory: byte*  # usually same as path, just file name if cd_to_containing_directory is used
+    # These are set in step 4 (gather expected output)
+    expected_output: byte*
+
+    # These are set in step 5 (configure tests)
+    skip: SkipMode
     actual_command_list: List[byte*]
     actual_command_string: byte*
     uses_output_capturing: bool
     working_directory: byte*  # NULL means use current directory
-
-    # These are set in step 5 (gather expected output)
-    expected_output: byte*
 
     # These are set in step 6 (run tests)
     start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
@@ -136,3 +156,16 @@ class Test:
     actual_exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
     actual_output: byte*
     simple_result: SimpleResult
+
+    # This is a getter because it must be always available, even before the
+    # "configure tests" step that sets up many of the members here.
+    @public
+    def get_relative_path(self) -> byte*:
+        if self.config.cd_to_containing_directory:
+            # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
+            p = &self.path[strlen(self.path)]
+            while p > self.path and not (p[-1] == '/' or (p[-1] == '\\' and WINDOWS)):
+                p--
+            return p
+        else:
+            return self.path
