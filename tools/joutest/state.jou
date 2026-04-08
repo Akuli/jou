@@ -1,5 +1,6 @@
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
+import "stdlib/str.jou"
 
 
 @public
@@ -127,7 +128,6 @@ class Test:
     last_markdown_lineno: int   # Line number if markdown file, 0 if not markdown file
 
     # These are set in step 4 (configure tests)
-    path_in_working_directory: byte*  # usually same as path, just file name if cd_to_containing_directory is used
     actual_command_list: List[byte*]
     actual_command_string: byte*
     uses_output_capturing: bool
@@ -145,3 +145,14 @@ class Test:
     actual_exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
     actual_output: byte*
     simple_result: SimpleResult
+
+    @public
+    def get_relative_path(self) -> byte*:
+        if self.config.cd_to_containing_directory:
+            # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
+            p = &self.path[strlen(self.path)]
+            while p > self.path and not (p[-1] == '/' or (p[-1] == '\\' and WINDOWS)):
+                p--
+            return p
+        else:
+            return self.path

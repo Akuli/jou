@@ -98,17 +98,17 @@ def step4_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             test.working_directory = strdup(dirname(temp))  # may modify temp string
             free(temp)
 
+        params: byte*[enum_count(FormatParam)]
+        memset(params, 0, sizeof(params))
+
+        if test.config.cd_to_containing_directory:
             # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
             p = &test.path[strlen(test.path)]
             while p > test.path and not is_slash(p[-1]):
                 p--
-            test.path_in_working_directory = p
+            params[FormatParam.File as int] = p
         else:
-            test.path_in_working_directory = test.path
-
-        params: byte*[enum_count(FormatParam)]
-        memset(params, 0, sizeof(params))
-        params[FormatParam.File as int] = test.path_in_working_directory
+            params[FormatParam.File as int] = test.path
 
         assert test.config.value_present[TestConfigOption.Command as int]
         assert test.actual_command_list.len == 0

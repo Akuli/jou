@@ -54,7 +54,7 @@ def find_expected_output_from_line(
 
                 params: byte*[enum_count(FormatParam)]
                 memset(params, 0, sizeof(params))
-                params[FormatParam.File as int] = test.path_in_working_directory
+                params[FormatParam.File as int] = test.get_relative_path()
                 params[FormatParam.Line as int] = lineno_str
                 params[FormatParam.Comment as int] = comment
 
@@ -107,5 +107,4 @@ def find_expected_output(test: Test*) -> None:
 @public
 def step5_gather_expected_outputs(tests: List[Test]) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        if test.uses_output_capturing:
-            find_expected_output(test)
+        find_expected_output(test)
