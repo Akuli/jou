@@ -92,7 +92,6 @@ jobs:
       # We also have a separate, "full" valgrind run. See valgrind.yml.
       - name: "Run hello world with valgrind"
         run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
-      - run: ./doctest.sh
       - run: tests/toml/run.sh --jou-flags "${{ matrix.params.opt-level }}"
       - name: "Run the new test runner"
         run: make joutest && ./joutest --verbose

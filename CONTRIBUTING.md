@@ -148,12 +148,23 @@ To ensure that documentation stays up to date,
 it is also possible to run code examples in the documentation as tests:
 
 ```
-$ ./doctest.sh
+$ ./joutest.exe doc     # if you are on Windows
+$ ./joutest doc         # other operating systems
 ```
 
-The `doctest.sh` script finds code examples from markdown files in `doc/`.
-It only looks at code examples that contain `# Output:`, `# Warning:` or `# Error:` comments.
-It then attempts to run each example and compares the output similarly to `runtests.sh`.
+Currently the Jou project itself is switching to `joutest`,
+a test runner written in Jou rather than bash.
+For now, `joutest` is used only to test itself and the documentation.
+
+In many ways, `joutest` behaves just like the `runtests.sh` script documented above.
+For example, it similarly looks for `# Output:`, `# Warning:` and `# Error:` comments.
+
+Note that `joutest` **does not run** code examples that don't contain any
+`# Output:`, `# Warning:` or `# Error:` comments,
+because the [joutest.toml](./joutest.toml) configuration file sets
+`skip_mode_if_no_expected_output = "skip_silently"` for all markdown files.
+
+If you need to know more about `joutest`, see [joutest's documentation](doc/joutest.md).
 
 
 ## Releases

@@ -340,7 +340,7 @@ For example:
 ```python
 import "stdlib/io.jou"
 
-global readme = embed_file("../../README.md")
+global readme = embed_file("../README.md")
 
 def main() -> int:
     # Output: Jou programming language
