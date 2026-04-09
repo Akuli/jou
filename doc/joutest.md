@@ -405,34 +405,18 @@ These will be documented better as they are implemented.
 This section is here mostly to give people looking at `joutest`
 an idea of what I intend it to become in the future.
 
-An empty `joutest.toml` is going to be equivalent to something like the following:
-(note that this does not specify what files to test, that must be explicitly given)
+Some ideas that might be supported in a `joutest.toml` in the future, but are not right now:
 
 ```toml
 verbose = false
 parallel = true
 
 [defaults_for_all_tests]
-command = ["jou", "{file}"]
 run_compiler_under_valgrind = false
 timeout_seconds = 60
-stdout = "compare_to_comments"
-stderr = "compare_to_comments"
-output_comment_rules = {
-    Output = "{comment}",
-    # The following will be useful for developing the Jou compiler, but
-    # probably won't be not enabled by default.
-    #Error = 'compiler error in file "{file}", line {line}: {comment}',
-    # This will be useful for testing joutest with itself.
-    #Error = 'joutest error in file "{file}", line {line}: {message}',
-}
-cd_to_containing_directory = false
-skip = false
 ```
 
-The Jou project has scripts that will eventually be replaced by `joutest`:
-- [`runtests.sh`](../runtests.sh) runs tests with `# Output:` comment handling
-- [`doctest.sh`](../doctest.sh) runs tests in markdown files, also with `# Output:` comment handling
+The Jou project has [`runtests.sh`](../runtests.sh) that will eventually be replaced by `joutest`
 
 Plan and status:
 1. parse arguments
@@ -479,7 +463,7 @@ Plan and status:
     - [DONE] if configured, capture stdout/stderr
     - if configured, discard stdout/stderr
     - run in parallel
-7. show results
+7. [DONE] show results
     - [DONE] show diffs (need that algorithm.......)
     - [DONE] show how many succeeded and failed
     - [DONE] exit 0 or 1
