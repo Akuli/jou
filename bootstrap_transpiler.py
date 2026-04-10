@@ -1360,7 +1360,6 @@ def parse_file(path):
     TYPES[path] = BASIC_TYPES.copy()  # type: ignore
     GLOBALS[path] = {}
     FUNCTIONS[path] = {}
-
     CONSTANTS[path] = {
         "WINDOWS": jou_bool(sys.platform == "win32"),
         "MACOS": jou_bool(sys.platform == "darwin"),
