@@ -2280,23 +2280,19 @@ class CFuncMaker:
             _, lhs, rhs = expr
             lhs_type = self.guess_type(lhs)
             rhs_type = self.guess_type(rhs)
-            if lhs_type == rhs_type:
-                return lhs_type
 
             if lhs_type.is_integer() and rhs_type.is_integer():
-                lhs_signed = lhs_type.name.startswith("int")
-                rhs_signed = rhs_type.name.startswith("int")
-                lhs_unsigned = lhs_type.name.startswith("uint")
-                rhs_unsigned = rhs_type.name.startswith("uint")
-                assert lhs_signed or lhs_unsigned
-                assert rhs_signed or rhs_unsigned
-
-                # For same signed-ness, pick wider type.
-                if (lhs_signed and rhs_signed) or (lhs_unsigned and rhs_unsigned):
-                    return lhs_type if int(lhs_type.name.removeprefix("u").removeprefix("int")) > int(rhs_type.name.removeprefix("u").removeprefix("int")) else rhs_type
-
-                # For mixed signedness, pick the larger signed type.
-                return BASIC_TYPES["int" + str(max(int(lhs_type.name.removeprefix("u").removeprefix("int")), int(rhs_type.name.removeprefix("u").removeprefix("int"))))]
+                lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
+                rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
+                if lhs_bits == rhs_bits:
+                    # Same size, prefer unsigned
+                    return lhs_type if lhs_type.name.startswith("u") else rhs_type
+                else:
+                    # Different sizes, use smaller for AND and bigger for OR/XOR
+                    if expr[0] == "bit_and":
+                        return lhs_type if lhs_bits < rhs_bits else rhs_type
+                    else:
+                        return lhs_type if lhs_bits > rhs_bits else rhs_type
 
             raise NotImplementedError(expr[0], lhs_type, rhs_type)
 
