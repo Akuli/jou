@@ -1333,10 +1333,16 @@ def parse_file(path):
     with open(path, encoding="utf-8") as f:
         content = f.read()
 
-    # Hack for bootstrap: add missing type definitions
-    if path == "stdlib/fs.jou" and not (sys.platform.startswith("linux") and sys.maxsize < 2**32):
-        content += "\nclass utsname:\n    sysname: byte[65]\n    nodename: byte[65]\n    release: byte[65]\n    version: byte[65]\n    machine: byte[65]\n    the_rest: byte[512]\n"
-        content += "\ndeclare uname(buf: utsname*) -> int\n"
+    # Hack: stdlib/fs.jou calls uname() only on 32-bit linux, but the if
+    # statement that decides whether to call it does not get resolved at
+    # compile time like it should. So let's just ensure that utsname and
+    # uname() always exist.
+    if path == "stdlib/fs.jou":
+        content = content.replace(
+            "\n    if LINUX and IS_32BIT:\n        class utsname:",
+            "\n    if True:\n        class utsname:",
+            1,
+        )
 
     tokens = tokenize(content, path)
 
