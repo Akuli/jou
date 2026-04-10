@@ -1416,9 +1416,8 @@ def evaluate_compile_time_condition(path, ast) -> bool:
 
 def evaluate_a_compile_time_if_statement_in_body(path: str, ast_body: list[Any]) -> bool:
     for i, stmt in enumerate(ast_body):
-        match stmt[0]:
-            case "if":
-                _, if_and_elifs, else_body, location = stmt
+        match stmt:
+            case ("if", if_and_elifs, else_body, location):
                 cond_ast, then = if_and_elifs.pop(0)
                 cond = evaluate_compile_time_condition(path, cond_ast)
                 if cond:
@@ -1427,8 +1426,7 @@ def evaluate_a_compile_time_if_statement_in_body(path: str, ast_body: list[Any])
                     ast_body[i : i + 1] = else_body
                 return True
 
-            case "class":
-                _, name, generics, body, decors, location = stmt
+            case ("class", name, generics, body, decors, location):
                 if evaluate_a_compile_time_if_statement_in_body(path, body):
                     return True
 
