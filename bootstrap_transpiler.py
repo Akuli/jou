@@ -1333,6 +1333,11 @@ def parse_file(path):
     with open(path, encoding="utf-8") as f:
         content = f.read()
 
+    # Hack for bootstrap: add missing type definitions
+    if path == "stdlib/fs.jou" and not (sys.platform.startswith("linux") and sys.maxsize < 2**32):
+        content += "\nclass utsname:\n    sysname: byte[65]\n    nodename: byte[65]\n    release: byte[65]\n    version: byte[65]\n    machine: byte[65]\n    the_rest: byte[512]\n"
+        content += "\ndeclare uname(buf: utsname*) -> int\n"
+
     tokens = tokenize(content, path)
 
     parser = Parser(path, tokens)
@@ -1349,10 +1354,19 @@ def parse_file(path):
     TYPES[path] = BASIC_TYPES.copy()  # type: ignore
     GLOBALS[path] = {}
     FUNCTIONS[path] = {}
+
+    for item in ast:
+        if item[0] == "declare":
+            _, declared_ast = item
+            if declared_ast[0] == "function_declare":
+                func_name = declared_ast[1]
+                FUNCTIONS[path][func_name] = declared_ast
+
     CONSTANTS[path] = {
         "WINDOWS": jou_bool(sys.platform == "win32"),
         "MACOS": jou_bool(sys.platform == "darwin"),
         "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
+        "LINUX": jou_bool(sys.platform.startswith("linux")),
         "IS_32BIT": jou_bool(sys.maxsize < 2**32),
     }
     ENUMS[path] = {}
@@ -1510,7 +1524,10 @@ def define_class(
     TYPES[path][cache_key] = jou_type
 
     fields = []
-    for member in body:
+    methods = []
+    i = 0
+    while i < len(body):
+        member = body[i]
         if member[0] == "class_field":
             _, field_name, field_type_ast, location = member
             fields.append((field_name, field_type_ast))
@@ -1523,8 +1540,21 @@ def define_class(
             jou_type.method_asts[method_name] = member
         elif member[0] == "pass":
             pass
+        elif member[0] == "if":
+            _, if_and_elifs, else_body, location = member
+            cond_ast, then = if_and_elifs.pop(0)
+            cond = evaluate_compile_time_condition(path, cond_ast)
+            if cond:
+                body[i:i+1] = then
+                i -= 1  # re-process the inserted
+            elif not if_and_elifs:
+                body[i:i+1] = else_body
+                i -= 1
+            else:
+                raise NotImplementedError("elif in class")
         else:
             raise NotImplementedError(member[0])
+        i += 1
 
     jou_type.class_field_types = {}
     for field_name, field_type_ast in fields:
@@ -2240,7 +2270,17 @@ class CFuncMaker:
                 # For signed and unsigned, pick bigger size and signed.
                 # Given int32 and uint8, pick int32.
                 # Given uint32 and int8, pick int32.
-                return BASIC_TYPES["int" + str(max(lhs_bits, lhs_bits))]
+                return BASIC_TYPES["int" + str(max(lhs_bits, rhs_bits))]
+
+            # Mixed int and float
+            if lhs_type.is_integer() and rhs_type.name in ("float", "double"):
+                return rhs_type
+            if rhs_type.is_integer() and lhs_type.name in ("float", "double"):
+                return lhs_type
+
+            # Both float
+            if lhs_type.name in ("float", "double") and rhs_type.name in ("float", "double"):
+                return lhs_type if lhs_type.name == "double" else rhs_type
 
             raise NotImplementedError(expr[0], lhs_type, rhs_type)
 
