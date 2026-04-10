@@ -782,72 +782,74 @@ class Parser:
         return ("array", result)
 
     def parse_elementary_expression(self):
-        if self.tokens[0].kind == "int":
-            return (
-                "integer_constant",
-                int(self.tokens.pop(0).code.replace("_", ""), 0),
-            )
-        if self.tokens[0].kind == "byte":
-            code = self.eat("byte").code
-            assert code.startswith("'")
-            assert code.endswith("'")
+        match self.tokens[0]:
+            case Token(kind="int"):
+                return ("integer_constant", int(self.eat("int").code.replace("_", ""), 0))
 
-            simple_chars = (
-                string.ascii_letters
-                + string.digits
-                + string.punctuation.replace("\\", "").replace("'", "")
-                + " "
-            )
+            case Token(kind="byte"):
+                code = self.eat("byte").code
+                assert code.startswith("'") and code.endswith("'")
 
-            if len(code) == 3 and code[1] in simple_chars:
-                value = ord(code[1])
-            elif code == "'\\0'":
-                value = 0
-            elif code == "'\\\\'":
-                value = ord("\\")
-            elif code == "'\\n'":
-                value = ord("\n")
-            elif code == "'\\r'":
-                value = ord("\r")
-            elif code == "'\\t'":
-                value = ord("\t")
-            elif code == "'\\''":
-                value = ord("'")
-            elif code == "' '":
-                value = ord(" ")
-            else:
-                raise NotImplementedError(code)
+                simple_chars = (
+                    string.ascii_letters
+                    + string.digits
+                    + string.punctuation.replace("\\", "").replace("'", "")
+                    + " "
+                )
 
-            return ("constant", jou_integer("byte", value))
-        if self.tokens[0].kind == "double":
-            return ("constant", jou_double(float(self.eat("double").code)))
-        if self.tokens[0].kind == "string":
-            return ("string", unescape_string(self.eat("string").code))
-        if self.tokens[0].kind == "name":
-            if self.looks_like_instantiate():
-                return self.parse_instantiation()
-            return ("get_variable", self.eat("name").code)
-        # TODO: how far are we gonna get using 0 and 1 bytes as bools?
-        if self.tokens[0].code == "True":
-            self.eat("True")
-            return ("constant", jou_bool(True))
-        if self.tokens[0].code == "False":
-            self.eat("False")
-            return ("constant", jou_bool(False))
-        if self.tokens[0].code == "NULL":
-            self.eat("NULL")
-            return ("constant", JOU_NULL)
-        if self.tokens[0].code == "self":
-            self.eat("self")
-            return ("self",)
-        if self.tokens[0].code == "(":
-            self.eat("(")
-            result = self.parse_expression()
-            self.eat(")")
-            return result
-        if self.tokens[0].code == "[":
-            return self.parse_array()
-        raise NotImplementedError(self.tokens[0])
+                if len(code) == 3 and code[1] in simple_chars:
+                    value = ord(code[1])
+                else:
+                    map = {
+                        "'\\0'": 0,
+                        "'\\\\'": ord("\\"),
+                        "'\\n'": ord("\n"),
+                        "'\\r'": ord("\r"),
+                        "'\\t'": ord("\t"),
+                        "'\\''": ord("'"),
+                        "' '": ord(" "),
+                    }
+                    value = map[code]
+                return ("constant", jou_integer("byte", value))
+
+            case Token(kind="double"):
+                return ("constant", jou_double(float(self.eat("double").code)))
+
+            case Token(kind="string"):
+                return ("string", unescape_string(self.eat("string").code))
+
+            case Token(kind="name"):
+                if self.looks_like_instantiate():
+                    return self.parse_instantiation()
+                return ("get_variable", self.eat("name").code)
+
+            case Token(code="True"):
+                self.eat("True")
+                return ("constant", jou_bool(True))
+
+            case Token(code="False"):
+                self.eat("False")
+                return ("constant", jou_bool(False))
+
+            case Token(code="NULL"):
+                self.eat("NULL")
+                return ("constant", JOU_NULL)
+
+            case Token(code="self"):
+                self.eat("self")
+                return ("self",)
+
+            case Token(code="("):
+                self.eat("(")
+                result = self.parse_expression()
+                self.eat(")")
+                return result
+
+            case Token(code="["):
+                return self.parse_array()
+
+            case t:
+                raise NotImplementedError(t)
 
     def parse_dot_operator(self, obj):
         self.eat(".")
@@ -863,14 +865,15 @@ class Parser:
     def parse_expression_with_members_and_indexing_and_calls(self):
         result = self.parse_elementary_expression()
         while True:
-            if self.tokens[0].code == "[":
-                result = self.parse_indexing(result)
-            elif self.tokens[0].code == ".":
-                result = self.parse_dot_operator(result)
-            elif self.tokens[0].code == "(":
-                result = self.parse_call(result)
-            else:
-                return result
+            match self.tokens[0].code:
+                case "[":
+                    result = self.parse_indexing(result)
+                case ".":
+                    result = self.parse_dot_operator(result)
+                case "(":
+                    result = self.parse_call(result)
+                case _:
+                    return result
 
     def parse_expression_with_unary_operators(self):
         prefix = []
@@ -922,17 +925,11 @@ class Parser:
 
     def parse_expression_with_mul_and_div(self):
         result = self.parse_expression_with_unary_operators()
-        while self.tokens[0].code in {"*", "/", "%"}:
+        op_map = {"*": "mul", "/": "div", "%": "mod"}
+        while self.tokens[0].code in op_map:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_unary_operators()
-            if op == "*":
-                result = ("mul", result, rhs)
-            elif op == "/":
-                result = ("div", result, rhs)
-            elif op == "%":
-                result = ("mod", result, rhs)
-            else:
-                raise ValueError("wat?")
+            result = (op_map[op], result, rhs)
         return result
 
     def parse_expression_with_add(self) -> AST:
@@ -942,29 +939,20 @@ class Parser:
         else:
             result = self.parse_expression_with_mul_and_div()
 
-        while self.tokens[0].code in {"+", "-"}:
+        op_map = {"+": "add", "-": "sub"}
+        while self.tokens[0].code in op_map:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_mul_and_div()
-            if op == "+":
-                result = ("add", result, rhs)
-            else:
-                result = ("sub", result, rhs)
-
+            result = (op_map[op], result, rhs)
         return result
 
     def parse_expression_with_bitwise_ops(self):
         result = self.parse_expression_with_add()
-        while self.tokens[0].code in {"&", "|", "^"}:
+        op_map = {"&": "bit_and", "|": "bit_or", "^": "bit_xor"}
+        while self.tokens[0].code in op_map:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_add()
-            if op == "&":
-                result = ("bit_and", result, rhs)
-            elif op == "|":
-                result = ("bit_or", result, rhs)
-            elif op == "^":
-                result = ("bit_xor", result, rhs)
-            else:
-                raise ValueError("wat?")
+            result = (op_map[op], result, rhs)
         return result
 
     # "as" operator has somewhat low precedence, so that "1+2 as float" works as expected
@@ -978,23 +966,18 @@ class Parser:
 
     def parse_expression_with_comparisons(self):
         result = self.parse_expression_with_as()
-        while self.tokens[0].code in {"==", "!=", "<", ">", "<=", ">="}:
+        op_map = {
+            "==": "eq",
+            "!=": "ne",
+            ">": "gt",
+            "<": "lt",
+            ">=": "ge",
+            "<=": "le",
+        }
+        while self.tokens[0].code in op_map:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_as()
-            if op == "==":
-                result = ("eq", result, rhs)
-            elif op == "!=":
-                result = ("ne", result, rhs)
-            elif op == ">":
-                result = ("gt", result, rhs)
-            elif op == ">=":
-                result = ("ge", result, rhs)
-            elif op == "<":
-                result = ("lt", result, rhs)
-            elif op == "<=":
-                result = ("le", result, rhs)
-            else:
-                raise ValueError("wat?")
+            result = (op_map[op], result, rhs)
         return result
 
     def parse_expression_with_not(self):
@@ -1007,15 +990,10 @@ class Parser:
 
     def parse_expression_with_and_or(self):
         result = self.parse_expression_with_not()
-        while True:
-            if self.tokens[0].code == "and":
-                self.eat("and")
-                result = ("and", result, self.parse_expression_with_not())
-            elif self.tokens[0].code == "or":
-                self.eat("or")
-                result = ("or", result, self.parse_expression_with_not())
-            else:
-                return result
+        while self.tokens[0].code in ("and", "or"):
+            op = self.tokens.pop(0).code
+            result = (op, result, self.parse_expression_with_not())
+        return result
 
     def parse_expression_with_ternary(self):
         result = self.parse_expression_with_and_or()
@@ -1037,49 +1015,48 @@ class Parser:
 
         result: AST
 
-        if self.tokens[0].code == "return":
-            self.eat("return")
-            if self.tokens[0].kind == "newline":
-                result = ("return", None)
-            else:
-                result = ("return", self.parse_expression())
-        elif self.tokens[0].code == "assert":
-            self.eat("assert")
-            cond = self.parse_expression()
-            result = ("assert", cond)
-        elif self.tokens[0].code in {"pass", "break", "continue"}:
-            kw = self.tokens[0].code
-            self.eat(kw)
-            result = (kw,)
-        elif self.tokens[0].code == "const":
-            self.eat("const")
-            name, type, value = self.parse_name_type_value()
-            assert value is not None
-            result = ("const", name, type, value, decors)
-        elif self.tokens[0].code == "typedef":
-            self.eat("typedef")
-            name = self.eat("name").code
-            self.eat("=")
-            actual_type = self.parse_type()
-            result = ("typedef", name, actual_type, decors)
-        elif self.tokens[0].kind == "name" and self.tokens[1].code == ":":
-            name, type, value = self.parse_name_type_value()
-            # e.g. "foo: int"
-            if self.in_class_body:
-                assert value is None, self.tokens[0].location
-                result = ("class_field", name, type)
-            else:
-                result = ("declare_local_var", name, type, value)
-        else:
-            expr = self.parse_expression()
-            kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(
-                self.tokens[0]
-            )
-            if kind == "expr_stmt":
-                result = ("expr_stmt", expr)
-            else:
-                self.tokens.pop(0)
-                result = (kind, expr, self.parse_expression())
+        match self.tokens[0]:
+            case Token(code="return"):
+                self.eat("return")
+                if self.tokens[0].kind == "newline":
+                    result = ("return", None)
+                else:
+                    result = ("return", self.parse_expression())
+            case Token(code="assert"):
+                self.eat("assert")
+                cond = self.parse_expression()
+                result = ("assert", cond)
+            case Token(code=("pass" | "break" | "continue")):
+                result = (self.eat("keyword").code,)
+            case Token(code="const"):
+                self.eat("const")
+                name, type, value = self.parse_name_type_value()
+                assert value is not None
+                result = ("const", name, type, value, decors)
+            case Token(code="typedef"):
+                self.eat("typedef")
+                name = self.eat("name").code
+                self.eat("=")
+                actual_type = self.parse_type()
+                result = ("typedef", name, actual_type, decors)
+            case Token(kind="name") if self.tokens[1].code == ":":
+                # e.g. "foo: int"
+                name, type, value = self.parse_name_type_value()
+                if self.in_class_body:
+                    assert value is None, self.tokens[0].location
+                    result = ("class_field", name, type)
+                else:
+                    result = ("declare_local_var", name, type, value)
+            case _:
+                expr = self.parse_expression()
+                kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(
+                    self.tokens[0]
+                )
+                if kind == "expr_stmt":
+                    result = ("expr_stmt", expr)
+                else:
+                    self.tokens.pop(0)
+                    result = (kind, expr, self.parse_expression())
 
         # TODO: figure out why mypy doesn't like this line
         return result + (location,)  # type: ignore
@@ -1186,66 +1163,62 @@ class Parser:
 
         location = self.tokens[0].location
 
-        if self.tokens[0].code == "link":
-            assert not decors
-            self.eat("link")
-            self.eat("string")
-            self.eat("newline")
-            return None
-
-        if self.tokens[0].code == "import":
-            assert not decors
-            result = self.parse_import()
-        elif self.tokens[0].code == "def":
-            result = self.parse_function_or_method(decors)
-        elif self.tokens[0].code == "declare":
-            self.eat("declare")
-            if self.tokens[0].code == "global":
+        match self.tokens[0]:
+            case Token(code="link"):
+                assert not decors
+                self.eat("link")
+                self.eat("string")
+                self.eat("newline")
+                return None
+            case Token(code="import"):
+                assert not decors
+                result = self.parse_import()
+            case Token(code="def"):
+                result = self.parse_function_or_method(decors)
+            case Token(code="declare"):
+                self.eat("declare")
+                if self.tokens[0].code == "global":
+                    self.eat("global")
+                    name, type, value = self.parse_name_type_value()
+                    assert value is None
+                    self.eat("newline")
+                    result = ("global_var_declare", name, type, decors)
+                else:
+                    signature = self.parse_function_or_method_signature()
+                    self.eat("newline")
+                    result = ("function_declare",) + signature + (decors,)
+            case Token(code="global"):
                 self.eat("global")
                 name, type, value = self.parse_name_type_value()
                 assert value is None
                 self.eat("newline")
-                result = ("global_var_declare", name, type, decors)
-            else:
-                signature = self.parse_function_or_method_signature()
+                result = ("global_var_def", name, type, decors)
+            case Token(code="class"):
+                result = self.parse_class(decors)
+            case Token(code="union"):
+                assert not decors
+                result = self.parse_union()
+            case Token(code="enum"):
+                result = self.parse_enum(decors)
+            case Token(code="if"):
+                assert not decors
+                result = self.parse_if_statement()
+            case Token(code="for"):
+                assert not decors
+                result = self.parse_for_loop()
+            case Token(code="while"):
+                assert not decors
+                result = self.parse_while_loop()
+            case Token(code="match"):
+                assert not decors
+                result = self.parse_match_statement()
+            case Token(kind="name") if self.tokens[1].code == "," and self.tokens[2].kind == "name":
+                assert not decors
+                result = self.parse_first_of_multiple_local_var_declares()
+            case _:
+                result = self.parse_oneline_statement(decors)
                 self.eat("newline")
-                result = ("function_declare",) + signature + (decors,)
-        elif self.tokens[0].code == "global":
-            self.eat("global")
-            name, type, value = self.parse_name_type_value()
-            assert value is None
-            self.eat("newline")
-            result = ("global_var_def", name, type, decors)
-        elif self.tokens[0].code == "class":
-            result = self.parse_class(decors)
-        elif self.tokens[0].code == "union":
-            assert not decors
-            result = self.parse_union()
-        elif self.tokens[0].code == "enum":
-            result = self.parse_enum(decors)
-        elif self.tokens[0].code == "if":
-            assert not decors
-            result = self.parse_if_statement()
-        elif self.tokens[0].code == "for":
-            assert not decors
-            result = self.parse_for_loop()
-        elif self.tokens[0].code == "while":
-            assert not decors
-            result = self.parse_while_loop()
-        elif self.tokens[0].code == "match":
-            assert not decors
-            result = self.parse_match_statement()
-        elif (
-            self.tokens[0].kind == "name"
-            and self.tokens[1].code == ","
-            and self.tokens[2].kind == "name"
-        ):
-            assert not decors
-            result = self.parse_first_of_multiple_local_var_declares()
-        else:
-            result = self.parse_oneline_statement(decors)
-            self.eat("newline")
-            return result  # do not add location, it's already added
+                return result  # do not add location, it's already added
 
         return result + (location,)
 
@@ -1397,10 +1370,10 @@ def evaluate_compile_time_condition(path, ast) -> bool:
             return evaluate_compile_time_condition(path, lhs) and evaluate_compile_time_condition(path, rhs)
         case ("or", lhs, rhs):
             return evaluate_compile_time_condition(path, lhs) or evaluate_compile_time_condition(path, rhs)
-
-    raise RuntimeError(
-        f"cannot evaluate compile-time condition in {path}: {ast}"
-    )
+        case _:
+            raise RuntimeError(
+                f"cannot evaluate compile-time condition in {path}: {ast}"
+            )
 
 
 def evaluate_a_compile_time_if_statement_in_body(path: str, ast_body: list[Any]) -> bool:
@@ -1520,20 +1493,18 @@ def define_class(
 
     fields = []
     for member in body:
-        if member[0] == "class_field":
-            _, field_name, field_type_ast, location = member
-            fields.append((field_name, field_type_ast))
-        elif member[0] == "union":
-            _, union_members, location = member
-            # Just treat unions as flat things, good enough
-            fields.extend(union_members)
-        elif member[0] == "function_def":
-            method_name = member[1]
-            jou_type.method_asts[method_name] = member
-        elif member[0] == "pass":
-            pass
-        else:
-            raise NotImplementedError(member[0])
+        match member:
+            case ("class_field", field_name, field_type_ast, location):
+                fields.append((field_name, field_type_ast))
+            case ("union", union_members, location):
+                # Just treat unions as flat things, good enough
+                fields.extend(union_members)
+            case ("function_def", method_name, *_):
+                jou_type.method_asts[method_name] = member
+            case ("pass", location):
+                pass
+            case _:
+                raise NotImplementedError(member)
 
     jou_type.class_field_types = {}
     for field_name, field_type_ast in fields:
@@ -1781,20 +1752,18 @@ def find_global_var_ptr(path, varname):
 
 
 def evaluate_constant(ast: AST, jtype: JouType) -> JouValue:
-    if ast[0] == "negate":
-        _, inner = ast
-        inner_string = evaluate_constant(inner, jtype)
-        return JouValue(jtype, f"(({jtype.to_c()})(-{inner_string.c_code}))")
-    if ast[0] == "integer_constant":
-        _, int_value = ast
-        return jou_integer(jtype, int_value)
-    if ast[0] == "string":
-        _, string = ast
-        return jou_string(string)
-    if ast[0] == "constant":
-        _, value = ast
-        return value
-    raise NotImplementedError(ast)
+    match ast:
+        case ("negate", inner):
+            inner_string = evaluate_constant(inner, jtype)
+            return JouValue(jtype, f"(({jtype.to_c()})(-{inner_string.c_code}))")
+        case ("integer_constant", int_value):
+            return jou_integer(jtype, int_value)
+        case ("string", string):
+            return jou_string(string)
+        case ("constant", value):
+            return value
+        case _:
+            raise NotImplementedError(ast)
 
 
 def find_constant(path: str, constant_name: str) -> JouValue | None:
@@ -1812,7 +1781,6 @@ def find_constant(path: str, constant_name: str) -> JouValue | None:
             result = evaluate_constant(value_ast, const_type)
             assert result.type == const_type  # TODO: casts and such
             break
-        pass
 
     if result is None:
         # Is it defined in an imported file?
@@ -1870,38 +1838,35 @@ def find_enum(path, enum_name):
 
 
 def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouType:
-    if ast[0] == "pointer":
-        _, value_type_ast = ast
-        if value_type_ast == ("named_type", "void"):
+    match ast:
+        case ("pointer", ("named_type", "void")):
             return JOU_VOID_PTR
-        return type_from_ast(path, value_type_ast, typesub=typesub).pointer_type()
-    if ast[0] == "named_type":
-        _, name = ast
-        if typesub is not None and name in typesub:
-            return typesub[name]
-        return find_named_type(path, name)
-    if ast[0] == "array":
-        _, item_type_ast, length_ast = ast
-        if length_ast[0] == "integer_constant":
-            _, length = length_ast
-        else:
-            assert length_ast[0] == "get_variable", length_ast
-            _, length_varname = length_ast
-            length_value = find_constant(path, length_varname)
-            assert length_value.c_code.startswith('((int32_t)(')
-            assert length_value.c_code.endswith('ULL))')
-            length = int(length_value.c_code[11:-5])
-        return type_from_ast(path, item_type_ast, typesub=typesub).array_type(length)
-    if ast[0] == "generic":
-        _, class_name, [param_type_ast] = ast
-        param_type = type_from_ast(path, param_type_ast, typesub=typesub)
-        return find_generic_class(path, class_name, param_type)
-    if ast[0] == "funcptr":
-        _, argtype_asts, return_type_ast = ast
-        argtypes = tuple(type_from_ast(path, at, typesub=typesub) for at in argtype_asts)
-        return_type = type_from_ast(path, return_type_ast, typesub=typesub) if return_type_ast != ("named_type", "None") else None
-        return funcptr_type(argtypes, return_type)
-    raise NotImplementedError(ast)
+        case ("pointer", value_type_ast):
+            return type_from_ast(path, value_type_ast, typesub=typesub).pointer_type()
+        case ("named_type", name):
+            if typesub is not None and name in typesub:
+                return typesub[name]
+            return find_named_type(path, name)
+        case ("array", item_type_ast, length_ast):
+            if length_ast[0] == "integer_constant":
+                _, length = length_ast
+            else:
+                assert length_ast[0] == "get_variable", length_ast
+                _, length_varname = length_ast
+                length_value = find_constant(path, length_varname)
+                assert length_value.c_code.startswith('((int32_t)(')
+                assert length_value.c_code.endswith('ULL))')
+                length = int(length_value.c_code[11:-5])
+            return type_from_ast(path, item_type_ast, typesub=typesub).array_type(length)
+        case ("generic", class_name, [param_type_ast]):
+            param_type = type_from_ast(path, param_type_ast, typesub=typesub)
+            return find_generic_class(path, class_name, param_type)
+        case ("funcptr", argtype_asts, return_type_ast):
+            argtypes = tuple(type_from_ast(path, at, typesub=typesub) for at in argtype_asts)
+            return_type = type_from_ast(path, return_type_ast, typesub=typesub) if return_type_ast != ("named_type", "None") else None
+            return funcptr_type(argtypes, return_type)
+        case _:
+            raise NotImplementedError(ast)
 
 
 @functools.cache
@@ -2113,7 +2078,6 @@ class CFuncMaker:
             case ("in_place_add" | "in_place_sub" | "in_place_mul" | "in_place_div" | "in_place_bit_and" | "in_place_bit_or" | "in_place_bit_xor" as op, target_ast, value_ast, location):
                 ptr = self.do_address_of_expression(target_ast)
                 value = self.do_expression(value_ast, ptr.type.inner_type)
-                
                 op_map = {
                     "in_place_add": "+=",
                     "in_place_sub": "-=",
@@ -2416,54 +2380,50 @@ class CFuncMaker:
                 # Implicit array to pointer cast
                 return self.cast(self.do_address_of_expression(expr), expected_type)
 
-        if expr[0] == "call":
-            _, func_ast, arg_asts = expr
-
-            if func_ast[0] == ".":
-                # It looks like obj.member(). Could be a funcptr call or a
-                # method call.
-                _, obj_ast, member_name = func_ast
-                obj_type = self.guess_type(obj_ast)
-                class_type = (
-                    obj_type.inner_type if obj_type.name.endswith("*") else obj_type
-                )
-                assert class_type is not None
-                if member_name in class_type.method_asts:
-                    # It is a method call
-                    method = class_type.get_method(member_name)
-
-                    assert method.type.funcptr_argtypes is not None
-                    self_type = method.type.funcptr_argtypes[0]
-
-                    want_pointer = self_type.name.endswith("*")
-                    got_pointer = obj_type.name.endswith("*")
-
-                    if want_pointer and not got_pointer:
-                        obj = self.do_address_of_expression(obj_ast)
-                    elif got_pointer and not want_pointer:
-                        obj = self.deref(self.do_expression(obj_ast, None))
-                    else:
-                        obj = self.do_expression(obj_ast, None)
-
-                    return self.call_function(method, [obj] + arg_asts)  # type: ignore
-
-            func = self.do_expression(func_ast, None)
-            return self.call_function(func, arg_asts)  # type: ignore
-
-        if expr[0] == "get_variable":
-            _, varname = expr
-
-            value = self.find_any_var_or_constant(varname)
-            if value is not None:
-                return value
-
-            func = find_function(self.path, varname)
-            if func is not None:
-                return func
-
-            raise RuntimeError(f"no variable named {varname} in {self.path}")
-
         match expr:
+            case ("call", func_ast, arg_asts):
+                if func_ast[0] == ".":
+                    # It looks like obj.member(). Could be a funcptr call or a
+                    # method call.
+                    _, obj_ast, member_name = func_ast
+                    obj_type = self.guess_type(obj_ast)
+                    class_type = (
+                        obj_type.inner_type if obj_type.name.endswith("*") else obj_type
+                    )
+                    assert class_type is not None
+                    if member_name in class_type.method_asts:
+                        # It is a method call
+                        method = class_type.get_method(member_name)
+
+                        assert method.type.funcptr_argtypes is not None
+                        self_type = method.type.funcptr_argtypes[0]
+
+                        want_pointer = self_type.name.endswith("*")
+                        got_pointer = obj_type.name.endswith("*")
+
+                        if want_pointer and not got_pointer:
+                            obj = self.do_address_of_expression(obj_ast)
+                        elif got_pointer and not want_pointer:
+                            obj = self.deref(self.do_expression(obj_ast, None))
+                        else:
+                            obj = self.do_expression(obj_ast, None)
+
+                        return self.call_function(method, [obj] + arg_asts)  # type: ignore
+
+                func = self.do_expression(func_ast, None)
+                return self.call_function(func, arg_asts)  # type: ignore
+
+            case ("get_variable", varname):
+                value = self.find_any_var_or_constant(varname)
+                if value is not None:
+                    return value
+
+                func = find_function(self.path, varname)
+                if func is not None:
+                    return func
+
+                raise RuntimeError(f"no variable named {varname} in {self.path}")
+
             case ("self",):
                 return JouValue(self.locals["self"], "var_self")
 
@@ -2600,23 +2560,13 @@ class CFuncMaker:
                 return result
 
             case ("pre_incr" | "post_incr" | "pre_decr" | "post_decr" as op, obj_ast):
-                if "incr" in op:
-                    diff = 1
-                elif "decr" in op:
-                    diff = -1
-                else:
-                    raise RuntimeError("wat")
-
+                diff = 1 if 'incr' in op else -1
                 ptr = self.do_address_of_expression(obj_ast)
                 old_value = self.deref(ptr)
                 new_value = self.add_variable(old_value.type)
                 self.output.append(f"{new_value.c_code} = {old_value.c_code} + ({diff});")
                 self.output.append(f"*{ptr.c_code} = {new_value.c_code};")
-                if "pre" in op:
-                    return new_value
-                if "post" in op:
-                    return old_value
-                raise RuntimeError("wat")
+                return new_value if "pre" in op else old_value
 
             case ("array", item_asts):
                 itype = decide_array_item_type(
