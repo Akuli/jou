@@ -194,27 +194,18 @@ def tokenize(jou_code, path):
 
 # reverse code golfing: https://xkcd.com/1960/
 def determine_the_kind_of_a_statement_that_starts_with_an_expression(t):
-    match t.code:
-        case "=":
-            return "assign"
-        case "+=":
-            return "in_place_add"
-        case "-=":
-            return "in_place_sub"
-        case "*=":
-            return "in_place_mul"
-        case "/=":
-            return "in_place_div"
-        case "%=":
-            return "in_place_mod"
-        case "&=":
-            return "in_place_bit_and"
-        case "|=":
-            return "in_place_bit_or"
-        case "^=":
-            return "in_place_bit_xor"
-        case _:
-            return "expr_stmt"
+    op_map = {
+        "=": "assign",
+        "+=": "in_place_add",
+        "-=": "in_place_sub",
+        "*=": "in_place_mul",
+        "/=": "in_place_div",
+        "%=": "in_place_mod",
+        "&=": "in_place_bit_and",
+        "|=": "in_place_bit_or",
+        "^=": "in_place_bit_xor",
+    }
+    return op_map.get(t.code, "expr_stmt")
 
 
 # The multiple cases of "case a | b | c | d:" appear as a nested bitwise OR
