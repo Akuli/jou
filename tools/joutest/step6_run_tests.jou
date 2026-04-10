@@ -789,6 +789,10 @@ if not WINDOWS:
     declare setenv(name: byte*, value: byte*, overwrite: int) -> int
     declare dirname(path: byte*) -> byte*
 
+    const SIGPIPE: int = 13       # same on MacOS, Linux, NetBSD
+    const SIG_IGN: intnative = 1  # same on MacOS, Linux, NetBSD
+    declare signal(signum: int, handler: intnative) -> intnative
+
     # Adds the directory containing joutest to PATH. It usually contains the
     # Jou compiler.
     #
@@ -815,21 +819,15 @@ if not WINDOWS:
         setenv("PATH", new_path, True as int)
         free(new_path)
 
-    const SIGPIPE: int = 13       # same on MacOS, Linux, NetBSD
-    const SIG_IGN: intnative = 1  # same on MacOS, Linux, NetBSD
-    declare signal(signum: int, handler: intnative) -> intnative
-
-    # By default, it is possible to accidentally kill the whole test runner
-    # with SIGPIPE by simply not consuming input from stdin.
-    def ignore_sigpipe() -> None:
-        signal(SIGPIPE, SIG_IGN)
-
 
 @public
 def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     if not WINDOWS:
         add_joutest_dir_to_PATH()
-        ignore_sigpipe()
+
+        # By default, it is possible to accidentally kill the whole test runner
+        # with SIGPIPE by simply not consuming input from stdin.
+        signal(SIGPIPE, SIG_IGN)
 
     for test = tests.ptr; test < tests.end(); test++:
         match test.skip:
