@@ -192,22 +192,6 @@ def tokenize(jou_code, path):
     return list(tokens)
 
 
-# reverse code golfing: https://xkcd.com/1960/
-def determine_the_kind_of_a_statement_that_starts_with_an_expression(t):
-    op_map = {
-        "=": "assign",
-        "+=": "in_place_add",
-        "-=": "in_place_sub",
-        "*=": "in_place_mul",
-        "/=": "in_place_div",
-        "%=": "in_place_mod",
-        "&=": "in_place_bit_and",
-        "|=": "in_place_bit_or",
-        "^=": "in_place_bit_xor",
-    }
-    return op_map.get(t.code, "expr_stmt")
-
-
 # The multiple cases of "case a | b | c | d:" appear as a nested bitwise OR
 # expression. Here's what this function does to it:
 #
@@ -1040,14 +1024,22 @@ class Parser:
                     result = ("declare_local_var", name, type, value)
             case _:
                 expr = self.parse_expression()
-                kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(
-                    self.tokens[0]
-                )
-                if kind == "expr_stmt":
-                    result = ("expr_stmt", expr)
-                else:
-                    self.tokens.pop(0)
+                op_map = {
+                    "=": "assign",
+                    "+=": "in_place_add",
+                    "-=": "in_place_sub",
+                    "*=": "in_place_mul",
+                    "/=": "in_place_div",
+                    "%=": "in_place_mod",
+                    "&=": "in_place_bit_and",
+                    "|=": "in_place_bit_or",
+                    "^=": "in_place_bit_xor",
+                }
+                if self.tokens[0].code in op_map:
+                    kind = op_map[self.tokens.pop(0).code]
                     result = (kind, expr, self.parse_expression())
+                else:
+                    result = ("expr_stmt", expr)
 
         # TODO: figure out why mypy doesn't like this line
         return result + (location,)  # type: ignore
