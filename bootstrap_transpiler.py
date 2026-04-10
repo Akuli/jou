@@ -2277,6 +2277,30 @@ class CFuncMaker:
 
             raise NotImplementedError(expr[0], lhs_type, rhs_type)
 
+        if expr[0] in ("bit_and", "bit_or", "bit_xor"):
+            _, lhs, rhs = expr
+            lhs_type = self.guess_type(lhs)
+            rhs_type = self.guess_type(rhs)
+            if lhs_type == rhs_type:
+                return lhs_type
+
+            if lhs_type.is_integer() and rhs_type.is_integer():
+                lhs_signed = lhs_type.name.startswith("int")
+                rhs_signed = rhs_type.name.startswith("int")
+                lhs_unsigned = lhs_type.name.startswith("uint")
+                rhs_unsigned = rhs_type.name.startswith("uint")
+                assert lhs_signed or lhs_unsigned
+                assert rhs_signed or rhs_unsigned
+
+                # For same signed-ness, pick wider type.
+                if (lhs_signed and rhs_signed) or (lhs_unsigned and rhs_unsigned):
+                    return lhs_type if int(lhs_type.name.removeprefix("u").removeprefix("int")) > int(rhs_type.name.removeprefix("u").removeprefix("int")) else rhs_type
+
+                # For mixed signedness, pick the larger signed type.
+                return BASIC_TYPES["int" + str(max(int(lhs_type.name.removeprefix("u").removeprefix("int")), int(rhs_type.name.removeprefix("u").removeprefix("int"))))]
+
+            raise NotImplementedError(expr[0], lhs_type, rhs_type)
+
         if expr[0] == "call":
             _, func_ast, arg_asts = expr
 
@@ -2644,6 +2668,15 @@ class CFuncMaker:
             else:
                 raise RuntimeError("wat")
 
+            return result
+
+        elif expr[0] in ("bit_and", "bit_or", "bit_xor"):
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.do_expression(lhs_ast, None)
+            rhs = self.do_expression(rhs_ast, None)
+            result = self.add_variable(self.guess_type(expr))
+            op = "&" if expr[0] == "bit_and" else "|" if expr[0] == "bit_or" else "^"
+            self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
             return result
 
         elif expr[0] == "negate":
