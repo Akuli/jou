@@ -2201,213 +2201,197 @@ class CFuncMaker:
 
     # Evaluates the type of expr without the side effects of evaluating expr.
     def guess_type(self, expr: AST) -> JouType:
-        if expr[0] in ("get_variable", "self", "constant"):
-            return self.do_expression(expr, None).type
+        match expr:
+            case ("get_variable" | "self" | "constant", *_):
+                return self.do_expression(expr, None).type
 
-        if expr[0] in ("eq", "ne", "gt", "ge", "lt", "le", "and", "or", "not"):
-            return BASIC_TYPES["bool"]
+            case ("eq" | "ne" | "gt" | "ge" | "lt" | "le" | "and" | "or" | "not", *_):
+                return BASIC_TYPES["bool"]
 
-        if expr[0] in ("add", "sub", "mul", "div", "mod"):
-            _, lhs, rhs = expr
-            lhs_type = self.guess_type(lhs)
-            rhs_type = self.guess_type(rhs)
-            if lhs_type == rhs_type:
-                return lhs_type
+            case ("add" | "sub" | "mul" | "div" | "mod", lhs, rhs):
+                lhs_type = self.guess_type(lhs)
+                rhs_type = self.guess_type(rhs)
+                if lhs_type == rhs_type:
+                    return lhs_type
 
-            if lhs_type.is_integer() and rhs_type.is_integer():
-                lhs_signed = lhs_type.name.startswith("int")
-                rhs_signed = rhs_type.name.startswith("int")
-                lhs_unsigned = lhs_type.name.startswith("uint")
-                rhs_unsigned = rhs_type.name.startswith("uint")
-                assert lhs_signed or lhs_unsigned
-                assert rhs_signed or rhs_unsigned
+                if lhs_type.is_integer() and rhs_type.is_integer():
+                    lhs_signed = lhs_type.name.startswith("int")
+                    rhs_signed = rhs_type.name.startswith("int")
+                    lhs_unsigned = lhs_type.name.startswith("uint")
+                    rhs_unsigned = rhs_type.name.startswith("uint")
+                    assert lhs_signed or lhs_unsigned
+                    assert rhs_signed or rhs_unsigned
 
-                # "uint32" --> 32
-                # "int32" --> 32
-                lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
-                rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
+                    # "uint32" --> 32
+                    # "int32" --> 32
+                    lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
+                    rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
 
-                # For same signed-ness, pick bigger type.
-                # Given int32 and int64, pick int64.
-                # Given uint32 and uint64, pick uint64.
-                if (lhs_signed and rhs_signed) or (lhs_unsigned and rhs_unsigned):
-                    return lhs_type if lhs_bits > rhs_bits else rhs_type
+                    # For same signed-ness, pick bigger type.
+                    # Given int32 and int64, pick int64.
+                    # Given uint32 and uint64, pick uint64.
+                    if (lhs_signed and rhs_signed) or (lhs_unsigned and rhs_unsigned):
+                        return lhs_type if lhs_bits > rhs_bits else rhs_type
 
-                # For signed and unsigned, pick bigger size and signed.
-                # Given int32 and uint8, pick int32.
-                # Given uint32 and int8, pick int32.
-                return BASIC_TYPES["int" + str(max(lhs_bits, rhs_bits))]
+                    # For signed and unsigned, pick bigger size and signed.
+                    # Given int32 and uint8, pick int32.
+                    # Given uint32 and int8, pick int32.
+                    return BASIC_TYPES["int" + str(max(lhs_bits, rhs_bits))]
 
-            # Mixed int and float
-            if lhs_type.is_integer() and rhs_type.name in ("float", "double"):
-                return rhs_type
-            if rhs_type.is_integer() and lhs_type.name in ("float", "double"):
-                return lhs_type
+                # Mixed int and float
+                if lhs_type.is_integer() and rhs_type.name in ("float", "double"):
+                    return rhs_type
+                if rhs_type.is_integer() and lhs_type.name in ("float", "double"):
+                    return lhs_type
 
-            # Both float
-            if lhs_type.name in ("float", "double") and rhs_type.name in ("float", "double"):
-                return lhs_type if lhs_type.name == "double" else rhs_type
+                # Both float
+                if lhs_type.name in ("float", "double") and rhs_type.name in ("float", "double"):
+                    return lhs_type if lhs_type.name == "double" else rhs_type
 
-            raise NotImplementedError(expr[0], lhs_type, rhs_type)
+                raise NotImplementedError(expr[0], lhs_type, rhs_type)
 
-        if expr[0] == "call":
-            _, func_ast, arg_asts = expr
+            case ("call", func_ast, arg_asts):
+                if func_ast[0] == ".":
+                    _, obj, member = func_ast
+                    obj_type = self.guess_type(obj)
 
-            if func_ast[0] == ".":
-                _, obj, member = func_ast
-                obj_type = self.guess_type(obj)
+                    if obj_type.name.endswith("*"):
+                        assert obj_type.inner_type is not None
+                        obj_type = obj_type.inner_type
 
-                if obj_type.name.endswith("*"):
+                    if member in obj_type.method_asts:
+                        # It is a method call
+                        funcptr = obj_type.get_method(member)
+                        assert funcptr.type.funcptr_return_type is not None
+                        return funcptr.type.funcptr_return_type
+
+                funcptr_type = self.guess_type(func_ast)
+                assert funcptr_type.funcptr_return_type is not None
+                return funcptr_type.funcptr_return_type
+
+            case ("integer_constant", _):
+                # TODO: implicit casts??
+                return BASIC_TYPES["int"]
+
+            case ("negate", obj_ast):
+                inner_type = self.guess_type(obj_ast)
+                assert inner_type.name.startswith("int")  # not unsigned
+                return inner_type
+
+            case ("as", obj_ast, type_ast):
+                return type_from_ast(self.path, type_ast)
+
+            case (".", obj_ast, field_name):
+                if obj_ast[0] == "get_variable":
+                    _, name = obj_ast
+                    if find_enum(self.path, name) is not None:
+                        # Enum.member
+                        return BASIC_TYPES["int"]
+
+                obj_type = self.guess_type(obj_ast)
+                if obj_type.class_field_types is None:
+                    assert obj_type.name.endswith("*")
                     assert obj_type.inner_type is not None
                     obj_type = obj_type.inner_type
+                assert obj_type.class_field_types is not None
+                return obj_type.class_field_types[field_name]
 
-                if member in obj_type.method_asts:
-                    # It is a method call
-                    funcptr = obj_type.get_method(member)
-                    assert funcptr.type.funcptr_return_type is not None
-                    return funcptr.type.funcptr_return_type
+            case ("[", ptr_or_array_ast, idx):
+                ptr_or_array_type = self.guess_type(ptr_or_array_ast)
+                assert ptr_or_array_type.inner_type is not None
+                return ptr_or_array_type.inner_type
 
-            funcptr_type = self.guess_type(func_ast)
-            assert funcptr_type.funcptr_return_type is not None
-            return funcptr_type.funcptr_return_type
+            case ("sizeof", _):
+                return BASIC_TYPES["int"]
 
-        if expr[0] == "integer_constant":
-            # TODO: implicit casts??
-            return BASIC_TYPES["int"]
+            case ("address_of", value):
+                return self.guess_type(value).pointer_type()
 
-        if expr[0] == "negate":
-            _, obj_ast = expr
-            inner_type = self.guess_type(obj_ast)
-            assert inner_type.name.startswith("int")  # not unsigned
-            return inner_type
+            case ("dereference", ptr):
+                ptr_type = self.guess_type(ptr)
+                assert ptr_type.name.endswith("*")
+                assert ptr_type.inner_type is not None
+                return ptr_type.inner_type
 
-        if expr[0] == "as":
-            _, obj_ast, type_ast = expr
-            return type_from_ast(self.path, type_ast)
+            case ("string", _):
+                return BASIC_TYPES["byte"].pointer_type()
 
-        if expr[0] == ".":
-            _, obj_ast, field_name = expr
+            case ("instantiate", type_ast, _):
+                return type_from_ast(self.path, type_ast)
 
-            if obj_ast[0] == "get_variable":
-                _, name = obj_ast
-                if find_enum(self.path, name) is not None:
-                    # Enum.member
-                    return BASIC_TYPES["int"]
+            case ("pre_incr" | "pre_decr" | "post_incr" | "post_decr", obj):
+                return self.guess_type(obj)
 
-            obj_type = self.guess_type(obj_ast)
-            if obj_type.class_field_types is None:
-                assert obj_type.name.endswith("*")
-                assert obj_type.inner_type is not None
-                obj_type = obj_type.inner_type
-            assert obj_type.class_field_types is not None
-            return obj_type.class_field_types[field_name]
+            case ("array", items):
+                itype = decide_array_item_type([self.guess_type(item) for item in items])
+                return itype.array_type(len(items))
 
-        if expr[0] == "[":
-            _, ptr_or_array_ast, idx = expr
-            ptr_or_array_type = self.guess_type(ptr_or_array_ast)
-            assert ptr_or_array_type.inner_type is not None
-            return ptr_or_array_type.inner_type
+            case ("ternary_if", then, condition, otherwise):
+                return self.guess_type(then)  # good enough??
 
-        if expr[0] == "sizeof":
-            return BASIC_TYPES["int"]
-
-        if expr[0] == "address_of":
-            _, value = expr
-            return self.guess_type(value).pointer_type()
-
-        if expr[0] == "dereference":
-            _, ptr = expr
-            ptr_type = self.guess_type(ptr)
-            assert ptr_type.name.endswith("*")
-            assert ptr_type.inner_type is not None
-            return ptr_type.inner_type
-
-        if expr[0] == "string":
-            return BASIC_TYPES["byte"].pointer_type()
-
-        if expr[0] == "instantiate":
-            return type_from_ast(self.path, expr[1])
-
-        if expr[0] in ("pre_incr", "pre_decr", "post_incr", "post_decr"):
-            _, obj = expr
-            return self.guess_type(obj)
-
-        if expr[0] == "array":
-            _, items = expr
-            itype = decide_array_item_type([self.guess_type(item) for item in items])
-            return itype.array_type(len(items))
-
-        if expr[0] == "ternary_if":
-            _, then, condition, otherwise = expr
-            return self.guess_type(then)  # good enough??
-
-        raise NotImplementedError(expr)
+            case _:
+                raise NotImplementedError(expr)
 
     # Evaluates &expr
     def do_address_of_expression(self, expr) -> JouValue:
-        if expr[0] == "get_variable":
-            _, varname = expr
-            if varname in self.locals:
-                return self.local_var_ptr(varname)
-            var = find_global_var_ptr(self.path, varname)
-            if var is None:
-                raise RuntimeError(
-                    f"no local or global variable named {varname} in {self.path}"
-                )
-            return var
+        match expr:
+            case ("get_variable", varname):
+                if varname in self.locals:
+                    return self.local_var_ptr(varname)
+                var = find_global_var_ptr(self.path, varname)
+                if var is None:
+                    raise RuntimeError(
+                        f"no local or global variable named {varname} in {self.path}"
+                    )
+                return var
 
-        elif expr[0] == "self":
-            return self.local_var_ptr("self")
+            case ("self",):
+                return self.local_var_ptr("self")
 
-        elif expr[0] == ".":
-            _, obj_ast, field_name = expr
+            case (".", obj_ast, field_name):
+                # To evaluate &pointer.field, we evaluate the pointer and add a
+                # memory offset. In this case, we may not be able to evaluate
+                # &pointer. For example, &some_function().field is valid if the
+                # function returns a pointer, even though &some_function() is not.
+                #
+                # To get &instance.field we must evaluate &instance and add a
+                # memory offset to that. In this case, we may not be able to
+                # evaluate the instance itself because it may point to garbage
+                # memory.
+                #
+                # TODO: is guess_type() good enough?
+                if self.guess_type(obj_ast).name.endswith("*"):
+                    ptr = self.do_expression(obj_ast, None)
+                else:
+                    ptr = self.do_address_of_expression(obj_ast)
+                result = self.add_variable(self.guess_type(expr).pointer_type())
+                self.output.append(f"{result.c_code} = &{ptr.c_code}->jou_{field_name};")
+                return result
 
-            # To evaluate &pointer.field, we evaluate the pointer and add a
-            # memory offset. In this case, we may not be able to evaluate
-            # &pointer. For example, &some_function().field is valid if the
-            # function returns a pointer, even though &some_function() is not.
-            #
-            # To get &instance.field we must evaluate &instance and add a
-            # memory offset to that. In this case, we may not be able to
-            # evaluate the instance itself because it may point to garbage
-            # memory.
-            #
-            # TODO: is guess_type() good enough?
-            if self.guess_type(obj_ast).name.endswith("*"):
-                ptr = self.do_expression(obj_ast, None)
-            else:
-                ptr = self.do_address_of_expression(obj_ast)
-            result = self.add_variable(self.guess_type(expr).pointer_type())
-            self.output.append(f"{result.c_code} = &{ptr.c_code}->jou_{field_name};")
-            return result
+            case ("[", ptr_ast, index_ast):
+                # &ptr[index]
+                if self.guess_type(ptr_ast).is_array():
+                    # &array[index] is slightly different from &ptr[index]
+                    ptr_to_array = self.do_address_of_expression(ptr_ast)
+                    assert ptr_to_array.type.inner_type is not None
+                    assert ptr_to_array.type.inner_type.inner_type is not None, ptr_to_array
+                    item_type = ptr_to_array.type.inner_type.inner_type
+                    ptr = self.cast(ptr_to_array, item_type.pointer_type())
+                else:
+                    ptr = self.do_expression(ptr_ast, None)
 
-        elif expr[0] == "[":
-            # &ptr[index]
-            _, ptr_ast, index_ast = expr
+                index = self.do_expression(index_ast, BASIC_TYPES["int64"])
+                result = self.add_variable(ptr.type)
+                self.output.append(f"{result.c_code} = {ptr.c_code} + {index.c_code};")
+                return result
 
-            if self.guess_type(ptr_ast).is_array():
-                # &array[index] is slightly different from &ptr[index]
-                ptr_to_array = self.do_address_of_expression(ptr_ast)
-                assert ptr_to_array.type.inner_type is not None
-                assert ptr_to_array.type.inner_type.inner_type is not None, ptr_to_array
-                item_type = ptr_to_array.type.inner_type.inner_type
-                ptr = self.cast(ptr_to_array, item_type.pointer_type())
-            else:
-                ptr = self.do_expression(ptr_ast, None)
+            case ("dereference", obj_ast):
+                # &*foo --> just evaluate foo
+                # TODO: pass in the expected type?
+                return self.do_expression(obj_ast, None)
 
-            index = self.do_expression(index_ast, BASIC_TYPES["int64"])
-            result = self.add_variable(ptr.type)
-            self.output.append(f"{result.c_code} = {ptr.c_code} + {index.c_code};")
-            return result
-
-        elif expr[0] == "dereference":
-            # &*foo --> just evaluate foo
-            # TODO: pass in the expected type?
-            _, obj_ast = expr
-            return self.do_expression(obj_ast, None)
-
-        else:
-            raise NotImplementedError(expr)
+            case _:
+                raise NotImplementedError(expr)
 
     def do_expression(self, expr, expected_type: JouType | None) -> JouValue:
         if expected_type is not None:
@@ -2466,223 +2450,205 @@ class CFuncMaker:
         if expr[0] == "self":
             return JouValue(self.locals["self"], "var_self")
 
-        if expr[0] in ("eq", "ne", "gt", "lt", "ge", "le"):
-            _, lhs_ast, rhs_ast = expr
-            lhs = self.do_expression(lhs_ast, None)
-            rhs = self.do_expression(rhs_ast, None)
-            result = self.add_variable(BASIC_TYPES["bool"])
-            match expr[0]:
-                case "lt":
-                    self.output.append(f"{result.c_code} = {lhs.c_code} < {rhs.c_code};")
-                case "gt":
-                    self.output.append(f"{result.c_code} = {lhs.c_code} > {rhs.c_code};")
-                case "le":
-                    self.output.append(f"{result.c_code} = {lhs.c_code} <= {rhs.c_code};")
-                case "ge":
-                    self.output.append(f"{result.c_code} = {lhs.c_code} >= {rhs.c_code};")
-                case "eq":
-                    self.output.append(f"{result.c_code} = {lhs.c_code} == {rhs.c_code};")
-                case "ne":
-                    self.output.append(f"{result.c_code} = {lhs.c_code} != {rhs.c_code};")
-            return result
+        match expr:
+            case ("eq" | "ne" | "gt" | "lt" | "ge" | "le", lhs_ast, rhs_ast):
+                lhs = self.do_expression(lhs_ast, None)
+                rhs = self.do_expression(rhs_ast, None)
+                result = self.add_variable(BASIC_TYPES["bool"])
+                match expr[0]:
+                    case "lt":
+                        self.output.append(f"{result.c_code} = {lhs.c_code} < {rhs.c_code};")
+                    case "gt":
+                        self.output.append(f"{result.c_code} = {lhs.c_code} > {rhs.c_code};")
+                    case "le":
+                        self.output.append(f"{result.c_code} = {lhs.c_code} <= {rhs.c_code};")
+                    case "ge":
+                        self.output.append(f"{result.c_code} = {lhs.c_code} >= {rhs.c_code};")
+                    case "eq":
+                        self.output.append(f"{result.c_code} = {lhs.c_code} == {rhs.c_code};")
+                    case "ne":
+                        self.output.append(f"{result.c_code} = {lhs.c_code} != {rhs.c_code};")
+                return result
 
-        elif expr[0] == "sizeof":
-            _, obj = expr
-            type_c = self.guess_type(obj).to_c(fwd_decl_is_enough=False)
-            return JouValue(BASIC_TYPES["int"], f"((int32_t) sizeof({type_c}))")
+            case ("sizeof", obj):
+                type_c = self.guess_type(obj).to_c(fwd_decl_is_enough=False)
+                return JouValue(BASIC_TYPES["int"], f"((int32_t) sizeof({type_c}))")
 
-        elif expr[0] == ".":
-            _, obj_ast, field_name = expr
-            if obj_ast[0] == "get_variable":
-                _, obj_name = obj_ast
-                enum = find_enum(self.path, obj_name)
-                if enum is not None:
-                    # It is Enum.Member, not instance.field
-                    return jou_integer("int", enum.index(field_name))
+            case (".", obj_ast, field_name):
+                if obj_ast[0] == "get_variable":
+                    _, obj_name = obj_ast
+                    enum = find_enum(self.path, obj_name)
+                    if enum is not None:
+                        # It is Enum.Member, not instance.field
+                        return jou_integer("int", enum.index(field_name))
 
-            obj = self.do_expression(obj_ast, None)
-            if obj.type.name.endswith("*"):
-                class_type = obj.type.inner_type
-                op = "->"
-            else:
-                class_type = obj.type
-                op = "."
+                obj = self.do_expression(obj_ast, None)
+                if obj.type.name.endswith("*"):
+                    class_type = obj.type.inner_type
+                    op = "->"
+                else:
+                    class_type = obj.type
+                    op = "."
 
-            assert class_type is not None
-            assert class_type.class_field_types is not None
-            ftype = class_type.class_field_types[field_name]
-            result = self.add_variable(ftype)
-            self.output.append(f"{result.c_code} = {obj.c_code}{op}jou_{field_name};")
-            return result
+                assert class_type is not None
+                assert class_type.class_field_types is not None
+                ftype = class_type.class_field_types[field_name]
+                result = self.add_variable(ftype)
+                self.output.append(f"{result.c_code} = {obj.c_code}{op}jou_{field_name};")
+                return result
 
-        elif expr[0] == "constant":
-            _, value = expr
-            return value
+            case ("constant", value):
+                return value
 
-        elif expr[0] == "integer_constant":
-            # TODO: type hints
-            _, value = expr
-            return jou_integer("int", value)
+            case ("integer_constant", value):
+                # TODO: type hints
+                return jou_integer("int", value)
 
-        elif expr[0] == "address_of":
-            _, obj = expr
-            return self.do_address_of_expression(obj)
+            case ("address_of", obj):
+                return self.do_address_of_expression(obj)
 
-        elif expr[0] == "string":
-            _, py_bytes = expr
-            return jou_string(py_bytes)
+            case ("string", py_bytes):
+                return jou_string(py_bytes)
 
-        elif expr[0] == "[":
-            _, obj_ast, index_ast = expr
-            obj = self.do_expression(obj_ast, None)
-            index = self.do_expression(index_ast, BASIC_TYPES["int64"])
-            assert obj.type.inner_type is not None
-            result = self.add_variable(obj.type.inner_type)
-            if obj.type.is_array():
-                self.output.append(
-                    f"{result.c_code} = {obj.c_code}.items[{index.c_code}];"
-                )
-            else:
-                self.output.append(f"{result.c_code} = {obj.c_code}[{index.c_code}];")
-            return result
+            case ("[", obj_ast, index_ast):
+                obj = self.do_expression(obj_ast, None)
+                index = self.do_expression(index_ast, BASIC_TYPES["int64"])
+                assert obj.type.inner_type is not None
+                result = self.add_variable(obj.type.inner_type)
+                if obj.type.is_array():
+                    self.output.append(
+                        f"{result.c_code} = {obj.c_code}.items[{index.c_code}];"
+                    )
+                else:
+                    self.output.append(f"{result.c_code} = {obj.c_code}[{index.c_code}];")
+                return result
 
-        elif expr[0] == "instantiate":
-            _, type_ast, fields = expr
-            t = type_from_ast(self.path, type_ast)
-            result = self.add_variable(t)
-            assert t.class_field_types is not None
-            for field_name, field_value in fields:
-                field_type = t.class_field_types[field_name]
-                field_value = self.cast(
-                    self.do_expression(field_value, field_type), field_type
-                )
-                self.output.append(
-                    f"{result.c_code}.jou_{field_name} = {field_value.c_code};"
-                )
-            return result
+            case ("instantiate", type_ast, fields):
+                t = type_from_ast(self.path, type_ast)
+                result = self.add_variable(t)
+                assert t.class_field_types is not None
+                for field_name, field_value in fields:
+                    field_type = t.class_field_types[field_name]
+                    field_value = self.cast(
+                        self.do_expression(field_value, field_type), field_type
+                    )
+                    self.output.append(
+                        f"{result.c_code}.jou_{field_name} = {field_value.c_code};"
+                    )
+                return result
 
-        elif expr[0] == "as":
-            _, obj_ast, type_ast = expr
-            t = type_from_ast(self.path, type_ast)
-            return self.cast(self.do_expression(obj_ast, t), t)
+            case ("as", obj_ast, type_ast):
+                t = type_from_ast(self.path, type_ast)
+                return self.cast(self.do_expression(obj_ast, t), t)
 
-        elif expr[0] == "and":
-            _, lhs_ast, rhs_ast = expr
-            result = self.add_variable(BASIC_TYPES["bool"])
-            lhs = self.do_expression(lhs_ast, BASIC_TYPES["bool"])
-            self.output.append("// and")
-            self.output.append(f"if ({lhs.c_code})" + " {")
-            rhs = self.do_expression(rhs_ast, BASIC_TYPES["bool"])
-            self.output.append(f"{result.c_code} = {rhs.c_code};")
-            self.output.append("} else { " + result.c_code + " = false; }")
-            return result
+            case ("and", lhs_ast, rhs_ast):
+                result = self.add_variable(BASIC_TYPES["bool"])
+                lhs = self.do_expression(lhs_ast, BASIC_TYPES["bool"])
+                self.output.append("// and")
+                self.output.append(f"if ({lhs.c_code})" + " {")
+                rhs = self.do_expression(rhs_ast, BASIC_TYPES["bool"])
+                self.output.append(f"{result.c_code} = {rhs.c_code};")
+                self.output.append("} else { " + result.c_code + " = false; }")
+                return result
 
-        elif expr[0] == "or":
-            _, lhs_ast, rhs_ast = expr
-            result = self.add_variable(BASIC_TYPES["bool"])
-            lhs = self.do_expression(lhs_ast, BASIC_TYPES["bool"])
-            self.output.append("// or")
-            self.output.append("if(%s) {%s=true;} else {" % (lhs.c_code, result.c_code))
-            rhs = self.do_expression(rhs_ast, BASIC_TYPES["bool"])
-            self.output.append(f"{result.c_code} = {rhs.c_code};")
-            self.output.append("}")
-            return result
+            case ("or", lhs_ast, rhs_ast):
+                result = self.add_variable(BASIC_TYPES["bool"])
+                lhs = self.do_expression(lhs_ast, BASIC_TYPES["bool"])
+                self.output.append("// or")
+                self.output.append("if(%s) {%s=true;} else {" % (lhs.c_code, result.c_code))
+                rhs = self.do_expression(rhs_ast, BASIC_TYPES["bool"])
+                self.output.append(f"{result.c_code} = {rhs.c_code};")
+                self.output.append("}")
+                return result
 
-        elif expr[0] == "not":
-            _, obj_ast = expr
-            obj = self.do_expression(obj_ast, BASIC_TYPES["bool"])
-            result = self.add_variable(BASIC_TYPES["bool"])
-            self.output.append(f"{result.c_code} = !{obj.c_code};")
-            return result
+            case ("not", obj_ast):
+                obj = self.do_expression(obj_ast, BASIC_TYPES["bool"])
+                result = self.add_variable(BASIC_TYPES["bool"])
+                self.output.append(f"{result.c_code} = !{obj.c_code};")
+                return result
 
-        elif expr[0] in ("add", "sub", "mul", "div", "mod"):
-            _, lhs_ast, rhs_ast = expr
-            lhs = self.do_expression(lhs_ast, None)
-            rhs = self.do_expression(rhs_ast, None)
-            result = self.add_variable(self.guess_type(expr))
+            case ("add" | "sub" | "mul" | "div" | "mod", lhs_ast, rhs_ast):
+                lhs = self.do_expression(lhs_ast, None)
+                rhs = self.do_expression(rhs_ast, None)
+                result = self.add_variable(self.guess_type(expr))
 
-            match expr[0]:
-                case "add":
-                    self.output.append(f"{result.c_code} = {lhs.c_code} + {rhs.c_code};")
-                case "sub":
-                    self.output.append(f"{result.c_code} = {lhs.c_code} - {rhs.c_code};")
-                case "mul":
-                    self.output.append(f"{result.c_code} = {lhs.c_code} * {rhs.c_code};")
-                case "div":
-                    # TODO: Jou's integer division rules are different than C's
-                    self.output.append(f"{result.c_code} = {lhs.c_code} / {rhs.c_code};")
-                case "mod":
-                    # TODO: Jou's integer modulo rules are different than C's
-                    self.output.append(f"{result.c_code} = {lhs.c_code} % {rhs.c_code};")
+                match expr[0]:
+                    case "add":
+                        self.output.append(f"{result.c_code} = {lhs.c_code} + {rhs.c_code};")
+                    case "sub":
+                        self.output.append(f"{result.c_code} = {lhs.c_code} - {rhs.c_code};")
+                    case "mul":
+                        self.output.append(f"{result.c_code} = {lhs.c_code} * {rhs.c_code};")
+                    case "div":
+                        # TODO: Jou's integer division rules are different than C's
+                        self.output.append(f"{result.c_code} = {lhs.c_code} / {rhs.c_code};")
+                    case "mod":
+                        # TODO: Jou's integer modulo rules are different than C's
+                        self.output.append(f"{result.c_code} = {lhs.c_code} % {rhs.c_code};")
 
-            return result
+                return result
 
-        elif expr[0] == "negate":
-            _, obj_ast = expr
-            obj = self.do_expression(obj_ast, None)
-            result = self.add_variable(self.guess_type(expr))
-            self.output.append(f"{result.c_code} = -{obj.c_code};")
-            return result
+            case ("negate", obj_ast):
+                obj = self.do_expression(obj_ast, None)
+                result = self.add_variable(self.guess_type(expr))
+                self.output.append(f"{result.c_code} = -{obj.c_code};")
+                return result
 
-        elif expr[0] in ("pre_incr", "post_incr", "pre_decr", "post_decr"):
-            if "incr" in expr[0]:
-                diff = 1
-            elif "decr" in expr[0]:
-                diff = -1
-            else:
+            case ("pre_incr" | "post_incr" | "pre_decr" | "post_decr", obj_ast):
+                if "incr" in expr[0]:
+                    diff = 1
+                elif "decr" in expr[0]:
+                    diff = -1
+                else:
+                    raise RuntimeError("wat")
+
+                ptr = self.do_address_of_expression(obj_ast)
+                old_value = self.deref(ptr)
+                new_value = self.add_variable(old_value.type)
+                self.output.append(f"{new_value.c_code} = {old_value.c_code} + ({diff});")
+                self.output.append(f"*{ptr.c_code} = {new_value.c_code};")
+                if "pre" in expr[0]:
+                    return new_value
+                if "post" in expr[0]:
+                    return old_value
                 raise RuntimeError("wat")
 
-            _, obj_ast = expr
-            ptr = self.do_address_of_expression(obj_ast)
-            old_value = self.deref(ptr)
-            new_value = self.add_variable(old_value.type)
-            self.output.append(f"{new_value.c_code} = {old_value.c_code} + ({diff});")
-            self.output.append(f"*{ptr.c_code} = {new_value.c_code};")
-            if "pre" in expr[0]:
-                return new_value
-            if "post" in expr[0]:
-                return old_value
-            raise RuntimeError("wat")
+            case ("array", item_asts):
+                itype = decide_array_item_type(
+                    [self.guess_type(item) for item in item_asts]
+                )
+                items = [
+                    self.cast(self.do_expression(item, itype), itype) for item in item_asts
+                ]
+                var = self.add_variable(itype.array_type(len(items)))
+                for i, item in enumerate(items):
+                    self.output.append(f"{var.c_code}.items[{i}] = {item.c_code};")
+                return var
 
-        elif expr[0] == "array":
-            _, item_asts = expr
-            itype = decide_array_item_type(
-                [self.guess_type(item) for item in item_asts]
-            )
-            items = [
-                self.cast(self.do_expression(item, itype), itype) for item in item_asts
-            ]
-            var = self.add_variable(itype.array_type(len(items)))
-            for i, item in enumerate(items):
-                self.output.append(f"{var.c_code}.items[{i}] = {item.c_code};")
-            return var
+            case ("dereference", value_ast):
+                ptype = None if expected_type is None else expected_type.pointer_type()
+                value = self.do_expression(value_ast, ptype)
+                # TODO: handle *array? or intentionally not?...
+                assert value.type.inner_type is not None
+                result = self.add_variable(value.type.inner_type)
+                self.output.append(f"{result.c_code} = *{value.c_code};")
+                return result
 
-        elif expr[0] == "dereference":
-            _, value_ast = expr
-            ptype = None if expected_type is None else expected_type.pointer_type()
-            value = self.do_expression(value_ast, ptype)
-            # TODO: handle *array? or intentionally not?...
-            assert value.type.inner_type is not None
-            result = self.add_variable(value.type.inner_type)
-            self.output.append(f"{result.c_code} = *{value.c_code};")
-            return result
+            case ("ternary_if", then, condition, otherwise):
+                result = self.add_variable(self.guess_type(expr))
 
-        elif expr[0] == "ternary_if":
-            _, then, condition, otherwise = expr
-            result = self.add_variable(self.guess_type(expr))
+                condition_value = self.do_expression(condition, BASIC_TYPES["bool"])
+                self.output.append(f"if ({condition_value.c_code}) {{")
+                then_value = self.do_expression(then, result.type)
+                self.output.append(f"{result.c_code} = {then_value.c_code};")
+                self.output.append("} else {")
+                otherwise_value = self.do_expression(otherwise, result.type)
+                self.output.append(f"{result.c_code} = {otherwise_value.c_code};")
+                self.output.append("}")
+                return result
 
-            condition_value = self.do_expression(condition, BASIC_TYPES["bool"])
-            self.output.append(f"if ({condition_value.c_code}) {{")
-            then_value = self.do_expression(then, result.type)
-            self.output.append(f"{result.c_code} = {then_value.c_code};")
-            self.output.append("} else {")
-            otherwise_value = self.do_expression(otherwise, result.type)
-            self.output.append(f"{result.c_code} = {otherwise_value.c_code};")
-            self.output.append("}")
-            return result
-
-        else:
-            raise NotImplementedError(expr)
+            case _:
+                raise NotImplementedError(expr)
 
 
 def define_function(path: str, ast: AST, klass: JouType | None) -> None:
