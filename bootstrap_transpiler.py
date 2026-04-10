@@ -223,10 +223,11 @@ def determine_the_kind_of_a_statement_that_starts_with_an_expression(t):
 #   BitOr(BitOr(BitOr(a, b), c), d)     -->     [a, b, c, d]
 #
 def flatten_bitwise_ors(expr):
-    if expr[0] == "bit_or":
-        _, lhs, rhs = expr
-        return flatten_bitwise_ors(lhs) + flatten_bitwise_ors(rhs)
-    return [expr]
+    match expr:
+        case ("bit_or", lhs, rhs):
+            return flatten_bitwise_ors(lhs) + flatten_bitwise_ors(rhs)
+        case _:
+            return [expr]
 
 
 def unescape_string(s: str) -> bytes:
@@ -2164,13 +2165,13 @@ class CFuncMaker:
             case ("for", init, cond, incr, body, location):
                 self.loop(init, cond, incr, body)
 
-            case ("break", _):
+            case ("break", location):
                 self.output.append("break;")
 
-            case ("continue", _):
+            case ("continue", location):
                 self.output.append(f"goto loop{self.loops[-1]}_continue;")
 
-            case ("pass", _):
+            case ("pass", location):
                 pass
 
             case ("match", match_obj_ast, func_ast, cases, case_underscore, location):
@@ -2462,27 +2463,23 @@ class CFuncMaker:
 
             raise RuntimeError(f"no variable named {varname} in {self.path}")
 
-        if expr[0] == "self":
-            return JouValue(self.locals["self"], "var_self")
-
         match expr:
-            case ("eq" | "ne" | "gt" | "lt" | "ge" | "le", lhs_ast, rhs_ast):
+            case ("self",):
+                return JouValue(self.locals["self"], "var_self")
+
+            case ("eq" | "ne" | "gt" | "lt" | "ge" | "le" as op, lhs_ast, rhs_ast):
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(BASIC_TYPES["bool"])
-                match expr[0]:
-                    case "lt":
-                        self.output.append(f"{result.c_code} = {lhs.c_code} < {rhs.c_code};")
-                    case "gt":
-                        self.output.append(f"{result.c_code} = {lhs.c_code} > {rhs.c_code};")
-                    case "le":
-                        self.output.append(f"{result.c_code} = {lhs.c_code} <= {rhs.c_code};")
-                    case "ge":
-                        self.output.append(f"{result.c_code} = {lhs.c_code} >= {rhs.c_code};")
-                    case "eq":
-                        self.output.append(f"{result.c_code} = {lhs.c_code} == {rhs.c_code};")
-                    case "ne":
-                        self.output.append(f"{result.c_code} = {lhs.c_code} != {rhs.c_code};")
+                op_map = {
+                    "eq": "==",
+                    "ne": "!=",
+                    "lt": "<",
+                    "gt": ">",
+                    "le": "<=",
+                    "ge": ">=",
+                }
+                self.output.append(f"{result.c_code} = {lhs.c_code} {op_map[op]} {rhs.c_code};")
                 return result
 
             case ("sizeof", obj):
@@ -2582,25 +2579,18 @@ class CFuncMaker:
                 self.output.append(f"{result.c_code} = !{obj.c_code};")
                 return result
 
-            case ("add" | "sub" | "mul" | "div" | "mod", lhs_ast, rhs_ast):
+            case ("add" | "sub" | "mul" | "div" | "mod" as op, lhs_ast, rhs_ast):
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(self.guess_type(expr))
-
-                match expr[0]:
-                    case "add":
-                        self.output.append(f"{result.c_code} = {lhs.c_code} + {rhs.c_code};")
-                    case "sub":
-                        self.output.append(f"{result.c_code} = {lhs.c_code} - {rhs.c_code};")
-                    case "mul":
-                        self.output.append(f"{result.c_code} = {lhs.c_code} * {rhs.c_code};")
-                    case "div":
-                        # TODO: Jou's integer division rules are different than C's
-                        self.output.append(f"{result.c_code} = {lhs.c_code} / {rhs.c_code};")
-                    case "mod":
-                        # TODO: Jou's integer modulo rules are different than C's
-                        self.output.append(f"{result.c_code} = {lhs.c_code} % {rhs.c_code};")
-
+                op_map = {
+                    "add": "+",
+                    "sub": "-",
+                    "mul": "*",
+                    "div": "/",  # TODO: Jou's integer division rules are different than C's
+                    "mod": "%",  # TODO: Jou's integer division rules are different than C's
+                }
+                self.output.append(f"{result.c_code} = {lhs.c_code} {op_map[op]} {rhs.c_code};")
                 return result
 
             case ("negate", obj_ast):
@@ -2609,10 +2599,10 @@ class CFuncMaker:
                 self.output.append(f"{result.c_code} = -{obj.c_code};")
                 return result
 
-            case ("pre_incr" | "post_incr" | "pre_decr" | "post_decr", obj_ast):
-                if "incr" in expr[0]:
+            case ("pre_incr" | "post_incr" | "pre_decr" | "post_decr" as op, obj_ast):
+                if "incr" in op:
                     diff = 1
-                elif "decr" in expr[0]:
+                elif "decr" in op:
                     diff = -1
                 else:
                     raise RuntimeError("wat")
@@ -2622,9 +2612,9 @@ class CFuncMaker:
                 new_value = self.add_variable(old_value.type)
                 self.output.append(f"{new_value.c_code} = {old_value.c_code} + ({diff});")
                 self.output.append(f"*{ptr.c_code} = {new_value.c_code};")
-                if "pre" in expr[0]:
+                if "pre" in op:
                     return new_value
-                if "post" in expr[0]:
+                if "post" in op:
                     return old_value
                 raise RuntimeError("wat")
 
