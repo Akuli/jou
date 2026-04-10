@@ -1533,7 +1533,6 @@ def define_class(
     TYPES[path][cache_key] = jou_type
 
     fields = []
-    methods = []
     for member in body:
         if member[0] == "class_field":
             _, field_name, field_type_ast, location = member
