@@ -1415,20 +1415,30 @@ def evaluate_compile_time_condition(path, ast) -> bool:
     )
 
 
+def evaluate_a_compile_time_if_statement_in_body(path: str, ast_body: list[Any]) -> bool:
+    for i, stmt in enumerate(ast_body):
+        match stmt[0]:
+            case "if":
+                _, if_and_elifs, else_body, location = stmt
+                cond_ast, then = if_and_elifs.pop(0)
+                cond = evaluate_compile_time_condition(path, cond_ast)
+                if cond:
+                    ast_body[i : i + 1] = then
+                elif not if_and_elifs:
+                    ast_body[i : i + 1] = else_body
+                return True
+
+            case "class":
+                _, name, generics, body, decors, location = stmt
+                if evaluate_a_compile_time_if_statement_in_body(path, body):
+                    return True
+
+    return False
+
+
 def evaluate_a_compile_time_if_statement() -> bool:
     for path, ast in ASTS.items():
-        for i, stmt in enumerate(ast):
-            if stmt[0] != "if":
-                continue
-
-            _, if_and_elifs, else_body, location = stmt
-            cond_ast, then = if_and_elifs.pop(0)
-            cond = evaluate_compile_time_condition(path, cond_ast)
-            if cond:
-                ast[i : i + 1] = then
-            elif not if_and_elifs:
-                ast[i : i + 1] = else_body
-
+        if evaluate_a_compile_time_if_statement_in_body(path, ast):
             print(f"// Evaluated a compile-time if statement in {path}")
             return True
 
@@ -1524,9 +1534,7 @@ def define_class(
 
     fields = []
     methods = []
-    i = 0
-    while i < len(body):
-        member = body[i]
+    for member in body:
         if member[0] == "class_field":
             _, field_name, field_type_ast, location = member
             fields.append((field_name, field_type_ast))
@@ -1539,21 +1547,8 @@ def define_class(
             jou_type.method_asts[method_name] = member
         elif member[0] == "pass":
             pass
-        elif member[0] == "if":
-            _, if_and_elifs, else_body, location = member
-            cond_ast, then = if_and_elifs.pop(0)
-            cond = evaluate_compile_time_condition(path, cond_ast)
-            if cond:
-                body[i:i+1] = then
-                i -= 1  # re-process the inserted
-            elif not if_and_elifs:
-                body[i:i+1] = else_body
-                i -= 1
-            else:
-                raise NotImplementedError("elif in class")
         else:
             raise NotImplementedError(member[0])
-        i += 1
 
     jou_type.class_field_types = {}
     for field_name, field_type_ast in fields:
