@@ -829,7 +829,7 @@ if not WINDOWS:
 def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     if not WINDOWS:
         add_joutest_dir_to_PATH()
-    #    ignore_sigpipe()
+        ignore_sigpipe()
 
     for test = tests.ptr; test < tests.end(); test++:
         match test.skip:
