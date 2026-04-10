@@ -251,9 +251,6 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
     # Please keep doc/types.md up to date if you modify this.
     #
     # This does not take into account things that type inference does, see docs.
-    native_int_bits: int = 64
-    if IS_32BIT:
-        native_int_bits = 32
     return (
         from == to
         or (from.kind == TypeKind.Array and to.kind == TypeKind.Pointer and from.array.item_type == to.value_type)
@@ -263,8 +260,8 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
         or (from.is_integer_type() and to.kind == TypeKind.Enum)
         or (from.kind == TypeKind.Enum and to.is_integer_type())
         or (from == bool_type() and to.is_integer_type())
-        or (from.is_pointer_type() and to == int_type(native_int_bits))
-        or (from == int_type(native_int_bits) and to.is_pointer_type())
+        or (from.is_pointer_type() and to == int_type(32 if IS_32BIT else 64))
+        or (from == int_type(32 if IS_32BIT else 64) and to.is_pointer_type())
     )
 
 
