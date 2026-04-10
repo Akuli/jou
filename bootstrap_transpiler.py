@@ -1362,7 +1362,6 @@ def parse_file(path):
     TYPES[path] = BASIC_TYPES.copy()  # type: ignore
     GLOBALS[path] = {}
     FUNCTIONS[path] = {}
-
     CONSTANTS[path] = {
         "WINDOWS": jou_bool(sys.platform == "win32"),
         "MACOS": jou_bool(sys.platform == "darwin"),
@@ -1405,9 +1404,8 @@ def evaluate_compile_time_condition(path, ast) -> bool:
 
 def evaluate_a_compile_time_if_statement_in_body(path: str, ast_body: list[Any]) -> bool:
     for i, stmt in enumerate(ast_body):
-        match stmt[0]:
-            case "if":
-                _, if_and_elifs, else_body, location = stmt
+        match stmt:
+            case ("if", if_and_elifs, else_body, location):
                 cond_ast, then = if_and_elifs.pop(0)
                 cond = evaluate_compile_time_condition(path, cond_ast)
                 if cond:
@@ -1416,8 +1414,7 @@ def evaluate_a_compile_time_if_statement_in_body(path: str, ast_body: list[Any])
                     ast_body[i : i + 1] = else_body
                 return True
 
-            case "class":
-                _, name, generics, body, decors, location = stmt
+            case ("class", name, generics, body, decors, location):
                 if evaluate_a_compile_time_if_statement_in_body(path, body):
                     return True
 
@@ -2248,13 +2245,31 @@ class CFuncMaker:
                 if lhs_type.name in ("float", "double") and rhs_type.name in ("float", "double"):
                     return lhs_type if lhs_type.name == "double" else rhs_type
 
-                raise NotImplementedError(expr[0], lhs_type, rhs_type)
+                raise NotImplementedError(expr)
+
+            case ("bit_and" | "bit_or" | "bit_xor" as op, lhs, rhs):
+                lhs_type = self.guess_type(lhs)
+                rhs_type = self.guess_type(rhs)
+
+                if lhs_type.is_integer() and rhs_type.is_integer():
+                    lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
+                    rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
+                    if lhs_bits == rhs_bits:
+                        # Same size, prefer unsigned
+                        return lhs_type if lhs_type.name.startswith("u") else rhs_type
+                    else:
+                        # Different sizes, use smaller for AND and bigger for OR/XOR
+                        if op == "bit_and":
+                            return lhs_type if lhs_bits < rhs_bits else rhs_type
+                        else:
+                            return lhs_type if lhs_bits > rhs_bits else rhs_type
+
+                raise NotImplementedError(expr)
 
             case ("call", func_ast, arg_asts):
                 if func_ast[0] == ".":
                     _, obj, member = func_ast
                     obj_type = self.guess_type(obj)
-
                     if obj_type.name.endswith("*"):
                         assert obj_type.inner_type is not None
                         obj_type = obj_type.inner_type
@@ -2645,6 +2660,14 @@ class CFuncMaker:
                 otherwise_value = self.do_expression(otherwise, result.type)
                 self.output.append(f"{result.c_code} = {otherwise_value.c_code};")
                 self.output.append("}")
+                return result
+
+            case ("bit_and" | "bit_or" | "bit_xor" as op, lhs_ast, rhs_ast):
+                lhs = self.do_expression(lhs_ast, None)
+                rhs = self.do_expression(rhs_ast, None)
+                result = self.add_variable(self.guess_type(expr))
+                op = "&" if op == "bit_and" else "|" if op == "bit_or" else "^"
+                self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
                 return result
 
             case _:
