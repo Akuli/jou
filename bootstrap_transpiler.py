@@ -1355,13 +1355,6 @@ def parse_file(path):
     GLOBALS[path] = {}
     FUNCTIONS[path] = {}
 
-    for item in ast:
-        if item[0] == "declare":
-            _, declared_ast = item
-            if declared_ast[0] == "function_declare":
-                func_name = declared_ast[1]
-                FUNCTIONS[path][func_name] = declared_ast
-
     CONSTANTS[path] = {
         "WINDOWS": jou_bool(sys.platform == "win32"),
         "MACOS": jou_bool(sys.platform == "darwin"),

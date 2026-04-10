@@ -18,12 +18,6 @@ set -e -o pipefail
 # just before the original compiler written in C was deleted.
 numbered_commits=(
     029_6100cb82968a2fbf4f584255e2733f9af57b1517  # <--- bootstrap_transpiler.py starts here!
-    029_decbb91551b1cbbb4afbd3f203103b2fb0e30ce1
-    029_c098d4cec324e23f4a5d74259bc827708bfd4d06
-    029_e0831aab686ba641e83fb295765567e88fecdac7
-    029_4eee98bd31fa0d44f801663ad86a78a09a3713fe
-    029_9cbfe5f3a94d24f90f43876f8612ec54cc9b53f8
-    029_6a667b456007bac0d12432699b80aed7fe2762fb
     030_bb3dc7d925fa28ce405fda5a4fc3c428f6f7c2b1  # <--- "./windows_setup.sh --small" starts from here! (release 2026-03-16-0500)
 )
 
