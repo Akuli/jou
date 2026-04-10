@@ -1333,6 +1333,17 @@ def parse_file(path):
     with open(path, encoding="utf-8") as f:
         content = f.read()
 
+    # Hack: stdlib/fs.jou calls uname() only on 32-bit linux, but the if
+    # statement that decides whether to call it does not get resolved at
+    # compile time like it should. So let's just ensure that utsname and
+    # uname() always exist.
+    if path == "stdlib/fs.jou":
+        content = content.replace(
+            "\n    if LINUX and IS_32BIT:\n        class utsname:",
+            "\n    if True:\n        class utsname:",
+            1,
+        )
+
     tokens = tokenize(content, path)
 
     parser = Parser(path, tokens)
@@ -1353,6 +1364,7 @@ def parse_file(path):
         "WINDOWS": jou_bool(sys.platform == "win32"),
         "MACOS": jou_bool(sys.platform == "darwin"),
         "NETBSD": jou_bool(sys.platform.startswith("netbsd")),
+        "LINUX": jou_bool(sys.platform.startswith("linux")),
         "IS_32BIT": jou_bool(sys.maxsize < 2**32),
     }
     ENUMS[path] = {}
@@ -1402,20 +1414,30 @@ def evaluate_compile_time_condition(path, ast) -> bool:
     )
 
 
+def evaluate_a_compile_time_if_statement_in_body(path: str, ast_body: list[Any]) -> bool:
+    for i, stmt in enumerate(ast_body):
+        match stmt[0]:
+            case "if":
+                _, if_and_elifs, else_body, location = stmt
+                cond_ast, then = if_and_elifs.pop(0)
+                cond = evaluate_compile_time_condition(path, cond_ast)
+                if cond:
+                    ast_body[i : i + 1] = then
+                elif not if_and_elifs:
+                    ast_body[i : i + 1] = else_body
+                return True
+
+            case "class":
+                _, name, generics, body, decors, location = stmt
+                if evaluate_a_compile_time_if_statement_in_body(path, body):
+                    return True
+
+    return False
+
+
 def evaluate_a_compile_time_if_statement() -> bool:
     for path, ast in ASTS.items():
-        for i, stmt in enumerate(ast):
-            if stmt[0] != "if":
-                continue
-
-            _, if_and_elifs, else_body, location = stmt
-            cond_ast, then = if_and_elifs.pop(0)
-            cond = evaluate_compile_time_condition(path, cond_ast)
-            if cond:
-                ast[i : i + 1] = then
-            elif not if_and_elifs:
-                ast[i : i + 1] = else_body
-
+        if evaluate_a_compile_time_if_statement_in_body(path, ast):
             print(f"// Evaluated a compile-time if statement in {path}")
             return True
 
@@ -2240,7 +2262,37 @@ class CFuncMaker:
                 # For signed and unsigned, pick bigger size and signed.
                 # Given int32 and uint8, pick int32.
                 # Given uint32 and int8, pick int32.
-                return BASIC_TYPES["int" + str(max(lhs_bits, lhs_bits))]
+                return BASIC_TYPES["int" + str(max(lhs_bits, rhs_bits))]
+
+            # Mixed int and float
+            if lhs_type.is_integer() and rhs_type.name in ("float", "double"):
+                return rhs_type
+            if rhs_type.is_integer() and lhs_type.name in ("float", "double"):
+                return lhs_type
+
+            # Both float
+            if lhs_type.name in ("float", "double") and rhs_type.name in ("float", "double"):
+                return lhs_type if lhs_type.name == "double" else rhs_type
+
+            raise NotImplementedError(expr[0], lhs_type, rhs_type)
+
+        if expr[0] in ("bit_and", "bit_or", "bit_xor"):
+            _, lhs, rhs = expr
+            lhs_type = self.guess_type(lhs)
+            rhs_type = self.guess_type(rhs)
+
+            if lhs_type.is_integer() and rhs_type.is_integer():
+                lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
+                rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
+                if lhs_bits == rhs_bits:
+                    # Same size, prefer unsigned
+                    return lhs_type if lhs_type.name.startswith("u") else rhs_type
+                else:
+                    # Different sizes, use smaller for AND and bigger for OR/XOR
+                    if expr[0] == "bit_and":
+                        return lhs_type if lhs_bits < rhs_bits else rhs_type
+                    else:
+                        return lhs_type if lhs_bits > rhs_bits else rhs_type
 
             raise NotImplementedError(expr[0], lhs_type, rhs_type)
 
@@ -2611,6 +2663,15 @@ class CFuncMaker:
             else:
                 raise RuntimeError("wat")
 
+            return result
+
+        elif expr[0] in ("bit_and", "bit_or", "bit_xor"):
+            _, lhs_ast, rhs_ast = expr
+            lhs = self.do_expression(lhs_ast, None)
+            rhs = self.do_expression(rhs_ast, None)
+            result = self.add_variable(self.guess_type(expr))
+            op = "&" if expr[0] == "bit_and" else "|" if expr[0] == "bit_or" else "^"
+            self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
             return result
 
         elif expr[0] == "negate":
