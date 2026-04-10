@@ -194,25 +194,27 @@ def tokenize(jou_code, path):
 
 # reverse code golfing: https://xkcd.com/1960/
 def determine_the_kind_of_a_statement_that_starts_with_an_expression(t):
-    if t.code == "=":
-        return "assign"
-    if t.code == "+=":
-        return "in_place_add"
-    if t.code == "-=":
-        return "in_place_sub"
-    if t.code == "*=":
-        return "in_place_mul"
-    if t.code == "/=":
-        return "in_place_div"
-    if t.code == "%=":
-        return "in_place_mod"
-    if t.code == "&=":
-        return "in_place_bit_and"
-    if t.code == "|=":
-        return "in_place_bit_or"
-    if t.code == "^=":
-        return "in_place_bit_xor"
-    return "expr_stmt"
+    match t.code:
+        case "=":
+            return "assign"
+        case "+=":
+            return "in_place_add"
+        case "-=":
+            return "in_place_sub"
+        case "*=":
+            return "in_place_mul"
+        case "/=":
+            return "in_place_div"
+        case "%=":
+            return "in_place_mod"
+        case "&=":
+            return "in_place_bit_and"
+        case "|=":
+            return "in_place_bit_or"
+        case "^=":
+            return "in_place_bit_xor"
+        case _:
+            return "expr_stmt"
 
 
 # The multiple cases of "case a | b | c | d:" appear as a nested bitwise OR
@@ -1382,33 +1384,19 @@ def parse_an_imported_file() -> bool:
 
 
 def evaluate_compile_time_condition(path, ast) -> bool:
-    if ast[0] == "get_variable":
-        _, cond_varname = ast
-        cond_value = find_constant(path, cond_varname)
-        assert cond_value is not None
-        if cond_value.c_code == "true":
-            return True
-        if cond_value.c_code == "false":
-            return False
-
-    if ast[0] == "constant":
-        _, cond_value = ast
-        if cond_value.c_code == "true":
-            return True
-        if cond_value.c_code == "false":
-            return False
-
-    if ast[0] == "not":
-        _, inner = ast
-        return not evaluate_compile_time_condition(path, inner)
-
-    if ast[0] == "and":
-        _, lhs, rhs = ast
-        return evaluate_compile_time_condition(path, lhs) and evaluate_compile_time_condition(path, rhs)
-
-    if ast[0] == "or":
-        _, lhs, rhs = ast
-        return evaluate_compile_time_condition(path, lhs) or evaluate_compile_time_condition(path, rhs)
+    match ast:
+        case ("get_variable", cond_varname):
+            cond_value = find_constant(path, cond_varname)
+            assert cond_value is not None
+            return cond_value.c_code == "true"
+        case ("constant", cond_value):
+            return cond_value.c_code == "true"
+        case ("not", inner):
+            return not evaluate_compile_time_condition(path, inner)
+        case ("and", lhs, rhs):
+            return evaluate_compile_time_condition(path, lhs) and evaluate_compile_time_condition(path, rhs)
+        case ("or", lhs, rhs):
+            return evaluate_compile_time_condition(path, lhs) or evaluate_compile_time_condition(path, rhs)
 
     raise RuntimeError(
         f"cannot evaluate compile-time condition in {path}: {ast}"
@@ -2083,148 +2071,133 @@ class CFuncMaker:
         filename, lineno = stmt[-1]
         self.output.append(f"// File {filename}, line {lineno}: {stmt[0]}")
 
-        if stmt[0] == "expr_stmt":
-            _, expr, location = stmt
-            self.do_expression(expr, None)
+        match stmt:
+            case ("expr_stmt", expr, location):
+                self.do_expression(expr, None)
 
-        elif stmt[0] == "if":
-            _, if_and_elifs, otherwise, location = stmt
-            end_braces = ""
-            for cond, body in if_and_elifs:
-                cond = self.do_expression(cond, BASIC_TYPES["bool"])
-                if cond.c_code == "true":
-                    # Evaluate it and don't bother with the rest.
-                    self.do_body(body)
-                    otherwise = []
-                elif cond.c_code == "false":
-                    # Skip this entirely
-                    pass
-                else:
-                    # Fully evaluate it. Nest the rest in the else.
-                    self.output.append("if (" + cond.c_code + ") {")
-                    self.do_body(body)
-                    self.output.append("} else {")
-                    end_braces += "}"
-            self.do_body(otherwise)
-            self.output.extend(end_braces)
-
-        elif stmt[0] == "assign":
-            _, target_ast, value_ast, location = stmt
-            if target_ast[0] == "get_variable":
-                _, varname = target_ast
-                if self.find_any_var_or_constant(varname) is None:
-                    # Making a new variable. Use the type of the value being assigned.
-                    value = self.do_expression(value_ast, None)
-                    self.output.insert(0, f"{value.type.to_c()} var_{varname};")
-                    self.output.append(f"var_{varname} = {value.c_code};")
-                    self.locals[varname] = value.type
-                    return
-            ptr = self.do_address_of_expression(target_ast)
-            assert ptr.type.inner_type is not None
-            value = self.cast(
-                self.do_expression(value_ast, ptr.type.inner_type), ptr.type.inner_type
-            )
-            self.output.append(f"*{ptr.c_code} = {value.c_code};")
-
-        elif stmt[0].startswith("in_place_"):
-            _, target_ast, value_ast, location = stmt
-            ptr = self.do_address_of_expression(target_ast)
-            value = self.do_expression(value_ast, ptr.type.inner_type)
-
-            if stmt[0] == "in_place_add":
-                self.output.append(f"*{ptr.c_code} += {value.c_code};")
-            elif stmt[0] == "in_place_sub":
-                self.output.append(f"*{ptr.c_code} -= {value.c_code};")
-            elif stmt[0] == "in_place_mul":
-                self.output.append(f"*{ptr.c_code} *= {value.c_code};")
-            elif stmt[0] == "in_place_div":
-                self.output.append(f"*{ptr.c_code} /= {value.c_code};")
-            elif stmt[0] == "in_place_bit_and":
-                self.output.append(f"*{ptr.c_code} &= {value.c_code};")
-            elif stmt[0] == "in_place_bit_or":
-                self.output.append(f"*{ptr.c_code} |= {value.c_code};")
-            elif stmt[0] == "in_place_bit_xor":
-                self.output.append(f"*{ptr.c_code} ^= {value.c_code};")
-            else:
-                raise NotImplementedError(stmt[0])
-
-        elif stmt[0] == "declare_local_var":
-            _, varname, type_ast, value_ast, location = stmt
-            vartype = type_from_ast(self.path, type_ast)
-            if varname in self.locals:
-                # This happens when we do "case X | Y:" and the case body is
-                # transpiled twice. If it contains a "foo: int" or similar, we
-                # attempt to create two variables named foo. Let's not do that.
-                assert self.locals[varname] == vartype
-            else:
-                self.output.insert(0, f"{vartype.to_c()} var_{varname};")
-                self.locals[varname] = vartype
-            if value_ast is not None:
-                value = self.cast(self.do_expression(value_ast, vartype), vartype)
-                self.output.append(f"var_{varname} = {value.c_code};")
-
-        elif stmt[0] == "assert":
-            _, cond_ast, (filename, lineno) = stmt
-            cond = self.do_expression(cond_ast, BASIC_TYPES["bool"])
-            self.output.append("if (!" + cond.c_code + ") {")
-            msg = f'Assertion failed in file "{filename}", line {lineno}.'
-            self.output.append(
-                f"int32_t puts(uint8_t*); puts((uint8_t*) {c_string(msg)});"
-            )
-            self.output.append("void abort(void); abort();")
-            self.output.append("}")
-
-        elif stmt[0] == "return":
-            _, val_ast, location = stmt
-            if val_ast is None:
-                self.output.append("return;")
-            else:
-                assert self.return_type is not None
-                val = self.cast(
-                    self.do_expression(val_ast, self.return_type), self.return_type
-                )
-                self.output.append("return " + val.c_code + ";")
-
-        elif stmt[0] == "while":
-            _, cond, body, location = stmt
-            self.loop(None, cond, None, body)
-
-        elif stmt[0] == "for":
-            _, init, cond, incr, body, location = stmt
-            self.loop(init, cond, incr, body)
-
-        elif stmt[0] == "break":
-            self.output.append("break;")
-
-        elif stmt[0] == "continue":
-            self.output.append(f"goto loop{self.loops[-1]}_continue;")
-
-        elif stmt[0] == "pass":
-            pass
-
-        elif stmt[0] == "match":
-            _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
-            match_obj = self.do_expression(match_obj_ast, None)
-            func = None if func_ast is None else self.do_expression(func_ast, None)
-            brace_count = 0
-            for case_objs, case_body in cases:
-                for case_obj_ast in case_objs:
-                    case_obj = self.do_expression(case_obj_ast, match_obj.type)
-                    if func is None:
-                        cond = f"{match_obj.c_code} == {case_obj.c_code}"
+            case ("if", if_and_elifs, otherwise, location):
+                end_braces = ""
+                for cond, body in if_and_elifs:
+                    cond = self.do_expression(cond, BASIC_TYPES["bool"])
+                    if cond.c_code == "true":
+                        # Evaluate it and don't bother with the rest.
+                        self.do_body(body)
+                        otherwise = []
+                    elif cond.c_code == "false":
+                        # Skip this entirely
+                        pass
                     else:
-                        ret = self.call_function(func, [match_obj, case_obj])
-                        assert ret is not None
-                        cond = f"{ret.c_code} == 0"
-                    self.output.append("if (" + cond + ") {")
-                    self.do_body(case_body)
-                    self.output.append("} else {")
-                    brace_count += 1
-            self.do_body(case_underscore)
-            self.output.extend("}" * brace_count)
+                        # Fully evaluate it. Nest the rest in the else.
+                        self.output.append("if (" + cond.c_code + ") {")
+                        self.do_body(body)
+                        self.output.append("} else {")
+                        end_braces += "}"
+                self.do_body(otherwise)
+                self.output.extend(end_braces)
 
-        else:
-            raise NotImplementedError(stmt)
+            case ("assign", target_ast, value_ast, location):
+                if target_ast[0] == "get_variable":
+                    _, varname = target_ast
+                    if self.find_any_var_or_constant(varname) is None:
+                        # Making a new variable. Use the type of the value being assigned.
+                        value = self.do_expression(value_ast, None)
+                        self.output.insert(0, f"{value.type.to_c()} var_{varname};")
+                        self.output.append(f"var_{varname} = {value.c_code};")
+                        self.locals[varname] = value.type
+                        return
+                ptr = self.do_address_of_expression(target_ast)
+                assert ptr.type.inner_type is not None
+                value = self.cast(
+                    self.do_expression(value_ast, ptr.type.inner_type), ptr.type.inner_type
+                )
+                self.output.append(f"*{ptr.c_code} = {value.c_code};")
+
+            case ("in_place_add" | "in_place_sub" | "in_place_mul" | "in_place_div" | "in_place_bit_and" | "in_place_bit_or" | "in_place_bit_xor" as op, target_ast, value_ast, location):
+                ptr = self.do_address_of_expression(target_ast)
+                value = self.do_expression(value_ast, ptr.type.inner_type)
+                
+                op_map = {
+                    "in_place_add": "+=",
+                    "in_place_sub": "-=",
+                    "in_place_mul": "*=",
+                    "in_place_div": "/=",
+                    "in_place_bit_and": "&=",
+                    "in_place_bit_or": "|=",
+                    "in_place_bit_xor": "^=",
+                }
+                self.output.append(f"*{ptr.c_code} {op_map[op]} {value.c_code};")
+
+            case ("declare_local_var", varname, type_ast, value_ast, location):
+                vartype = type_from_ast(self.path, type_ast)
+                if varname in self.locals:
+                    # This happens when we do "case X | Y:" and the case body is
+                    # transpiled twice. If it contains a "foo: int" or similar, we
+                    # attempt to create two variables named foo. Let's not do that.
+                    assert self.locals[varname] == vartype
+                else:
+                    self.output.insert(0, f"{vartype.to_c()} var_{varname};")
+                    self.locals[varname] = vartype
+                if value_ast is not None:
+                    value = self.cast(self.do_expression(value_ast, vartype), vartype)
+                    self.output.append(f"var_{varname} = {value.c_code};")
+
+            case ("assert", cond_ast, (filename, lineno)):
+                cond = self.do_expression(cond_ast, BASIC_TYPES["bool"])
+                self.output.append("if (!" + cond.c_code + ") {")
+                msg = f'Assertion failed in file "{filename}", line {lineno}.'
+                self.output.append(
+                    f"int32_t puts(uint8_t*); puts((uint8_t*) {c_string(msg)});"
+                )
+                self.output.append("void abort(void); abort();")
+                self.output.append("}")
+
+            case ("return", val_ast, location):
+                if val_ast is None:
+                    self.output.append("return;")
+                else:
+                    assert self.return_type is not None
+                    val = self.cast(
+                        self.do_expression(val_ast, self.return_type), self.return_type
+                    )
+                    self.output.append("return " + val.c_code + ";")
+
+            case ("while", cond, body, location):
+                self.loop(None, cond, None, body)
+
+            case ("for", init, cond, incr, body, location):
+                self.loop(init, cond, incr, body)
+
+            case ("break", _):
+                self.output.append("break;")
+
+            case ("continue", _):
+                self.output.append(f"goto loop{self.loops[-1]}_continue;")
+
+            case ("pass", _):
+                pass
+
+            case ("match", match_obj_ast, func_ast, cases, case_underscore, location):
+                match_obj = self.do_expression(match_obj_ast, None)
+                func = None if func_ast is None else self.do_expression(func_ast, None)
+                brace_count = 0
+                for case_objs, case_body in cases:
+                    for case_obj_ast in case_objs:
+                        case_obj = self.do_expression(case_obj_ast, match_obj.type)
+                        if func is None:
+                            cond = f"{match_obj.c_code} == {case_obj.c_code}"
+                        else:
+                            ret = self.call_function(func, [match_obj, case_obj])
+                            assert ret is not None
+                            cond = f"{ret.c_code} == 0"
+                        self.output.append("if (" + cond + ") {")
+                        self.do_body(case_body)
+                        self.output.append("} else {")
+                        brace_count += 1
+                self.do_body(case_underscore)
+                self.output.extend("}" * brace_count)
+
+            case _:
+                raise NotImplementedError(stmt)
 
     # Evaluates the type of expr without the side effects of evaluating expr.
     def guess_type(self, expr: AST) -> JouType:
@@ -2498,20 +2471,19 @@ class CFuncMaker:
             lhs = self.do_expression(lhs_ast, None)
             rhs = self.do_expression(rhs_ast, None)
             result = self.add_variable(BASIC_TYPES["bool"])
-            if expr[0] == "lt":
-                self.output.append(f"{result.c_code} = {lhs.c_code} < {rhs.c_code};")
-            elif expr[0] == "gt":
-                self.output.append(f"{result.c_code} = {lhs.c_code} > {rhs.c_code};")
-            elif expr[0] == "le":
-                self.output.append(f"{result.c_code} = {lhs.c_code} <= {rhs.c_code};")
-            elif expr[0] == "ge":
-                self.output.append(f"{result.c_code} = {lhs.c_code} >= {rhs.c_code};")
-            elif expr[0] == "eq":
-                self.output.append(f"{result.c_code} = {lhs.c_code} == {rhs.c_code};")
-            elif expr[0] == "ne":
-                self.output.append(f"{result.c_code} = {lhs.c_code} != {rhs.c_code};")
-            else:
-                raise RuntimeError("wat")
+            match expr[0]:
+                case "lt":
+                    self.output.append(f"{result.c_code} = {lhs.c_code} < {rhs.c_code};")
+                case "gt":
+                    self.output.append(f"{result.c_code} = {lhs.c_code} > {rhs.c_code};")
+                case "le":
+                    self.output.append(f"{result.c_code} = {lhs.c_code} <= {rhs.c_code};")
+                case "ge":
+                    self.output.append(f"{result.c_code} = {lhs.c_code} >= {rhs.c_code};")
+                case "eq":
+                    self.output.append(f"{result.c_code} = {lhs.c_code} == {rhs.c_code};")
+                case "ne":
+                    self.output.append(f"{result.c_code} = {lhs.c_code} != {rhs.c_code};")
             return result
 
         elif expr[0] == "sizeof":
@@ -2629,20 +2601,19 @@ class CFuncMaker:
             rhs = self.do_expression(rhs_ast, None)
             result = self.add_variable(self.guess_type(expr))
 
-            if expr[0] == "add":
-                self.output.append(f"{result.c_code} = {lhs.c_code} + {rhs.c_code};")
-            elif expr[0] == "sub":
-                self.output.append(f"{result.c_code} = {lhs.c_code} - {rhs.c_code};")
-            elif expr[0] == "mul":
-                self.output.append(f"{result.c_code} = {lhs.c_code} * {rhs.c_code};")
-            elif expr[0] == "div":
-                # TODO: Jou's integer division rules are different than C's
-                self.output.append(f"{result.c_code} = {lhs.c_code} / {rhs.c_code};")
-            elif expr[0] == "mod":
-                # TODO: Jou's integer modulo rules are different than C's
-                self.output.append(f"{result.c_code} = {lhs.c_code} % {rhs.c_code};")
-            else:
-                raise RuntimeError("wat")
+            match expr[0]:
+                case "add":
+                    self.output.append(f"{result.c_code} = {lhs.c_code} + {rhs.c_code};")
+                case "sub":
+                    self.output.append(f"{result.c_code} = {lhs.c_code} - {rhs.c_code};")
+                case "mul":
+                    self.output.append(f"{result.c_code} = {lhs.c_code} * {rhs.c_code};")
+                case "div":
+                    # TODO: Jou's integer division rules are different than C's
+                    self.output.append(f"{result.c_code} = {lhs.c_code} / {rhs.c_code};")
+                case "mod":
+                    # TODO: Jou's integer modulo rules are different than C's
+                    self.output.append(f"{result.c_code} = {lhs.c_code} % {rhs.c_code};")
 
             return result
 
