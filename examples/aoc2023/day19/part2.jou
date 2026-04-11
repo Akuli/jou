@@ -5,6 +5,7 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/math.jou"
+import "stdlib/intnative.jou"
 
 
 # 4 dimensional box
@@ -175,7 +176,7 @@ def parse_workflow(s: byte*) -> Workflow:
         xmas = "xmas"
         ptr = strstr(xmas, var)
         assert ptr != NULL
-        var_index = (ptr as int64) - (&xmas[0] as int64)
+        var_index = (ptr as intnative) - (&xmas[0] as intnative)
 
         mins = [1, 1, 1, 1]
         maxs = [4000, 4000, 4000, 4000]

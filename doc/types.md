@@ -150,8 +150,8 @@ Explicit casts are:
     For example, `True as int` is `1`.
     However, integers cannot be cast to `bool`.
     Use an explicit `foo == 1`, `foo != 0`, `foo > 0` or `match foo: ...` depending on what you need.
-- Any pointer type casts to `int64`. (This gives the memory address as an integer.)
-- `int64` casts to any pointer type.
+- Any pointer type casts to `intnative`. (This gives the memory address as an integer.)
+- `intnative` casts to any pointer type.
 - Anything that type inference is capable of doing (see below).
     For example `123123123123123 as int64` or `"foo" as byte[10]`.
 

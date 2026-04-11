@@ -245,6 +245,13 @@ function should_skip()
         fi
     fi
 
+    if (
+        ([ $joufile = tests/wrong_type/pointer_to_integer_32bit.jou ] && [ $intnative == int64 ]) ||
+        ([ $joufile = tests/wrong_type/pointer_to_integer_64bit.jou ] && [ $intnative == int ])
+    ); then
+        return 0
+    fi
+
     return 1  # false, don't skip
 }
 

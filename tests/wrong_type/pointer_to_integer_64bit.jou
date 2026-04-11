@@ -1,0 +1,8 @@
+import "stdlib/intnative.jou"
+
+assert not IS_32BIT  # This test should be ran only on 64-bit systems
+
+def foo() -> None:
+    x = 1
+    # 64-bit pointer does not fit in 32-bit number, refuse instead of making a garbage value
+    y = &x as int  # Error: cannot cast from type int* to int
