@@ -261,9 +261,7 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
         or (from.kind == TypeKind.Enum and to.is_integer_type())
         or (from == bool_type() and to.is_integer_type())
         or (from.is_pointer_type() and to == int_type(32 if IS_32BIT else 64))
-        or (from.is_pointer_type() and to == int_type(64))  # TODO: remove this
         or (from == int_type(32 if IS_32BIT else 64) and to.is_pointer_type())
-        or (from == int_type(64) and to.is_pointer_type())  # TODO: remove this
     )
 
 

@@ -153,7 +153,7 @@ def skip_string_or_byte(s: byte*) -> byte*:
 
 def get_assertion_code_as_string(start: Token*, end: Token*) -> byte*:
     # TODO: "pointer as intnative" cast should be allowed
-    len = ((end.file_content_ptr as int64) - (start.file_content_ptr as int64)) as intnative
+    len = (end.file_content_ptr as intnative) - (start.file_content_ptr as intnative)
     assert len > 0
 
     s: byte* = malloc(len + 1)

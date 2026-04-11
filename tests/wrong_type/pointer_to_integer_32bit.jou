@@ -1,0 +1,13 @@
+import "stdlib/intnative.jou"
+
+assert IS_32BIT  # This test should be ran only on 32-bit systems
+
+def foo() -> None:
+    x = 1
+
+    # int64 is not the correct type to hold a pointer, so compiler errors.
+    #
+    # It would work, but if you really want your number to always have half of
+    # its bits set to zero, you need to explicitly say so.
+    y = (&x as intnative) as int64
+    z = &x as int64  # Error: cannot cast from type int* to int64
