@@ -76,8 +76,8 @@ jobs:
                 echo "No recent commits, run nothing"
                 touch what_to_run.txt
               else
-                echo "Scheduled run, run only slow VMs because they don't run on every pull request"
-                printf '%s\n' $slow > what_to_run.txt
+                echo "Scheduled run, run all VMs"
+                printf '%s\n' $fast $slow > what_to_run.txt
               fi
               ;;
             *)
