@@ -40,13 +40,13 @@ else:
 # so the start point in time is irrelevant in most use cases. Please create an
 # issue on GitHub if you want to rely on it.
 @public
-def monotonic_ns() -> uint64:
+def monotonic_ns() -> int64:
     if MACOS:
-        return clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+        return clock_gettime_nsec_np(CLOCK_UPTIME_RAW) as int64
     else:
         ts = timespec{}
         clock_gettime(CLOCK_MONOTONIC, &ts)
-        return ts.tv_sec * (1_000_000_000 as uint64) + ts.tv_nsec
+        return ts.tv_sec * (1_000_000_000 as int64) + ts.tv_nsec
 
 
 # time(result_ptr) returns the number of seconds since January 1st, 1970.

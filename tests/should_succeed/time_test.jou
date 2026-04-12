@@ -26,7 +26,7 @@ def test_time() -> None:
 
 def test_monotonic_ns() -> None:
     # Retry a few times, this test is sometimes a bit unreliable on GitHub Actions
-    results: uint64[5]
+    results: int64[5]
 
     for i = 0; i < array_count(results); i++:
         # Wait 1 second with time(), measure with monotonic_ns()
@@ -48,7 +48,7 @@ def test_monotonic_ns() -> None:
 
     # Did not work
     for i = 0; i < array_count(results); i++:
-        printf("one second for time() somehow became %llu nanoseconds\n", results[i])
+        printf("one second for time() somehow became %lld nanoseconds\n", results[i])
 
 
 def main() -> int:
