@@ -9,7 +9,6 @@ import "./errors_and_warnings.jou"
 enum TokenKind:
     Byte     # example: 'a' is 97 as a byte
     Integer  # type check determines what type this is (usually int, but not necessarily)
-    Float
     Double
     String
     Name
@@ -42,8 +41,6 @@ class Token:
                 printf("\n")
             case TokenKind.Integer:
                 printf("integer %llu\n", self.integer_value)
-            case TokenKind.Float:
-                printf("float %s\n", self.short_string)
             case TokenKind.Double:
                 printf("double %s\n", self.short_string)
             case TokenKind.EndOfFile:
@@ -106,8 +103,6 @@ class Token:
         match self.kind:
             case TokenKind.Integer:
                 got = "an integer"
-            case TokenKind.Float:
-                got = "a float constant"
             case TokenKind.Double:
                 got = "a double constant"
             case TokenKind.Byte:

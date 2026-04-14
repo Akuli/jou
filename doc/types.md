@@ -57,10 +57,10 @@ It is not possible to invoke [UB](ub.md) by overflowing integers.
 
 ## Floating-point numbers
 
-| Name      | Example   | Size              | How to print  |
-|-----------|-----------|-------------------|---------------|
-| `float`   | `12.34f`  | 4 bytes (32 bits) | `%f`          |
-| `double`  | `12.34`   | 8 bytes (64 bits) | `%f`          |
+| Name      | Example           | Size              | How to print  |
+|-----------|-------------------|-------------------|---------------|
+| `float`   | `12.34 as float`  | 4 bytes (32 bits) | `%f`          |
+| `double`  | `12.34`           | 8 bytes (64 bits) | `%f`          |
 
 When printing, floats are converted to doubles automatically,
 so the same `%f` works for both floating-point types.
