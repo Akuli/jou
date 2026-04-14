@@ -9,27 +9,27 @@ import "stdlib/mem.jou"
 
 @public
 class List[T]:
-    ptr: T*           # Pointer to first item of the list (may change when list grows)
-    len: intnative    # How many items are in the list
-    alloc: intnative  # How many items would fit into the allocated memory
+    ptr: T*              # Pointer to first item of the list (may change when list grows)
+    len: intnative       # How many items are in the list
+    capacity: intnative  # How many items would fit into the allocated memory
 
     # Ensure that the list has room for at least the given number of elements.
     # Newly allocated space at the end of list will contain uninitialized/garbage values.
     @public
     @inline
     def grow(self, n: intnative) -> None:
-        if self.alloc >= n:
+        if self.capacity >= n:
             # Already big enough
             return
 
         # Allocate more than enough space, so that the next grow() is likely
         # going to be a fast "yes we have enough room" check.
-        if self.alloc == 0:
-            self.alloc = 4
-        while self.alloc < n:
-            self.alloc *= 2
+        if self.capacity == 0:
+            self.capacity = 4
+        while self.capacity < n:
+            self.capacity *= 2
 
-        self.ptr = realloc(self.ptr, self.alloc * sizeof(self.ptr[0]))
+        self.ptr = realloc(self.ptr, self.capacity * sizeof(self.ptr[0]))
         assert self.ptr != NULL  # If this fails, we ran out of memory
 
     # Add item to end of the list.
