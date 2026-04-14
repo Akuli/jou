@@ -246,7 +246,7 @@ import "stdlib/intnative.jou"
 class SimpleList:
     ptr: int*
     len: intnative
-    alloc: intnative
+    capacity: intnative
 ```
 
 That's basically all there is to it. The rest is quite straight-forward.
@@ -255,7 +255,7 @@ That's basically all there is to it. The rest is quite straight-forward.
 ## Creating an empty list
 
 Creating a list with [the `List[SomeType]{}` syntax](classes.md#instantiating-syntax)
-sets `ptr` to `NULL`, `len` to zero and `alloc` to zero.
+sets `ptr` to `NULL`, `len` to zero and `capacity` to zero.
 This means that you get an empty list.
 You can also use [`memset()` or some other way](classes.md#instantiating-syntax)
 to zero-initialize a `List` instance.
