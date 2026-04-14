@@ -371,8 +371,8 @@ def main() -> int:
     names.append("Moosems")
 
     popped = names.pop()
-    printf("Popped %s\n", popped)                    # Output: Popped Moosems
-    printf("%d people remain.\n", names.len as int)  # Output: 2 people remain.
+    printf("Popped %s\n", popped)              # Output: Popped Moosems
+    printf("%zd people remain.\n", names.len)  # Output: 2 people remain.
 
     free(names.ptr)
     return 0
