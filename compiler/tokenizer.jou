@@ -208,13 +208,6 @@ def is_valid_double(str: byte*) -> bool:
             p++
         return *p != '\0' and strspn(p, "0123456789") == strlen(p)
 
-def is_valid_float(str: byte[100]) -> bool:
-    n = strlen(str)
-    if n == 0 or (str[n-1] != 'F' and str[n-1] != 'f'):
-        return False
-    str[n-1] = '\0'
-    return is_valid_double(str) or strspn(str, "0123456789") == strlen(str)
-
 
 def flip_paren(c: byte) -> byte:
     match c:
@@ -538,9 +531,6 @@ class Tokenizer:
                     token.short_string = self.read_number()
                     if is_valid_double(token.short_string):
                         token.kind = TokenKind.Double
-                    elif is_valid_float(token.short_string):
-                        token.short_string[strlen(token.short_string) - 1] = '\0'  # delete trailing 'f' or 'F'
-                        token.kind = TokenKind.Float
                     else:
                         token.kind = TokenKind.Integer
                         token.integer_value = parse_integer(token.short_string, token.location)

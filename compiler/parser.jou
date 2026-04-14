@@ -720,9 +720,6 @@ class Parser:
             case TokenKind.Byte:
                 expr.kind = AstExpressionKind.Constant
                 expr.constant = int_constant(uint_type(8), (self.tokens++).integer_value as int64)
-            case TokenKind.Float:
-                expr.kind = AstExpressionKind.Constant
-                expr.constant = Constant{kind = ConstantKind.Float, float_or_double_value = atof((self.tokens++).short_string)}
             case TokenKind.Double:
                 expr.kind = AstExpressionKind.Constant
                 expr.constant = Constant{kind = ConstantKind.Double, float_or_double_value = atof((self.tokens++).short_string)}
