@@ -76,7 +76,7 @@ def vec3_add(a: float[3], b: float[3]) -> float[3]:
     return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 
 def main() -> int:
-    added = vec3_add([1f, 2f, 3f], [4f, 5f, 6f])
+    added = vec3_add([1, 2, 3], [4, 5, 6])
     printf("%.2f %.2f %.2f\n", added[0], added[1], added[2])  # Output: 5.00 7.00 9.00
     return 0
 ```

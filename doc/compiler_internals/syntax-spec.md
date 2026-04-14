@@ -57,7 +57,6 @@ Jou has a few different kinds of tokens:
     then `e`, then an optional minus sign, then one or more digits.
     The number after `e` specifies how many places to move the decimal point and in which direction.
     For example, `1.2e3` means `1200.0` and `1e-5` means `0.00001`.
-- **Float literals** are just like double literals except that they have an extra `F` or `f` at the end.
 - **Byte literals** (also known somewhat misleadingly as character literals)
     consist of a one-byte character placed between single quotes, as in `'a'`.
     Note that `'ö'` is an error, because the `ö` character is two bytes in UTF-8.
