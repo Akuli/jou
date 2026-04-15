@@ -127,11 +127,6 @@ class ParsedJoutestToml:
 
 
 @public
-enum SimpleResult:
-    Success
-    Failed
-
-@public
 class Test:
     # These are set in step 3 (discover tests)
     path: byte*
@@ -155,7 +150,7 @@ class Test:
     terminating_signal: int  # (POSIX only) signal number that killed the test while running
     actual_exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
     actual_output: byte*
-    simple_result: SimpleResult
+    failed: bool
 
     # This is a getter because it must be always available, even before the
     # "configure tests" step that sets up many of the members here.

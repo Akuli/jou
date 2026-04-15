@@ -774,15 +774,11 @@ def run_test(test: Test*, verbose: bool) -> None:
             or strcmp(test.expected_output, test.actual_output) == 0
         )
     ):
-        test.simple_result = SimpleResult.Success
+        test.failed = False
+        print_ok(test, verbose)
     else:
-        test.simple_result = SimpleResult.Failed
-
-    match test.simple_result:
-        case SimpleResult.Success:
-            print_ok(test, verbose)
-        case SimpleResult.Failed:
-            print_fail(test, verbose)
+        test.failed = True
+        print_fail(test, verbose)
 
 
 if not WINDOWS:

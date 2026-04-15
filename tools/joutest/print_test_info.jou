@@ -5,7 +5,6 @@ import "./ansi_colors.jou"
 import "./state.jou"
 
 
-@public
 def print_test_info_without_newlines(test: Test*) -> None:
     printf("%s%s", RESET, test.actual_command_string)
     if test.working_directory != NULL:
@@ -23,7 +22,6 @@ def print_test_info_without_newlines(test: Test*) -> None:
         )
 
 
-@public
 def print_test_info_multiline(test: Test*) -> None:
     printf("%s*** Command: %s\n", YELLOW, test.actual_command_string)
     if test.working_directory != NULL:
