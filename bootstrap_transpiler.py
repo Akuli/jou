@@ -1911,6 +1911,7 @@ class CFuncMaker:
     def cast(self, value: JouValue, to: JouType) -> JouValue:
         if value.type == to:
             return value
+
         var = self.add_variable(to)
         if to.is_array() and value.type == BASIC_TYPES["uint8"].pointer_type():
             # Example:   foo: byte[100] = "hi"
