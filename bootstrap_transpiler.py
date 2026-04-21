@@ -1031,8 +1031,6 @@ class Parser:
             case _:
                 expr = self.parse_expression()
                 op_map = {
-                    "<<=": "in_place_shl",
-                    ">>=": "in_place_shr",
                     "=": "assign",
                     "+=": "in_place_add",
                     "-=": "in_place_sub",
@@ -1042,6 +1040,8 @@ class Parser:
                     "&=": "in_place_bit_and",
                     "|=": "in_place_bit_or",
                     "^=": "in_place_bit_xor",
+                    "<<=": "in_place_shl",
+                    ">>=": "in_place_shr",
                 }
                 if self.tokens[0].code in op_map:
                     kind = op_map[self.tokens.pop(0).code]
