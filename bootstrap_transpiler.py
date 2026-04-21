@@ -268,22 +268,6 @@ class JouType:
     def __repr__(self) -> str:
         return f"<JouType: {self.name}>"
 
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, JouType) and self.name == other.name
-
-    def __hash__(self) -> int:
-        return hash(self.name)
-
-        return f"<JouType: {self.name}>"
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, JouType) and self.name == other.name
-
-    def __hash__(self) -> int:
-        return hash(self.name)
-
-        return f"<JouType: {self.name}>"
-
     def is_integer(self) -> bool:
         # Kinda hacky, but works fine
         return bool(re.fullmatch(r"u?int(8|16|32|64)", self.name))
@@ -939,7 +923,13 @@ class Parser:
 
     def parse_expression_with_bitwise_ops(self):
         result = self.parse_expression_with_add()
-        op_map = {"&": "bit_and", "|": "bit_or", "^": "bit_xor", "<<": "shl", ">>": "shr"}
+        op_map = {
+            "&": "bit_and",
+            "|": "bit_or",
+            "^": "bit_xor",
+            "<<": "bit_shift_left",
+            ">>": "bit_shift_right",
+        }
         while self.tokens[0].code in op_map:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_add()
@@ -2074,19 +2064,32 @@ class CFuncMaker:
                 )
                 self.output.append(f"*{ptr.c_code} = {value.c_code};")
 
-            case ("in_place_add" | "in_place_sub" | "in_place_mul" | "in_place_div" | "in_place_bit_and" | "in_place_bit_or" | "in_place_bit_xor" | "in_place_shl" | "in_place_shr" as op, target_ast, value_ast, location):
+            case (
+                "in_place_add"
+                | "in_place_sub"
+                | "in_place_mul"
+                | "in_place_div"
+                | "in_place_bit_and"
+                | "in_place_bit_or"
+                | "in_place_bit_xor"
+                | "in_place_shl"
+                | "in_place_shr" as op,
+                target_ast,
+                value_ast,
+                location,
+            ):
                 ptr = self.do_address_of_expression(target_ast)
                 value = self.do_expression(value_ast, ptr.type.inner_type)
                 op_map = {
                     "in_place_add": "+=",
-                    "in_place_shl": "<<=",
-                    "in_place_shr": ">>=",
                     "in_place_sub": "-=",
                     "in_place_mul": "*=",
                     "in_place_div": "/=",
                     "in_place_bit_and": "&=",
                     "in_place_bit_or": "|=",
                     "in_place_bit_xor": "^=",
+                    "in_place_shl": "<<=",
+                    "in_place_shr": ">>=",
                 }
                 self.output.append(f"*{ptr.c_code} {op_map[op]} {value.c_code};")
 
@@ -2213,14 +2216,14 @@ class CFuncMaker:
 
                 raise NotImplementedError(expr)
 
-            case ("bit_and" | "bit_or" | "bit_xor" | "shl" | "shr" as op, lhs, rhs):
+            case ("bit_and" | "bit_or" | "bit_xor" | "bit_shift_left" | "bit_shift_right" as op, lhs, rhs):
                 lhs_type = self.guess_type(lhs)
                 rhs_type = self.guess_type(rhs)
 
                 if lhs_type.is_integer() and rhs_type.is_integer():
                     lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
                     rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
-                    if op in ("shl", "shr"):
+                    if op in ("bit_shift_left", "bit_shift_right"):
                         # Shifts return the type of the left operand
                         return lhs_type
                     elif lhs_bits == rhs_bits:
@@ -2609,7 +2612,7 @@ class CFuncMaker:
                 self.output.append("}")
                 return result
 
-            case ("bit_and" | "bit_or" | "bit_xor" | "shl" | "shr" as op, lhs_ast, rhs_ast):
+            case ("bit_and" | "bit_or" | "bit_xor" | "bit_shift_left" | "bit_shift_right" as op, lhs_ast, rhs_ast):
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(self.guess_type(expr))
