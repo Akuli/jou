@@ -104,7 +104,7 @@ def tokenize(jou_code, path):
     | (?P<decorator> @public | @inline )
     | (?P<string> " ( \\ . | [^"\n\\] )* " )    # "hello"
     | (?P<byte> ' ( \\ . | . ) ' )              # 'a' or '\n'
-    | (?P<op> \.\.\. | == | != | -> | <= | >= | \+\+ | -- | [+*/%&^|-]= | [.,:;=(){}\[\]&%*/+^<>|-] )
+    | (?P<op> \.\.\. | == | != | -> | <= | >= | \+\+ | -- | <<= | >>= | << | >> | [+*/%&^|-]= | [.,:;=(){}\[\]&%*/+^<>|-] )
     | (?P<double>
         [0-9]+ \. [0-9]+                        # 1.23 or .123
         | (?:                                   # or:
@@ -923,7 +923,13 @@ class Parser:
 
     def parse_expression_with_bitwise_ops(self):
         result = self.parse_expression_with_add()
-        op_map = {"&": "bit_and", "|": "bit_or", "^": "bit_xor"}
+        op_map = {
+            "&": "bit_and",
+            "|": "bit_or",
+            "^": "bit_xor",
+            "<<": "bit_shift_left",
+            ">>": "bit_shift_right",
+        }
         while self.tokens[0].code in op_map:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_add()
@@ -1034,6 +1040,8 @@ class Parser:
                     "&=": "in_place_bit_and",
                     "|=": "in_place_bit_or",
                     "^=": "in_place_bit_xor",
+                    "<<=": "in_place_bit_shift_left",
+                    ">>=": "in_place_bit_shift_right",
                 }
                 if self.tokens[0].code in op_map:
                     kind = op_map[self.tokens.pop(0).code]
@@ -1905,9 +1913,8 @@ class CFuncMaker:
             return value
 
         var = self.add_variable(to)
-        if to.is_array():
+        if to.is_array() and value.type == BASIC_TYPES["uint8"].pointer_type():
             # Example:   foo: byte[100] = "hi"
-            assert value.type == BASIC_TYPES["uint8"].pointer_type()
             assert to.inner_type == BASIC_TYPES["uint8"]
             self.output.append(f"strcpy((uint8_t*)&{var.c_code}, {value.c_code});")
         else:
@@ -2058,7 +2065,20 @@ class CFuncMaker:
                 )
                 self.output.append(f"*{ptr.c_code} = {value.c_code};")
 
-            case ("in_place_add" | "in_place_sub" | "in_place_mul" | "in_place_div" | "in_place_bit_and" | "in_place_bit_or" | "in_place_bit_xor" as op, target_ast, value_ast, location):
+            case (
+                "in_place_add"
+                | "in_place_sub"
+                | "in_place_mul"
+                | "in_place_div"
+                | "in_place_bit_and"
+                | "in_place_bit_or"
+                | "in_place_bit_xor"
+                | "in_place_bit_shift_left"
+                | "in_place_bit_shift_right" as op,
+                target_ast,
+                value_ast,
+                location,
+            ):
                 ptr = self.do_address_of_expression(target_ast)
                 value = self.do_expression(value_ast, ptr.type.inner_type)
                 op_map = {
@@ -2069,6 +2089,8 @@ class CFuncMaker:
                     "in_place_bit_and": "&=",
                     "in_place_bit_or": "|=",
                     "in_place_bit_xor": "^=",
+                    "in_place_bit_shift_left": "<<=",
+                    "in_place_bit_shift_right": ">>=",
                 }
                 self.output.append(f"*{ptr.c_code} {op_map[op]} {value.c_code};")
 
@@ -2195,14 +2217,17 @@ class CFuncMaker:
 
                 raise NotImplementedError(expr)
 
-            case ("bit_and" | "bit_or" | "bit_xor" as op, lhs, rhs):
+            case ("bit_and" | "bit_or" | "bit_xor" | "bit_shift_left" | "bit_shift_right" as op, lhs, rhs):
                 lhs_type = self.guess_type(lhs)
                 rhs_type = self.guess_type(rhs)
 
                 if lhs_type.is_integer() and rhs_type.is_integer():
                     lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
                     rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
-                    if lhs_bits == rhs_bits:
+                    if op in ("bit_shift_left", "bit_shift_right"):
+                        # Shifts return the type of the left operand
+                        return lhs_type
+                    elif lhs_bits == rhs_bits:
                         # Same size, prefer unsigned
                         return lhs_type if lhs_type.name.startswith("u") else rhs_type
                     else:
@@ -2552,9 +2577,12 @@ class CFuncMaker:
                 return new_value if "pre" in op else old_value
 
             case ("array", item_asts):
-                itype = decide_array_item_type(
-                    [self.guess_type(item) for item in item_asts]
-                )
+                if expected_type and expected_type.is_array():
+                    itype = expected_type.inner_type
+                else:
+                    itype = decide_array_item_type(
+                        [self.guess_type(item) for item in item_asts]
+                    )
                 items = [
                     self.cast(self.do_expression(item, itype), itype) for item in item_asts
                 ]
@@ -2585,7 +2613,7 @@ class CFuncMaker:
                 self.output.append("}")
                 return result
 
-            case ("bit_and" | "bit_or" | "bit_xor" as op, lhs_ast, rhs_ast):
+            case ("bit_and" | "bit_or" | "bit_xor" | "bit_shift_left" | "bit_shift_right" as op, lhs_ast, rhs_ast):
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(self.guess_type(expr))

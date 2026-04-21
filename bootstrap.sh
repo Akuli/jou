@@ -107,18 +107,6 @@ function transpile_with_python_and_compile() {
     (
         cd $folder
 
-        # Compiler uses utf8_encode_char() to detect bad characters in Jou code.
-        # Let's make it return something that is not in the code so it finds no bad characters.
-        #
-        # We can't just compile with the original stdlib/utf8.jou, because it
-        # uses a bitwise shift (<<=) that the bootstrap transpiler doesn't know.
-        mv -v stdlib/utf8.jou stdlib/utf8_old.jou
-        echo '
-@public
-def utf8_encode_char(u: uint32) -> byte*:
-    return "jgdspoisajdgpoiasjdgoiasjdpoigdsa"
-' > stdlib/utf8.jou
-
         echo "Converting Jou code to C..."
         local n
         n=$(getconf _NPROCESSORS_ONLN)
@@ -157,7 +145,6 @@ def utf8_encode_char(u: uint32) -> byte*:
 
         # Transpiling produces a broken Jou compiler for some reason. I don't
         # know why. But if I recompile once more, it fixes itself.
-        mv -v stdlib/utf8_old.jou stdlib/utf8.jou
         echo "Compiling the same Jou code again with the compiler we just made..."
         if [[ "$OS" =~ Windows ]]; then
             # Use correct path to mingw64. This used to copy the mingw64 folder,
