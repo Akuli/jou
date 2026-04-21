@@ -1040,8 +1040,8 @@ class Parser:
                     "&=": "in_place_bit_and",
                     "|=": "in_place_bit_or",
                     "^=": "in_place_bit_xor",
-                    "<<=": "in_place_shl",
-                    ">>=": "in_place_shr",
+                    "<<=": "in_place_bit_shift_left",
+                    ">>=": "in_place_bit_shift_right",
                 }
                 if self.tokens[0].code in op_map:
                     kind = op_map[self.tokens.pop(0).code]
@@ -2072,8 +2072,8 @@ class CFuncMaker:
                 | "in_place_bit_and"
                 | "in_place_bit_or"
                 | "in_place_bit_xor"
-                | "in_place_shl"
-                | "in_place_shr" as op,
+                | "in_place_bit_shift_left"
+                | "in_place_bit_shift_right" as op,
                 target_ast,
                 value_ast,
                 location,
@@ -2088,8 +2088,8 @@ class CFuncMaker:
                     "in_place_bit_and": "&=",
                     "in_place_bit_or": "|=",
                     "in_place_bit_xor": "^=",
-                    "in_place_shl": "<<=",
-                    "in_place_shr": ">>=",
+                    "in_place_bit_shift_left": "<<=",
+                    "in_place_bit_shift_right": ">>=",
                 }
                 self.output.append(f"*{ptr.c_code} {op_map[op]} {value.c_code};")
 
