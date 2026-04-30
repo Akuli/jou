@@ -53,21 +53,21 @@ def convert_array_length_given_as_type_to_an_expression(type: AstType*) -> AstEx
 
 def fail_with_type_not_found(location: Location, name: byte*) -> noreturn:
     match name with strcmp:
-        case "i8":
+        case "i8" | "int8_t":
             suggest = "int8"
-        case "i16":
+        case "i16" | "int16_t":
             suggest = "int16"
-        case "i32":
+        case "i32" | "int32_t":
             suggest = "int"
-        case "i64":
+        case "i64" | "int64_t":
             suggest = "int64"
-        case "u8" | "char":
+        case "u8" | "uint8_t" | "char":
             suggest = "byte"
-        case "u16":
+        case "u16" | "uint16_t":
             suggest = "uint16"
-        case "u32" | "uint" | "DWORD":
+        case "u32" | "uint32_t" | "uint" | "DWORD":
             suggest = "uint32"
-        case "u64":
+        case "u64" | "uint64_t":
             suggest = "uint64"
         case _:
             suggest = NULL
