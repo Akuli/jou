@@ -199,7 +199,7 @@ def tokenize(jou_code, path):
 #
 def flatten_bitwise_ors(expr):
     match expr:
-        case ("bit_or", lhs, rhs):
+        case ("|", lhs, rhs):
             return flatten_bitwise_ors(lhs) + flatten_bitwise_ors(rhs)
         case _:
             return [expr]
@@ -892,7 +892,7 @@ class Parser:
                     assert False
             if kind == "array_count":
                 # array_count(x) == sizeof(x)/sizeof(x[0])
-                result = ("div", ("sizeof", result), ("sizeof", ("[", result, ("integer_constant", 0))))
+                result = ("/", ("sizeof", result), ("sizeof", ("[", result, ("integer_constant", 0))))
             else:
                 result = (kind, result)
 
@@ -900,11 +900,10 @@ class Parser:
 
     def parse_expression_with_mul_and_div(self):
         result = self.parse_expression_with_unary_operators()
-        op_map = {"*": "mul", "/": "div", "%": "mod"}
-        while self.tokens[0].code in op_map:
+        while self.tokens[0].code in {"*", "/", "%"}:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_unary_operators()
-            result = (op_map[op], result, rhs)
+            result = (op, result, rhs)
         return result
 
     def parse_expression_with_add(self) -> AST:
@@ -914,26 +913,18 @@ class Parser:
         else:
             result = self.parse_expression_with_mul_and_div()
 
-        op_map = {"+": "add", "-": "sub"}
-        while self.tokens[0].code in op_map:
+        while self.tokens[0].code in {"+", "-"}:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_mul_and_div()
-            result = (op_map[op], result, rhs)
+            result = (op, result, rhs)
         return result
 
     def parse_expression_with_bitwise_ops(self):
         result = self.parse_expression_with_add()
-        op_map = {
-            "&": "bit_and",
-            "|": "bit_or",
-            "^": "bit_xor",
-            "<<": "bit_shift_left",
-            ">>": "bit_shift_right",
-        }
-        while self.tokens[0].code in op_map:
+        while self.tokens[0].code in {"&", "|", "^", "<<", ">>"}:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_add()
-            result = (op_map[op], result, rhs)
+            result = (op, result, rhs)
         return result
 
     # "as" operator has somewhat low precedence, so that "1+2 as float" works as expected
@@ -947,18 +938,10 @@ class Parser:
 
     def parse_expression_with_comparisons(self):
         result = self.parse_expression_with_as()
-        op_map = {
-            "==": "eq",
-            "!=": "ne",
-            ">": "gt",
-            "<": "lt",
-            ">=": "ge",
-            "<=": "le",
-        }
-        while self.tokens[0].code in op_map:
+        while self.tokens[0].code in {"==", "!=", ">", "<", ">=", "<="}:
             op = self.tokens.pop(0).code
             rhs = self.parse_expression_with_as()
-            result = (op_map[op], result, rhs)
+            result = (op, result, rhs)
         return result
 
     def parse_expression_with_not(self):
@@ -1030,21 +1013,8 @@ class Parser:
                     result = ("declare_local_var", name, type, value)
             case _:
                 expr = self.parse_expression()
-                op_map = {
-                    "=": "assign",
-                    "+=": "in_place_add",
-                    "-=": "in_place_sub",
-                    "*=": "in_place_mul",
-                    "/=": "in_place_div",
-                    "%=": "in_place_mod",
-                    "&=": "in_place_bit_and",
-                    "|=": "in_place_bit_or",
-                    "^=": "in_place_bit_xor",
-                    "<<=": "in_place_bit_shift_left",
-                    ">>=": "in_place_bit_shift_right",
-                }
-                if self.tokens[0].code in op_map:
-                    kind = op_map[self.tokens.pop(0).code]
+                if self.tokens[0].code in {"=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="}:
+                    kind = self.tokens.pop(0).code
                     result = (kind, expr, self.parse_expression())
                 else:
                     result = ("expr_stmt", expr)
@@ -2048,7 +2018,7 @@ class CFuncMaker:
                 self.do_body(otherwise)
                 self.output.extend(end_braces)
 
-            case ("assign", target_ast, value_ast, location):
+            case ("=", target_ast, value_ast, location):
                 if target_ast[0] == "get_variable":
                     _, varname = target_ast
                     if self.find_any_var_or_constant(varname) is None:
@@ -2066,33 +2036,16 @@ class CFuncMaker:
                 self.output.append(f"*{ptr.c_code} = {value.c_code};")
 
             case (
-                "in_place_add"
-                | "in_place_sub"
-                | "in_place_mul"
-                | "in_place_div"
-                | "in_place_bit_and"
-                | "in_place_bit_or"
-                | "in_place_bit_xor"
-                | "in_place_bit_shift_left"
-                | "in_place_bit_shift_right" as op,
+                "+=" | "-=" | "*=" | "/=" | "&=" | "|=" | "^=" | "<<=" | ">>=" as op,
                 target_ast,
                 value_ast,
                 location,
             ):
                 ptr = self.do_address_of_expression(target_ast)
                 value = self.do_expression(value_ast, ptr.type.inner_type)
-                op_map = {
-                    "in_place_add": "+=",
-                    "in_place_sub": "-=",
-                    "in_place_mul": "*=",
-                    "in_place_div": "/=",
-                    "in_place_bit_and": "&=",
-                    "in_place_bit_or": "|=",
-                    "in_place_bit_xor": "^=",
-                    "in_place_bit_shift_left": "<<=",
-                    "in_place_bit_shift_right": ">>=",
-                }
-                self.output.append(f"*{ptr.c_code} {op_map[op]} {value.c_code};")
+                # TODO: Jou's integer division rules are different than C's.
+                #       Should special-case /= and %= accordingly.
+                self.output.append(f"*{ptr.c_code} {op} {value.c_code};")
 
             case ("declare_local_var", varname, type_ast, value_ast, location):
                 vartype = type_from_ast(self.path, type_ast)
@@ -2172,10 +2125,10 @@ class CFuncMaker:
             case ("get_variable" | "self" | "constant", *_):
                 return self.do_expression(expr, None).type
 
-            case ("eq" | "ne" | "gt" | "ge" | "lt" | "le" | "and" | "or" | "not", *_):
+            case ("==" | "!=" | ">" | ">=" | "<" | "<=" | "and" | "or" | "not", *_):
                 return BASIC_TYPES["bool"]
 
-            case ("add" | "sub" | "mul" | "div" | "mod", lhs, rhs):
+            case ("+" | "-" | "*" | "/" | "%", lhs, rhs):
                 lhs_type = self.guess_type(lhs)
                 rhs_type = self.guess_type(rhs)
                 if lhs_type == rhs_type:
@@ -2217,22 +2170,22 @@ class CFuncMaker:
 
                 raise NotImplementedError(expr)
 
-            case ("bit_and" | "bit_or" | "bit_xor" | "bit_shift_left" | "bit_shift_right" as op, lhs, rhs):
+            case ("<<" | ">>" as op, lhs, rhs):
+                return self.guess_type(lhs)
+
+            case ("&" | "|" | "^" as op, lhs, rhs):
                 lhs_type = self.guess_type(lhs)
                 rhs_type = self.guess_type(rhs)
 
                 if lhs_type.is_integer() and rhs_type.is_integer():
                     lhs_bits = int(lhs_type.name.removeprefix("u").removeprefix("int"))
                     rhs_bits = int(rhs_type.name.removeprefix("u").removeprefix("int"))
-                    if op in ("bit_shift_left", "bit_shift_right"):
-                        # Shifts return the type of the left operand
-                        return lhs_type
-                    elif lhs_bits == rhs_bits:
+                    if lhs_bits == rhs_bits:
                         # Same size, prefer unsigned
                         return lhs_type if lhs_type.name.startswith("u") else rhs_type
                     else:
                         # Different sizes, use smaller for AND and bigger for OR/XOR
-                        if op == "bit_and":
+                        if op == "&":
                             return lhs_type if lhs_bits < rhs_bits else rhs_type
                         else:
                             return lhs_type if lhs_bits > rhs_bits else rhs_type
@@ -2435,19 +2388,11 @@ class CFuncMaker:
             case ("self",):
                 return JouValue(self.locals["self"], "var_self")
 
-            case ("eq" | "ne" | "gt" | "lt" | "ge" | "le" as op, lhs_ast, rhs_ast):
+            case ("==" | "!=" | ">" | "<" | ">=" | "<=" as op, lhs_ast, rhs_ast):
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(BASIC_TYPES["bool"])
-                op_map = {
-                    "eq": "==",
-                    "ne": "!=",
-                    "lt": "<",
-                    "gt": ">",
-                    "le": "<=",
-                    "ge": ">=",
-                }
-                self.output.append(f"{result.c_code} = {lhs.c_code} {op_map[op]} {rhs.c_code};")
+                self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
                 return result
 
             case ("sizeof", obj):
@@ -2547,18 +2492,13 @@ class CFuncMaker:
                 self.output.append(f"{result.c_code} = !{obj.c_code};")
                 return result
 
-            case ("add" | "sub" | "mul" | "div" | "mod" as op, lhs_ast, rhs_ast):
+            # TODO: Jou's integer division rules are different than C's.
+            #       Should special-case / and % accordingly.
+            case ("+" | "-" | "*" | "/" | "%" as op, lhs_ast, rhs_ast):
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(self.guess_type(expr))
-                op_map = {
-                    "add": "+",
-                    "sub": "-",
-                    "mul": "*",
-                    "div": "/",  # TODO: Jou's integer division rules are different than C's
-                    "mod": "%",  # TODO: Jou's integer division rules are different than C's
-                }
-                self.output.append(f"{result.c_code} = {lhs.c_code} {op_map[op]} {rhs.c_code};")
+                self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
                 return result
 
             case ("negate", obj_ast):
@@ -2613,11 +2553,11 @@ class CFuncMaker:
                 self.output.append("}")
                 return result
 
-            case ("bit_and" | "bit_or" | "bit_xor" | "bit_shift_left" | "bit_shift_right" as op, lhs_ast, rhs_ast):
+            case ("&" | "|" | "^" | "<<" | ">>" as op, lhs_ast, rhs_ast):
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(self.guess_type(expr))
-                op = "&" if op == "bit_and" else "|" if op == "bit_or" else "^"
+                op = "&" if op == "&" else "|" if op == "|" else "^"
                 self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
                 return result
 
