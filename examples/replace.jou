@@ -107,6 +107,7 @@ def replace_in_place(path: byte*, old: byte*, new: byte*) -> None:
         exit(1)
     copy_file(temp, f)
     fclose(f)
+    fclose(temp)
 
 
 def main(argc: int, argv: byte**) -> int:
