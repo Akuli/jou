@@ -1,0 +1,70 @@
+# This program is basically "sed", but much more dumb.
+#
+# Examples:
+#
+#   $ jou -o replace replace.jou
+#   $ echo hi | ./replace hi ho
+#   ho
+#   $ replace Hello Hallo -i hello.jou
+#   $ jou hello.jou
+#   Hallo World
+#
+# Installation in case you really like this program:
+#
+#   $ jou -o ~/bin/replace replace.jou
+#
+# where instead of ~/bin/ you can use any directory on your PATH.
+
+import "stdlib/assert.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/errno.jou"
+import "stdlib/process.jou"
+
+
+# This function is probably not very fast, but it works well even with infinite
+# "files" like a long-running program piped into this program.
+def replace_with_files(in: FILE*, out: FILE*, old: byte*, new: byte*) -> None:
+    assert old[0] != '\0'
+
+    rolling_buffer: byte* = malloc(strlen(old))
+    assert rolling_buffer != NULL
+    rolling_buffer_len = 0
+
+    while True:
+        c = fgetc(in)
+        if c == EOF:
+            if ferror(in) != 0:
+                fprintf(get_stderr(), "replace: read error: %s\n", strerror(get_errno()))
+                exit(1)
+            break
+
+        if old[rolling_buffer_len] == '\0':
+            # buffer is full
+            if fputc(rolling_buffer[rolling_buffer_len - 1], out) == EOF:
+                fprintf(get_stderr(), "replace: write error: %s\n", strerror(get_errno()))
+                exit(1)
+            memmove(rolling_buffer, &rolling_buffer[1], --rolling_buffer_len)
+
+        # Add byte to buffer
+        rolling_buffer[rolling_buffer_len++] = c as byte
+
+        if old[rolling_buffer_len] == '\0' and memcmp(rolling_buffer, old, rolling_buffer_len) == 0:
+            # The entire old string matched
+            if fputs(new, out) == EOF:
+                fprintf(get_stderr(), "replace: write error: %s\n", strerror(get_errno()))
+                exit(1)
+            rolling_buffer_len = 0
+
+    # Output remaining content in buffer
+    if fwrite(rolling_buffer, 1, rolling_buffer_len, out) != rolling_buffer_len:
+        fprintf(get_stderr(), "replace: write error: %s\n", strerror(get_errno()))
+        exit(1)
+
+    free(rolling_buffer)
+
+
+def main() -> int:
+    replace_with_files(get_stdin(), get_stdout(), "i", "o")
+    return 0
