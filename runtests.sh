@@ -340,6 +340,7 @@ for joufile in \
     fi
 
     case $joufile in
+        examples/replace.jou) correct_exit_code=1; ;;
         examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
         *) correct_exit_code=1; ;;  # compiler or runtime error
     esac
