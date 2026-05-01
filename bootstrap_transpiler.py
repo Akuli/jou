@@ -2557,7 +2557,6 @@ class CFuncMaker:
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(self.guess_type(expr))
-                op = "&" if op == "&" else "|" if op == "|" else "^"
                 self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
                 return result
 
