@@ -381,20 +381,25 @@ Also, empty files are not supported, because arrays cannot be empty in Jou.
 ## `embed_text_file`
 
 This is just like `embed_binary_file()`, except that:
-- a zero byte is always added to the end, and the file must not contain zero bytes
+- a zero byte is always added to the end
+- it is a compiler error if the file must not contain zero bytes
 - `\r\n` (also known as CRLF) in the file content is replaced with `\n`.
 
-For example, the following program prints this documentation:
+For example:
 
 ```python
 import "stdlib/io.jou"
 
-global keywords_doc = embed_text_file("keywords.md")
+global file_content = embed_text_file("../tests/data/hellohellohello.txt")
 
 def main() -> int:
-    printf("%s", keywords_doc)
+    # Output: File content is hellohellohello
+    printf("File content is %s\n", file_content)
     return 0
 ```
+
+This wouldn't work as is with `embed_binary_file()`,
+because `%s` expects [a string with a zero byte to mark the end](tutorial.md#more-about-strings).
 
 
 ## `enum`
