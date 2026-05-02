@@ -382,7 +382,7 @@ Also, empty files are not supported, because arrays cannot be empty in Jou.
 
 This is just like [`embed_binary_file()`](#embed_binary_file), except that:
 - a zero byte is always added to the end
-- it is a compiler error if the file contains zero bytes
+- it is a compiler error if the file contains a zero byte
 - `\r\n` (also known as CRLF) in the file content is replaced with `\n`.
 
 For example:
