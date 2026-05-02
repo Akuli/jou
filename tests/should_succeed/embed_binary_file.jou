@@ -1,8 +1,8 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
 
-global hello3 = embed_file("../data/hellohellohello.txt")
-global zeros = embed_file("../data/zeros.bin")
+global hello3 = embed_binary_file("../data/hellohellohello.txt")
+global zeros = embed_binary_file("../data/zeros.bin")
 
 def main() -> int:
     # Type of hello3 should be byte[15]
@@ -14,7 +14,7 @@ def main() -> int:
     printf("%.15s\n", hello3)  # Output: hellohellohello
 
     # Also possible to read it like this (not recommended for large files)
-    hello3_on_stack = embed_file("../data/hellohellohello.txt")
+    hello3_on_stack = embed_binary_file("../data/hellohellohello.txt")
     printf("%.15s\n", hello3_on_stack)  # Output: hellohellohello
 
     # This file should contain 100 zero bytes
