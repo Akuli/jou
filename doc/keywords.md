@@ -363,7 +363,7 @@ import "stdlib/io.jou"
 global meme = embed_binary_file("images/64bit-meme.jpg")
 
 def main() -> int:
-    printf("%d bytes\n", sizeof(meme))  # Output: 1 bytes
+    printf("%d bytes\n", sizeof(meme))  # Output: 59939 bytes
     return 0
 ```
 
