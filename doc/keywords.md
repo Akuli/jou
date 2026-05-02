@@ -375,14 +375,14 @@ Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
 if you want to embed a larger file.
 Also, empty files are not supported, because arrays cannot be empty in Jou.
 
-**See also:** [sizeof](#sizeof), [array_count](#array_count)
+**See also:** [sizeof](#sizeof), [array_count](#array_count), [embed_text_file](#embed_text_file)
 
 
 ## `embed_text_file`
 
-This is just like `embed_binary_file()`, except that:
+This is just like [`embed_binary_file()`](#embed_binary_file), except that:
 - a zero byte is always added to the end
-- it is a compiler error if the file must not contain zero bytes
+- it is a compiler error if the file contains zero bytes
 - `\r\n` (also known as CRLF) in the file content is replaced with `\n`.
 
 For example:
@@ -400,6 +400,8 @@ def main() -> int:
 
 This wouldn't work as is with `embed_binary_file()`,
 because `%s` expects [a string with a zero byte to mark the end](tutorial.md#more-about-strings).
+
+**See also:** [embed_binary_file](#embed_binary_file)
 
 
 ## `enum`
