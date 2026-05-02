@@ -62,8 +62,8 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "an array_count expression"
         case AstExpressionKind.ArrayEnd:
             return "an array_end expression"
-        case AstExpressionKind.EmbedFile:
-            return "an embed_file expression"
+        case AstExpressionKind.EmbedBinaryFile:
+            return "an embed_binary_file expression"
         case AstExpressionKind.EnumCount:
             return "an enum_count expression"
         case AstExpressionKind.Instantiate:
@@ -1116,7 +1116,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     detect_enum_member_syntax(state, expr)
 
     match expr.kind:
-        case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount | AstExpressionKind.EmbedFile:
+        case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount | AstExpressionKind.EmbedBinaryFile:
             # The expression can be evaluated as a constant
             c: Constant
             ok = evaluate_constant_expression(state.jou_file, expr, &c, type_hint)

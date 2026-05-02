@@ -328,9 +328,9 @@ It is also used in the ternary expression:
 **See also:** [if](#if), [elif](#elif)
 
 
-## `embed_file`
+## `embed_binary_file`
 
-Use `embed_file("filename")` to include the contents a file into the executable.
+Use `embed_binary_file("filename")` to include the contents a file into the executable.
 This evaluates to an array of `byte` that is the file's content.
 The file name is relative to the location of the Jou file, but you can use `..`,
 just like with [`import` statements that start with a dot](imports.md).
@@ -340,7 +340,7 @@ For example:
 ```python
 import "stdlib/io.jou"
 
-global readme = embed_file("../README.md")
+global readme = embed_binary_file("../README.md")
 
 def main() -> int:
     # Output: Jou programming language
@@ -360,10 +360,10 @@ Instead, use [`sizeof`](#sizeof) or [`array_count`](#array_count) to get the fil
 ```python
 import "stdlib/io.jou"
 
-global readme = embed_file("../../README.md")
+global meme = embed_binary_file("images/64bit-meme.jpg")
 
 def main() -> int:
-    printf("%d bytes\n", sizeof(readme))
+    printf("%d bytes\n", sizeof(meme))  # Output: 59939 bytes
     return 0
 ```
 

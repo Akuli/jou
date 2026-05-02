@@ -121,7 +121,7 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
             *result = expr.constant.copy()
             return True
 
-        case AstExpressionKind.EmbedFile:
+        case AstExpressionKind.EmbedBinaryFile:
             filename_constant: Constant
             if not evaluate_constant_expression(jou_file, expr.operands, &filename_constant, uint_type(8).pointer_type()):
                 fail(expr.location, "failed to evaluate file name at compile time")

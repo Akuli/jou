@@ -449,7 +449,7 @@ class AstToBuilder:
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> BuilderValue:
         match expr.kind:
-            case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount | AstExpressionKind.EmbedFile:
+            case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount | AstExpressionKind.EmbedBinaryFile:
                 # should be turned into Constant during type checking
                 assert False
             case AstExpressionKind.Constant:
