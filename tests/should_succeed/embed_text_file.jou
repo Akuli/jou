@@ -1,0 +1,22 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+global hello3 = embed_text_file("../data/hellohellohello.txt")
+
+def main() -> int:
+    # Type of hello3 should be byte[16]
+    assert array_count(hello3) == 16
+    assert sizeof(hello3) == 16
+    assert sizeof(hello3[0]) == 1
+    puts(hello3)  # Output: hellohellohello
+
+    # Also possible to read it like this (not recommended for large files)
+    hello3_on_stack = embed_text_file("../data/hellohellohello.txt")
+    puts(hello3_on_stack)  # Output: hellohellohello
+
+    # Unlike with embed_binary_file(), it's possible to embed an empty file
+    empty = embed_text_file("../data/empty_file")
+    assert array_count(empty) == 1
+    assert empty[0] == '\0'
+
+    return 0

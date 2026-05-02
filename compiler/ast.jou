@@ -257,7 +257,8 @@ enum AstExpressionKind:
     SizeOf          # sizeof(x)
     ArrayCount      # array_count(x)
     ArrayEnd        # array_end(x)
-    EmbedBinaryFile # embed_binary_file("./foo.bar")
+    EmbedBinaryFile # embed_binary_file("./foo.png")
+    EmbedTextFile   # embed_text_file("./foo.txt")
     AddressOf       # &x
     Dereference     # *x
     Negate          # -x
@@ -367,6 +368,8 @@ class AstExpression:
                 printf("sizeof\n")
             case AstExpressionKind.EmbedBinaryFile:
                 printf("embed_binary_file\n")
+            case AstExpressionKind.EmbedTextFile:
+                printf("embed_text_file\n")
             case AstExpressionKind.ArrayCount:
                 printf("array_count\n")
             case AstExpressionKind.ArrayEnd:
@@ -468,6 +471,7 @@ class AstExpression:
             case (
                 AstExpressionKind.SizeOf
                 | AstExpressionKind.EmbedBinaryFile
+                | AstExpressionKind.EmbedTextFile
                 | AstExpressionKind.ArrayCount
                 | AstExpressionKind.ArrayEnd
                 | AstExpressionKind.AddressOf

@@ -52,7 +52,22 @@ def evaluate_boolean_and_or(jou_file: JouFile*, expr: AstExpression*, and_or: by
     return value.boolean as int
 
 
-def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Location) -> List[byte]:
+# Replaces \r\n with \n in-place
+def crlf_to_lf(s: byte*) -> None:
+    out = s
+    while *s != '\0':
+        if starts_with(s, "\r\n"):
+            s++
+        *out++ = *s++
+    *out = '\0'
+
+
+def read_embedded_file(
+    jou_file: JouFile*,
+    specified_path: byte*,
+    location: Location,
+    embed_as_text: bool,
+) -> List[byte]:
     msg: byte[500]
 
     # If I remember correctly, dirname() may modify the given path
@@ -84,10 +99,22 @@ def read_embedded_file(jou_file: JouFile*, specified_path: byte*, location: Loca
         file_content.extend_from_ptr(buf, num_read)
     fclose(file)
 
-    if file_content.len == 0:
+    # Embedding empty binary file would create array of size zero which is disallowed.
+    # Embedding empty text file creates an array of size 1 (for '\0' at end) which is fine.
+    if file_content.len == 0 and not embed_as_text:
         simplify_path(full_path)
         snprintf(msg, sizeof(msg), "file \"%s\" is empty", full_path)
         fail(location, msg)
+
+    if embed_as_text:
+        for p = file_content.ptr; p < file_content.end(); p++:
+            if *p == '\0':
+                simplify_path(full_path)
+                snprintf(msg, sizeof(msg), "file \"%s\" contains a zero byte", full_path)
+                fail(location, msg)
+        file_content.append('\0')
+        crlf_to_lf(file_content.ptr)
+        file_content.len = strlen(file_content.ptr) + 1
 
     free(full_path)
     return file_content
@@ -121,7 +148,7 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
             *result = expr.constant.copy()
             return True
 
-        case AstExpressionKind.EmbedBinaryFile:
+        case AstExpressionKind.EmbedBinaryFile | AstExpressionKind.EmbedTextFile:
             filename_constant: Constant
             if not evaluate_constant_expression(jou_file, expr.operands, &filename_constant, uint_type(8).pointer_type()):
                 fail(expr.location, "failed to evaluate file name at compile time")
@@ -129,13 +156,16 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                 snprintf(msg, sizeof(msg), "file name must be a string, not %s", filename_constant.get_type().name)
                 fail(expr.location, msg)
 
-            file_content = read_embedded_file(jou_file, filename_constant.pointer_string, expr.location)
+            file_content = read_embedded_file(
+                jou_file,
+                filename_constant.pointer_string,
+                expr.location,
+                expr.kind == AstExpressionKind.EmbedTextFile,
+            )
             filename_constant.free()
 
+            assert file_content.len > 0
             assert file_content.len <= INT32_MAX  # TODO
-            if file_content.len == 0:
-                # In Jou, empty array like byte[0] is not a valid type
-                fail(expr.location, "file is empty")
 
             *result = Constant{kind = ConstantKind.ArrayOfBytes, array_of_bytes = file_content}
             return True
