@@ -378,6 +378,25 @@ Also, empty files are not supported, because arrays cannot be empty in Jou.
 **See also:** [sizeof](#sizeof), [array_count](#array_count)
 
 
+## `embed_text_file`
+
+This is just like `embed_binary_file()`, except that:
+- a zero byte is always added to the end, and the file must not contain zero bytes
+- `\r\n` (also known as CRLF) in the file content is replaced with `\n`.
+
+For example, the following program prints this documentation:
+
+```python
+import "stdlib/io.jou"
+
+global keywords_doc = embed_text_file("keywords.md")
+
+def main() -> int:
+    printf("%s", keywords_doc)
+    return 0
+```
+
+
 ## `enum`
 
 Used to define an enum. See [enums.md](enums.md).
