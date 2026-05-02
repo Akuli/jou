@@ -1,7 +1,7 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
 
-global hello3 = embed_binary_file("../data/hellohellohello.txt")
+global hello3 = embed_text_file("../data/hellohellohello.txt")
 
 def main() -> int:
     # Type of hello3 should be byte[16]
@@ -11,7 +11,7 @@ def main() -> int:
     puts(hello3)  # Output: hellohellohello
 
     # Also possible to read it like this (not recommended for large files)
-    hello3_on_stack = embed_binary_file("../data/hellohellohello.txt")
+    hello3_on_stack = embed_text_file("../data/hellohellohello.txt")
     puts(hello3_on_stack)  # Output: hellohellohello
 
     # Unlike with embed_binary_file(), it's possible to embed an empty file

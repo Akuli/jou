@@ -99,7 +99,9 @@ def read_embedded_file(
         file_content.extend_from_ptr(buf, num_read)
     fclose(file)
 
-    if file_content.len == 0:
+    # Embedding empty binary file would create array of size zero which is disallowed.
+    # Embedding empty text file creates an array of size 1 (for '\0' at end) which is fine.
+    if file_content.len == 0 and not embed_as_text:
         simplify_path(full_path)
         snprintf(msg, sizeof(msg), "file \"%s\" is empty", full_path)
         fail(location, msg)
@@ -112,7 +114,7 @@ def read_embedded_file(
                 fail(location, msg)
         file_content.append('\0')
         crlf_to_lf(file_content.ptr)
-        file_content.len = strlen(file_content.ptr)
+        file_content.len = strlen(file_content.ptr) + 1
 
     free(full_path)
     return file_content
@@ -162,10 +164,8 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
             )
             filename_constant.free()
 
+            assert file_content.len > 0
             assert file_content.len <= INT32_MAX  # TODO
-            if file_content.len == 0:
-                # In Jou, empty array like byte[0] is not a valid type
-                fail(expr.location, "file is empty")
 
             *result = Constant{kind = ConstantKind.ArrayOfBytes, array_of_bytes = file_content}
             return True
