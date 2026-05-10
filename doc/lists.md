@@ -453,13 +453,12 @@ and multiplying it by `names.len - 1` means that we move all list items except o
 
 Simply set `list.len = 0`.
 
-This does not free the allocated memory,
-and the memory will be reused when items are appended to the list.
-If you also want to free all allocated memory, use:
+Often each list element needs its own cleanup.
+In that case, you can `.pop()` and clean up the elements one by one until the list is empty:
 
 ```python
-free(list.ptr)
-list = List[int]{}  # change int to match type of list
+while list.len > 0:
+    do_some_kind_of_cleanup(list.pop())
 ```
 
 
