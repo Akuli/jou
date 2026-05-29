@@ -1,0 +1,40 @@
+import "stdlib/io.jou"
+
+def test_add() -> None:
+    array = [1, 2] + [3, 4]
+    printf("%d %d\n", array[0], array[1])  # Output: 4 6
+
+    array += [1, 1]
+    printf("%d %d\n", array[0], array[1])  # Output: 5 7
+
+    with_offset = array + [0.5, 0.5]
+    printf("%f %f\n", with_offset[0], with_offset[1])  # Output: 5.500000 7.500000
+
+    with_float_offset = array + [0.5 as float, 0.5 as float]
+    printf("%f %f\n", with_float_offset[0], with_float_offset[1])  # Output: 5.500000 7.500000
+
+    # Output: Sizes: 16 and 8
+    printf("Sizes: %d and %d\n", sizeof(with_offset), sizeof(with_float_offset))
+
+
+def test_sub() -> None:
+    array = [1, 2] - [3, 5]
+    printf("%d %d\n", array[0], array[1])  # Output: -2 -3
+
+    array -= [1, 1]
+    printf("%d %d\n", array[0], array[1])  # Output: -3 -4
+
+    with_offset = array - [0.5, 0.5]
+    printf("%f %f\n", with_offset[0], with_offset[1])  # Output: -3.500000 -4.500000
+
+    with_float_offset = array - [0.5 as float, 0.5 as float]
+    printf("%f %f\n", with_float_offset[0], with_float_offset[1])  # Output: -3.500000 -4.500000
+
+    # Output: Sizes: 16 and 8
+    printf("Sizes: %d and %d\n", sizeof(with_offset), sizeof(with_float_offset))
+
+
+def main() -> int:
+    test_add()
+    test_sub()
+    return 0
