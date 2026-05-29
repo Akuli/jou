@@ -231,10 +231,29 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
     fail(location, message.ptr)
 
 
+def can_cast_array_implicitly(from: Type*, to: Type*) -> bool:
+    return (
+        from.kind == TypeKind.Array
+        and to.kind == TypeKind.Array
+        and from.array.count == to.array.count
+        and from.array.item_type == to.array.item_type
+    )
+
+
+def can_cast_array_explicitly(from: Type*, to: Type*) -> bool:
+    return (
+        from.kind == TypeKind.Array
+        and to.kind == TypeKind.Array
+        and from.array.count == to.array.count
+        and can_cast_explicitly(from.array.item_type, to.array.item_type)
+    )
+
+
 def can_cast_implicitly(from: Type*, to: Type*) -> bool:
     # Please keep doc/types.md up to date if you modify this
     return (
         from == to
+        or can_cast_array_implicitly(from, to)
         or (from.kind == TypeKind.Array and to.kind == TypeKind.Pointer and from.array.item_type == to.value_type)
         or (from.kind == TypeKind.Array and to.kind == TypeKind.VoidPointer)
         or (
@@ -255,6 +274,7 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
     # This does not take into account things that type inference does, see docs.
     return (
         from == to
+        or can_cast_array_explicitly(from, to)
         or (from.kind == TypeKind.Array and to.kind == TypeKind.Pointer and from.array.item_type == to.value_type)
         or (from.kind == TypeKind.Array and to.kind == TypeKind.VoidPointer)
         or (from.is_pointer_type() and to.is_pointer_type())
@@ -482,8 +502,8 @@ def check_binop(
         ltype.kind == TypeKind.Array
         and rtype.kind == TypeKind.Array
         and ltype.array.count == rtype.array.count
-        and ltype.array.item_type == rtype.array.item_type
         and ltype.array.item_type.is_number_type()
+        and rtype.array.item_type.is_number_type()
     )
 
     if (
@@ -513,7 +533,10 @@ def check_binop(
         else:
             cast_type = float_type()
     if got_arrays:
-        cast_type = ltype
+        item_type = cast_type_of_integer_binop(ltype.array.item_type, rtype.array.item_type, op) if ltype.array.item_type.is_integer_type() and rtype.array.item_type.is_integer_type() else (
+            double_type() if ltype.array.item_type == double_type() or rtype.array.item_type == double_type() else float_type()
+        )
+        cast_type = item_type.array_type(ltype.array.count)
     if got_pointers:
         cast_type = uint_type(64)
     if got_enums:
