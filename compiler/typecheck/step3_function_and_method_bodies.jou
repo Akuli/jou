@@ -478,13 +478,21 @@ def check_binop(
         # Ban comparisons like int* == byte*, unless one of the two types is void*
         and (ltype == rtype or ltype == void_ptr_type() or rtype == void_ptr_type())
     )
+    got_arrays = (
+        ltype.kind == TypeKind.Array
+        and rtype.kind == TypeKind.Array
+        and ltype.array.count == rtype.array.count
+        and ltype.array.item_type == rtype.array.item_type
+        and ltype.array.item_type.is_number_type()
+    )
 
     if (
-        (not (got_bools or got_numbers or got_enums or got_pointers))
+        (not (got_bools or got_numbers or got_enums or got_pointers or got_arrays))
         or (got_bools and not equals_compare)
         or (got_enums and not equals_compare)
         or (got_pointers and not some_kind_of_compare)
         or (need_integers and not got_integers)
+        or (got_arrays and not (op == AstExpressionKind.Add or op == AstExpressionKind.Sub))
     ):
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
@@ -504,6 +512,8 @@ def check_binop(
             cast_type = double_type()
         else:
             cast_type = float_type()
+    if got_arrays:
+        cast_type = ltype
     if got_pointers:
         cast_type = uint_type(64)
     if got_enums:

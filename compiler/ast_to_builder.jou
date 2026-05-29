@@ -237,6 +237,34 @@ class AstToBuilder:
 
         return result
 
+    def build_array_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
+        assert lhs.type == rhs.type
+        assert lhs.type.kind == TypeKind.Array
+
+        array_type = lhs.type
+        item_type = array_type.array.item_type
+        count = array_type.array.count
+
+        result_ptr = self.builder.stack_alloc(self.map_type(array_type), NULL)
+        lhs_ptr = self.builder.stack_alloc(self.map_type(array_type), NULL)
+        rhs_ptr = self.builder.stack_alloc(self.map_type(array_type), NULL)
+
+        self.builder.set_ptr(lhs_ptr, lhs)
+        self.builder.set_ptr(rhs_ptr, rhs)
+
+        lhs_items = self.builder.cast(lhs_ptr, item_type.pointer_type())
+        rhs_items = self.builder.cast(rhs_ptr, item_type.pointer_type())
+        result_items = self.builder.cast(result_ptr, item_type.pointer_type())
+
+        for i = 0; i < count; i++:
+            idx = self.builder.integer(int_type(64), i)
+            lhs_item = self.builder.dereference(self.builder.indexed_pointer(lhs_items, idx))
+            rhs_item = self.builder.dereference(self.builder.indexed_pointer(rhs_items, idx))
+            result_item = self.build_binop(op, lhs_item, rhs_item)
+            self.builder.set_ptr(self.builder.indexed_pointer(result_items, idx), result_item)
+
+        return self.builder.dereference(result_ptr)
+
     def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
         match op:
             case AstExpressionKind.Eq:
@@ -252,8 +280,12 @@ class AstToBuilder:
             case AstExpressionKind.Ge:
                 return self.builder.not_(self.builder.lt(lhs, rhs))
             case AstExpressionKind.Add:
+                if lhs.type.kind == TypeKind.Array:
+                    return self.build_array_binop(op, lhs, rhs)
                 return self.builder.add(lhs, rhs)
             case AstExpressionKind.Sub:
+                if lhs.type.kind == TypeKind.Array:
+                    return self.build_array_binop(op, lhs, rhs)
                 return self.builder.sub(lhs, rhs)
             case AstExpressionKind.Mul:
                 return self.builder.mul(lhs, rhs)
