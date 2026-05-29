@@ -502,7 +502,7 @@ def check_binop(
         or (got_enums and not equals_compare)
         or (got_pointers and not some_kind_of_compare)
         or (need_integers and not got_integers)
-        or (got_arrays and not (op == AstExpressionKind.Add or op == AstExpressionKind.Sub))
+        or (got_arrays and op != AstExpressionKind.Add)
     ):
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
