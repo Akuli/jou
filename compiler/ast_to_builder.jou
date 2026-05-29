@@ -437,27 +437,6 @@ class AstToBuilder:
 
         return self.builder.dereference(arr_ptr)
 
-    def build_array_cast(self, value: BuilderValue, from_type: Type*, to_type: Type*) -> BuilderValue:
-        assert from_type.kind == TypeKind.Array
-        assert to_type.kind == TypeKind.Array
-        assert from_type.array.count == to_type.array.count
-
-        src_ptr = self.builder.stack_alloc(self.map_type(from_type), NULL)
-        self.builder.set_ptr(src_ptr, value)
-
-        dst_ptr = self.builder.stack_alloc(self.map_type(to_type), NULL)
-
-        src_items = self.builder.cast(src_ptr, from_type.array.item_type.pointer_type())
-        dst_items = self.builder.cast(dst_ptr, to_type.array.item_type.pointer_type())
-
-        for i = 0; i < from_type.array.count; i++:
-            index = self.builder.integer(int_type(64), i)
-            src_item = self.builder.dereference(self.builder.indexed_pointer(src_items, index))
-            cast_item = self.builder.cast(src_item, self.map_type(to_type.array.item_type))
-            self.builder.set_ptr(self.builder.indexed_pointer(dst_items, index), cast_item)
-
-        return self.builder.dereference(dst_ptr)
-
     def build_constant(self, constant: Constant*) -> BuilderValue:
         match constant.kind:
             case ConstantKind.Array:
@@ -632,6 +611,24 @@ class AstToBuilder:
             case AstExpressionKind.TernaryIf:
                 return self.build_ternary(&expr.operands[0], &expr.operands[1], &expr.operands[2])
 
+    def build_array_cast(self, value: BuilderValue, to_type: Type*) -> BuilderValue:
+        assert value.type.kind == TypeKind.Array
+        assert to_type.kind == TypeKind.Array
+        assert value.type.array.count == to_type.array.count
+
+        # Create a temporary array to hold results similarly to e.g. [1, 2] + [3, 4]
+        out_ptr = self.builder.stack_alloc(to_type, NULL)
+        out_first_item_ptr = self.builder.cast(out_ptr, to_type.array.item_type.pointer_type())
+
+        for i = 0; i < value.type.array.count; i++:
+            index = self.builder.integer(int_type(64), i)
+            self.builder.set_ptr(
+                self.builder.indexed_pointer(out_first_item_ptr, index),
+                self.builder.cast(self.get_element_from_array(value, index), to_type.array.item_type),
+            )
+
+        return self.builder.dereference(out_ptr)
+
     def build_expression(self, expr: AstExpression*) -> BuilderValue:
         old_location = self.set_location(expr.location)
 
@@ -646,14 +643,14 @@ class AstToBuilder:
             else:
                 assert expr.types.orig_type != NULL
                 assert expr.types.implicit_cast_type != NULL
-                if (
-                    expr.types.orig_type.kind == TypeKind.Array
-                    and expr.types.implicit_cast_type.kind == TypeKind.Array
-                    and expr.types.orig_type != expr.types.implicit_cast_type
-                ):
-                    result = self.build_array_cast(raw, expr.types.orig_type, expr.types.implicit_cast_type)
+                assert raw.type == expr.types.orig_type
+                cast_type = self.map_type(expr.types.implicit_cast_type)
+
+                if raw.type != cast_type and raw.type.kind == TypeKind.Array and cast_type.kind == TypeKind.Array:
+                    # Array to array casts are used for e.g. [1, 2] + [0.5, 0.5]
+                    result = self.build_array_cast(raw, cast_type)
                 else:
-                    result = self.builder.cast(raw, self.map_type(expr.types.implicit_cast_type))
+                    result = self.builder.cast(raw, cast_type)
 
         self.set_location(old_location)
         return result
