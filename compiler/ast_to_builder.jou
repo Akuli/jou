@@ -237,33 +237,47 @@ class AstToBuilder:
 
         return result
 
+    def get_element_from_array(self, array: BuilderValue, index: BuilderValue) -> BuilderValue:
+        assert array.type.kind == TypeKind.Array
+        assert index.type == int_type(64)
+
+        # This is more difficult than it needs to be, but hopefully LLVM will
+        # optimize the mess.
+        ptr_to_array = self.builder.stack_alloc(array.type, NULL)
+        self.builder.set_ptr(ptr_to_array, array)
+        return self.builder.dereference(
+            self.builder.indexed_pointer(
+                self.builder.cast(ptr_to_array, array.type.array.item_type.pointer_type()),
+                index,
+            )
+        )
+
+    # Example: [1, 2] + [3, 4] becomes [1 + 2, 3 + 4]
     def build_array_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
         assert lhs.type == rhs.type
-        assert lhs.type.kind == TypeKind.Array
-
         array_type = lhs.type
+
+        assert array_type.kind == TypeKind.Array
         item_type = array_type.array.item_type
-        count = array_type.array.count
 
-        result_ptr = self.builder.stack_alloc(self.map_type(array_type), NULL)
-        lhs_ptr = self.builder.stack_alloc(self.map_type(array_type), NULL)
-        rhs_ptr = self.builder.stack_alloc(self.map_type(array_type), NULL)
+        # Result array is populated one element at a time, not by telling the
+        # builder to do all operations at once. This means that the builder
+        # doesn't need to know anything about this feature.
+        out_ptr = self.builder.stack_alloc(array_type, NULL)
+        out_first_item_ptr = self.builder.cast(out_ptr, array_type.array.item_type.pointer_type())
 
-        self.builder.set_ptr(lhs_ptr, lhs)
-        self.builder.set_ptr(rhs_ptr, rhs)
+        for i = 0; i < array_type.array.count; i++:
+            index = self.builder.integer(int_type(64), i)
+            self.builder.set_ptr(
+                self.builder.indexed_pointer(out_first_item_ptr, index),
+                self.build_binop(
+                    op,
+                    self.get_element_from_array(lhs, index),
+                    self.get_element_from_array(rhs, index),
+                ),
+            )
 
-        lhs_items = self.builder.cast(lhs_ptr, item_type.pointer_type())
-        rhs_items = self.builder.cast(rhs_ptr, item_type.pointer_type())
-        result_items = self.builder.cast(result_ptr, item_type.pointer_type())
-
-        for i = 0; i < count; i++:
-            idx = self.builder.integer(int_type(64), i)
-            lhs_item = self.builder.dereference(self.builder.indexed_pointer(lhs_items, idx))
-            rhs_item = self.builder.dereference(self.builder.indexed_pointer(rhs_items, idx))
-            result_item = self.build_binop(op, lhs_item, rhs_item)
-            self.builder.set_ptr(self.builder.indexed_pointer(result_items, idx), result_item)
-
-        return self.builder.dereference(result_ptr)
+        return self.builder.dereference(out_ptr)
 
     def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
         match op:
@@ -280,12 +294,14 @@ class AstToBuilder:
             case AstExpressionKind.Ge:
                 return self.builder.not_(self.builder.lt(lhs, rhs))
             case AstExpressionKind.Add:
-                if lhs.type.kind == TypeKind.Array:
-                    return self.build_array_binop(op, lhs, rhs)
-                return self.builder.add(lhs, rhs)
+                assert lhs.type == rhs.type
+                match lhs.type.kind:
+                    case TypeKind.Array:
+                        return self.build_array_binop(op, lhs, rhs)
+                    case _:
+                        # TODO: this should probably be split up to separate int vs floating adds
+                        return self.builder.add(lhs, rhs)
             case AstExpressionKind.Sub:
-                if lhs.type.kind == TypeKind.Array:
-                    return self.build_array_binop(op, lhs, rhs)
                 return self.builder.sub(lhs, rhs)
             case AstExpressionKind.Mul:
                 return self.builder.mul(lhs, rhs)
@@ -435,10 +451,10 @@ class AstToBuilder:
         dst_items = self.builder.cast(dst_ptr, to_type.array.item_type.pointer_type())
 
         for i = 0; i < from_type.array.count; i++:
-            idx = self.builder.integer(int_type(64), i)
-            src_item = self.builder.dereference(self.builder.indexed_pointer(src_items, idx))
+            index = self.builder.integer(int_type(64), i)
+            src_item = self.builder.dereference(self.builder.indexed_pointer(src_items, index))
             cast_item = self.builder.cast(src_item, self.map_type(to_type.array.item_type))
-            self.builder.set_ptr(self.builder.indexed_pointer(dst_items, idx), cast_item)
+            self.builder.set_ptr(self.builder.indexed_pointer(dst_items, index), cast_item)
 
         return self.builder.dereference(dst_ptr)
 
@@ -551,14 +567,7 @@ class AstToBuilder:
                 fieldptr = self.builder.class_field_pointer(ptr, expr.class_field.field_name)
                 return self.builder.dereference(fieldptr)
             case AstExpressionKind.As:
-                inner = self.build_expression(&expr.as_.value)
-                if (
-                    expr.types.orig_type.kind == TypeKind.Array
-                    and expr.as_.value.types.implicit_cast_type.kind == TypeKind.Array
-                    and expr.types.orig_type != expr.as_.value.types.implicit_cast_type
-                ):
-                    return self.build_array_cast(inner, expr.as_.value.types.implicit_cast_type, expr.types.orig_type)
-                return self.builder.cast(inner, expr.types.orig_type)
+                return self.builder.cast(self.build_expression(&expr.as_.value), expr.types.orig_type)
             case AstExpressionKind.SizeOf:
                 return self.builder.size_of(self.map_type(expr.operands[0].types.implicit_cast_type))
             case AstExpressionKind.ArrayCount:

@@ -231,15 +231,6 @@ def fail_with_implicit_cast_error(location: Location, template: byte*, from: Typ
     fail(location, message.ptr)
 
 
-def can_cast_array_explicitly(from: Type*, to: Type*) -> bool:
-    return (
-        from.kind == TypeKind.Array
-        and to.kind == TypeKind.Array
-        and from.array.count == to.array.count
-        and can_cast_explicitly(from.array.item_type, to.array.item_type)
-    )
-
-
 def can_cast_implicitly(from: Type*, to: Type*) -> bool:
     # Please keep doc/types.md up to date if you modify this
     return (
@@ -264,7 +255,6 @@ def can_cast_explicitly(from: Type*, to: Type*) -> bool:
     # This does not take into account things that type inference does, see docs.
     return (
         from == to
-        or can_cast_array_explicitly(from, to)
         or (from.kind == TypeKind.Array and to.kind == TypeKind.Pointer and from.array.item_type == to.value_type)
         or (from.kind == TypeKind.Array and to.kind == TypeKind.VoidPointer)
         or (from.is_pointer_type() and to.is_pointer_type())
