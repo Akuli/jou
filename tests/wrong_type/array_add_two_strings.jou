@@ -1,0 +1,4 @@
+def foo() -> None:
+    # These should not be converted into arrays ['h','i','\0'] and ['h','o','\0']
+    # because that is almost certainly what the programmer wanted to do.
+    thing = "hi" + "ho"  # Error: wrong types: cannot add byte* and byte*
