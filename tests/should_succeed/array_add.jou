@@ -1,0 +1,19 @@
+import "stdlib/io.jou"
+
+def main() -> int:
+    added = [1, 2] + [3, 4]
+    printf("%d %d\n", added[0], added[1])  # Output: 4 6
+
+    added += [1, 1]
+    printf("%d %d\n", added[0], added[1])  # Output: 5 7
+
+    with_offset = added + [0.5, 0.5]
+    printf("%f %f\n", with_offset[0], with_offset[1])  # Output: 5.500000 7.500000
+
+    with_float_offset = added + [0.5 as float, 0.5 as float]
+    printf("%f %f\n", with_float_offset[0], with_float_offset[1])  # Output: 5.500000 7.500000
+
+    # Output: Sizes: 16 and 8
+    printf("Sizes: %d and %d\n", sizeof(with_offset), sizeof(with_float_offset))
+
+    return 0

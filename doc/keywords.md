@@ -13,7 +13,7 @@ Both `foo` and `bar` must be `bool`s, and `bar` is not evaluated at all if `foo`
 
 ## `array_count`
 
-Use `array_count(array)` to get the number of elements in [an array](types.md#pointers-and-arrays) as `int`.
+Use `array_count(array)` to get the number of elements in [an array](types.md#arrays) as `int`.
 The number of elements in an array is always known at compile time, and in fact,
 the `array` is not evaluated when the program runs.
 
@@ -30,7 +30,7 @@ def main() -> int:
 
 Another way to get the size of an array is to do `sizeof(array) / sizeof(array[0])`.
 For example, in the above example, this would calculate `40 / 4`,
-because [the array is just 10 `int`s next to each other](types.md#pointers-and-arrays)
+because [the array is just 10 `int`s next to each other](types.md#arrays)
 and [each `int` is 4 bytes](types.md#integers).
 
 Unlike the `sizeof` trick, `array_count(array)` will fail to compile
@@ -678,7 +678,7 @@ Type type of `foo` must be `bool`.
 ## `NULL`
 
 `NULL` is a special pointer that is used as a special "missing" value.
-Jou's `NULL` constant has type [`void*`](types.md#pointers-and-arrays),
+Jou's `NULL` constant has type [`void*`](types.md#pointers),
 so it converts implicitly to any other pointer type.
 
 For example, the `strstr()` function declared in [stdlib/str.jou](../stdlib/str.jou)
@@ -810,7 +810,7 @@ TODO: not documented yet, sorry :(
 
 ## `void`
 
-This keyword can be used only to specify [the void pointer type](types.md#pointers-and-arrays) by writing `void*`.
+This keyword can be used only to specify [the void pointer type](types.md#pointers) by writing `void*`.
 Use [None](#none) when a function does not return a value.
 
 **See also:** [None](#none), [NULL](#null)

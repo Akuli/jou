@@ -66,7 +66,36 @@ When printing, floats are converted to doubles automatically,
 so the same `%f` works for both floating-point types.
 
 
-## Pointers and Arrays
+## Arrays
+
+| Name                          | Example                       | Size                          | Description           |
+|-------------------------------|-------------------------------|-------------------------------|-----------------------|
+| `T[n]` where `T` is any type  | `[1, 2, 3]` (type `int[3]`)   | `n` times the size of `T`     | Array of `n` elements |
+
+An array is simply `n` instances of type `T` next to each other in memory.
+The array length `n` must be known at compile time,
+because in Jou, the compiler knows the sizes of all types.
+Use [lists](lists.md) if you want an array that grows dynamically as items are added to it.
+
+To get the number of elements of an array as `int`, you can use the [`array_count`](keywords.md#array_count) built-in.
+
+Indexes and array sizes are reversed in Jou.
+For example, `array: int[10][100]` means 100 rows of 10 ints each,
+so `array[99][9]` is the bottom right corner, and `array[9][99]` is [UB](ub.md).
+
+You can use `+` to add arrays of the same length that contain numbers:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    added = [1, 2] + [3, 4]
+    printf("%d %d\n", added[0], added[1])  # Output: 4 6
+    return 0
+```
+
+
+## Pointers
 
 | Name                          | Example                       | Size                          | Description                                       |
 |-------------------------------|-------------------------------|-------------------------------|---------------------------------------------------|
@@ -81,20 +110,9 @@ The size of a pointer is 32 bits on a 32-bit system and 64 bits on a 64-bit syst
 In other words, the size of any pointer is the size of [intnative](tutorial.md#intnative):
 a pointer is basically an `intnative` that contains the location of something in the computer's memory.
 
-An array is simply `n` instances of type `T` next to each other in memory.
-The array length `n` must be known at compile time,
-because in Jou, the compiler knows the sizes of all types.
-Use [lists](lists.md) if you want an array that grows dynamically as items are added to it.
-
-To get the number of elements of an array as `int`, you can use the [`array_count`](keywords.md#array_count) built-in.
-
 Pointers and arrays can be combined with each other.
 For example, `byte[100]*` means a pointer to an array of 100 bytes,
 and `int**` means a pointer to a pointer to an integer.
-
-Note that indexes and array sizes are reversed.
-For example, `array: int[10][100]` means 100 rows of 10 ints each,
-so `array[99][9]` is the bottom right corner, and `array[9][99]` is [UB](ub.md).
 
 A void pointer (`void*`) is used when you don't want the compiler to know
 the type of the object being pointed at.

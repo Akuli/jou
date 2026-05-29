@@ -346,7 +346,15 @@ def typecheck_expression_with_implicit_cast(
     do_implicit_cast(state.fom, expr, casttype, expr.location, errormsg_template)
 
 
-def cast_type_of_integer_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind) -> Type*:
+def cast_type_of_number_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind) -> Type*:
+    assert ltype.is_integer_type() or ltype == float_type() or ltype == double_type()
+    assert rtype.is_integer_type() or rtype == float_type() or rtype == double_type()
+
+    if ltype == double_type() or rtype == double_type():
+        return double_type()
+    if ltype == float_type() or rtype == float_type():
+        return float_type()
+
     assert ltype.is_integer_type()
     assert rtype.is_integer_type()
 
@@ -478,13 +486,21 @@ def check_binop(
         # Ban comparisons like int* == byte*, unless one of the two types is void*
         and (ltype == rtype or ltype == void_ptr_type() or rtype == void_ptr_type())
     )
+    got_number_arrays = (
+        ltype.kind == TypeKind.Array
+        and rtype.kind == TypeKind.Array
+        and ltype.array.count == rtype.array.count
+        and ltype.array.item_type.is_number_type()
+        and rtype.array.item_type.is_number_type()
+    )
 
     if (
-        (not (got_bools or got_numbers or got_enums or got_pointers))
+        (not (got_bools or got_numbers or got_enums or got_pointers or got_number_arrays))
         or (got_bools and not equals_compare)
         or (got_enums and not equals_compare)
         or (got_pointers and not some_kind_of_compare)
         or (need_integers and not got_integers)
+        or (got_number_arrays and op != AstExpressionKind.Add)
     ):
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
@@ -497,13 +513,12 @@ def check_binop(
     cast_type: Type* = NULL
     if got_bools:
         cast_type = bool_type()
-    if got_integers:
-        cast_type = cast_type_of_integer_binop(ltype, rtype, op)
-    if got_numbers and not got_integers:
-        if ltype == double_type() or rtype == double_type():
-            cast_type = double_type()
-        else:
-            cast_type = float_type()
+    if got_numbers:
+        cast_type = cast_type_of_number_binop(ltype, rtype, op)
+    if got_number_arrays:
+        cast_type = cast_type_of_number_binop(
+            ltype.array.item_type, rtype.array.item_type, op
+        ).array_type(ltype.array.count)
     if got_pointers:
         cast_type = uint_type(64)
     if got_enums:

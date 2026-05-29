@@ -237,6 +237,48 @@ class AstToBuilder:
 
         return result
 
+    def get_element_from_array(self, array: BuilderValue, index: BuilderValue) -> BuilderValue:
+        assert array.type.kind == TypeKind.Array
+        assert index.type == int_type(64)
+
+        # This is more difficult than it needs to be, but hopefully LLVM will
+        # optimize the mess.
+        ptr_to_array = self.builder.stack_alloc(array.type, NULL)
+        self.builder.set_ptr(ptr_to_array, array)
+        return self.builder.dereference(
+            self.builder.indexed_pointer(
+                self.builder.cast(ptr_to_array, array.type.array.item_type.pointer_type()),
+                index,
+            )
+        )
+
+    # Example: [1, 2] + [3, 4] becomes [1 + 2, 3 + 4]
+    def build_array_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
+        assert lhs.type == rhs.type
+        array_type = lhs.type
+
+        assert array_type.kind == TypeKind.Array
+        item_type = array_type.array.item_type
+
+        # Result array is populated one element at a time, not by telling the
+        # builder to do all operations at once. This means that the builder
+        # doesn't need to know anything about this feature.
+        out_ptr = self.builder.stack_alloc(array_type, NULL)
+        out_first_item_ptr = self.builder.cast(out_ptr, array_type.array.item_type.pointer_type())
+
+        for i = 0; i < array_type.array.count; i++:
+            index = self.builder.integer(int_type(64), i)
+            self.builder.set_ptr(
+                self.builder.indexed_pointer(out_first_item_ptr, index),
+                self.build_binop(
+                    op,
+                    self.get_element_from_array(lhs, index),
+                    self.get_element_from_array(rhs, index),
+                ),
+            )
+
+        return self.builder.dereference(out_ptr)
+
     def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
         match op:
             case AstExpressionKind.Eq:
@@ -252,7 +294,13 @@ class AstToBuilder:
             case AstExpressionKind.Ge:
                 return self.builder.not_(self.builder.lt(lhs, rhs))
             case AstExpressionKind.Add:
-                return self.builder.add(lhs, rhs)
+                assert lhs.type == rhs.type
+                match lhs.type.kind:
+                    case TypeKind.Array:
+                        return self.build_array_binop(op, lhs, rhs)
+                    case _:
+                        # TODO: this should probably be split up to separate int vs floating adds
+                        return self.builder.add(lhs, rhs)
             case AstExpressionKind.Sub:
                 return self.builder.sub(lhs, rhs)
             case AstExpressionKind.Mul:
@@ -563,6 +611,24 @@ class AstToBuilder:
             case AstExpressionKind.TernaryIf:
                 return self.build_ternary(&expr.operands[0], &expr.operands[1], &expr.operands[2])
 
+    def build_array_cast(self, value: BuilderValue, to_type: Type*) -> BuilderValue:
+        assert value.type.kind == TypeKind.Array
+        assert to_type.kind == TypeKind.Array
+        assert value.type.array.count == to_type.array.count
+
+        # Create a temporary array to hold results similarly to e.g. [1, 2] + [3, 4]
+        out_ptr = self.builder.stack_alloc(to_type, NULL)
+        out_first_item_ptr = self.builder.cast(out_ptr, to_type.array.item_type.pointer_type())
+
+        for i = 0; i < value.type.array.count; i++:
+            index = self.builder.integer(int_type(64), i)
+            self.builder.set_ptr(
+                self.builder.indexed_pointer(out_first_item_ptr, index),
+                self.builder.cast(self.get_element_from_array(value, index), to_type.array.item_type),
+            )
+
+        return self.builder.dereference(out_ptr)
+
     def build_expression(self, expr: AstExpression*) -> BuilderValue:
         old_location = self.set_location(expr.location)
 
@@ -577,7 +643,14 @@ class AstToBuilder:
             else:
                 assert expr.types.orig_type != NULL
                 assert expr.types.implicit_cast_type != NULL
-                result = self.builder.cast(raw, self.map_type(expr.types.implicit_cast_type))
+                #assert raw.type == expr.types.orig_type  # TODO: why does this fail the tests?
+                cast_type = self.map_type(expr.types.implicit_cast_type)
+
+                if raw.type != cast_type and raw.type.kind == TypeKind.Array and cast_type.kind == TypeKind.Array:
+                    # Array to array casts are used for e.g. [1, 2] + [0.5, 0.5]
+                    result = self.build_array_cast(raw, cast_type)
+                else:
+                    result = self.builder.cast(raw, cast_type)
 
         self.set_location(old_location)
         return result
