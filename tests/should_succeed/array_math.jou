@@ -66,9 +66,30 @@ def test_mul() -> None:
     printf("Sizes: %d and %d\n", sizeof(half), sizeof(float_half))
 
 
+def test_div() -> None:
+    floor_divided = [-2, 2, 8] / 3
+    printf("%d %d %d\n", floor_divided[0], floor_divided[1], floor_divided[2])  # Output: -1 0 2
+
+    array = [-2, 2, 8] / 3.0
+    printf("%f %f %f\n", array[0], array[1], array[2])  # Output: -0.666667 0.666667 2.666667
+
+    array /= 2
+    printf("%f %f %f\n", array[0], array[1], array[2])  # Output: -0.333333 0.333333 1.333333
+
+    midpoint = ([1.2, 3.4] + [1.4, 3.4]) / 2
+    printf("%f %f\n", midpoint[0], midpoint[1])  # Output: 1.300000 3.400000
+
+    float_midpoint = ([1, 2] + [3, 5]) / (2 as float)
+    printf("%f %f\n", float_midpoint[0], float_midpoint[1])  # Output: 2.000000 3.500000
+
+    # Output: Sizes: 16 and 8
+    printf("Sizes: %d and %d\n", sizeof(midpoint), sizeof(float_midpoint))
+
+
 def main() -> int:
     test_add()
     test_sub()
     test_neg()
     test_mul()
+    test_div()
     return 0
