@@ -34,7 +34,17 @@ def test_sub() -> None:
     printf("Sizes: %d and %d\n", sizeof(with_offset), sizeof(with_float_offset))
 
 
+def test_neg() -> None:
+    array1 = -[1, -2]
+    array2 = -[3.4, -5.6]
+    array3 = -[-7.8 as float, -9 as float]
+    printf("%d %d\n", array1[0], array1[1])  # Output: -1 2
+    printf("%f %f\n", array2[0], array2[1])  # Output: -3.400000 5.600000
+    printf("%f %f\n", array2[0], array2[1])  # Output: -7.800000 9.000000
+
+
 def main() -> int:
     test_add()
     test_sub()
+    test_neg()
     return 0
