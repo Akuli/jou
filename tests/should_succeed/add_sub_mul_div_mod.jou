@@ -79,29 +79,42 @@ def main() -> int:
     x = side_effect(1)*side_effect(2)*side_effect(3)*side_effect(4)
     printf("%d\n", x)
 
-    printf("%d\n", 7/2)    # Output: 3
-    printf("%d\n", 4/2*3)    # Output: 6
-    printf("%d\n", (4/2)*3)    # Output: 6
-    printf("%d\n", 4/(2*3))    # Output: 0
+    # TODO: Dividing integers with / will soon produce a double
+    # Output: 7 / 2 = 3
+    # Output: -7 / 2 = -4
+    # Output: 7 / -2 = -4
+    # Output: -7 / -2 = 3
+    printf("%d / %d = %d\n", 7, 2, 7/2)         # Warning: please use '//' for integer division, '/' will soon produce a double
+    printf("%d / %d = %d\n", -7, 2, (-7)/2)     # Warning: please use '//' for integer division, '/' will soon produce a double
+    printf("%d / %d = %d\n", 7, -2, 7/(-2))     # Warning: please use '//' for integer division, '/' will soon produce a double
+    printf("%d / %d = %d\n", -7, -2, (-7)/(-2)) # Warning: please use '//' for integer division, '/' will soon produce a double
 
-    # Unsigned 8-bit division: 255/2 = 127.5 (truncates to 127)
-    printf("%d / %d = %d\n", 0xff as byte, 2 as byte, (0xff as byte)/(2 as byte))  # Output: 255 / 2 = 127
-
-    # Dividing ints is signed 32-bit floor division.
-    printf("%d / %d = %d\n", 7, 2, 7/2)         # Output: 7 / 2 = 3
-    printf("%d / %d = %d\n", -7, 2, (-7)/2)     # Output: -7 / 2 = -4
-    printf("%d / %d = %d\n", 7, -2, 7/(-2))     # Output: 7 / -2 = -4
-    printf("%d / %d = %d\n", -7, -2, (-7)/(-2)) # Output: -7 / -2 = 3
+    # Signed 32-bit floor division
+    printf("%d // %d = %d\n", 7, 2, 7//2)         # Output: 7 // 2 = 3
+    printf("%d // %d = %d\n", -7, 2, (-7)//2)     # Output: -7 // 2 = -4
+    printf("%d // %d = %d\n", 7, -2, 7//(-2))     # Output: 7 // -2 = -4
+    printf("%d // %d = %d\n", -7, -2, (-7)//(-2)) # Output: -7 // -2 = 3
 
     # Should work the same with any other integer type
-    printf("%d / %d = %d\n", 7 as int8, 2 as int8, (7 as int8)/(2 as int8))     # Output: 7 / 2 = 3
-    printf("%d / %d = %d\n", -7 as int8, 2 as int8, (-7 as int8)/(2 as int8))   # Output: -7 / 2 = -4
-    printf("%d / %d = %d\n", 7 as int8, -2 as int8, (7 as int8)/(-2 as int8))   # Output: 7 / -2 = -4
-    printf("%d / %d = %d\n", -7 as int8, -2 as int8, (-7 as int8)/(-2 as int8)) # Output: -7 / -2 = 3
+    printf("%d // %d = %d\n", 7 as int8, 2 as int8, (7 as int8)//(2 as int8))     # Output: 7 // 2 = 3
+    printf("%d // %d = %d\n", -7 as int8, 2 as int8, (-7 as int8)//(2 as int8))   # Output: -7 // 2 = -4
+    printf("%d // %d = %d\n", 7 as int8, -2 as int8, (7 as int8)//(-2 as int8))   # Output: 7 // -2 = -4
+    printf("%d // %d = %d\n", -7 as int8, -2 as int8, (-7 as int8)//(-2 as int8)) # Output: -7 // -2 = 3
 
-    # Output: 6 3 2 1
-    x = side_effect(6)/side_effect(3)/side_effect(2)
+    # Unsigned 8-bit division: 255/2 = 127.5 (floors to 127)
+    printf("%d // %d = %d\n", 0xff as byte, 2 as byte, (0xff as byte)//(2 as byte))  # Output: 255 // 2 = 127
+
+    # Output: 8 3 2 1
+    x = side_effect(8) // side_effect(3) // side_effect(2)
     printf("%d\n", x)
+
+    # Output: 8 3 2 1
+    y = (
+        side_effect(8)
+        / side_effect(3)  # Warning: please use '//' for integer division, '/' will soon produce a double
+        / side_effect(2)  # Warning: please use '//' for integer division, '/' will soon produce a double
+    )
+    printf("%d\n", y)
 
     # Output: 222222
     printf(
@@ -125,11 +138,11 @@ def main() -> int:
         (2 as byte) % (-5),
     )
 
-    # Consistency between % and /. No output expected.
+    # Consistency between % and //. No output expected.
     for a = -5; a < 5; a++:
         for b = -5; b < 5; b++:
-            if b != 0 and a/b*b + a%b != a:
-                printf("remainder doesn't work correctly when dividing %d by %d (div=%d, rem=%d)\n", a, b, a/b, a%b)
+            if b != 0 and a//b*b + a%b != a:
+                printf("remainder doesn't work correctly when dividing %d by %d (div=%d, rem=%d)\n", a, b, a//b, a%b)
 
     x = 5
     x += 10
@@ -138,7 +151,7 @@ def main() -> int:
     printf("%d\n", x)  # Output: 9
     x *= 3
     printf("%d\n", x)  # Output: 27
-    x /= 2
+    x //= 2
     printf("%d\n", x)  # Output: 13
     x %= 4
     printf("%d\n", x)  # Output: 1

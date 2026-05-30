@@ -67,10 +67,11 @@ def test_mul() -> None:
 
 
 def test_div() -> None:
-    floor_divided = [-2, 2, 8] / 3
+    floor_divided = [-2, 2, 8] // 3
     printf("%d %d %d\n", floor_divided[0], floor_divided[1], floor_divided[2])  # Output: -1 0 2
 
-    array = [-2, 2, 8] / 3.0
+    to_be_changed_soon = [-2, 2, 8] / 3  # Warning: please use '//' for integer division, '/' will soon produce a double
+    array = [-2, 2, 8] / 3.0  # TODO: remove ".0" when possible
     printf("%f %f %f\n", array[0], array[1], array[2])  # Output: -0.666667 0.666667 2.666667
 
     array /= 2
@@ -82,8 +83,8 @@ def test_div() -> None:
     float_midpoint = ([1, 2] + [3, 5]) / (2 as float)
     printf("%f %f\n", float_midpoint[0], float_midpoint[1])  # Output: 2.000000 3.500000
 
-    # Output: Sizes: 16 and 8
-    printf("Sizes: %d and %d\n", sizeof(midpoint), sizeof(float_midpoint))
+    # Output: Sizes: 12 24 16 8
+    printf("Sizes: %d %d %d %d\n", sizeof(floor_divided), sizeof(array), sizeof(midpoint), sizeof(float_midpoint))
 
 
 def main() -> int:
