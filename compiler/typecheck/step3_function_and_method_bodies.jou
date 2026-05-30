@@ -511,7 +511,7 @@ def check_binop(
         or (got_pointers and not some_kind_of_compare)
         or (need_integers and not got_integers)
         or (got_number_arrays and op != AstExpressionKind.Add and op != AstExpressionKind.Sub)
-        or (got_number_array_and_number and op != AstExpressionKind.Mul)
+        or (got_number_array_and_number and op != AstExpressionKind.Mul and op != AstExpressionKind.Div)
         or (got_number_and_number_array and op != AstExpressionKind.Mul)
     ):
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)

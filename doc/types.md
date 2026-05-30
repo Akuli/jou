@@ -84,10 +84,11 @@ For example, `array: int[10][100]` means 100 rows of 10 ints each,
 so `array[99][9]` is the bottom right corner, and `array[9][99]` is [UB](ub.md).
 
 To make graphics programming easier, the following operations are supported on arrays that contain numbers:
-- `array + array` (adds each pair of numbers, arrays must have the same length)
-- `array - array` (subtracts each pair of numbers, arrays must have the same length)
-- `number * array` (multiplies each element)
-- `array * number` (same as `number * array`)
+- `array + array` adds each pair of numbers (arrays must have the same length)
+- `array - array` subtracts each pair of numbers (arrays must have the same length)
+- `number * array` multiplies each element
+- `array * number` is same as `number * array`
+- `array / number` divides each element
 
 For example:
 
@@ -101,8 +102,12 @@ def main() -> int:
     array -= [1, 1]
     printf("%d %d\n", array[0], array[1])  # Output: 3 5
 
-    midpoint = 0.5*([1, 1] + [2, 5])
+    midpoint = ([1, 1] + [2, 5]) / 2.0
     printf("%f %f\n", midpoint[0], midpoint[1])  # Output: 1.500000 3.000000
+
+    # This doesn't work like you might expect, because int/int is int in Jou
+    wrong_midpoint = ([1, 1] + [2, 5]) / 2
+    printf("%d %d\n", wrong_midpoint[0], wrong_midpoint[1])  # Output: 1 3
 
     return 0
 ```
