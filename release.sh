@@ -129,10 +129,15 @@ fi
 DEST_REPO="Akuli/jou"
 #DEST_REPO="Akuli/temp-test"
 
+echo ""
+echo ""
 echo "CREATING RELEASE!!!"
+echo ""
+echo ""
 
 echo "(1/3) Creating draft release..."
 curl -X POST "https://api.github.com/repos/$DEST_REPO/releases" -H "$auth_header" -d @release-params.json | tee release-response.json
+echo ""
 echo ""
 
 echo "(2/3) Attaching the Windows zip file to the draft release..."
@@ -142,10 +147,12 @@ upload_url="$(jq -r .upload_url < release-response.json | cut -d'{' -f1)?name=jo
 echo "  POSTing to $upload_url"
 curl -L -X POST -H "$auth_header" -H "Content-Type: application/zip" "$upload_url" --data-binary "@jou.zip"
 echo ""
+echo ""
 
 echo "(3/3) Publishing release, this should make it immutable..."
 release_id=$(jq -r .id < release-response.json)
 curl -X PATCH -H "$auth_header" -d '{"draft": false}' "https://api.github.com/repos/$DEST_REPO/releases/$release_id" | tee publish-response.json
+echo ""
 echo ""
 
 echo "Release published."
