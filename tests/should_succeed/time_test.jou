@@ -8,7 +8,7 @@ def test_time() -> None:
     # the current year. This test will break after a few years, but I want to
     # set a maximum in tests so I know I'm not e.g. getting milliseconds.
     seconds_in_year = 31557600
-    year = 1970 + time(NULL) / seconds_in_year
+    year = 1970 + (time(NULL) // seconds_in_year)
     if year < 2025:
         printf("year too small\n")
     elif year > 2030:

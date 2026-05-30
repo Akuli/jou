@@ -80,10 +80,14 @@ def main() -> int:
     printf("%d\n", x)
 
     # TODO: Dividing integers with "/" will soon produce a double
-    printf("%d / %d = %d\n", 7, 2, 7/2)         # Output: 7 / 2 = 3
-    printf("%d / %d = %d\n", -7, 2, (-7)/2)     # Output: -7 / 2 = -4
-    printf("%d / %d = %d\n", 7, -2, 7/(-2))     # Output: 7 / -2 = -4
-    printf("%d / %d = %d\n", -7, -2, (-7)/(-2)) # Output: -7 / -2 = 3
+    # Output: 7 / 2 = 3
+    # Output: -7 / 2 = -4
+    # Output: 7 / -2 = -4
+    # Output: -7 / -2 = 3
+    printf("%d / %d = %d\n", 7, 2, 7/2)         # Warning: please use '//' for integer division, '/' will soon produce a double
+    printf("%d / %d = %d\n", -7, 2, (-7)/2)     # Warning: please use '//' for integer division, '/' will soon produce a double
+    printf("%d / %d = %d\n", 7, -2, 7/(-2))     # Warning: please use '//' for integer division, '/' will soon produce a double
+    printf("%d / %d = %d\n", -7, -2, (-7)/(-2)) # Warning: please use '//' for integer division, '/' will soon produce a double
 
     # Signed 32-bit floor division
     printf("%d // %d = %d\n", 7, 2, 7//2)         # Output: 7 // 2 = 3
@@ -105,7 +109,11 @@ def main() -> int:
     printf("%d\n", x)
 
     # Output: 8 3 2 1
-    y = side_effect(8) / side_effect(3) / side_effect(2)
+    y = (
+        side_effect(8)
+        / side_effect(3)    # Warning: please use '//' for integer division, '/' will soon produce a double
+        / side_effect(2)    # Warning: please use '//' for integer division, '/' will soon produce a double
+    )
     printf("%d\n", y)
 
     # Output: 222222
@@ -143,7 +151,7 @@ def main() -> int:
     printf("%d\n", x)  # Output: 9
     x *= 3
     printf("%d\n", x)  # Output: 27
-    x /= 2
+    x //= 2
     printf("%d\n", x)  # Output: 13
     x %= 4
     printf("%d\n", x)  # Output: 1
