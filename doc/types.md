@@ -83,14 +83,27 @@ Indexes and array sizes are reversed in Jou.
 For example, `array: int[10][100]` means 100 rows of 10 ints each,
 so `array[99][9]` is the bottom right corner, and `array[9][99]` is [UB](ub.md).
 
-You can use `+` to add arrays of the same length that contain numbers:
+To make graphics programming easier, the following operations are supported on arrays that contain numbers:
+- `array + array` (adds each pair of numbers, arrays must have the same length)
+- `array - array` (subtracts each pair of numbers, arrays must have the same length)
+- `number * array` (multiplies each element)
+- `array * number` (same as `number * array`)
+
+For example:
 
 ```python
 import "stdlib/io.jou"
 
 def main() -> int:
-    added = [1, 2] + [3, 4]
-    printf("%d %d\n", added[0], added[1])  # Output: 4 6
+    array = [1, 2] + [3, 4]
+    printf("%d %d\n", array[0], array[1])  # Output: 4 6
+
+    array -= [1, 1]
+    printf("%d %d\n", array[0], array[1])  # Output: 3 5
+
+    midpoint = 0.5*([1, 1] + [2, 5])
+    printf("%f %f\n", midpoint[0], midpoint[1])  # Output: 1.500000 3.000000
+
     return 0
 ```
 

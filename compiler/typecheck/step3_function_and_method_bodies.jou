@@ -493,14 +493,26 @@ def check_binop(
         and ltype.array.item_type.is_number_type()
         and rtype.array.item_type.is_number_type()
     )
+    got_number_and_number_array = (
+        ltype.is_number_type()
+        and rtype.kind == TypeKind.Array
+        and rtype.array.item_type.is_number_type()
+    )
+    got_number_array_and_number = (
+        rtype.is_number_type()
+        and ltype.kind == TypeKind.Array
+        and ltype.array.item_type.is_number_type()
+    )
 
     if (
-        (not (got_bools or got_numbers or got_enums or got_pointers or got_number_arrays))
+        (not (got_bools or got_numbers or got_enums or got_pointers or got_number_arrays or got_number_array_and_number or got_number_and_number_array))
         or (got_bools and not equals_compare)
         or (got_enums and not equals_compare)
         or (got_pointers and not some_kind_of_compare)
         or (need_integers and not got_integers)
         or (got_number_arrays and op != AstExpressionKind.Add and op != AstExpressionKind.Sub)
+        or (got_number_array_and_number and op != AstExpressionKind.Mul)
+        or (got_number_and_number_array and op != AstExpressionKind.Mul)
     ):
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
@@ -511,27 +523,47 @@ def check_binop(
         return lhs.types.orig_type
 
     cast_type: Type* = NULL
+    lhs_cast_type: Type* = NULL
+    rhs_cast_type: Type* = NULL
+    result_type: Type* = NULL
+
     if got_bools:
         cast_type = bool_type()
     if got_numbers:
         cast_type = cast_type_of_number_binop(ltype, rtype, op)
     if got_number_arrays:
-        cast_type = cast_type_of_number_binop(
-            ltype.array.item_type, rtype.array.item_type, op
-        ).array_type(ltype.array.count)
+        cast_type = cast_type_of_number_binop(ltype.array.item_type, rtype.array.item_type, op).array_type(ltype.array.count)
+    if got_number_and_number_array:  # e.g. 2*[1, 2, 3]
+        lhs_cast_type = cast_type_of_number_binop(ltype, rtype.array.item_type, op)
+        rhs_cast_type = lhs_cast_type.array_type(rtype.array.count)
+        result_type = rhs_cast_type
+    if got_number_array_and_number:  # e.g. [1, 2, 3]*2
+        rhs_cast_type = cast_type_of_number_binop(ltype.array.item_type, rtype, op)
+        lhs_cast_type = rhs_cast_type.array_type(ltype.array.count)
+        result_type = lhs_cast_type
     if got_pointers:
         cast_type = uint_type(64)
     if got_enums:
         cast_type = int_type(32)
-    assert cast_type != NULL
-
-    do_implicit_cast(fom, lhs, cast_type, Location{}, NULL)
-    do_implicit_cast(fom, rhs, cast_type, Location{}, NULL)
 
     if some_kind_of_compare:
-        return bool_type()
-    else:
-        return cast_type
+        result_type = bool_type()
+
+    if cast_type != NULL:
+        assert lhs_cast_type == NULL
+        assert rhs_cast_type == NULL
+        lhs_cast_type = cast_type
+        rhs_cast_type = cast_type
+        if result_type == NULL:
+            result_type = cast_type
+
+    assert lhs_cast_type != NULL
+    assert rhs_cast_type != NULL
+    assert result_type != NULL
+
+    do_implicit_cast(fom, lhs, lhs_cast_type, Location{}, NULL)
+    do_implicit_cast(fom, rhs, rhs_cast_type, Location{}, NULL)
+    return result_type
 
 
 def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:

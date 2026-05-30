@@ -43,8 +43,32 @@ def test_neg() -> None:
     printf("%f %f\n", array3[0], array3[1])  # Output: -7.800000 9.000000
 
 
+def test_mul() -> None:
+    array = [1, 2] * 3
+    printf("%d %d\n", array[0], array[1])  # Output: 3 6
+
+    array = 2 * array
+    printf("%d %d\n", array[0], array[1])  # Output: 6 12
+
+    array *= 2
+    printf("%d %d\n", array[0], array[1])  # Output: 12 24
+
+    half = 0.5 * array
+    printf("%f %f\n", half[0], half[1])  # Output: 6.000000 12.000000
+
+    float_half = array * (0.5 as float)
+    printf("%f %f\n", float_half[0], float_half[1])  # Output: 6.000000 12.000000
+
+    midpoint = 0.5*([1.2, 3.4] + [1.4, 3.4])
+    printf("%f %f\n", midpoint[0], midpoint[1])  # Output: 1.300000 3.400000
+
+    # Output: Sizes: 16 and 8
+    printf("Sizes: %d and %d\n", sizeof(half), sizeof(float_half))
+
+
 def main() -> int:
     test_add()
     test_sub()
     test_neg()
+    test_mul()
     return 0
