@@ -104,6 +104,7 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             | AstExpressionKind.Sub
             | AstExpressionKind.Mul
             | AstExpressionKind.Div
+            | AstExpressionKind.FloorDiv
             | AstExpressionKind.Mod
             | AstExpressionKind.BitAnd
             | AstExpressionKind.BitOr
@@ -449,6 +450,9 @@ def check_binop(
             do_what = "multiply"
         case AstExpressionKind.Div:
             do_what = "divide"
+        case AstExpressionKind.FloorDiv:
+            do_what = "floor divide"
+            need_integers = True
         case AstExpressionKind.Mod:
             do_what = "take remainder with"
         case AstExpressionKind.BitAnd:
@@ -503,19 +507,29 @@ def check_binop(
         and ltype.kind == TypeKind.Array
         and ltype.array.item_type.is_number_type()
     )
+    got_integer_array_and_integer = (
+        rtype.is_integer_type()
+        and ltype.kind == TypeKind.Array
+        and ltype.array.item_type.is_integer_type()
+    )
 
+    # TODO: This if statement is getting out of hand. You may want to refactor somehow.
     if (
         (not (got_bools or got_numbers or got_enums or got_pointers or got_number_arrays or got_number_array_and_number or got_number_and_number_array))
         or (got_bools and not equals_compare)
         or (got_enums and not equals_compare)
         or (got_pointers and not some_kind_of_compare)
-        or (need_integers and not got_integers)
-        or (got_number_arrays and op != AstExpressionKind.Add and op != AstExpressionKind.Sub)
-        or (got_number_array_and_number and op != AstExpressionKind.Mul and op != AstExpressionKind.Div)
+        or (need_integers and not (got_integers or (op == AstExpressionKind.FloorDiv and got_integer_array_and_integer)))
+        or (got_number_arrays and not (op == AstExpressionKind.Add or op == AstExpressionKind.Sub))
+        or (got_number_array_and_number and not (op == AstExpressionKind.Mul or op == AstExpressionKind.Div or op == AstExpressionKind.FloorDiv))
         or (got_number_and_number_array and op != AstExpressionKind.Mul)
     ):
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
+
+    # TODO: enable this warning
+    #if op == AstExpressionKind.Div and (got_integers or got_integer_array_and_integer):
+    #    show_warning(location, "please use '//' for integer division, '/' will soon produce a double")
 
     if op == AstExpressionKind.BitShiftLeft or op == AstExpressionKind.BitShiftRight:
         # Special-cased, because right side type does not affect the type of result.
@@ -1373,6 +1387,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             | AstExpressionKind.Sub
             | AstExpressionKind.Mul
             | AstExpressionKind.Div
+            | AstExpressionKind.FloorDiv
             | AstExpressionKind.Mod
             | AstExpressionKind.BitAnd
             | AstExpressionKind.BitOr
@@ -1647,6 +1662,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             | AstStatementKind.InPlaceSub
             | AstStatementKind.InPlaceMul
             | AstStatementKind.InPlaceDiv
+            | AstStatementKind.InPlaceFloorDiv
             | AstStatementKind.InPlaceMod
             | AstStatementKind.InPlaceBitAnd
             | AstStatementKind.InPlaceBitOr
@@ -1681,6 +1697,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 case AstStatementKind.InPlaceDiv:
                     op = AstExpressionKind.Div
                     opname = "division"
+                case AstStatementKind.InPlaceFloorDiv:
+                    op = AstExpressionKind.FloorDiv
+                    opname = "floor division"
                 case AstStatementKind.InPlaceMod:
                     op = AstExpressionKind.Mod
                     opname = "modulo"

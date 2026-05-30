@@ -28,8 +28,8 @@ def main() -> int:
     return 0
 ```
 
-Another way to get the size of an array is to do `sizeof(array) / sizeof(array[0])`.
-For example, in the above example, this would calculate `40 / 4`,
+Another way to get the size of an array is to do `sizeof(array) // sizeof(array[0])`.
+For example, in the above example, this would calculate `40 // 4` (which is `10`),
 because [the array is just 10 `int`s next to each other](types.md#arrays)
 and [each `int` is 4 bytes](types.md#integers).
 

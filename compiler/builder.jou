@@ -1039,24 +1039,37 @@ class Builder:
 
         return result
 
+    # a // b, a and b are unsigned
+    @public
+    def unsigned_floor_div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        assert a.type.kind == TypeKind.UnsignedInteger
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("/u", a, b)
+            result.lvalue = LLVMBuildUDiv(self.llvm_builder, a.lvalue, b.lvalue, "div")
+        return result
+
+    # a // b, a and b are signed
+    @public
+    def signed_floor_div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+        assert a.type == b.type
+        assert a.type.kind == TypeKind.SignedInteger
+        result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+        if self.llvm_builder != NULL:
+            result.hvalue = self.hash_binop("/s", a, b)
+            result.lvalue = build_llvm_signed_div(self.llvm_builder, a.lvalue, b.lvalue)
+        return result
+
     # a / b
     @public
-    def div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
+    def floating_div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
+        assert a.type.kind == TypeKind.FloatingPoint
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
-
         if self.llvm_builder != NULL:
-            result.hvalue = self.hash_binop("/", a, b)
-            match a.type.kind:
-                case TypeKind.FloatingPoint:
-                    result.lvalue = LLVMBuildFDiv(self.llvm_builder, a.lvalue, b.lvalue, "div")
-                case TypeKind.SignedInteger:
-                    result.lvalue = build_llvm_signed_div(self.llvm_builder, a.lvalue, b.lvalue)
-                case TypeKind.UnsignedInteger:
-                    result.lvalue = LLVMBuildUDiv(self.llvm_builder, a.lvalue, b.lvalue, "div")
-                case _:
-                    assert False
-
+            result.hvalue = self.hash_binop("/f", a, b)
+            result.lvalue = LLVMBuildFDiv(self.llvm_builder, a.lvalue, b.lvalue, "div")
         return result
 
     # a % b

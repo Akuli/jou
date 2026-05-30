@@ -89,6 +89,7 @@ To make graphics programming easier, the following operations are supported on a
 - `number * array` multiplies each element
 - `array * number` is same as `number * array`
 - `array / number` divides each element
+- `array // number` floor divides each element
 
 For example:
 
@@ -102,12 +103,13 @@ def main() -> int:
     array -= [1, 1]
     printf("%d %d\n", array[0], array[1])  # Output: 3 5
 
+    # TODO: In a future version of Jou, "/ 2" will do the right thing here.
+    #       See https://github.com/Akuli/jou/issues/1379
     midpoint = ([1, 1] + [2, 5]) / 2.0
     printf("%f %f\n", midpoint[0], midpoint[1])  # Output: 1.500000 3.000000
 
-    # This doesn't work like you might expect, because int/int is int in Jou
-    wrong_midpoint = ([1, 1] + [2, 5]) / 2
-    printf("%d %d\n", wrong_midpoint[0], wrong_midpoint[1])  # Output: 1 3
+    approx_midpoint = ([1, 1] + [2, 5]) // 2
+    printf("%d %d\n", approx_midpoint[0], approx_midpoint[1])  # Output: 1 3
 
     return 0
 ```

@@ -433,6 +433,7 @@ class Tokenizer:
         if (
             starts_with(self.file_content_ptr, "<<=")
             or starts_with(self.file_content_ptr, ">>=")
+            or starts_with(self.file_content_ptr, "//=")
             or starts_with(self.file_content_ptr, "...")
         ):
             len = 3
@@ -454,6 +455,7 @@ class Tokenizer:
             or starts_with(self.file_content_ptr, "^=")
             or starts_with(self.file_content_ptr, "<<")
             or starts_with(self.file_content_ptr, ">>")
+            or starts_with(self.file_content_ptr, "//")
         ):
             len = 2
         else:
