@@ -98,7 +98,7 @@ def main() -> int:
     array = [1, 2] + [3, 4]
     printf("%d %d\n", array[0], array[1])  # Output: 4 6
 
-    array -= [1, 2]
+    array -= [1, 1]
     printf("%d %d\n", array[0], array[1])  # Output: 3 5
 
     midpoint = 0.5*([1, 1] + [2, 5])
