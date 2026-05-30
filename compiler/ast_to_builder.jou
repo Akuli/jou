@@ -309,7 +309,25 @@ class AstToBuilder:
             case AstExpressionKind.Mul:
                 return self.builder.mul(lhs, rhs)
             case AstExpressionKind.Div:
-                return self.builder.div(lhs, rhs)
+                assert lhs.type == rhs.type
+                match lhs.type.kind:
+                    case TypeKind.SignedInteger:  # TODO: legacy behavior, remove
+                        return self.builder.signed_floor_div(lhs, rhs)
+                    case TypeKind.UnsignedInteger:  # TODO: legacy behavior, remove
+                        return self.builder.unsigned_floor_div(lhs, rhs)
+                    case TypeKind.FloatingPoint:
+                        return self.builder.floating_div(lhs, rhs)
+                    case _:
+                        assert False
+            case AstExpressionKind.FloorDiv:
+                assert lhs.type == rhs.type
+                match lhs.type.kind:
+                    case TypeKind.SignedInteger:
+                        return self.builder.signed_floor_div(lhs, rhs)
+                    case TypeKind.UnsignedInteger:
+                        return self.builder.unsigned_floor_div(lhs, rhs)
+                    case _:
+                        assert False
             case AstExpressionKind.Mod:
                 return self.builder.mod(lhs, rhs)
             case AstExpressionKind.BitAnd:
@@ -587,6 +605,7 @@ class AstToBuilder:
                 | AstExpressionKind.Sub
                 | AstExpressionKind.Mul
                 | AstExpressionKind.Div
+                | AstExpressionKind.FloorDiv
                 | AstExpressionKind.Mod
                 | AstExpressionKind.BitAnd
                 | AstExpressionKind.BitOr
@@ -868,6 +887,8 @@ class AstToBuilder:
                 self.build_inplace_binop(AstExpressionKind.Mul, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceDiv:
                 self.build_inplace_binop(AstExpressionKind.Div, &stmt.assignment.target, &stmt.assignment.value)
+            case AstStatementKind.InPlaceFloorDiv:
+                self.build_inplace_binop(AstExpressionKind.FloorDiv, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceMod:
                 self.build_inplace_binop(AstExpressionKind.Mod, &stmt.assignment.target, &stmt.assignment.value)
             case AstStatementKind.InPlaceBitAnd:

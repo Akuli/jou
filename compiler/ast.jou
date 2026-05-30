@@ -269,12 +269,13 @@ enum AstExpressionKind:
     PreDecr         # --x
     PostDecr        # x--
     # binary operators
-    Add             # x+y
-    Sub             # x-y
-    Mul             # x*y
-    Div             # x/y
-    Indexing        # x[y]
+    Add             # x + y
+    Sub             # x - y
+    Mul             # x * y
+    Div             # x / y
+    FloorDiv        # x // y
     Mod             # x % y
+    Indexing        # x[y]
     BitAnd          # x & y
     BitOr           # x | y
     BitXor          # x ^ y
@@ -400,6 +401,8 @@ class AstExpression:
                 printf("mul\n")
             case AstExpressionKind.Div:
                 printf("div\n")
+            case AstExpressionKind.FloorDiv:
+                printf("floor div\n")
             case AstExpressionKind.Mod:
                 printf("mod\n")
             case AstExpressionKind.BitAnd:
@@ -490,6 +493,7 @@ class AstExpression:
                 | AstExpressionKind.Sub
                 | AstExpressionKind.Mul
                 | AstExpressionKind.Div
+                | AstExpressionKind.FloorDiv
                 | AstExpressionKind.Mod
                 | AstExpressionKind.BitAnd
                 | AstExpressionKind.BitOr
@@ -696,6 +700,7 @@ enum AstStatementKind:
     InPlaceSub              # x -= y
     InPlaceMul              # x *= y
     InPlaceDiv              # x /= y
+    InPlaceFloorDiv         # x //= y
     InPlaceMod              # x %= y
     InPlaceBitAnd           # x &= y
     InPlaceBitOr            # x |= y
@@ -794,6 +799,9 @@ class AstStatement:
             case AstStatementKind.InPlaceDiv:
                 printf("in-place div\n")
                 self.assignment.print_with_tree_printer(tp)
+            case AstStatementKind.InPlaceFloorDiv:
+                printf("in-place floor div\n")
+                self.assignment.print_with_tree_printer(tp)
             case AstStatementKind.InPlaceMod:
                 printf("in-place mod\n")
                 self.assignment.print_with_tree_printer(tp)
@@ -883,6 +891,7 @@ class AstStatement:
                 | AstStatementKind.InPlaceSub
                 | AstStatementKind.InPlaceMul
                 | AstStatementKind.InPlaceDiv
+                | AstStatementKind.InPlaceFloorDiv
                 | AstStatementKind.InPlaceMod
                 | AstStatementKind.InPlaceBitAnd
                 | AstStatementKind.InPlaceBitOr
@@ -937,6 +946,7 @@ class AstStatement:
                 | AstStatementKind.InPlaceSub
                 | AstStatementKind.InPlaceMul
                 | AstStatementKind.InPlaceDiv
+                | AstStatementKind.InPlaceFloorDiv
                 | AstStatementKind.InPlaceMod
                 | AstStatementKind.InPlaceBitAnd
                 | AstStatementKind.InPlaceBitOr
