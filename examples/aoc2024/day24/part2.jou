@@ -157,7 +157,7 @@ def count_errors(orig_gates: Gate*, ngates: int, mark_sus: bool) -> int:
 
     # With real input, there are 45 adders, but the first adder is simpler than others.
     # It only has two gates: InputXor for output, InputAnd for overflow/carry.
-    num_adders = ngates/5 + 1
+    num_adders = ngates//5 + 1
     assert counts[GateType.InputXor as int] == num_adders
     assert counts[GateType.InputAnd as int] == num_adders
     assert counts[GateType.OutputXor as int] == num_adders - 1
@@ -329,7 +329,7 @@ def main() -> int:
             bad_outputs[bad_outputs_len++] = orig_gates.ptr[i].output
 
     # Output: 4 gates were in the wrong place (2 swaps)
-    printf("%d gates were in the wrong place (%d swaps)\n", bad_outputs_len, bad_outputs_len / 2)
+    printf("%d gates were in the wrong place (%d swaps)\n", bad_outputs_len, bad_outputs_len // 2)
 
     # Output: ia1,ia2,ix2,ix3
     sort_strings(bad_outputs, bad_outputs_len)

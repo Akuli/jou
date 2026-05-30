@@ -18,7 +18,7 @@ def parse_disk_map(disk_map_string: byte*) -> int*:
 
         if i % 2 == 0:
             # It is a file
-            file_id = i/2
+            file_id = i//2
             size = disk_map_string[i] - '0'
             while size --> 0:
                 *p++ = file_id

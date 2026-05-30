@@ -78,7 +78,7 @@ def polygon_area(corners: int[2]*, ncorners: int) -> int:
         c = corners[(i+1) % ncorners][0]
         d = corners[(i+1) % ncorners][1]
         double_area += a*d - b*c
-    return abs(double_area)/2
+    return abs(double_area) // 2
 
 
 def main() -> int:
@@ -95,8 +95,7 @@ def main() -> int:
 
     # take first step away from S
     dir = find_initial_direction(&grid, point)
-    point[0] += dir[0]
-    point[1] += dir[1]
+    point += dir
     loop_length = 1
 
     while grid.get(point) != 'S':
@@ -108,8 +107,7 @@ def main() -> int:
         else:
             dir = dirs[0]
         loop[loop_length++] = point
-        point[0] += dir[0]
-        point[1] += dir[1]
+        point += dir
 
     area_along_middle_of_path = polygon_area(loop, loop_length)
 
@@ -129,7 +127,7 @@ def main() -> int:
     #
     # Here n-m = 4 because the loop goes around a total of 360 degrees
     # towards the inside.
-    printf("%d\n", area_along_middle_of_path + 1 - loop_length/2)  # Output: 4
+    printf("%d\n", area_along_middle_of_path + 1 - loop_length//2)  # Output: 4
 
     free(grid.data)
     free(loop)

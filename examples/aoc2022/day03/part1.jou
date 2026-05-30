@@ -21,7 +21,7 @@ def main() -> int:
     line: byte[200]
     while fgets(line, sizeof(line), f) != NULL:
         trim_ascii_whitespace(line)
-        right = &line[strlen(line) / 2]
+        right = &line[strlen(line) // 2]
 
         for p = &line[0]; p < right; p++:
             if strchr(right, *p) != NULL:

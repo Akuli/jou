@@ -44,7 +44,7 @@ def gcd(a: int64, b: int64) -> int64:
         memswap(&a, &b, sizeof(a))
 
 def lcm(a: int64, b: int64) -> int64:
-    return (a/gcd(a,b)) * b
+    return (a // gcd(a,b)) * b
 
 
 # We say that a number is a Z-count for a node, if doing that many steps
@@ -99,8 +99,8 @@ class ZCounts:
             if self.first_cycle.len % num_parts != 0 or self.cycle_offset % num_parts != 0:
                 continue
 
-            small_cycle_len = self.first_cycle.len / num_parts
-            small_offset = self.cycle_offset / num_parts
+            small_cycle_len = self.first_cycle.len // num_parts
+            small_offset = self.cycle_offset // num_parts
 
             can_split = True
             for i = 0; i < self.first_cycle.len - small_cycle_len; i++:

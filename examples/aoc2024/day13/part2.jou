@@ -21,7 +21,7 @@ def gcd(a: int64, b: int64) -> int64:
 # Returns the shortest vector in the same direction as the given vector.
 def shortest_vector(v: int64[2]) -> int64[2]:
     unwanted_scaling = gcd(llabs(v[0]), llabs(v[1]))
-    return [v[0] / unwanted_scaling, v[1] / unwanted_scaling]
+    return v // unwanted_scaling
 
 
 # Determines if two vectors go in the same direction.
@@ -59,13 +59,13 @@ def solve_linear_unique_2x2_system(a: int64, b: int64, c: int64, d: int64, e: in
     while a != 0 and d != 0:
         if a > d:
             # Subtract second equation from first n times
-            n = a/d
+            n = a // d
             a -= n*d
             b -= n*e
             c -= n*f
         else:
             # Subtract first equation from second n times
-            n = d/a
+            n = d // a
             d -= n*a
             e -= n*b
             f -= n*c
@@ -83,8 +83,8 @@ def solve_linear_unique_2x2_system(a: int64, b: int64, c: int64, d: int64, e: in
     assert b != 0
     assert d != 0
 
-    y = c / b
-    x = (f - e*y) / d
+    y = c // b
+    x = (f - e*y) // d
 
     if a*x + b*y == c and d*x + e*y == f:
         # Solution happens to consist of integers
@@ -120,11 +120,11 @@ def optimize_1d(a: int64, b: int64, prize: int64) -> int64[2]:
     # Start by pressing the better button as much as we can without going
     # beyond the prize. Use the other button to move the rest of the way.
     if a_is_better:
-        a_presses = prize / a
-        b_presses = (prize - a*a_presses) / b
+        a_presses = prize // a
+        b_presses = (prize - a*a_presses) // b
     else:
-        b_presses = prize / b
-        a_presses = (prize - b*b_presses) / a
+        b_presses = prize // b
+        a_presses = (prize - b*b_presses) // a
 
     while a_presses >= 0 and b_presses >= 0:
         if a*a_presses + b*b_presses == prize:
@@ -137,10 +137,10 @@ def optimize_1d(a: int64, b: int64, prize: int64) -> int64[2]:
         # This seems to never happen with the inputs given in AoC.
         if a_is_better:
             a_presses--
-            b_presses = (prize - a*a_presses) / b
+            b_presses = (prize - a*a_presses) // b
         else:
             b_presses--
-            a_presses = (prize - b*b_presses) / a
+            a_presses = (prize - b*b_presses) // a
 
     # No solution
     return [-1, -1]

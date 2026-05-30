@@ -5,7 +5,7 @@ import "stdlib/io.jou"
 def count_digits(n: int64) -> int:
     result = 0
     while n != 0:
-        n /= 10
+        n //= 10
         result++
     return result
 
@@ -15,7 +15,7 @@ def dividing_produces_constant_sequence_until_zero(n: int64, pow10: int64) -> bo
     while n != 0:
         if n % pow10 != value:
             return False
-        n /= pow10
+        n //= pow10
     return True
 
 

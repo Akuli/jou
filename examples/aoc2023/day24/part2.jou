@@ -211,7 +211,7 @@ def get_paired_index(N: int, small: int, big: int) -> int:
 # t_1*t_2 becomes t_(N+1), t_1*t_3 becomes t_(N+2) and so on.
 # Even with that, the resulting equations contain enough info to be solved.
 def create_equations(moving_points: MovingPoint*, N: int, neqs: int*) -> Equation*:
-    nvariables = N + N*(N-1)/2  # N normal variables, (n choose 2) paired variables
+    nvariables = N + N*(N-1)//2  # N normal variables, (n choose 2) paired variables
 
     eqs: Equation* = calloc(sizeof(eqs[0]), 3*N*N*N + 1)  # more than big enough
     assert eqs != NULL

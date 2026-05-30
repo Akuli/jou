@@ -61,8 +61,8 @@ class BigInt:
     #   self > other  -->  1
     @public
     def compare(self: BigInt, other: BigInt) -> int:
-        self_sign_bit = self.data[sizeof(self.data) - 1] / 128
-        other_sign_bit = other.data[sizeof(other.data) - 1] / 128
+        self_sign_bit = self.data[sizeof(self.data) - 1] // 128
+        other_sign_bit = other.data[sizeof(other.data) - 1] // 128
 
         if self_sign_bit != other_sign_bit:
             return other_sign_bit - self_sign_bit
@@ -116,14 +116,14 @@ class BigInt:
                 gonna_add = bigint(0)
                 gonna_add.data[i+k] = temp as byte
                 if i+k+1 < sizeof(gonna_add.data):
-                    gonna_add.data[i+k+1] = (temp / 256) as byte
+                    gonna_add.data[i+k+1] = (temp // 256) as byte
                 result = result.add(gonna_add)
 
         if result.sign() != result_sign:
             result = result.neg()
         return result
 
-    # x / 256^n for x >= 0
+    # x // 256^n for x >= 0
     def shift_smaller(self: BigInt, n: int) -> BigInt:
         assert self.sign() >= 0
         assert n >= 0
@@ -147,7 +147,7 @@ class BigInt:
         memset(&self.data, 0, n)
         return self
 
-    # [x/y, x%y]
+    # [x//y, x%y]
     def divmod(self: BigInt, bottom: BigInt) -> BigInt[2]:
         assert not bottom.is_zero()
 
@@ -169,7 +169,7 @@ class BigInt:
                     d++
                 else:
                     d *= 2
-            d /= 2
+            d //= 2
             while bigger_bottom.mul(bigint(d+1)).compare(remainder) <= 0:
                 d++
 
@@ -195,19 +195,19 @@ class BigInt:
         #        for y = -100; y <= 100; y++:
         #            if y != 0:
         #                result = bigint(x).divmod(bigint(y))
-        #                assert x == (x/y)*y + (x%y)
+        #                assert x == (x//y)*y + (x%y)
         #                assert x == result[0].to_int64()*y + result[1].to_int64()
-        #                assert result[0].to_int64() == x / y
+        #                assert result[0].to_int64() == x // y
         #                assert result[1].to_int64() == x % y
 
-    # self / y
+    # self // y
     @public
     def div(self: BigInt, other: BigInt) -> BigInt:
         pair = self.divmod(other)
         return pair[0]
 
     # assert x % y == 0
-    # x / y
+    # x // y
     @public
     def div_exact(self: BigInt, other: BigInt) -> BigInt:
         pair = self.divmod(other)
