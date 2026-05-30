@@ -18,7 +18,8 @@ set -e -o pipefail
 # just before the original compiler written in C was deleted.
 numbered_commits=(
     030_bb3dc7d925fa28ce405fda5a4fc3c428f6f7c2b1  # <--- "./windows_setup.sh --small" starts from here! (release 2026-03-16-0500)
-    031_e0eeac1528ac6beada7cc0d3061b2b7e9ba9e6a6  # release 2026-05-30-2200
+    031_03b1e1e19d97777ff3e06deebd090d8618eb4287  # needed on 32-bit systems (contains fix of #1127)
+    032_e0eeac1528ac6beada7cc0d3061b2b7e9ba9e6a6  # release 2026-05-30-2200
 )
 
 # This should be an item of the above list according to what
