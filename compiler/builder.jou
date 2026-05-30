@@ -1043,6 +1043,7 @@ class Builder:
     @public
     def unsigned_floor_div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
+        assert a.type.kind == TypeKind.UnsignedInteger
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("/u", a, b)
@@ -1053,6 +1054,7 @@ class Builder:
     @public
     def signed_floor_div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
+        assert a.type.kind == TypeKind.SignedInteger
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("/s", a, b)
@@ -1063,6 +1065,7 @@ class Builder:
     @public
     def floating_div(self, a: BuilderValue, b: BuilderValue) -> BuilderValue:
         assert a.type == b.type
+        assert a.type.kind == TypeKind.FloatingPoint
         result = BuilderValue{type = a.type, uvalue = ANONYMOUS_UVG_VALUE_ID}
         if self.llvm_builder != NULL:
             result.hvalue = self.hash_binop("/f", a, b)
