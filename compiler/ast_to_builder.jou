@@ -254,17 +254,27 @@ class AstToBuilder:
 
     # Example: [1, 2] + [3, 4] becomes [1 + 2, 3 + 4]
     def build_array_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
-        assert lhs.type == rhs.type
-        array_type = lhs.type
+        if lhs.type.kind == TypeKind.Array and rhs.type.kind == TypeKind.Array:
+            assert lhs.type == rhs.type
+            array_type = lhs.type
+            number_type = array_type.array.item_type
+        elif lhs.type.kind == TypeKind.Array:
+            array_type = lhs.type
+            number_type = rhs.type
+        elif rhs.type.kind == TypeKind.Array:
+            array_type = rhs.type
+            number_type = lhs.type
+        else:
+            assert False
 
         assert array_type.kind == TypeKind.Array
-        item_type = array_type.array.item_type
+        assert number_type.is_number_type()
 
         # Result array is populated one element at a time, not by telling the
         # builder to do all operations at once. This means that the builder
         # doesn't need to know anything about this feature.
         out_ptr = self.builder.stack_alloc(array_type, NULL)
-        out_first_item_ptr = self.builder.cast(out_ptr, array_type.array.item_type.pointer_type())
+        out_first_item_ptr = self.builder.cast(out_ptr, number_type.pointer_type())
 
         for i = 0; i < array_type.array.count; i++:
             index = self.builder.integer(int_type(64), i)
@@ -272,8 +282,8 @@ class AstToBuilder:
                 self.builder.indexed_pointer(out_first_item_ptr, index),
                 self.build_binop(
                     op,
-                    self.get_element_from_array(lhs, index),
-                    self.get_element_from_array(rhs, index),
+                    self.get_element_from_array(lhs, index) if lhs.type.kind == TypeKind.Array else lhs,
+                    self.get_element_from_array(rhs, index) if rhs.type.kind == TypeKind.Array else rhs,
                 ),
             )
 
@@ -284,6 +294,9 @@ class AstToBuilder:
             (op == AstExpressionKind.Add or op == AstExpressionKind.Sub)
             and lhs.type == rhs.type
             and lhs.type.kind == TypeKind.Array
+        ) or (
+            op == AstExpressionKind.Mul
+            and (lhs.type.kind == TypeKind.Array or rhs.type.kind == TypeKind.Array)
         ):
             return self.build_array_binop(op, lhs, rhs)
 
