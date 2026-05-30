@@ -1,7 +1,7 @@
 def foo() -> None:
     # This is fine
-    thing1 = [1, 2] + ['x', '\0']
+    thing1 = [1, 2] - ['x', '\0']
 
     # This should NOT convert "x" into an array ['x', '\0'] for adding it.
     # That is almost certainly not what the programmer wanted to do.
-    thing2 = [1, 2] + "x"  # Error: wrong types: cannot add int[2] and byte*
+    thing2 = [1, 2] - "x"  # Error: wrong types: cannot subtract int[2] and byte*

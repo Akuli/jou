@@ -1318,9 +1318,15 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
 
         case AstExpressionKind.Negate:
             result = typecheck_expression_not_void(state, &expr.operands[0], NULL)
-            if result.kind != TypeKind.SignedInteger and result.kind != TypeKind.FloatingPoint:
+            if (
+                not result.is_signed_number_type()
+                and not (
+                    result.kind == TypeKind.Array
+                    and result.array.item_type.is_signed_number_type()
+                )
+            ):
                 snprintf(msg, sizeof(msg),
-                    "value after '-' must be a float or double or a signed integer, not %s",
+                    "value after '-' must be a signed number or an array of signed numbers, not %s",
                     result.name)
                 fail(expr.location, msg)
 

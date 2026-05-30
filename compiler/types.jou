@@ -107,6 +107,10 @@ class Type:
         return self.is_integer_type() or self.kind == TypeKind.FloatingPoint
 
     @public
+    def is_signed_number_type(self) -> bool:
+        return self.kind == TypeKind.SignedInteger or self.kind == TypeKind.FloatingPoint
+
+    @public
     def min_value(self) -> int64:
         # See doc/types.md
         match self.kind:
