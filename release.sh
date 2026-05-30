@@ -109,7 +109,12 @@ unzip nested-zip-file.zip
 echo ""
 
 datetag=$(date +'%Y-%m-%d-%H00')
-jq -n --arg tag $datetag --arg desc "$(cat desc.md)" '{tag_name: $tag, body: $desc}' > release-params.json
+
+# These parameters create a draft release, so we can upload assets to it while
+# draft and then publish it. This is how GitHub's immutable releases feature
+# works: assets cannot be changed when a release is marked as not draft.
+jq -n --arg tag $datetag --arg desc "$(cat desc.md)" '{tag_name: $tag, body: $desc, draft: true}' > release-params.json
+
 echo "Release parameters:"
 cat release-params.json
 echo ""
@@ -119,14 +124,26 @@ if [ $dry_run = yes ]; then
     exit 0
 fi
 
-# To test this, you can change Akuli/jou to a temporary private repo
+# To test this, change this to a temporary private repo
+DEST_REPO="Akuli/jou"
+
 echo "CREATING RELEASE!!!"
-curl -X POST "https://api.github.com/repos/Akuli/jou/releases" -H "$auth_header" -d @release-params.json | tee release-response.json
+
+echo "(1/3) Creating draft release..."
+curl -X POST "https://api.github.com/repos/$DEST_REPO/releases" -H "$auth_header" -d @release-params.json | tee release-response.json
 echo ""
 
-echo "Attaching the Windows zip file to the release..."
+echo "(2/3) Attaching the Windows zip file to the draft release..."
 # Response contains:
 #     "upload_url": "https://uploads.github.com/repos/Akuli/jou/releases/xxxxxxxxx/assets{?name,label}",
 upload_url="$(jq -r .upload_url < release-response.json | cut -d'{' -f1)?name=jou_windows_64bit_$datetag.zip"
 echo "  POSTing to $upload_url"
 curl -L -X POST -H "$auth_header" -H "Content-Type: application/zip" "$upload_url" --data-binary "@jou.zip"
+echo ""
+
+echo "(3/3) Publishing release, this should make it immutable..."
+release_id=$(jq -r .id < release-response.json)
+curl -X PATCH -H "$auth_header" -d '{"draft": false}' "https://api.github.com/repos/$DEST_REPO/releases/$release_id"
+echo ""
+
+echo "Release published."
