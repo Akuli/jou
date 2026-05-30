@@ -10,7 +10,7 @@ import "stdlib/str.jou"
 def count_digits(n: int64) -> int:
     result = 0
     while n > 0:
-        n /= 10
+        n //= 10
         result++
     return result
 
@@ -21,10 +21,10 @@ def split_digits(n: int64) -> int64[2]:
     assert length % 2 == 0
 
     power_of_10 = 1 as int64
-    for i = 0; i < length/2; i++:
+    for i = 0; i < length//2; i++:
         power_of_10 *= 10
 
-    return [n / power_of_10, n % power_of_10]
+    return [n // power_of_10, n % power_of_10]
 
 
 # Usage: cache[a][b] == analyze_stone(a, b)

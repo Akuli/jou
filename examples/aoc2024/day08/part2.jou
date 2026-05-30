@@ -26,18 +26,16 @@ def add_antinodes(antennas: Grid, antinodes: Grid*, frequency: byte) -> None:
     for i = 0; places[i][0] != -1; i++:
         for k = 0; places[k][0] != -1; k++:
             if i != k:
-                dx = places[k][0] - places[i][0]
-                dy = places[k][1] - places[i][1]
+                direction = places[k] - places[i]
 
-                # Pick shortest (dx,dy) vector in the correct direction
-                unnecessary_multipliers = gcd(abs(dx), abs(dy))
-                dx /= unnecessary_multipliers
-                dy /= unnecessary_multipliers
+                # Pick shortest vector in the correct direction
+                unnecessary_multipliers = gcd(abs(direction[0]), abs(direction[1]))
+                direction //= unnecessary_multipliers
 
-                # Walk in dx,dy direction.
+                # Walk in the direction.
                 pos = places[i]
                 while True:
-                    pos = [pos[0] + dx, pos[1] + dy]
+                    pos += direction
                     if not antinodes.is_in_bounds(pos):
                         break
                     antinodes.set(pos, '#')

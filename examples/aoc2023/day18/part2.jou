@@ -67,7 +67,7 @@ def polygon_area(corners: List[int[2]]) -> int64:
         c: int64 = corners.ptr[(i+1) % corners.len][0]
         d: int64 = corners.ptr[(i+1) % corners.len][1]
         double_area += a*d - b*c
-    return llabs(double_area)/2
+    return llabs(double_area) // 2
 
 
 def main() -> int:
@@ -87,7 +87,7 @@ def main() -> int:
 
     assert path_len % 2 == 0
     points.pop()
-    printf("%lld\n", polygon_area(points) + 1 + path_len/2)  # Output: 952408144115
+    printf("%lld\n", polygon_area(points) + 1 + path_len//2)  # Output: 952408144115
 
     free(points.ptr)
     return 0

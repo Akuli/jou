@@ -62,7 +62,7 @@ class State:
         assert self.grid.width == self.grid.height
         side = self.grid.width
         assert side % 2 == 1
-        self.how_to_reach_anywhere = 2 * how_to_reach_anywhere_from_given_point(self.grid, [side/2,side/2])
+        self.how_to_reach_anywhere = 2 * how_to_reach_anywhere_from_given_point(self.grid, [side//2, side//2])
 
 
 def count_reachables_in_square(state: State*, entry_point_of_grid: int[2], steps_remaining_at_entry: int) -> int:
@@ -142,9 +142,9 @@ def count_reachables_in_square(state: State*, entry_point_of_grid: int[2], steps
 #
 # In above/below/left/right directions, this is
 #
-#   side*radius - side/2
+#   side*radius - side//2
 #
-# where side/2 is actually (side-1)/2 because it uses Jou's floor division.
+# where side//2 is actually (side-1)/2 because it uses Jou's floor division.
 # For example, for H we enter through the middle of its vertical left side.
 # Compared to its top left or bottom left corner, this saves (side-1)/2 steps up or down.
 def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> int64:
@@ -154,12 +154,12 @@ def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> int
 
     if radius == 0:
         # just the middle
-        return count_reachables_in_square(state, [side/2,side/2], step_count)
+        return count_reachables_in_square(state, [side//2,side//2], step_count)
 
     assert radius >= 1
 
     steps_remaining_diagonally = step_count - (side + 1 + side*(radius-2))
-    steps_remaining_above_or_below = step_count - (side*radius - side/2)
+    steps_remaining_above_or_below = step_count - (side*radius - side//2)
 
     # Above with radius=4, there's three A's.
     result = 0 as int64
@@ -167,10 +167,10 @@ def count_reachables_in_ring(state: State*, step_count: int, radius: int) -> int
     result += (radius-1) * count_reachables_in_square(state, [0,side-1], steps_remaining_diagonally)
     result += (radius-1) * count_reachables_in_square(state, [side-1,0], steps_remaining_diagonally)
     result += (radius-1) * count_reachables_in_square(state, [side-1,side-1], steps_remaining_diagonally)
-    result += count_reachables_in_square(state, [0, side/2], steps_remaining_above_or_below)
-    result += count_reachables_in_square(state, [side-1, side/2], steps_remaining_above_or_below)
-    result += count_reachables_in_square(state, [side/2, 0], steps_remaining_above_or_below)
-    result += count_reachables_in_square(state, [side/2, side-1], steps_remaining_above_or_below)
+    result += count_reachables_in_square(state, [0, side//2], steps_remaining_above_or_below)
+    result += count_reachables_in_square(state, [side-1, side//2], steps_remaining_above_or_below)
+    result += count_reachables_in_square(state, [side//2, 0], steps_remaining_above_or_below)
+    result += count_reachables_in_square(state, [side//2, side-1], steps_remaining_above_or_below)
     return result
 
 
@@ -215,14 +215,14 @@ def main() -> int:
 
     assert state.grid.count('S') == 1
     S_place = state.grid.find_first('S')
-    assert S_place[0] == side/2
-    assert S_place[1] == side/2
+    assert S_place[0] == side//2
+    assert S_place[1] == side//2
     state.grid.set(S_place, '.')
 
     # The square should have '.' at boundary, and in middle row and column (now that S is gone)
     for x = 0; x < side; x++:
         for y = 0; y < side; y++:
-            if x == 0 or x == side/2 or x == side-1 or y == 0 or y == side/2 or y == side-1:
+            if x == 0 or x == side//2 or x == side-1 or y == 0 or y == side//2 or y == side-1:
                 assert state.grid.get([x, y]) == '.'
 
     state.fill_cached_values()

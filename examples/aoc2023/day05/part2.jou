@@ -82,8 +82,8 @@ class Input:
 
         words = split_by_ascii_whitespace(line)
         for i = 0; i+1 < words.len; i += 2:
-            assert i/2 < array_count(self.seed_ranges)
-            self.seed_ranges[i/2] = Range{
+            assert i // 2 < array_count(self.seed_ranges)
+            self.seed_ranges[i // 2] = Range{
                 start = atoll(words.ptr[i]),
                 end = atoll(words.ptr[i]) + atoll(words.ptr[i+1]),
             }

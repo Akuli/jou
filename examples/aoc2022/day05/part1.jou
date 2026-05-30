@@ -6,7 +6,7 @@ import "stdlib/list.jou"
 
 
 def reverse(list: List[byte]) -> None:
-    for i = 0; i < list.len/2; i++:
+    for i = 0; i < list.len // 2; i++:
         memswap(&list.ptr[i], &list.ptr[list.len - i - 1], sizeof(list.ptr[0]))
 
 
@@ -25,8 +25,8 @@ def main() -> int:
 
         for i = 1; i < strlen(line); i += 4:
             if line[i] != ' ':
-                assert i/4 < array_count(stacks)
-                stacks[i/4].append(line[i])
+                assert i // 4 < array_count(stacks)
+                stacks[i // 4].append(line[i])
 
     for i = 0; i < 9; i++:
         reverse(stacks[i])
