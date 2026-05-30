@@ -527,7 +527,20 @@ def check_binop(
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
 
-    if op == AstExpressionKind.Div and (got_integers or got_integer_array_and_integer):
+    if (
+        op == AstExpressionKind.Div
+        and (got_integers or got_integer_array_and_integer)
+        # Hack: stdlib/toml.jou cannot use the new syntax yet because it's
+        # needed to build joutest.
+        #
+        # To fully solve this and similar problems, we could have a separate
+        # copy of stdlib that only the bootstrap compiler uses. But for now
+        # that seems unnecessary.
+        and not ends_with(location.path, "/stdlib/toml.jou")
+        and not (WINDOWS and ends_with(location.path, "\\stdlib\\toml.jou"))
+        and not (WINDOWS and ends_with(location.path, "/stdlib\\toml.jou"))
+        and not (WINDOWS and ends_with(location.path, "\\stdlib/toml.jou"))
+    ):
         show_warning(location, "please use '//' for integer division, '/' will soon produce a double")
 
     if op == AstExpressionKind.BitShiftLeft or op == AstExpressionKind.BitShiftRight:

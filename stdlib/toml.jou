@@ -516,7 +516,7 @@ class TOMLParser:
 
                 old = unsigned_result
                 new = (old*base + v) as uint64
-                if new // base != old or new > max_abs:
+                if new/base != old or new > max_abs:
                     self.error = "integer doesn't fit to int64"
                     return False
                 unsigned_result = new
