@@ -285,6 +285,9 @@ class AstToBuilder:
         return self.builder.dereference(out_ptr)
 
     def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
+        if lhs.type.kind == TypeKind.Array or rhs.type.kind == TypeKind.Array:
+            return self.build_array_binop(op, lhs, rhs)
+
         match op:
             case AstExpressionKind.Eq:
                 return self.builder.eq(lhs, rhs)
@@ -299,19 +302,11 @@ class AstToBuilder:
             case AstExpressionKind.Ge:
                 return self.builder.not_(self.builder.lt(lhs, rhs))
             case AstExpressionKind.Add:
-                assert lhs.type == rhs.type
-                if lhs.type.kind == TypeKind.Array:
-                    return self.build_array_binop(op, lhs, rhs)
                 # TODO: These should probably be split up to separate e.g. int vs floating adds.
                 return self.builder.add(lhs, rhs)
             case AstExpressionKind.Sub:
-                assert lhs.type == rhs.type
-                if lhs.type.kind == TypeKind.Array:
-                    return self.build_array_binop(op, lhs, rhs)
                 return self.builder.sub(lhs, rhs)
             case AstExpressionKind.Mul:
-                if lhs.type.kind == TypeKind.Array or rhs.type.kind == TypeKind.Array:
-                    return self.build_array_binop(op, lhs, rhs)
                 return self.builder.mul(lhs, rhs)
             case AstExpressionKind.Div:
                 return self.builder.div(lhs, rhs)
