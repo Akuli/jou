@@ -104,11 +104,12 @@ fi
 #     GitHub Actions artifact, and downloadArtifact() gives a zip of all
 #     files that the artifact consists of.
 echo "Downloading windows-zip artifact..."
-curl -L -H "$auth_header" "$archive_download_url" -o nested-zip-file.zip
-unzip nested-zip-file.zip
+curl -L -H "$auth_header" "$archive_download_url" -o nested-zip-file.zip && unzip nested-zip-file.zip
+#echo temp-test > jou.zip  # speeds up especially the upload when testing this with temporary repo
 echo ""
 
 datetag=$(date +'%Y-%m-%d-%H00')
+#datetag=$(date +'%Y-%m-%d-%H00')-temp-test-$RANDOM
 
 # These parameters create a draft release, so we can upload assets to it while
 # draft and then publish it. This is how GitHub's immutable releases feature
@@ -126,6 +127,7 @@ fi
 
 # To test this, change this to a temporary private repo
 DEST_REPO="Akuli/jou"
+#DEST_REPO="Akuli/temp-test"
 
 echo "CREATING RELEASE!!!"
 
@@ -143,7 +145,11 @@ echo ""
 
 echo "(3/3) Publishing release, this should make it immutable..."
 release_id=$(jq -r .id < release-response.json)
-curl -X PATCH -H "$auth_header" -d '{"draft": false}' "https://api.github.com/repos/$DEST_REPO/releases/$release_id"
+curl -X PATCH -H "$auth_header" -d '{"draft": false}' "https://api.github.com/repos/$DEST_REPO/releases/$release_id" | tee publish-response.json
 echo ""
 
 echo "Release published."
+if [ "$(jq -r .immutable < publish-response.json)" != "true" ]; then
+    echo "Error: GitHub did not create an immutable release for some reason."
+    exit 1
+fi
