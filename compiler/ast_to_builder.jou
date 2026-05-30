@@ -252,23 +252,18 @@ class AstToBuilder:
             )
         )
 
-    # Example: [1, 2] + [3, 4] becomes [1 + 2, 3 + 4]
+    # Examples:
+    #   [1, 2] + [3, 4] becomes [1 + 2, 3 + 4]
+    #   [1, 2] * 3 becomes [1 * 3, 2 * 3]
     def build_array_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
-        if lhs.type.kind == TypeKind.Array and rhs.type.kind == TypeKind.Array:
-            assert lhs.type == rhs.type
-            array_type = lhs.type
-            number_type = array_type.array.item_type
-        elif lhs.type.kind == TypeKind.Array:
-            array_type = lhs.type
-            number_type = rhs.type
-        elif rhs.type.kind == TypeKind.Array:
-            array_type = rhs.type
-            number_type = lhs.type
-        else:
-            assert False
-
+        array_type = lhs.type if lhs.type.kind == TypeKind.Array else rhs.type
         assert array_type.kind == TypeKind.Array
+
+        number_type = array_type.array.item_type
         assert number_type.is_number_type()
+
+        assert lhs.type == array_type or lhs.type == number_type
+        assert rhs.type == array_type or rhs.type == number_type
 
         # Result array is populated one element at a time, not by telling the
         # builder to do all operations at once. This means that the builder
@@ -290,16 +285,6 @@ class AstToBuilder:
         return self.builder.dereference(out_ptr)
 
     def build_binop(self, op: AstExpressionKind, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
-        if (
-            (op == AstExpressionKind.Add or op == AstExpressionKind.Sub)
-            and lhs.type == rhs.type
-            and lhs.type.kind == TypeKind.Array
-        ) or (
-            op == AstExpressionKind.Mul
-            and (lhs.type.kind == TypeKind.Array or rhs.type.kind == TypeKind.Array)
-        ):
-            return self.build_array_binop(op, lhs, rhs)
-
         match op:
             case AstExpressionKind.Eq:
                 return self.builder.eq(lhs, rhs)
@@ -314,11 +299,19 @@ class AstToBuilder:
             case AstExpressionKind.Ge:
                 return self.builder.not_(self.builder.lt(lhs, rhs))
             case AstExpressionKind.Add:
+                assert lhs.type == rhs.type
+                if lhs.type.kind == TypeKind.Array:
+                    return self.build_array_binop(op, lhs, rhs)
                 # TODO: These should probably be split up to separate e.g. int vs floating adds.
                 return self.builder.add(lhs, rhs)
             case AstExpressionKind.Sub:
+                assert lhs.type == rhs.type
+                if lhs.type.kind == TypeKind.Array:
+                    return self.build_array_binop(op, lhs, rhs)
                 return self.builder.sub(lhs, rhs)
             case AstExpressionKind.Mul:
+                if lhs.type.kind == TypeKind.Array or rhs.type.kind == TypeKind.Array:
+                    return self.build_array_binop(op, lhs, rhs)
                 return self.builder.mul(lhs, rhs)
             case AstExpressionKind.Div:
                 return self.builder.div(lhs, rhs)

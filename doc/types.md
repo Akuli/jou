@@ -83,9 +83,9 @@ Indexes and array sizes are reversed in Jou.
 For example, `array: int[10][100]` means 100 rows of 10 ints each,
 so `array[99][9]` is the bottom right corner, and `array[9][99]` is [UB](ub.md).
 
-To make graphics programming easier, the following operations are supported:
-- `array + array` (adds each pair of elements, arrays must have the same length)
-- `array - array` (subtracts each pair of elements, arrays must have the same length)
+To make graphics programming easier, the following operations are supported on arrays that contain numbers:
+- `array + array` (adds each pair of numbers, arrays must have the same length)
+- `array - array` (subtracts each pair of numbers, arrays must have the same length)
 - `number * array` (multiplies each element)
 - `array * number` (same as `number * array`)
 
