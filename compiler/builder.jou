@@ -51,7 +51,7 @@ def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
         assert size1 == size2
         sizeneeded = llmax(sizeneeded, size1)
 
-    return LLVMArrayType(type_to_llvm(int_type(64)), ((sizeneeded+7)/8) as int)
+    return LLVMArrayType(type_to_llvm(int_type(64)), ((sizeneeded+7)//8) as int)
 
 
 def class_type_to_llvm(type: Type*) -> LLVMType*:

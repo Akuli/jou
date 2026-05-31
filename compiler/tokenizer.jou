@@ -167,7 +167,7 @@ def parse_integer(string: byte*, location: Location) -> uint64:
         digit_value = hexdigit_value(digits[i]) as uint64
 
         # Overflow isn't UB in Jou
-        if (result * (base as uint64)) / (base as uint64) != result:
+        if (result * (base as uint64)) // (base as uint64) != result:
             overflow = True
             break
         result *= base as uint64

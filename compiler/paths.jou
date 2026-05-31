@@ -354,10 +354,10 @@ def handle_relative_paths_in_linker_flags(flags: byte*, jou_file_path: byte*) ->
         quote = "'"
 
     # Allocate enough memory even for the following worst case scenario:
-    #   - flags is full of "./", so "./" occurs strlen(flags)/2 times (note floor division)
+    #   - flags is full of "./", so "./" occurs strlen(flags)//2 times
     #   - for each "./" we add the folder, "/", and a pair of quotes
     #   - add '\0' to terminate the string
-    result: byte* = malloc(strlen(flags) + (strlen(flags)/2)*(strlen(folder) + 3) + 1)
+    result: byte* = malloc(strlen(flags) + (strlen(flags)//2)*(strlen(folder) + 3) + 1)
     assert result != NULL
     strcpy(result, flags)
 
