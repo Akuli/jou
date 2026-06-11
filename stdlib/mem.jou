@@ -52,11 +52,11 @@ declare memcmp(a: void*, b: void*, size: intnative) -> int
 # This does nothing if the same memory region is passed twice.
 # This probably doesn't do what you want if the memory regions overlap in some other way.
 @public
-def memswap(a: void*, b: void*, size: int64) -> None:
+def memswap(a: void*, b: void*, size: intnative) -> None:
     a_bytes: byte* = a
     b_bytes: byte* = b
 
-    for i = 0 as int64; i < size; i++:
+    for i = 0 as intnative; i < size; i++:
         old_a = a_bytes[i]
         a_bytes[i] = b_bytes[i]
         b_bytes[i] = old_a
