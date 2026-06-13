@@ -120,6 +120,31 @@ def read_embedded_file(
     return file_content
 
 
+def do_embed_file(jou_file: JouFile*, filename_expr: AstExpression*, location: Location, embed_text: bool) -> Constant:
+    msg: byte[500]
+
+    filename_constant: Constant
+    if not evaluate_constant_expression(jou_file, filename_expr, &filename_constant, uint_type(8).pointer_type()):
+        fail(location, "failed to evaluate file name at compile time")
+
+    if filename_constant.kind != ConstantKind.PointerString:
+        snprintf(msg, sizeof(msg), "file name must be a string, not %s", filename_constant.get_type().name)
+        fail(location, msg)
+
+    file_content = read_embedded_file(
+        jou_file,
+        filename_constant.pointer_string,
+        location,
+        embed_text,
+    )
+    filename_constant.free()
+
+    assert file_content.len > 0
+    assert file_content.len <= INT32_MAX  # TODO
+
+    return Constant{kind = ConstantKind.ArrayOfBytes, array_of_bytes = file_content}
+
+
 # Returns False if the expression is not a simple compile-time constant.
 #
 # As the naming suggests, the type hint is only a hint and result type may differ.
@@ -148,27 +173,18 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
             *result = expr.constant.copy()
             return True
 
-        case AstExpressionKind.EmbedBinaryFile | AstExpressionKind.EmbedTextFile:
-            filename_constant: Constant
-            if not evaluate_constant_expression(jou_file, expr.operands, &filename_constant, uint_type(8).pointer_type()):
-                fail(expr.location, "failed to evaluate file name at compile time")
-            if filename_constant.kind != ConstantKind.PointerString:
-                snprintf(msg, sizeof(msg), "file name must be a string, not %s", filename_constant.get_type().name)
-                fail(expr.location, msg)
+        case AstExpressionKind.SpecialFunctionCall:
+            arg = expr.special_function_call.arg
 
-            file_content = read_embedded_file(
-                jou_file,
-                filename_constant.pointer_string,
-                expr.location,
-                expr.kind == AstExpressionKind.EmbedTextFile,
-            )
-            filename_constant.free()
-
-            assert file_content.len > 0
-            assert file_content.len <= INT32_MAX  # TODO
-
-            *result = Constant{kind = ConstantKind.ArrayOfBytes, array_of_bytes = file_content}
-            return True
+            match expr.special_function_call.special_func:
+                case AstSpecialFunction.EmbedBinaryFile:
+                    *result = do_embed_file(jou_file, arg, expr.location, False)
+                    return True
+                case AstSpecialFunction.EmbedTextFile:
+                    *result = do_embed_file(jou_file, arg, expr.location, True)
+                    return True
+                case _:
+                    return False
 
         case AstExpressionKind.EnumCount:
             enum_type = type_from_ast(jou_file, NULL, &expr.enumcount.enum_type_ast)

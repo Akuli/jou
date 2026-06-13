@@ -56,16 +56,6 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "a constant"
         case AstExpressionKind.GetEnumMember:
             return "an enum member"
-        case AstExpressionKind.SizeOf:
-            return "a sizeof expression"
-        case AstExpressionKind.ArrayCount:
-            return "an array_count expression"
-        case AstExpressionKind.ArrayEnd:
-            return "an array_end expression"
-        case AstExpressionKind.EmbedBinaryFile:
-            return "an embed_binary_file expression"
-        case AstExpressionKind.EmbedTextFile:
-            return "an embed_text_file expression"
         case AstExpressionKind.EnumCount:
             return "an enum_count expression"
         case AstExpressionKind.Instantiate:
@@ -92,6 +82,19 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
                 return "a function call"
             else:
                 return "a method call"
+
+        case AstExpressionKind.SpecialFunctionCall:
+            match expr.special_function_call.special_func:
+                case AstSpecialFunction.SizeOf:
+                    return "a sizeof expression"
+                case AstSpecialFunction.ArrayCount:
+                    return "an array_count expression"
+                case AstSpecialFunction.ArrayEnd:
+                    return "an array_end expression"
+                case AstSpecialFunction.EmbedBinaryFile:
+                    return "an embed_binary_file expression"
+                case AstSpecialFunction.EmbedTextFile:
+                    return "an embed_text_file expression"
 
         case AstExpressionKind.GetVariable:
             return "a variable"
@@ -1174,6 +1177,16 @@ def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
     }
 
 
+def evaluate_as_constant(jou_file: JouFile*, expr: AstExpression*, type_hint: Type*) -> Type*:
+    c: Constant
+    ok = evaluate_constant_expression(jou_file, expr, &c, type_hint)
+    assert ok  # Should fail with a compiler error if there is a problem
+    expr.free()
+    expr.kind = AstExpressionKind.Constant
+    expr.constant = c
+    return c.get_type()
+
+
 def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) -> None:
     msg: byte[500]
     result: Type* = NULL
@@ -1181,20 +1194,8 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
     detect_enum_member_syntax(state, expr)
 
     match expr.kind:
-        case (
-            AstExpressionKind.IntegerConstant
-            | AstExpressionKind.EnumCount
-            | AstExpressionKind.EmbedBinaryFile
-            | AstExpressionKind.EmbedTextFile
-        ):
-            # The expression can be evaluated as a constant
-            c: Constant
-            ok = evaluate_constant_expression(state.jou_file, expr, &c, type_hint)
-            assert ok  # Should fail with a compiler error if there is a problem
-            result = c.get_type()
-            expr.free()
-            expr.kind = AstExpressionKind.Constant
-            expr.constant = c
+        case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount:
+            result = evaluate_as_constant(state.jou_file, expr, type_hint)
 
         case AstExpressionKind.Constant:
             # Use array string if type hint given, e.g. foo: byte[100] = "hello"
@@ -1231,31 +1232,37 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                     expr.enum_member.enum_name, expr.enum_member.member_name)
                 fail(expr.location, msg)
 
-        case AstExpressionKind.SizeOf:
-            if (
-                expr.operands[0].kind == AstExpressionKind.Constant
-                and expr.operands[0].constant.kind == ConstantKind.PointerString
-            ):
-                # sizeof("foo") should be 4
-                obj_type_hint = uint_type(8).array_type((strlen(expr.operands[0].constant.pointer_string) as int) + 1)
-            else:
-                obj_type_hint = NULL
-            typecheck_expression_not_void(state, &expr.operands[0], obj_type_hint)
-            result = int_type(32)
+        case AstExpressionKind.SpecialFunctionCall:
+            arg = expr.special_function_call.arg
+            match expr.special_function_call.special_func:
+                case AstSpecialFunction.EmbedBinaryFile | AstSpecialFunction.EmbedTextFile:
+                    result = evaluate_as_constant(state.jou_file, expr, type_hint)
 
-        case AstExpressionKind.ArrayCount:
-            array_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)
-            if array_type.kind != TypeKind.Array:
-                snprintf(msg, sizeof(msg), "array_count must be called on an array, not %s", array_type.name)
-                fail(expr.location, msg)
-            result = int_type(32)
+                case AstSpecialFunction.SizeOf:
+                    if (
+                        arg.kind == AstExpressionKind.Constant
+                        and arg.constant.kind == ConstantKind.PointerString
+                    ):
+                        # sizeof("foo") should be 4
+                        obj_type_hint = uint_type(8).array_type((strlen(arg.constant.pointer_string) as int) + 1)
+                    else:
+                        obj_type_hint = NULL
+                    typecheck_expression_not_void(state, arg, obj_type_hint)
+                    result = int_type(32)
 
-        case AstExpressionKind.ArrayEnd:
-            array_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)
-            if array_type.kind != TypeKind.Array:
-                snprintf(msg, sizeof(msg), "array_end must be called on an array, not %s", array_type.name)
-                fail(expr.location, msg)
-            result = array_type.array.item_type.pointer_type()
+                case AstSpecialFunction.ArrayCount:
+                    array_type = typecheck_expression_not_void(state, arg, NULL)
+                    if array_type.kind != TypeKind.Array:
+                        snprintf(msg, sizeof(msg), "array_count must be called on an array, not %s", array_type.name)
+                        fail(expr.location, msg)
+                    result = int_type(32)
+
+                case AstSpecialFunction.ArrayEnd:
+                    array_type = typecheck_expression_not_void(state, arg, NULL)
+                    if array_type.kind != TypeKind.Array:
+                        snprintf(msg, sizeof(msg), "array_end must be called on an array, not %s", array_type.name)
+                        fail(expr.location, msg)
+                    result = array_type.array.item_type.pointer_type()
 
         case AstExpressionKind.Instantiate:
             result = typecheck_instantiation(state, &expr.instantiation, expr.location)

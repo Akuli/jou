@@ -242,6 +242,7 @@ enum AstExpressionKind:
     Constant        # a compile-time-known value with known type, e.g. use of `const` value after type checking
     Array
     Call            # funcptr call or method call
+    SpecialFunctionCall  # sizeof(x), array_count(arr), embed_text_file("foo.txt"), ...
     Instantiate   # MyClass{x=1, y=2}
     Self    # not a variable lookup, so you can't use 'self' as variable name outside a class
     GetVariable
@@ -252,13 +253,8 @@ enum AstExpressionKind:
     GetClassField       # foo.bar, foo is an instance of a class and bar is a field
     GetClassFieldPtr    # foo.bar, foo is a pointer to an instance and bar is a field
     As
-    EnumCount
+    EnumCount  # not part of SpecialFunctionCall because this takes a type, not a value
     # unary operators
-    SizeOf          # sizeof(x)
-    ArrayCount      # array_count(x)
-    ArrayEnd        # array_end(x)
-    EmbedBinaryFile # embed_binary_file("./foo.png")
-    EmbedTextFile   # embed_text_file("./foo.txt")
     AddressOf       # &x
     Dereference     # *x
     Negate          # -x
@@ -303,6 +299,7 @@ class AstExpression:
         enum_member: AstEnumMember
         class_field: AstClassField
         call: AstCall
+        special_function_call: AstSpecialFunctionCall
         instantiation: AstInstantiation
         as_: AstAs*  # Must be pointer, because it contains an AstExpression
         enumcount: AstEnumCount
@@ -338,6 +335,8 @@ class AstExpression:
                     p.print_with_tree_printer(tp.print_prefix(p == &self.array.end()[-1]))
             case AstExpressionKind.Call:
                 self.call.print_with_tree_printer(tp)
+            case AstExpressionKind.SpecialFunctionCall:
+                self.special_function_call.print_with_tree_printer(tp)
             case AstExpressionKind.Instantiate:
                 self.instantiation.print_with_tree_printer(tp)
             case AstExpressionKind.Self:
@@ -365,16 +364,6 @@ class AstExpression:
                 self.as_.print_with_tree_printer(tp)
             case AstExpressionKind.EnumCount:
                 self.enumcount.print()
-            case AstExpressionKind.SizeOf:
-                printf("sizeof\n")
-            case AstExpressionKind.EmbedBinaryFile:
-                printf("embed_binary_file\n")
-            case AstExpressionKind.EmbedTextFile:
-                printf("embed_text_file\n")
-            case AstExpressionKind.ArrayCount:
-                printf("array_count\n")
-            case AstExpressionKind.ArrayEnd:
-                printf("array_end\n")
             case AstExpressionKind.AddressOf:
                 printf("address of\n")
             case AstExpressionKind.Dereference:
@@ -448,6 +437,8 @@ class AstExpression:
                 free(self.array.ptr)
             case AstExpressionKind.Call:
                 self.call.free()
+            case AstExpressionKind.SpecialFunctionCall:
+                self.special_function_call.free()
             case AstExpressionKind.Instantiate:
                 self.instantiation.free()
             case (
@@ -472,12 +463,7 @@ class AstExpression:
     def get_arity(self) -> int:
         match self.kind:
             case (
-                AstExpressionKind.SizeOf
-                | AstExpressionKind.EmbedBinaryFile
-                | AstExpressionKind.EmbedTextFile
-                | AstExpressionKind.ArrayCount
-                | AstExpressionKind.ArrayEnd
-                | AstExpressionKind.AddressOf
+                AstExpressionKind.AddressOf
                 | AstExpressionKind.Dereference
                 | AstExpressionKind.Negate
                 | AstExpressionKind.Not
@@ -518,6 +504,7 @@ class AstExpression:
                 | AstExpressionKind.Constant
                 | AstExpressionKind.Array
                 | AstExpressionKind.Call
+                | AstExpressionKind.SpecialFunctionCall
                 | AstExpressionKind.Instantiate
                 | AstExpressionKind.Self
                 | AstExpressionKind.GetVariable
@@ -641,6 +628,45 @@ class AstCall:
         if self.signature_if_known != NULL:
             self.signature_if_known.free()
             free(self.signature_if_known)
+
+
+@public
+enum AstSpecialFunction:
+    SizeOf          # sizeof(x)
+    ArrayCount      # array_count(arr)
+    ArrayEnd        # array_end(arr)
+    EmbedBinaryFile # embed_binary_file("foo.bin")
+    EmbedTextFile   # embed_text_file("foo.txt")
+
+global AST_SPECIAL_FUNCTION_NAMES: byte*[enum_count(AstSpecialFunction)] = [
+    "sizeof",
+    "array_count",
+    "array_end",
+    "embed_binary_file",
+    "embed_text_file",
+]
+
+
+# sizeof(x), array_count(arr), embed_text_file("foo.txt"), ...
+@public
+class AstSpecialFunctionCall:
+    special_func: AstSpecialFunction
+    # Currently all special functions take 1 argument.
+    arg: AstExpression*
+
+    @public
+    def print(self) -> None:
+        self.print_with_tree_printer(TreePrinter{})
+
+    def print_with_tree_printer(self, tp: TreePrinter) -> None:
+        printf("call special function: %s\n", AST_SPECIAL_FUNCTION_NAMES[self.special_func as int])
+        sub = tp.print_prefix(True)
+        printf("argument: ")
+        self.arg.print_with_tree_printer(sub)
+
+    def free(self) -> None:
+        self.arg.free()
+        free(self.arg)
 
 
 # assert foo

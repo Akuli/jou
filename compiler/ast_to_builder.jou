@@ -518,12 +518,7 @@ class AstToBuilder:
 
     def build_expression_without_implicit_cast(self, expr: AstExpression*) -> BuilderValue:
         match expr.kind:
-            case (
-                AstExpressionKind.IntegerConstant
-                | AstExpressionKind.EnumCount
-                | AstExpressionKind.EmbedBinaryFile
-                | AstExpressionKind.EmbedTextFile
-            ):
+            case AstExpressionKind.IntegerConstant | AstExpressionKind.EnumCount:
                 # should be turned into Constant during type checking
                 assert False
             case AstExpressionKind.Constant:
@@ -532,6 +527,25 @@ class AstToBuilder:
                 return self.build_array(expr.types.orig_type, expr.array)
             case AstExpressionKind.Call:
                 return self.build_call(&expr.call)
+            case AstExpressionKind.SpecialFunctionCall:
+                arg = expr.special_function_call.arg
+                match expr.special_function_call.special_func:
+                    case AstSpecialFunction.SizeOf:
+                        return self.builder.size_of(self.map_type(arg.types.implicit_cast_type))
+                    case AstSpecialFunction.ArrayCount:
+                        array_type = arg.types.implicit_cast_type
+                        assert array_type.kind == TypeKind.Array
+                        return self.builder.integer(int_type(32), array_type.array.count)
+                    case AstSpecialFunction.ArrayEnd:
+                        array_type = arg.types.implicit_cast_type
+                        assert array_type.kind == TypeKind.Array
+                        ptr_to_array = self.build_address_of_expression(arg)
+                        ptr_to_start = self.builder.cast(ptr_to_array, array_type.array.item_type.pointer_type())
+                        count = self.builder.integer(int_type(64), array_type.array.count)
+                        return self.builder.indexed_pointer(ptr_to_start, count)
+                    case AstSpecialFunction.EmbedBinaryFile | AstSpecialFunction.EmbedTextFile:
+                        # these should already be turned into Constant during type checking
+                        assert False
             case AstExpressionKind.Instantiate:
                 return self.build_instantiation(expr.types.orig_type, &expr.instantiation)
             case AstExpressionKind.Self:
@@ -568,19 +582,6 @@ class AstToBuilder:
                 return self.builder.dereference(fieldptr)
             case AstExpressionKind.As:
                 return self.builder.cast(self.build_expression(&expr.as_.value), expr.types.orig_type)
-            case AstExpressionKind.SizeOf:
-                return self.builder.size_of(self.map_type(expr.operands[0].types.implicit_cast_type))
-            case AstExpressionKind.ArrayCount:
-                array_type = expr.operands[0].types.implicit_cast_type
-                assert array_type.kind == TypeKind.Array
-                return self.builder.integer(int_type(32), array_type.array.count)
-            case AstExpressionKind.ArrayEnd:
-                array_type = expr.operands[0].types.implicit_cast_type
-                assert array_type.kind == TypeKind.Array
-                ptr_to_array = self.build_address_of_expression(&expr.operands[0])
-                ptr_to_start = self.builder.cast(ptr_to_array, array_type.array.item_type.pointer_type())
-                count = self.builder.integer(int_type(64), array_type.array.count)
-                return self.builder.indexed_pointer(ptr_to_start, count)
             case AstExpressionKind.AddressOf:
                 return self.build_address_of_expression(&expr.operands[0])
             case AstExpressionKind.Dereference:
