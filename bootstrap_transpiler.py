@@ -2057,10 +2057,7 @@ class CFuncMaker:
                 self.output.append(f"*{ptr.c_code} = {value.c_code};")
 
             elif stmt[0] in ("+=", "-=", "*=", "/=", "&=", "|=", "^=", "<<=", ">>="):
-                (op,
-                 target_ast,
-                 value_ast,
-                 location) = stmt
+                op, target_ast, value_ast, location = stmt
                 ptr = self.do_address_of_expression(target_ast)
                 value = self.do_expression(value_ast, ptr.type.inner_type)
                 # TODO: Jou's integer division rules are different than C's.
