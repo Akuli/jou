@@ -198,11 +198,10 @@ def tokenize(jou_code, path):
 #   BitOr(BitOr(BitOr(a, b), c), d)     -->     [a, b, c, d]
 #
 def flatten_bitwise_ors(expr):
-    match expr:
-        case ("|", lhs, rhs):
-            return flatten_bitwise_ors(lhs) + flatten_bitwise_ors(rhs)
-        case _:
-            return [expr]
+    if expr[0] == "|":
+        lhs, rhs = expr[1:]
+        return flatten_bitwise_ors(lhs) + flatten_bitwise_ors(rhs)
+    return [expr]
 
 
 def unescape_string(s: str) -> bytes:
@@ -757,11 +756,11 @@ class Parser:
         return ("array", result)
 
     def parse_elementary_expression(self):
-        match self.tokens[0]:
-            case Token(kind="int"):
+        if True:  # TODO: use match statement, this leaves indentation room for it
+            if self.tokens[0].kind == "int":
                 return ("integer_constant", int(self.eat("int").code.replace("_", ""), 0))
 
-            case Token(kind="byte"):
+            elif self.tokens[0].kind == "byte":
                 code = self.eat("byte").code
                 assert code.startswith("'") and code.endswith("'")
 
@@ -787,44 +786,44 @@ class Parser:
                     value = map[code]
                 return ("constant", jou_integer("byte", value))
 
-            case Token(kind="double"):
+            elif self.tokens[0].kind == "double":
                 return ("constant", jou_double(float(self.eat("double").code)))
 
-            case Token(kind="string"):
+            elif self.tokens[0].kind == "string":
                 return ("string", unescape_string(self.eat("string").code))
 
-            case Token(kind="name"):
+            elif self.tokens[0].kind == "name":
                 if self.looks_like_instantiate():
                     return self.parse_instantiation()
                 return ("get_variable", self.eat("name").code)
 
-            case Token(code="True"):
+            elif self.tokens[0].code == "True":
                 self.eat("True")
                 return ("constant", jou_bool(True))
 
-            case Token(code="False"):
+            elif self.tokens[0].code == "False":
                 self.eat("False")
                 return ("constant", jou_bool(False))
 
-            case Token(code="NULL"):
+            elif self.tokens[0].code == "NULL":
                 self.eat("NULL")
                 return ("constant", JOU_NULL)
 
-            case Token(code="self"):
+            elif self.tokens[0].code == "self":
                 self.eat("self")
                 return ("self",)
 
-            case Token(code="("):
+            elif self.tokens[0].code == "(":
                 self.eat("(")
                 result = self.parse_expression()
                 self.eat(")")
                 return result
 
-            case Token(code="["):
+            elif self.tokens[0].code == "[":
                 return self.parse_array()
 
-            case t:
-                raise NotImplementedError(t)
+            else:
+                raise NotImplementedError(self.tokens[0])
 
     def parse_dot_operator(self, obj):
         self.eat(".")
@@ -840,14 +839,14 @@ class Parser:
     def parse_expression_with_members_and_indexing_and_calls(self):
         result = self.parse_elementary_expression()
         while True:
-            match self.tokens[0].code:
-                case "[":
+            if True:  # TODO: use match statement, this leaves indentation room for it
+                if self.tokens[0].code == "[":
                     result = self.parse_indexing(result)
-                case ".":
+                elif self.tokens[0].code == ".":
                     result = self.parse_dot_operator(result)
-                case "(":
+                elif self.tokens[0].code == "(":
                     result = self.parse_call(result)
-                case _:
+                else:
                     return result
 
     def parse_expression_with_unary_operators(self):
@@ -979,31 +978,31 @@ class Parser:
 
         result: AST
 
-        match self.tokens[0]:
-            case Token(code="return"):
+        if True:  # TODO: use match statement, this leaves indentation room for it
+            if self.tokens[0].code == "return":
                 self.eat("return")
                 if self.tokens[0].kind == "newline":
                     result = ("return", None)
                 else:
                     result = ("return", self.parse_expression())
-            case Token(code="assert"):
+            elif self.tokens[0].code == "assert":
                 self.eat("assert")
                 cond = self.parse_expression()
                 result = ("assert", cond)
-            case Token(code=("pass" | "break" | "continue")):
+            elif self.tokens[0].code in ("pass", "break", "continue"):
                 result = (self.eat("keyword").code,)
-            case Token(code="const"):
+            elif self.tokens[0].code == "const":
                 self.eat("const")
                 name, type, value = self.parse_name_type_value()
                 assert value is not None
                 result = ("const", name, type, value, decors)
-            case Token(code="typedef"):
+            elif self.tokens[0].code == "typedef":
                 self.eat("typedef")
                 name = self.eat("name").code
                 self.eat("=")
                 actual_type = self.parse_type()
                 result = ("typedef", name, actual_type, decors)
-            case Token(kind="name") if self.tokens[1].code == ":":
+            elif self.tokens[0].kind == "name" and self.tokens[1].code == ":":
                 # e.g. "foo: int"
                 name, type, value = self.parse_name_type_value()
                 if self.in_class_body:
@@ -1011,7 +1010,7 @@ class Parser:
                     result = ("class_field", name, type)
                 else:
                     result = ("declare_local_var", name, type, value)
-            case _:
+            else:
                 expr = self.parse_expression()
                 if self.tokens[0].code in {"=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="}:
                     kind = self.tokens.pop(0).code
@@ -1086,7 +1085,7 @@ class Parser:
         while self.tokens[0].kind != "dedent":
             self.eat("case")
             if self.tokens[0].code == "_" and self.tokens[1].code == ":":
-                # case _:
+                # else:
                 self.eat("_")
                 case_underscore = self.parse_body()
             else:
@@ -1124,19 +1123,19 @@ class Parser:
 
         location = self.tokens[0].location
 
-        match self.tokens[0]:
-            case Token(code="link"):
+        if True:  # TODO: use match statement, this leaves indentation room for it
+            if self.tokens[0].code == "link":
                 assert not decors
                 self.eat("link")
                 self.eat("string")
                 self.eat("newline")
                 return None
-            case Token(code="import"):
+            elif self.tokens[0].code == "import":
                 assert not decors
                 result = self.parse_import()
-            case Token(code="def"):
+            elif self.tokens[0].code == "def":
                 result = self.parse_function_or_method(decors)
-            case Token(code="declare"):
+            elif self.tokens[0].code == "declare":
                 self.eat("declare")
                 if self.tokens[0].code == "global":
                     self.eat("global")
@@ -1148,35 +1147,35 @@ class Parser:
                     signature = self.parse_function_or_method_signature()
                     self.eat("newline")
                     result = ("function_declare",) + signature + (decors,)
-            case Token(code="global"):
+            elif self.tokens[0].code == "global":
                 self.eat("global")
                 name, type, value = self.parse_name_type_value()
                 assert value is None
                 self.eat("newline")
                 result = ("global_var_def", name, type, decors)
-            case Token(code="class"):
+            elif self.tokens[0].code == "class":
                 result = self.parse_class(decors)
-            case Token(code="union"):
+            elif self.tokens[0].code == "union":
                 assert not decors
                 result = self.parse_union()
-            case Token(code="enum"):
+            elif self.tokens[0].code == "enum":
                 result = self.parse_enum(decors)
-            case Token(code="if"):
+            elif self.tokens[0].code == "if":
                 assert not decors
                 result = self.parse_if_statement()
-            case Token(code="for"):
+            elif self.tokens[0].code == "for":
                 assert not decors
                 result = self.parse_for_loop()
-            case Token(code="while"):
+            elif self.tokens[0].code == "while":
                 assert not decors
                 result = self.parse_while_loop()
-            case Token(code="match"):
+            elif self.tokens[0].code == "match":
                 assert not decors
                 result = self.parse_match_statement()
-            case Token(kind="name") if self.tokens[1].code == "," and self.tokens[2].kind == "name":
+            elif self.tokens[0].kind == "name" and self.tokens[1].code == "," and self.tokens[2].kind == "name":
                 assert not decors
                 result = self.parse_first_of_multiple_local_var_declares()
-            case _:
+            else:
                 result = self.parse_oneline_statement(decors)
                 self.eat("newline")
                 return result  # do not add location, it's already added
@@ -1318,20 +1317,25 @@ def parse_an_imported_file() -> bool:
 
 
 def evaluate_compile_time_condition(path, ast) -> bool:
-    match ast:
-        case ("get_variable", cond_varname):
+    if True:  # TODO: use match statement, this leaves indentation room for it
+        if ast[0] == "get_variable":
+            _, cond_varname = ast
             cond_value = find_constant(path, cond_varname)
             assert cond_value is not None
             return cond_value.c_code == "true"
-        case ("constant", cond_value):
+        elif ast[0] == "constant":
+            _, cond_value = ast
             return cond_value.c_code == "true"
-        case ("not", inner):
+        elif ast[0] == "not":
+            _, inner = ast
             return not evaluate_compile_time_condition(path, inner)
-        case ("and", lhs, rhs):
+        elif ast[0] == "and":
+            _, lhs, rhs = ast
             return evaluate_compile_time_condition(path, lhs) and evaluate_compile_time_condition(path, rhs)
-        case ("or", lhs, rhs):
+        elif ast[0] == "or":
+            _, lhs, rhs = ast
             return evaluate_compile_time_condition(path, lhs) or evaluate_compile_time_condition(path, rhs)
-        case _:
+        else:
             raise RuntimeError(
                 f"cannot evaluate compile-time condition in {path}: {ast}"
             )
@@ -1339,8 +1343,9 @@ def evaluate_compile_time_condition(path, ast) -> bool:
 
 def evaluate_a_compile_time_if_statement_in_body(path: str, ast_body: list[Any]) -> bool:
     for i, stmt in enumerate(ast_body):
-        match stmt:
-            case ("if", if_and_elifs, else_body, location):
+        if True:  # TODO: use match statement, this leaves indentation room for it
+            if stmt[0] == "if":
+                _, if_and_elifs, else_body, location = stmt
                 cond_ast, then = if_and_elifs.pop(0)
                 cond = evaluate_compile_time_condition(path, cond_ast)
                 if cond:
@@ -1349,7 +1354,8 @@ def evaluate_a_compile_time_if_statement_in_body(path: str, ast_body: list[Any])
                     ast_body[i : i + 1] = else_body
                 return True
 
-            case ("class", name, generics, body, decors, location):
+            if stmt[0] == "class":
+                _, name, generics, body, decors, location = stmt
                 if evaluate_a_compile_time_if_statement_in_body(path, body):
                     return True
 
@@ -1454,17 +1460,20 @@ def define_class(
 
     fields = []
     for member in body:
-        match member:
-            case ("class_field", field_name, field_type_ast, location):
+        if True:  # TODO: use match statement, this leaves indentation room for it
+            if member[0] == "class_field":
+                _, field_name, field_type_ast, location = member
                 fields.append((field_name, field_type_ast))
-            case ("union", union_members, location):
+            elif member[0] == "union":
+                _, union_members, location = member
                 # Just treat unions as flat things, good enough
                 fields.extend(union_members)
-            case ("function_def", method_name, *_):
+            elif member[0] == "function_def":
+                method_name = member[1]
                 jou_type.method_asts[method_name] = member
-            case ("pass", location):
+            elif member[0] == "pass":
                 pass
-            case _:
+            else:
                 raise NotImplementedError(member)
 
     jou_type.class_field_types = {}
@@ -1713,17 +1722,21 @@ def find_global_var_ptr(path, varname):
 
 
 def evaluate_constant(ast: AST, jtype: JouType) -> JouValue:
-    match ast:
-        case ("negate", inner):
+    if True:  # TODO: use match statement, this leaves indentation room for it
+        if ast[0] == "negate":
+            _, inner = ast
             inner_string = evaluate_constant(inner, jtype)
             return JouValue(jtype, f"(({jtype.to_c()})(-{inner_string.c_code}))")
-        case ("integer_constant", int_value):
+        elif ast[0] == "integer_constant":
+            _, int_value = ast
             return jou_integer(jtype, int_value)
-        case ("string", string):
+        elif ast[0] == "string":
+            _, string = ast
             return jou_string(string)
-        case ("constant", value):
+        elif ast[0] == "constant":
+            _, value = ast
             return value
-        case _:
+        else:
             raise NotImplementedError(ast)
 
 
@@ -1799,16 +1812,19 @@ def find_enum(path, enum_name):
 
 
 def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouType:
-    match ast:
-        case ("pointer", ("named_type", "void")):
+    if True:  # TODO: use match statement, this leaves indentation room for it
+        if ast == ("pointer", ("named_type", "void")):
             return JOU_VOID_PTR
-        case ("pointer", value_type_ast):
+        elif ast[0] == "pointer":
+            _, value_type_ast = ast
             return type_from_ast(path, value_type_ast, typesub=typesub).pointer_type()
-        case ("named_type", name):
+        elif ast[0] == "named_type":
+            _, name = ast
             if typesub is not None and name in typesub:
                 return typesub[name]
             return find_named_type(path, name)
-        case ("array", item_type_ast, length_ast):
+        elif ast[0] == "array":
+            _, item_type_ast, length_ast = ast
             if length_ast[0] == "integer_constant":
                 _, length = length_ast
             else:
@@ -1819,14 +1835,16 @@ def type_from_ast(path, ast, typesub: dict[str, JouType] | None = None) -> JouTy
                 assert length_value.c_code.endswith('ULL))')
                 length = int(length_value.c_code[11:-5])
             return type_from_ast(path, item_type_ast, typesub=typesub).array_type(length)
-        case ("generic", class_name, [param_type_ast]):
+        elif ast[0] == "generic":
+            _, class_name, [param_type_ast] = ast
             param_type = type_from_ast(path, param_type_ast, typesub=typesub)
             return find_generic_class(path, class_name, param_type)
-        case ("funcptr", argtype_asts, return_type_ast):
+        elif ast[0] == "funcptr":
+            _, argtype_asts, return_type_ast = ast
             argtypes = tuple(type_from_ast(path, at, typesub=typesub) for at in argtype_asts)
             return_type = type_from_ast(path, return_type_ast, typesub=typesub) if return_type_ast != ("named_type", "None") else None
             return funcptr_type(argtypes, return_type)
-        case _:
+        else:
             raise NotImplementedError(ast)
 
 
@@ -1994,11 +2012,13 @@ class CFuncMaker:
         filename, lineno = stmt[-1]
         self.output.append(f"// File {filename}, line {lineno}: {stmt[0]}")
 
-        match stmt:
-            case ("expr_stmt", expr, location):
+        if True:  # TODO: use match statement, this leaves indentation room for it
+            if stmt[0] == "expr_stmt":
+                _, expr, location = stmt
                 self.do_expression(expr, None)
 
-            case ("if", if_and_elifs, otherwise, location):
+            elif stmt[0] == "if":
+                _, if_and_elifs, otherwise, location = stmt
                 end_braces = ""
                 for cond, body in if_and_elifs:
                     cond = self.do_expression(cond, BASIC_TYPES["bool"])
@@ -2018,7 +2038,8 @@ class CFuncMaker:
                 self.do_body(otherwise)
                 self.output.extend(end_braces)
 
-            case ("=", target_ast, value_ast, location):
+            elif stmt[0] == "=":
+                _, target_ast, value_ast, location = stmt
                 if target_ast[0] == "get_variable":
                     _, varname = target_ast
                     if self.find_any_var_or_constant(varname) is None:
@@ -2035,19 +2056,19 @@ class CFuncMaker:
                 )
                 self.output.append(f"*{ptr.c_code} = {value.c_code};")
 
-            case (
-                "+=" | "-=" | "*=" | "/=" | "&=" | "|=" | "^=" | "<<=" | ">>=" as op,
-                target_ast,
-                value_ast,
-                location,
-            ):
+            elif stmt[0] in ("+=", "-=", "*=", "/=", "&=", "|=", "^=", "<<=", ">>="):
+                (op,
+                 target_ast,
+                 value_ast,
+                 location) = stmt
                 ptr = self.do_address_of_expression(target_ast)
                 value = self.do_expression(value_ast, ptr.type.inner_type)
                 # TODO: Jou's integer division rules are different than C's.
                 #       Should special-case /= and %= accordingly.
                 self.output.append(f"*{ptr.c_code} {op} {value.c_code};")
 
-            case ("declare_local_var", varname, type_ast, value_ast, location):
+            elif stmt[0] == "declare_local_var":
+                _, varname, type_ast, value_ast, location = stmt
                 vartype = type_from_ast(self.path, type_ast)
                 if varname in self.locals:
                     # This happens when we do "case X | Y:" and the case body is
@@ -2061,7 +2082,8 @@ class CFuncMaker:
                     value = self.cast(self.do_expression(value_ast, vartype), vartype)
                     self.output.append(f"var_{varname} = {value.c_code};")
 
-            case ("assert", cond_ast, (filename, lineno)):
+            elif stmt[0] == "assert":
+                _, cond_ast, (filename, lineno) = stmt
                 cond = self.do_expression(cond_ast, BASIC_TYPES["bool"])
                 self.output.append("if (!" + cond.c_code + ") {")
                 msg = f'Assertion failed in file "{filename}", line {lineno}.'
@@ -2071,7 +2093,8 @@ class CFuncMaker:
                 self.output.append("void abort(void); abort();")
                 self.output.append("}")
 
-            case ("return", val_ast, location):
+            elif stmt[0] == "return":
+                _, val_ast, location = stmt
                 if val_ast is None:
                     self.output.append("return;")
                 else:
@@ -2081,22 +2104,25 @@ class CFuncMaker:
                     )
                     self.output.append("return " + val.c_code + ";")
 
-            case ("while", cond, body, location):
+            elif stmt[0] == "while":
+                _ , cond, body, location = stmt
                 self.loop(None, cond, None, body)
 
-            case ("for", init, cond, incr, body, location):
+            elif stmt[0] == "for":
+                _, init, cond, incr, body, location = stmt
                 self.loop(init, cond, incr, body)
 
-            case ("break", location):
+            elif stmt[0] == "break":
                 self.output.append("break;")
 
-            case ("continue", location):
+            elif stmt[0] == "continue":
                 self.output.append(f"goto loop{self.loops[-1]}_continue;")
 
-            case ("pass", location):
+            elif stmt[0] == "pass":
                 pass
 
-            case ("match", match_obj_ast, func_ast, cases, case_underscore, location):
+            elif stmt[0] == "match":
+                _, match_obj_ast, func_ast, cases, case_underscore, location = stmt
                 match_obj = self.do_expression(match_obj_ast, None)
                 func = None if func_ast is None else self.do_expression(func_ast, None)
                 brace_count = 0
@@ -2116,19 +2142,20 @@ class CFuncMaker:
                 self.do_body(case_underscore)
                 self.output.extend("}" * brace_count)
 
-            case _:
+            else:
                 raise NotImplementedError(stmt)
 
     # Evaluates the type of expr without the side effects of evaluating expr.
     def guess_type(self, expr: AST) -> JouType:
-        match expr:
-            case ("get_variable" | "self" | "constant", *_):
+        if True:  # TODO: use match statement, this leaves indentation room for it
+            if expr[0] in ("get_variable", "self", "constant"):
                 return self.do_expression(expr, None).type
 
-            case ("==" | "!=" | ">" | ">=" | "<" | "<=" | "and" | "or" | "not", *_):
+            elif expr[0] in ("==", "!=", ">", ">=", "<", "<=", "and", "or", "not"):
                 return BASIC_TYPES["bool"]
 
-            case ("+" | "-" | "*" | "/" | "%", lhs, rhs):
+            elif expr[0] in ("+", "-", "*", "/", "%"):
+                _, lhs, rhs = expr
                 lhs_type = self.guess_type(lhs)
                 rhs_type = self.guess_type(rhs)
                 if lhs_type == rhs_type:
@@ -2170,10 +2197,12 @@ class CFuncMaker:
 
                 raise NotImplementedError(expr)
 
-            case ("<<" | ">>" as op, lhs, rhs):
+            elif expr[0] in ("<<", ">>"):
+                _, lhs, rhs = expr
                 return self.guess_type(lhs)
 
-            case ("&" | "|" | "^" as op, lhs, rhs):
+            elif expr[0] in list("&|^"):
+                op, lhs, rhs = expr
                 lhs_type = self.guess_type(lhs)
                 rhs_type = self.guess_type(rhs)
 
@@ -2192,7 +2221,8 @@ class CFuncMaker:
 
                 raise NotImplementedError(expr)
 
-            case ("call", func_ast, arg_asts):
+            elif expr[0] == "call":
+                _, func_ast, arg_asts = expr
                 if func_ast[0] == ".":
                     _, obj, member = func_ast
                     obj_type = self.guess_type(obj)
@@ -2210,19 +2240,22 @@ class CFuncMaker:
                 assert funcptr_type.funcptr_return_type is not None
                 return funcptr_type.funcptr_return_type
 
-            case ("integer_constant", _):
+            elif expr[0] == "integer_constant":
                 # TODO: implicit casts??
                 return BASIC_TYPES["int"]
 
-            case ("negate", obj_ast):
+            elif expr[0] == "negate":
+                _, obj_ast = expr
                 inner_type = self.guess_type(obj_ast)
                 assert inner_type.name.startswith("int")  # not unsigned
                 return inner_type
 
-            case ("as", obj_ast, type_ast):
+            elif expr[0] == "as":
+                _, obj_ast, type_ast = expr
                 return type_from_ast(self.path, type_ast)
 
-            case (".", obj_ast, field_name):
+            elif expr[0] == ".":
+                _, obj_ast, field_name = expr
                 if obj_ast[0] == "get_variable":
                     _, name = obj_ast
                     if find_enum(self.path, name) is not None:
@@ -2237,46 +2270,54 @@ class CFuncMaker:
                 assert obj_type.class_field_types is not None
                 return obj_type.class_field_types[field_name]
 
-            case ("[", ptr_or_array_ast, idx):
+            elif expr[0] == "[":
+                _, ptr_or_array_ast, idx = expr
                 ptr_or_array_type = self.guess_type(ptr_or_array_ast)
                 assert ptr_or_array_type.inner_type is not None
                 return ptr_or_array_type.inner_type
 
-            case ("sizeof", _):
+            elif expr[0] == "sizeof":
                 return BASIC_TYPES["int"]
 
-            case ("address_of", value):
+            elif expr[0] == "address_of":
+                _, value = expr
                 return self.guess_type(value).pointer_type()
 
-            case ("dereference", ptr):
+            elif expr[0] == "dereference":
+                _, ptr = expr
                 ptr_type = self.guess_type(ptr)
                 assert ptr_type.name.endswith("*")
                 assert ptr_type.inner_type is not None
                 return ptr_type.inner_type
 
-            case ("string", _):
+            elif expr[0] == "string":
                 return BASIC_TYPES["byte"].pointer_type()
 
-            case ("instantiate", type_ast, _):
+            elif expr[0] == "instantiate":
+                _, type_ast, _ = expr
                 return type_from_ast(self.path, type_ast)
 
-            case ("pre_incr" | "pre_decr" | "post_incr" | "post_decr", obj):
+            elif expr[0] in ("pre_incr", "pre_decr", "post_incr", "post_decr"):
+                _, obj = expr
                 return self.guess_type(obj)
 
-            case ("array", items):
+            elif expr[0] == "array":
+                _, items = expr
                 itype = decide_array_item_type([self.guess_type(item) for item in items])
                 return itype.array_type(len(items))
 
-            case ("ternary_if", then, condition, otherwise):
+            elif expr[0] == "ternary_if":
+                _, then, condition, otherwise = expr
                 return self.guess_type(then)  # good enough??
 
-            case _:
+            else:
                 raise NotImplementedError(expr)
 
     # Evaluates &expr
     def do_address_of_expression(self, expr) -> JouValue:
-        match expr:
-            case ("get_variable", varname):
+        if True:  # TODO: use match statement, this leaves indentation room for it
+            if expr[0] == "get_variable":
+                _, varname = expr
                 if varname in self.locals:
                     return self.local_var_ptr(varname)
                 var = find_global_var_ptr(self.path, varname)
@@ -2286,10 +2327,11 @@ class CFuncMaker:
                     )
                 return var
 
-            case ("self",):
+            elif expr == ("self",):
                 return self.local_var_ptr("self")
 
-            case (".", obj_ast, field_name):
+            elif expr[0] == ".":
+                _, obj_ast, field_name = expr
                 # To evaluate &pointer.field, we evaluate the pointer and add a
                 # memory offset. In this case, we may not be able to evaluate
                 # &pointer. For example, &some_function().field is valid if the
@@ -2309,7 +2351,8 @@ class CFuncMaker:
                 self.output.append(f"{result.c_code} = &{ptr.c_code}->jou_{field_name};")
                 return result
 
-            case ("[", ptr_ast, index_ast):
+            elif expr[0] == "[":
+                _, ptr_ast, index_ast = expr
                 # &ptr[index]
                 if self.guess_type(ptr_ast).is_array():
                     # &array[index] is slightly different from &ptr[index]
@@ -2326,12 +2369,13 @@ class CFuncMaker:
                 self.output.append(f"{result.c_code} = {ptr.c_code} + {index.c_code};")
                 return result
 
-            case ("dereference", obj_ast):
+            elif expr[0] == "dereference":
+                _, obj_ast = expr
                 # &*foo --> just evaluate foo
                 # TODO: pass in the expected type?
                 return self.do_expression(obj_ast, None)
 
-            case _:
+            else:
                 raise NotImplementedError(expr)
 
     def do_expression(self, expr, expected_type: JouType | None) -> JouValue:
@@ -2341,8 +2385,9 @@ class CFuncMaker:
                 # Implicit array to pointer cast
                 return self.cast(self.do_address_of_expression(expr), expected_type)
 
-        match expr:
-            case ("call", func_ast, arg_asts):
+        if True:  # TODO: use match statement, this leaves indentation room for it
+            if expr[0] == "call":
+                _, func_ast, arg_asts = expr
                 if func_ast[0] == ".":
                     # It looks like obj.member(). Could be a funcptr call or a
                     # method call.
@@ -2374,7 +2419,8 @@ class CFuncMaker:
                 func = self.do_expression(func_ast, None)
                 return self.call_function(func, arg_asts)  # type: ignore
 
-            case ("get_variable", varname):
+            elif expr[0] == "get_variable":
+                _, varname = expr
                 value = self.find_any_var_or_constant(varname)
                 if value is not None:
                     return value
@@ -2385,21 +2431,24 @@ class CFuncMaker:
 
                 raise RuntimeError(f"no variable named {varname} in {self.path}")
 
-            case ("self",):
+            elif expr == ("self",):
                 return JouValue(self.locals["self"], "var_self")
 
-            case ("==" | "!=" | ">" | "<" | ">=" | "<=" as op, lhs_ast, rhs_ast):
+            elif expr[0] in ("==", "!=", ">", "<", ">=", "<="):
+                op, lhs_ast, rhs_ast = expr
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(BASIC_TYPES["bool"])
                 self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
                 return result
 
-            case ("sizeof", obj):
+            elif expr[0] == "sizeof":
+                _, obj = expr
                 type_c = self.guess_type(obj).to_c(fwd_decl_is_enough=False)
                 return JouValue(BASIC_TYPES["int"], f"((int32_t) sizeof({type_c}))")
 
-            case (".", obj_ast, field_name):
+            elif expr[0] == ".":
+                _, obj_ast, field_name = expr
                 if obj_ast[0] == "get_variable":
                     _, obj_name = obj_ast
                     enum = find_enum(self.path, obj_name)
@@ -2422,20 +2471,25 @@ class CFuncMaker:
                 self.output.append(f"{result.c_code} = {obj.c_code}{op}jou_{field_name};")
                 return result
 
-            case ("constant", value):
+            elif expr[0] == "constant":
+                _, value = expr
                 return value
 
-            case ("integer_constant", value):
+            elif expr[0] == "integer_constant":
+                _, value = expr
                 # TODO: type hints
                 return jou_integer("int", value)
 
-            case ("address_of", obj):
+            elif expr[0] == "address_of":
+                _, obj = expr
                 return self.do_address_of_expression(obj)
 
-            case ("string", py_bytes):
+            elif expr[0] == "string":
+                _, py_bytes= expr
                 return jou_string(py_bytes)
 
-            case ("[", obj_ast, index_ast):
+            elif expr[0] == "[":
+                _, obj_ast, index_ast= expr
                 obj = self.do_expression(obj_ast, None)
                 index = self.do_expression(index_ast, BASIC_TYPES["int64"])
                 assert obj.type.inner_type is not None
@@ -2448,7 +2502,8 @@ class CFuncMaker:
                     self.output.append(f"{result.c_code} = {obj.c_code}[{index.c_code}];")
                 return result
 
-            case ("instantiate", type_ast, fields):
+            elif expr[0] == "instantiate":
+                _, type_ast, fields = expr
                 t = type_from_ast(self.path, type_ast)
                 result = self.add_variable(t)
                 assert t.class_field_types is not None
@@ -2462,11 +2517,13 @@ class CFuncMaker:
                     )
                 return result
 
-            case ("as", obj_ast, type_ast):
+            elif expr[0] == "as":
+                _, obj_ast, type_ast = expr
                 t = type_from_ast(self.path, type_ast)
                 return self.cast(self.do_expression(obj_ast, t), t)
 
-            case ("and", lhs_ast, rhs_ast):
+            elif expr[0] == "and":
+                _, lhs_ast, rhs_ast = expr
                 result = self.add_variable(BASIC_TYPES["bool"])
                 lhs = self.do_expression(lhs_ast, BASIC_TYPES["bool"])
                 self.output.append("// and")
@@ -2476,7 +2533,8 @@ class CFuncMaker:
                 self.output.append("} else { " + result.c_code + " = false; }")
                 return result
 
-            case ("or", lhs_ast, rhs_ast):
+            elif expr[0] == "or":
+                _, lhs_ast, rhs_ast = expr
                 result = self.add_variable(BASIC_TYPES["bool"])
                 lhs = self.do_expression(lhs_ast, BASIC_TYPES["bool"])
                 self.output.append("// or")
@@ -2486,7 +2544,8 @@ class CFuncMaker:
                 self.output.append("}")
                 return result
 
-            case ("not", obj_ast):
+            elif expr[0] == "not":
+                _, obj_ast = expr
                 obj = self.do_expression(obj_ast, BASIC_TYPES["bool"])
                 result = self.add_variable(BASIC_TYPES["bool"])
                 self.output.append(f"{result.c_code} = !{obj.c_code};")
@@ -2494,20 +2553,23 @@ class CFuncMaker:
 
             # TODO: Jou's integer division rules are different than C's.
             #       Should special-case / and % accordingly.
-            case ("+" | "-" | "*" | "/" | "%" as op, lhs_ast, rhs_ast):
+            elif expr[0] in ("+", "-", "*", "/", "%"):
+                op, lhs_ast, rhs_ast = expr
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(self.guess_type(expr))
                 self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
                 return result
 
-            case ("negate", obj_ast):
+            elif expr[0] == "negate":
+                _, obj_ast = expr
                 obj = self.do_expression(obj_ast, None)
                 result = self.add_variable(self.guess_type(expr))
                 self.output.append(f"{result.c_code} = -{obj.c_code};")
                 return result
 
-            case ("pre_incr" | "post_incr" | "pre_decr" | "post_decr" as op, obj_ast):
+            elif expr[0] in ("pre_incr", "post_incr", "pre_decr", "post_decr"):
+                op, obj_ast = expr
                 diff = 1 if 'incr' in op else -1
                 ptr = self.do_address_of_expression(obj_ast)
                 old_value = self.deref(ptr)
@@ -2516,7 +2578,8 @@ class CFuncMaker:
                 self.output.append(f"*{ptr.c_code} = {new_value.c_code};")
                 return new_value if "pre" in op else old_value
 
-            case ("array", item_asts):
+            elif expr[0] == "array":
+                _, item_asts = expr
                 if expected_type and expected_type.is_array():
                     itype = expected_type.inner_type
                 else:
@@ -2531,7 +2594,8 @@ class CFuncMaker:
                     self.output.append(f"{var.c_code}.items[{i}] = {item.c_code};")
                 return var
 
-            case ("dereference", value_ast):
+            elif expr[0] == "dereference":
+                _, value_ast = expr
                 ptype = None if expected_type is None else expected_type.pointer_type()
                 value = self.do_expression(value_ast, ptype)
                 # TODO: handle *array? or intentionally not?...
@@ -2540,7 +2604,8 @@ class CFuncMaker:
                 self.output.append(f"{result.c_code} = *{value.c_code};")
                 return result
 
-            case ("ternary_if", then, condition, otherwise):
+            elif expr[0] == "ternary_if":
+                _, then, condition, otherwise = expr
                 result = self.add_variable(self.guess_type(expr))
 
                 condition_value = self.do_expression(condition, BASIC_TYPES["bool"])
@@ -2553,14 +2618,15 @@ class CFuncMaker:
                 self.output.append("}")
                 return result
 
-            case ("&" | "|" | "^" | "<<" | ">>" as op, lhs_ast, rhs_ast):
+            elif expr[0] in ("&","|","^","<<",">>"):
+                op, lhs_ast, rhs_ast = expr
                 lhs = self.do_expression(lhs_ast, None)
                 rhs = self.do_expression(rhs_ast, None)
                 result = self.add_variable(self.guess_type(expr))
                 self.output.append(f"{result.c_code} = {lhs.c_code} {op} {rhs.c_code};")
                 return result
 
-            case _:
+            else:
                 raise NotImplementedError(expr)
 
 
