@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/fs.jou"
 import "stdlib/intnative.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
@@ -14,6 +15,19 @@ if WINDOWS:
     import "./paths.jou"
 else:
     import "../config.jou"
+
+
+# TODO: move to stdlib?
+if WINDOWS:
+    declare SetEnvironmentVariableA(name: byte*, value: byte*) -> int
+else:
+    declare setenv(name: byte*, value: byte*, overwrite: int) -> int
+
+def set_env_var(name: byte*, value: byte*) -> bool:
+    if WINDOWS:
+        return SetEnvironmentVariableA(name, value) != 0
+    else:
+        return setenv(name, value, 1) == 0
 
 
 def get_quoted_object_file_paths() -> byte*:
@@ -118,6 +132,18 @@ def run_exe(exepath: byte*) -> int:
             asprintf(&command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath)
         else:
             asprintf(&command, "'%s'", exepath)
+
+    # Jou programs can use JOU_COMPILER_PATH environment variable to detect
+    # whether they are being ran from the Jou compiler or invoke the compiler
+    # to do hot reloading.
+    jou_compiler = find_current_executable()
+    if jou_compiler == NULL:
+        fprintf(get_stderr(), "error: cannot locate the currently running Jou compiler executable\n")
+        exit(1)
+    if not set_env_var("JOU_COMPILER_PATH", jou_compiler):
+        fprintf(get_stderr(), "error: failed to set JOU_COMPILER_PATH environment variable\n")
+        exit(1)
+    free(jou_compiler)
 
     # Make sure that everything else shows up before the user's prints.
     fflush(get_stdout())
