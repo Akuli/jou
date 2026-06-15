@@ -1,16 +1,13 @@
+import "stdlib/assert.jou"
 import "stdlib/process.jou"
 import "stdlib/io.jou"
 
 def main() -> int:
-    if getenv("JOU_COMPILER_PATH") == NULL:
-        printf("not found\n")
-        return 1
+    assert getenv("JOU_COMPILER_PATH") != NULL
 
     f = fopen(getenv("JOU_COMPILER_PATH"), "rb")
-    if f == NULL:
-        printf("doesn't exist\n")
-        return 1
-
+    assert f != NULL
     fclose(f)
+
     printf("ok\n")  # Output: ok
     return 0
