@@ -2,28 +2,27 @@ import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
+import "stdlib/intnative.jou"
 
 if WINDOWS:
-    # TODO: This should really use W functions, not A functions.
-    #       But then we would need a way to convert between byte* and uint16*.
-    #       I have an idea for that (WTF-8) but I haven't implemented it yet.
-    #       The rest of the standard library will need changes too.
-    class WIN32_FIND_DATAA:
+    import "stdlib/utf8.jou"
+
+    class WIN32_FIND_DATAW:
         dwFileAttributes: uint32
-        ftCreationTime: uint32[2]
-        ftLastAccessTime: uint32[2]
-        ftLastWriteTime: uint32[2]
+        ftCreationTime: uint32[2]  # actually FILETIME
+        ftLastAccessTime: uint32[2]  # actually FILETIME
+        ftLastWriteTime: uint32[2]  # actually FILETIME
         nFileSizeHigh: uint32
         nFileSizeLow: uint32
         dwReserved0: uint32
         dwReserved1: uint32
-        cFileName: byte[260]  # TODO: this can be quite limiting
-        cAlternateFileName: byte[14]
+        cFileName: uint16[260]  # TODO: this can be quite limiting
+        cAlternateFileName: uint16[14]
 
-    declare FindFirstFileA(FileName: byte*, FindFileData: WIN32_FIND_DATAA*) -> int64
-    declare FindNextFileA(hFindFile: int64, FindFileData: WIN32_FIND_DATAA*) -> int
-    declare FindClose(hFindFile: int64) -> int
-    const INVALID_HANDLE_VALUE: int64 = -1
+    declare FindFirstFileW(FileName: uint16*, FindFileData: WIN32_FIND_DATAW*) -> intnative
+    declare FindNextFileW(hFindFile: intnative, FindFileData: WIN32_FIND_DATAW*) -> int
+    declare FindClose(hFindFile: intnative) -> int
+    const INVALID_HANDLE_VALUE: intnative = -1
 
     declare GetLastError() -> uint32
     const ERROR_PATH_NOT_FOUND: uint32 = 3
@@ -51,7 +50,6 @@ if WINDOWS:
 
 else:
     import "stdlib/errno.jou"
-    import "stdlib/intnative.jou"
 
     if LINUX:
         # There are two versions of strerror_r(), and the one actually named
@@ -141,7 +139,7 @@ class DirIter:
     # Internal state
     path_list: List[byte]
     if WINDOWS:
-        handle: int64
+        handle: intnative
     else:
         dir_ptr: DIR*
 
@@ -185,26 +183,38 @@ class DirIter:
             if self.handle == 0:
                 self.handle = INVALID_HANDLE_VALUE
 
-            find_data: WIN32_FIND_DATAA
+            find_data: WIN32_FIND_DATAW
+            pattern_w: uint16* = NULL
+
             if self.handle == INVALID_HANDLE_VALUE:
                 # First file
                 pattern: byte* = NULL
                 asprintf(&pattern, "%s\\*", self.dir)
                 assert pattern != NULL
 
-                self.handle = FindFirstFileA(pattern, &find_data)
+                pattern_w = string_to_windows(pattern, NULL, 0)
+                assert pattern_w != NULL
                 free(pattern)
+
+                self.handle = FindFirstFileW(pattern_w, &find_data)
+                # Do not free pattern_w here, might affect GetLastError() if we're unlucky
                 found = (self.handle != INVALID_HANDLE_VALUE)
             else:
                 # Not first file
-                found = (FindNextFileA(self.handle, &find_data) != 0)
+                found = (FindNextFileW(self.handle, &find_data) != 0)
 
             while found:
-                if self.set_name(find_data.cFileName):
+                # TODO: Get rid of cFileName array limitation
+                name: byte[2000]
+                assert sizeof(name) >= 5*array_count(find_data.cFileName)  # surely big enough
+                string_from_windows(find_data.cFileName, name, sizeof(name))
+
+                if self.set_name(name):
                     return True
-                found = (FindNextFileA(self.handle, &find_data) != 0)
+                found = (FindNextFileW(self.handle, &find_data) != 0)
 
             e = GetLastError()
+            free(pattern_w)
 
             free(self.path_list.ptr)
             if self.handle != INVALID_HANDLE_VALUE:
