@@ -1,4 +1,6 @@
 import "stdlib/assert.jou"
+import "stdlib/mem.jou"
+import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/random.jou"
 import "stdlib/str.jou"
@@ -182,6 +184,87 @@ def test_encode_char() -> None:
     printf("%d,%d,%d,%d,%d\n", s[0], s[1], s[2], s[3], s[4])  # Output: 0,0,0,0,0
 
 
+def hexdump(ptr: byte*, len: int) -> None:
+    for i = 0; i < len; i++:
+        printf("%02x ", ptr[i])
+    putchar(' ')
+    for i = 0; i < len; i++:
+        putchar(ptr[i] if is_ascii_printable(ptr[i]) else '.')
+    putchar('\n')
+
+
+def test_windows_to_utf8_basic() -> None:
+    puts("windows_to_utf8")  # Output: windows_to_utf8
+
+    wstring: uint16[6] = ['h', 'e', 'l', 'l', 246, 0]
+    out: byte[10]
+
+    out = "jjjjjjjjj"
+    assert windows_to_utf8(wstring, out, sizeof(out)) == &out[0]
+    puts(out)  # Output: hellö
+    puts(&out[7])  # Output: jj
+    # Here "c3 b6" is the ö character in UTF-8:
+    hexdump(out, sizeof(out))  # Output: 68 65 6c 6c c3 b6 00 6a 6a 00  hell...jj.
+
+    # When buffer runs out, c3 part may be written without the b6 part.
+    # Perhaps not ideal, but just like snprintf().
+    out = "jjjjjjjjj"
+    assert windows_to_utf8(wstring, out, 6) == NULL
+    hexdump(out, sizeof(out))  # Output: 68 65 6c 6c c3 00 6a 6a 6a 00  hell..jjj.
+
+    # Smiley 😀 (U+1F600)
+    wide_smile: uint16[3] = [0xd83d, 0xde00, 0]
+    out = "jjjjjjjjj"
+    assert windows_to_utf8(wide_smile, out, sizeof(out)) == &out[0]
+    hexdump(out, sizeof(out))  # Output: f0 9f 98 80 00 6a 6a 6a 6a 00  .....jjjj.
+    ptr = &out[0]
+    printf("smiley = %d\n", utf8_decode_char(&ptr))  # Output: smiley = 128512
+
+    # Left half of smiley
+    left_smile: uint16[2] = [0xd83d, 0]
+    out = "jjjjjjjjj"
+    # 0xd83d = 1101 1000 0011 1101
+    #        = 1101 100000 111101
+    #          ^^^^ ^^^^^^ ^^^^^^
+    #
+    # In WTF-8 this becomes:
+    #          11101101 10100000 10111101
+    #              ^^^^   ^^^^^^   ^^^^^^
+    #        = 1110 1101 1010 0000 1011 1101
+    #        = e    d    a    0    b    d
+    #
+    # Converting succeeds, but the result is not valid UTF-8.
+    assert windows_to_utf8(left_smile, out, sizeof(out)) == &out[0]
+    hexdump(out, sizeof(out))  # Output: ed a0 bd 00 6a 6a 6a 6a 6a 00  ....jjjjj.
+    ptr = &out[0]
+    printf("%d\n", utf8_decode_char(&ptr))  # Output: -1
+
+    # Left and right smiley halves mixed in with text
+    mixed_smile: uint16[9] = ['a', 'a', 0xd83d, 'b', 'b', 0xde00, 'c', 'c', 0]
+    out = "jjjjjjjjj"
+    assert windows_to_utf8(mixed_smile, out, sizeof(out)) == NULL  # doesn't fit
+    hexdump(out, sizeof(out))  # Output: 61 61 ed a0 bd 62 62 ed b8 00  aa...bb...
+    big_out: byte[15] = "jjjjjjjjjjjjjj"
+    assert windows_to_utf8(mixed_smile, big_out, sizeof(big_out)) == &big_out[0]
+    hexdump(big_out, sizeof(big_out))  # Output: 61 61 ed a0 bd 62 62 ed b8 80 63 63 00 6a 00  aa...bb...cc.j.
+
+    # Dynamic memory allocating
+    s = windows_to_utf8(wstring, NULL, 0)
+    assert s != NULL
+    puts(s)  # Output: hellö
+    free(s)
+
+    s = windows_to_utf8(wide_smile, NULL, 0)
+    assert s != NULL
+    printf("%zd\n", strlen(s))  # Output: 4
+    free(s)
+
+    s = windows_to_utf8(left_smile, NULL, 0)
+    assert s != NULL
+    printf("%zd\n", strlen(s))  # Output: 3
+    free(s)
+
+
 def main() -> int:
     test_char_count()
     test_successful_decode()
@@ -193,4 +276,5 @@ def main() -> int:
     test_surrogates()
     test_decoding_random_data()
     test_encode_char()
+    test_windows_to_utf8_basic()
     return 0
