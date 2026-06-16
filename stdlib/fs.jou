@@ -6,6 +6,7 @@ import "stdlib/intnative.jou"
 
 if WINDOWS:
     import "stdlib/ascii.jou"
+    import "stdlib/errno.jou"
     import "stdlib/utf8.jou"
 
     class WIN32_FIND_DATAW:
@@ -26,7 +27,6 @@ if WINDOWS:
     const INVALID_HANDLE_VALUE: intnative = -1
 
     declare GetLastError() -> uint32
-    declare SetLastError(dwErrCode: uint32) -> None
     const ERROR_PATH_NOT_FOUND: uint32 = 3
     const ERROR_NO_MORE_FILES: uint32 = 18
 
@@ -53,18 +53,6 @@ if WINDOWS:
         string_from_windows(temp_buffer, message, message_size)
         while ends_with(message, "\r") or ends_with(message, "\n"):
             message[strlen(message) - 1] = '\0'
-
-    declare CreateDirectoryA(
-        lpPathName: byte*,
-        lpSecurityAttributes: void*,  # actually LPSECURITY_ATTRIBUTES
-    ) -> int
-    declare CreateDirectoryW(
-        lpPathName: uint16*,
-        lpSecurityAttributes: void*,  # actually LPSECURITY_ATTRIBUTES
-    ) -> int
-
-    declare DeleteFileA(lpFileName: byte*) -> int
-    declare DeleteFileW(lpFileName: uint16*) -> int
 
 else:
     import "stdlib/errno.jou"
@@ -381,65 +369,50 @@ def find_current_executable() -> byte*:
                     return buf  # success, it fits
 
 
-# Return value: True = success, False = fail
-@public
-def fs_mkdir(path: byte*) -> bool:
-    if WINDOWS:
-        if is_ascii_string(path):
-            # Simple/fast path. No need to allocate memory and persist the error code.
-            ret = CreateDirectoryA(path, NULL)
-        else:
-            w_path = string_to_windows(path, NULL, 0)
-            ret = CreateDirectoryW(w_path, NULL)
-            err = GetLastError()
-            free(w_path)
-            SetLastError(err)
-        return ret != 0
-    else:
-        # The mode here looks like insecure "everything allowed" permissions,
-        # but actually means that default permissions will be used, because of
-        # how the umask works. https://en.wikipedia.org/wiki/Umask
-        return mkdir(path, 0o777) == 0
-
-
-# Return value: True = success, False = fail
-@public
-def fs_unlink(path: byte*) -> bool:
-    if WINDOWS:
-        if is_ascii_string(path):
-            ret = DeleteFileA(path)
-        else:
-            w_path = string_to_windows(path, NULL, 0)
-            ret = DeleteFileW(w_path)
-            err = GetLastError()
-            free(w_path)
-            SetLastError(err)
-        return ret != 0
-    else:
-        # The mode here looks like insecure "everything allowed" permissions,
-        # but actually means that default permissions will be used, because of
-        # how the umask works. https://en.wikipedia.org/wiki/Umask
-        return unlink(path) == 0
-
-
-# mkdir(path, mode) is deprecated and will be removed/privated soon
+# Use mkdir(path, 0o777) if you don't know what the mode argument does. It
+# looks like insecure "everything allowed" permissions, but actually means that
+# default permissions will be used. See the documentation.
 if WINDOWS:
     declare _mkdir(path: byte*) -> int
+    declare _wmkdir(path: uint16*) -> int
+
     @public
     @inline
     def mkdir(path: byte*, the_mode_is_ignored: int) -> int:
-        return _mkdir(path)
+        if is_ascii_string(path):
+            # Easy/fast path for simple strings
+            return _mkdir(path)
+        else:
+            wpath = string_to_windows(path, NULL, 0)
+            ret = _wmkdir(wpath)
+            saved_errno = get_errno()
+            free(wpath)
+            set_errno(saved_errno)
+            return ret
+
 else:
     @public
     declare mkdir(path: byte*, mode: int) -> int
 
-# unlink(path) is deprecated and will be removed/privated soon
+
 if WINDOWS:
     declare _unlink(path: byte*) -> int
+    declare _wunlink(path: uint16*) -> int
+
     @public
     @inline
     def unlink(path: byte*) -> int:
-        return _unlink(path)
+        if is_ascii_string(path):
+            # Easy/fast path for simple strings
+            return _unlink(path)
+        else:
+            wpath = string_to_windows(path, NULL, 0)
+            ret = _wunlink(wpath)
+            saved_errno = get_errno()
+            free(wpath)
+            set_errno(saved_errno)
+            return ret
+
 else:
     @public
     declare unlink(path: byte*) -> int
