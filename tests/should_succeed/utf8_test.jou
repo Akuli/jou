@@ -1,4 +1,6 @@
 import "stdlib/assert.jou"
+import "stdlib/mem.jou"
+import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/random.jou"
 import "stdlib/str.jou"
@@ -30,6 +32,8 @@ def test_successful_decode() -> None:
 
 
 def check_fail(s: byte*) -> None:
+    assert string_to_windows(s, NULL, 0) == NULL
+
     ptr = s
     printf("should fail --> %d\n", utf8_decode_char(&ptr))
     assert ptr == s
@@ -131,9 +135,18 @@ def test_surrogates() -> None:
     #           = 1101 111111 111111
     surrogate3: byte[3] = [0b1110_1101, 0b10_111111, 0b10_111111]
 
-    check_fail(surrogate1)  # Output: should fail --> -1
-    check_fail(surrogate2)  # Output: should fail --> -1
-    check_fail(surrogate3)  # Output: should fail --> -1
+    # We don't use check_fail() because it calls string_to_windows() which by
+    # design allows some bad surrogates.
+    ptr1 = &surrogate1[0]
+    ptr2 = &surrogate2[0]
+    ptr3 = &surrogate3[0]
+
+    # Output: surrogates -1 -1 -1
+    printf("surrogates %d %d %d\n", utf8_decode_char(&ptr1), utf8_decode_char(&ptr2), utf8_decode_char(&ptr3))
+
+    assert ptr1 == &surrogate1[0]
+    assert ptr2 == &surrogate2[0]
+    assert ptr3 == &surrogate3[0]
 
 
 def test_decoding_random_data() -> None:
@@ -182,6 +195,162 @@ def test_encode_char() -> None:
     printf("%d,%d,%d,%d,%d\n", s[0], s[1], s[2], s[3], s[4])  # Output: 0,0,0,0,0
 
 
+def hexdump(ptr: byte*, len: int) -> None:
+    for i = 0; i < len; i++:
+        printf("%02x ", ptr[i])
+    putchar(' ')
+    for i = 0; i < len; i++:
+        putchar(ptr[i] if is_ascii_printable(ptr[i]) else '.')
+    putchar('\n')
+
+def hexdump16(ptr: uint16*, len: int) -> None:
+    for i = 0; i < len; i++:
+        printf("%04x ", ptr[i])
+    putchar(' ')
+    for i = 0; i < len; i++:
+        putchar(ptr[i] if ptr[i] < 256 and is_ascii_printable(ptr[i] as byte) else '.')
+    putchar('\n')
+
+
+def test_string_from_windows_basic() -> None:
+    puts("string_from_windows")  # Output: string_from_windows
+
+    wstring: uint16[6] = ['h', 'e', 'l', 'l', 246, 0]
+    out: byte[10]
+
+    out = "jjjjjjjjj"
+    assert string_from_windows(wstring, out, sizeof(out)) == &out[0]
+    puts(out)  # Output: hellö
+    puts(&out[7])  # Output: jj
+    # Here "c3 b6" is the ö character in UTF-8:
+    hexdump(out, sizeof(out))  # Output: 68 65 6c 6c c3 b6 00 6a 6a 00  hell...jj.
+
+    # When buffer runs out, c3 part may be written without the b6 part.
+    # Perhaps not ideal, but just like snprintf().
+    out = "jjjjjjjjj"
+    assert string_from_windows(wstring, out, 6) == NULL
+    hexdump(out, sizeof(out))  # Output: 68 65 6c 6c c3 00 6a 6a 6a 00  hell..jjj.
+
+    # Smiley 😀 (U+1F600)
+    wide_smile: uint16[3] = [0xd83d, 0xde00, 0]
+    out = "jjjjjjjjj"
+    assert string_from_windows(wide_smile, out, sizeof(out)) == &out[0]
+    hexdump(out, sizeof(out))  # Output: f0 9f 98 80 00 6a 6a 6a 6a 00  .....jjjj.
+    ptr = &out[0]
+    printf("smiley = %d\n", utf8_decode_char(&ptr))  # Output: smiley = 128512
+
+    # Left half of smiley
+    left_smile: uint16[2] = [0xd83d, 0]
+    out = "jjjjjjjjj"
+    # 0xd83d = 1101 1000 0011 1101
+    #        = 1101 100000 111101
+    #          ^^^^ ^^^^^^ ^^^^^^
+    #
+    # In WTF-8 this becomes:
+    #          11101101 10100000 10111101
+    #              ^^^^   ^^^^^^   ^^^^^^
+    #        = 1110 1101 1010 0000 1011 1101
+    #        = e    d    a    0    b    d
+    #
+    # Converting succeeds, but the result is not valid UTF-8.
+    assert string_from_windows(left_smile, out, sizeof(out)) == &out[0]
+    hexdump(out, sizeof(out))  # Output: ed a0 bd 00 6a 6a 6a 6a 6a 00  ....jjjjj.
+    ptr = &out[0]
+    printf("%d\n", utf8_decode_char(&ptr))  # Output: -1
+
+    # Left and right smiley halves mixed in with text
+    mixed_smile: uint16[9] = ['a', 'a', 0xd83d, 'b', 'b', 0xde00, 'c', 'c', 0]
+    out = "jjjjjjjjj"
+    assert string_from_windows(mixed_smile, out, sizeof(out)) == NULL  # doesn't fit
+    hexdump(out, sizeof(out))  # Output: 61 61 ed a0 bd 62 62 ed b8 00  aa...bb...
+    big_out: byte[15] = "jjjjjjjjjjjjjj"
+    assert string_from_windows(mixed_smile, big_out, sizeof(big_out)) == &big_out[0]
+    hexdump(big_out, sizeof(big_out))  # Output: 61 61 ed a0 bd 62 62 ed b8 80 63 63 00 6a 00  aa...bb...cc.j.
+
+    # Dynamic memory allocating
+    s = string_from_windows(wstring, NULL, 0)
+    assert s != NULL
+    puts(s)  # Output: hellö
+    free(s)
+
+    s = string_from_windows(wide_smile, NULL, 0)
+    assert s != NULL
+    printf("%zd\n", strlen(s))  # Output: 4
+    free(s)
+
+    s = string_from_windows(left_smile, NULL, 0)
+    assert s != NULL
+    printf("%zd\n", strlen(s))  # Output: 3
+    free(s)
+
+
+def test_string_to_windows_basic() -> None:
+    puts("string_to_windows")  # Output: string_to_windows
+
+    # We don't need to test a lot here because:
+    #   - existing tests call string_to_windows() with invalid inputs
+    #   - round-trip test below call string_to_windows() with valid inputs
+    #
+    # The only thing we really need to test is truncating when the output
+    # doesn't fit.
+
+    out: uint16[10]
+
+    memset(out, 0xab, sizeof(out))
+    assert string_to_windows("hello", out, sizeof(out)) != NULL
+    hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0000 abab abab abab abab  hello.....
+
+    memset(out, 0xab, sizeof(out))
+    assert string_to_windows("hello wor", out, sizeof(out)) != NULL
+    hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0020 0077 006f 0072 0000  hello wor.
+
+    memset(out, 0xab, sizeof(out))
+    assert string_to_windows("hello worl", out, sizeof(out)) == NULL
+    hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0020 0077 006f 0072 0000  hello wor.
+
+    memset(out, 0xab, sizeof(out))
+    assert string_to_windows("hello 😀 😀", out, sizeof(out)) == NULL
+    hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0020 d83d de00 0020 0000  hello .. .
+
+    memset(out, 0xab, sizeof(out))
+    assert string_to_windows("hello 😀😀", out, sizeof(out)) == NULL
+    # First half of smiley makes it to the output, second half does not
+    hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0020 d83d de00 d83d 0000  hello ....
+
+
+def test_windows_string_roundtrip() -> None:
+    # Check many random strings
+    repeat = 10000
+    while repeat --> 0:
+        windows_len = rand() % 10
+
+        w1: uint16[11]
+        memset(w1, 0, sizeof(w1))
+        for i = 0; i < windows_len; i++:
+            while w1[i] == 0:
+                w1[i] = rand() as uint16
+
+        s1 = string_from_windows(w1, NULL, 0)
+        assert s1 != NULL
+        assert strlen(s1) <= 4*windows_len
+
+        s2: byte[41]
+        assert string_from_windows(w1, s2, sizeof(s2)) == &s2[0]
+        assert strcmp(s1, s2) == 0
+
+        w2 = string_to_windows(s1, NULL, 0)
+        w3: uint16[11]
+        assert string_to_windows(s1, w3, sizeof(w3)) != NULL
+
+        assert memcmp(w1, w2, 2*(windows_len + 1)) == 0
+        assert memcmp(w1, w3, 2*(windows_len + 1)) == 0
+
+        free(s1)
+        free(w2)
+
+    puts("ok")  # Output: ok
+
+
 def main() -> int:
     test_char_count()
     test_successful_decode()
@@ -193,4 +362,7 @@ def main() -> int:
     test_surrogates()
     test_decoding_random_data()
     test_encode_char()
+    test_string_from_windows_basic()
+    test_string_to_windows_basic()
+    test_windows_string_roundtrip()
     return 0

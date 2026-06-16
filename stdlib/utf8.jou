@@ -8,6 +8,8 @@
 
 import "stdlib/assert.jou"
 import "stdlib/intnative.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
 
 
 # Check if b is a continuation byte. A UTF-8 multibyte (that is, non-ASCII)
@@ -140,3 +142,227 @@ def utf8_encode_char(u: uint32) -> byte[5]:
             assert False
 
     return result
+
+
+# Convert a string coming from Windows into a UTF-8 string.
+#
+# Usage:
+#
+#   # With heap memory
+#   s = string_from_windows(some_windows_string, NULL, 0)
+#   printf("Got %s\n", s)
+#   free(s)
+#
+#   # With stack memory
+#   s: byte[100]
+#   if string_from_windows(some_windows_string, s, sizeof(s)) != NULL:
+#       # It fits into 100 bytes
+#       printf("Got %s\n", s)
+#
+# So, if buf is not NULL, the result goes there, and otherwise this function
+# calls malloc().
+#
+# The return value is the UTF-8 string: either buf or a pointer from malloc().
+# Return value NULL means that the result didn't fit into buf, and in that
+# case, buf contains as much of the result as fits into it followed by a zero
+# byte to terminate it, just like with snprintf().
+#
+# The windows string can be any 16-bit sequence terminated by zero. If it is
+# not valid UTF-16, this function outputs invalid UTF-8 that can be converted
+# back to the same invalid UTF-16 with string_to_windows(). For details of how
+# this is achieved, look up WTF-8 (Wobbly Transformation Format).
+#
+# For example, if you use this function for handling file names on Windows,
+# then file name handling becomes very similar to other operating systems:
+# (converted) file names are not necessarily valid UTF-8, but it doesn't matter
+# if you only pass them around and perhaps concatenate them.
+@public
+def string_from_windows(windows_string: uint16*, buf: byte*, buf_size: intnative) -> byte*:
+    assert (buf == NULL and buf_size == 0) or (buf != NULL and buf_size > 0)
+
+    list = List[byte]{}  # used only if buf is NULL
+    index: intnative = 0  # used only if buf is not NULL
+
+    while True:
+        # Note: This does not read beyond the ending zero value of the windows string.
+        if windows_string[0] >> 10 == 0b110110 and windows_string[1] >> 10 == 0b110111:
+            # It is a valid UTF-16 surrogate pair
+            first_10_bits = *windows_string++ & 0b11_1111_1111
+            second_10_bits = *windows_string++ & 0b11_1111_1111
+            codepoint: int = ((first_10_bits as int) << 10) | second_10_bits
+            codepoint += 0x10000  # UTF-16 is weird
+        else:
+            # Anything else goes out as is in UTF-8 format. This includes
+            # invalid surrogate pairs.
+            codepoint = *windows_string++
+
+        output: byte[4]
+        output_len = 0
+
+        # Just like utf8_encode_char() but allows UTF-16 surrogates (0xD800 to 0xDFFF)
+        if codepoint <= 0x7f:
+            # Fits in 7 bits (ASCII character)
+            output[0] = codepoint as byte
+            output_len = 1
+        elif codepoint <= 0x7ff:
+            # Fits in 11 bits: emit 5-bit part and 6-bit part
+            output[0] = (0b1100_0000 | (codepoint >> 6)) as byte
+            output[1] = (0b1000_0000 | (codepoint & 0b0011_1111)) as byte
+            output_len = 2
+        elif codepoint <= 0xffff:
+            # Fits in 16 bits: emit 4-bit part and two 6-bit parts
+            output[0] = (0b1110_0000 | (codepoint >> 12)) as byte
+            output[1] = (0b1000_0000 | ((codepoint >> 6) & 0b0011_1111)) as byte
+            output[2] = (0b1000_0000 | (codepoint & 0b0011_1111)) as byte
+            output_len = 3
+        else:
+            # It came from a surrogate pair so it can be at most:
+            #
+            #   0b11111_11111_11111_11111 + 0x10000 = 0x10ffff
+            #
+            # So it fits in 21 bits. Emit 3-bit part and three 6-bit parts.
+            output[0] = (0b1111_0000 | (codepoint >> 18)) as byte
+            output[1] = (0b1000_0000 | ((codepoint >> 12) & 0b0011_1111)) as byte
+            output[2] = (0b1000_0000 | ((codepoint >> 6) & 0b0011_1111)) as byte
+            output[3] = (0b1000_0000 | (codepoint & 0b0011_1111)) as byte
+            output_len = 4
+
+        if buf == NULL:
+            list.extend_from_ptr(output, output_len)
+        else:
+            for i = 0; i < output_len; i++:
+                if index == buf_size:
+                    # does not fit :(
+                    buf[buf_size - 1] = '\0'
+                    return NULL
+                buf[index++] = output[i]
+
+        if codepoint == 0:
+            # We successfully consumed zero byte from input and added it to output.
+            return list.ptr if buf == NULL else buf
+
+
+# Convert a UTF-8 string into a string suitable for passing to Windows.
+#
+# Usage:
+#
+#   # With heap memory
+#   wstring = string_to_windows(some_string, NULL, 0)
+#   SomeWindowsFunctionW(..., wstring, ...)
+#   free(windows_string)
+#
+#   # With stack memory
+#   wstring: uint16[100]
+#   if string_to_windows(some_string, wstring, sizeof(wstring)) != NULL:
+#       # It fits into 100 units (200 bytes)
+#       SomeWindowsFunctionW(..., wstring, ...)
+#
+# The parameters and return value work similarly to string_from_windows(), with
+# one caveat: The buffer size is given in bytes, not in 16-bit units. For
+# arrays, this means you should use sizeof(), not array_count(). This way, if
+# you accidentally pass in the wrong kind of size (16-bit units instead of bytes),
+# there will be no stack overflow, although the second half of the buffer will
+# never be used.
+#
+# This function succeeds if the UTF-8 string is valid UTF-8, or a string in the
+# format that string_from_windows() outputs (WTF-8). NULL is returned if the
+# input string is invalid. So unlike with string_from_windows(), return value
+# NULL doesn't necessarily mean that the string didn't fit.
+#
+# If you want to compute a big enough buffer size beforehand, use
+# strlen(utf8_string)+1 or more 16-bit units. That's 2*(strlen(utf8_string)+1)
+# or more bytes.
+@public
+def string_to_windows(utf8_string: byte*, buf: uint16*, buf_size: intnative) -> uint16*:
+    buf_size //= 2  # convert from bytes to 16-bit units
+    assert (buf == NULL and buf_size == 0) or (buf != NULL and buf_size > 0)
+
+    list = List[uint16]{}  # used only if buf is NULL
+    index: intnative = 0  # used only if buf is not NULL
+
+    while True:
+        # Just like utf8_decode_char() but allows UTF-16 surrogates (0xD800 to 0xDFFF)
+        start_byte = *utf8_string++
+        codepoint: int
+
+        if start_byte & 0b1000_0000 == 0:  # 0xxx xxxx = plain old ASCII
+            num_bytes = 1
+            codepoint = start_byte
+        elif start_byte & 0b1110_0000 == 0b1100_0000:  # 110x xxxx = start of two-byte character
+            num_bytes = 2
+            codepoint = start_byte & 0b0001_1111
+        elif start_byte & 0b1111_0000 == 0b1110_0000:  # 1110 xxxx = start of 3-byte character
+            num_bytes = 3
+            codepoint = start_byte & 0b0000_1111
+        elif start_byte & 0b1111_1000 == 0b1111_0000:  # 1111 0xxx = start of 4-byte character
+            num_bytes = 4
+            codepoint = start_byte & 0b0000_0111
+        else:
+            num_bytes = 0
+            codepoint = -1  # invalid WTF-8: bad start byte
+
+        for i = 1; i < num_bytes; i++:
+            b = *utf8_string++
+            if not is_utf8_continuation(b):
+                # invalid WTF-8: bad continuation byte
+                codepoint = -1
+                break
+            codepoint <<= 6
+            codepoint |= b & 0b0011_1111  # get the 6 data bits from continuation byte
+
+        # Detect overlong encodings
+        #
+        # It is important to reject overlong encodings! Otherwise we have
+        # security problems, because there are multiple ways to represent
+        # the same string.
+        if codepoint != -1:
+            # See string_from_windows()
+            if codepoint <= 0x7f:
+                if num_bytes != 1:
+                    codepoint = -1  # invalid WTF-8: overlong encoding
+            elif codepoint <= 0x7ff:
+                if num_bytes != 2:
+                    codepoint = -1  # invalid WTF-8: overlong encoding
+            elif codepoint <= 0xffff:
+                if num_bytes != 3:
+                    codepoint = -1  # invalid WTF-8: overlong encoding
+            elif codepoint <= 0x10ffff:
+                if num_bytes != 4:
+                    codepoint = -1  # invalid WTF-8: overlong encoding
+            else:
+                codepoint = -1  # invalid WTF-8: codepoint is too big to be anything valid
+
+        if codepoint == -1:
+            # error
+            if buf == NULL:
+                free(list.ptr)
+            elif index < buf_size:
+                buf[index] = 0
+            else:
+                buf[buf_size - 1] = 0
+            return NULL
+
+        output: uint16[2]
+        if codepoint <= 0xffff:
+            output[0] = codepoint as uint16
+            output_len = 1
+        else:
+            # Split it into a surrogate pair
+            codepoint -= 0x10000  # UTF-16 is weird
+            output[0] = ((codepoint >> 10) | (0b110110 << 10)) as uint16
+            output[1] = ((codepoint & 0b11111_11111) | (0b110111 << 10)) as uint16
+            output_len = 2
+
+        if buf == NULL:
+            list.extend_from_ptr(output, output_len)
+        else:
+            for i = 0; i < output_len; i++:
+                if index == buf_size:
+                    # does not fit :(
+                    buf[buf_size - 1] = 0
+                    return NULL
+                buf[index++] = output[i]
+
+        if codepoint == 0:
+            # We successfully consumed zero byte from input and added it to output.
+            return list.ptr if buf == NULL else buf
