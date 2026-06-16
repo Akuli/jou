@@ -63,12 +63,18 @@ def fail_with_type_not_found(location: Location, name: byte*) -> noreturn:
             suggest = "int64"
         case "u8" | "uint8_t" | "char":
             suggest = "byte"
-        case "u16" | "uint16_t":
+        case "u16" | "uint16_t" | "WCHAR":
             suggest = "uint16"
         case "u32" | "uint32_t" | "uint" | "DWORD":
             suggest = "uint32"
         case "u64" | "uint64_t":
             suggest = "uint64"
+        case "LPSTR" | "LPCSTR":
+            suggest = "byte*"
+        case "LPWSTR" | "LPCWSTR":
+            suggest = "uint16*"
+        case "LPVOID" | "LPCVOID":
+            suggest = "void*"
         case _:
             suggest = NULL
 
