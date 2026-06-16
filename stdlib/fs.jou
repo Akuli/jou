@@ -28,12 +28,12 @@ if WINDOWS:
     const ERROR_PATH_NOT_FOUND: uint32 = 3
     const ERROR_NO_MORE_FILES: uint32 = 18
 
-    declare FormatMessageA(
+    declare FormatMessageW(
         dwFlags: uint32,
         lpSource: void*,
         dwMessageId: uint32,
         dwLanguageId: uint32,
-        lpBuffer: byte*,
+        lpBuffer: uint16*,
         nSize: uint32,
         Arguments: void*,  # actually va_list*
     ) -> uint32
@@ -41,10 +41,14 @@ if WINDOWS:
     const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
 
     def windows_error_to_string(e: uint32, message: byte*, message_size: int) -> None:
-        FormatMessageA(
+        temp_buffer: uint16[1024]  # more than big enough for typical errors
+        assert sizeof(temp_buffer) > message_size
+
+        FormatMessageW(
             FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, e, 0, message, message_size as uint32, NULL,
+            NULL, e, 0, temp_buffer, array_count(temp_buffer) as uint32, NULL,
         )
+        string_from_windows(temp_buffer, message, message_size)
         while ends_with(message, "\r") or ends_with(message, "\n"):
             message[strlen(message) - 1] = '\0'
 
