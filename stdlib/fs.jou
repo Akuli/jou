@@ -279,7 +279,7 @@ class DirIter:
 
 
 if WINDOWS:
-    declare GetModuleFileNameA(hModule: void*, lpFilename: byte*, nSize: int) -> int
+    declare GetModuleFileNameW(hModule: void*, lpFilename: uint16*, nSize: uint32) -> uint32
 elif MACOS:
     declare _NSGetExecutablePath(buf: byte*, bufsize: uint32*) -> int
 elif NETBSD:
@@ -317,20 +317,30 @@ def find_current_executable() -> byte*:
         return NULL
 
     else:
-        buf: byte* = NULL
+        if WINDOWS:
+            buf: uint16*
+        else:
+            buf: byte*
+
+        buf = NULL
+
         for size = 2; True; size *= 2:
             buf = realloc(buf, size)
             assert buf != NULL
             memset(buf, 0, size)
 
             if WINDOWS:
-                ret = GetModuleFileNameA(NULL, buf, size)
+                assert size % sizeof(buf[0]) == 0
+                ret = GetModuleFileNameW(NULL, buf as uint16*, (size // sizeof(buf[0])) as uint32)
                 if ret == 0:
                     # error
                     free(buf)
                     return NULL
                 if ret < size:
-                    return buf  # success, it fits
+                    # success, it fits
+                    result = string_from_windows(buf as uint16*, NULL, 0)
+                    free(buf)
+                    return result
             elif NETBSD:
                 sysctl_name: int[4] = [CTL_KERN, KERN_PROC_ARGS, -1, KERN_PROC_PATHNAME]
                 n: intnative = size
