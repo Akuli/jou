@@ -3,10 +3,10 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/intnative.jou"
+import "stdlib/errno.jou"
 
 if WINDOWS:
     import "stdlib/ascii.jou"
-    import "stdlib/errno.jou"
     import "stdlib/utf8.jou"
 
     class WIN32_FIND_DATAW:
@@ -55,8 +55,6 @@ if WINDOWS:
             message[strlen(message) - 1] = '\0'
 
 else:
-    import "stdlib/errno.jou"
-
     if LINUX:
         # There are two versions of strerror_r(), and the one actually named
         # strerror_r() is the wrong one.
