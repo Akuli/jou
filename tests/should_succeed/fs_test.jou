@@ -173,6 +173,17 @@ def test_dir_iter_corner_cases() -> None:
     assert not iter.next()
     printf("%d\n", iter.error_code)  # Output: 0
 
+    puts("Funny names")  # Output: Funny names
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
+    mkdir("tmp/tests/funny_names", 0o777)
+    mkdir("tmp/tests/funny_names/ä", 0o777)
+    mkdir("tmp/tests/funny_names/ä/ö", 0o777)
+    iter = DirIter{dir = "tmp/tests/funny_names/ä"}
+    assert iter.next()
+    printf("%s\n", iter.name)  # Output: ö
+    assert not iter.next()
+
     puts("No dir given")  # Output: No dir given
     iter = DirIter{}
     assert not iter.next()
@@ -197,6 +208,9 @@ def test_find_exe() -> None:
     free(s)
 
 
+if WINDOWS:
+    declare _wfopen(filename: uint16*, mode: uint16*) -> FILE*
+
 def test_unlink() -> None:
     mkdir("tmp", 0o777)
     mkdir("tmp/tests", 0o777)
@@ -208,6 +222,19 @@ def test_unlink() -> None:
     printf("%d\n", unlink("tmp/tests/fs_test_temp.txt"))  # Output: -1
     printf("%d\n", unlink("tmp/tests/fs_test_temp.txt"))  # Output: -1
     assert fopen("tmp/tests/fs_test_temp.txt", "r") == NULL
+
+    # TODO: fopen() wrapper that does this automatically
+    if WINDOWS:
+        wname: uint16[100]
+        wmode: uint16[10]
+        string_to_windows("tmp/tests/fs_test_äö.txt", wname, sizeof(wname))
+        string_to_windows("w", wmode, sizeof(wmode))
+        fclose(_wfopen(wname, wmode))
+    else:
+        fclose(fopen("tmp/tests/fs_test_äö.txt", "w"))
+
+    printf("%d\n", unlink("tmp/tests/fs_test_äö.txt"))  # Output: 0
+    printf("%d\n", unlink("tmp/tests/fs_test_äö.txt"))  # Output: -1
 
 
 def main() -> int:
