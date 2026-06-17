@@ -334,14 +334,14 @@ def find_current_executable() -> byte*:
             memset(buf, 0, size)
 
             if WINDOWS:
-                ret = GetModuleFileNameW(NULL, buf as uint16*, size as uint32)
+                ret = GetModuleFileNameW(NULL, buf, size as uint32)
                 if ret == 0:
                     # error
                     free(buf)
                     return NULL
                 if ret < size:
                     # success, it fits
-                    result = string_from_windows(buf as uint16*, NULL, 0)
+                    result = string_from_windows(buf, NULL, 0)
                     free(buf)
                     return result
             elif NETBSD:
