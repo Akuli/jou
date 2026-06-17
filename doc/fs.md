@@ -148,9 +148,11 @@ to get an error message as a string.
 
 ## Windows support
 
-On Windows, paths containing non-ASCII characters and very long paths may not work properly.
-The reason is that `stdlib/fs.jou` uses the ANSI versions of Windows API functions,
-such as `FindFirstFileA` and `FindNextFileA`.
-Please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new)
-if you need to work with arbitrary Windows paths.
-A proper fix for this is planned, but not implemented.
+For the most part, everything in `stdlib/fs.jou` should "just work" on Windows.
+To achieve this, `stdlib/fs.jou` converts paths as needed
+using the `path_to_windows()` and `path_from_windows()` functions
+from [stdlib/utf8.jou](../stdlib/utf8.jou).
+
+Long file names might not work properly on Windows.
+If you run into problems,
+please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new).
