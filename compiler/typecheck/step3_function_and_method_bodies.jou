@@ -1236,6 +1236,12 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
         case AstExpressionKind.PointerDiff:
             lhs_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)
             rhs_type = typecheck_expression_not_void(state, &expr.operands[1], NULL)
+            if lhs_type.kind == TypeKind.Array:
+                do_implicit_cast(state.fom, &expr.operands[0], lhs_type.array.item_type.pointer_type(), expr.location, NULL)
+                lhs_type = expr.operands[0].types.implicit_cast_type
+            if rhs_type.kind == TypeKind.Array:
+                do_implicit_cast(state.fom, &expr.operands[1], rhs_type.array.item_type.pointer_type(), expr.location, NULL)
+                rhs_type = expr.operands[1].types.implicit_cast_type
             if lhs_type != rhs_type or lhs_type.kind != TypeKind.Pointer:
                 snprintf(msg, sizeof(msg), "pointer_diff() takes two pointers to objects of the same type, not %s and %s", lhs_type.name, rhs_type.name)
                 fail(expr.location, msg)

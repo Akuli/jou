@@ -1,0 +1,6 @@
+def foo() -> int[3]:
+    return [1, 2, 3]
+
+def main() -> int:
+    pointer_diff(foo(), foo())  # Error: cannot create a pointer into an array that comes from a function call (try storing it to a local variable first)
+    return 0
