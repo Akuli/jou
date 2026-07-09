@@ -1,0 +1,6 @@
+def main() -> int:
+    arr = [1, 2, 3]
+    p_arr: int[3]* = &arr
+    p_elem: int* = &arr[0]
+    dummy = pointer_diff(p_arr, p_elem)  # Error: pointer_diff() takes two pointers to objects of the same type, not int[3]* and int*
+    return 0
