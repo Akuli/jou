@@ -2,5 +2,5 @@ def main() -> int:
     x = 1
     p1: int* = &x
     p2: byte* = (&x as int*) as byte*
-    pointer_diff(p1, p2)  # Error: pointer_diff() takes two pointers to objects of the same type, not int* and byte*
+    dummy = pointer_diff(p1, p2)  # Error: pointer_diff() takes two pointers to objects of the same type, not int* and byte*
     return 0
