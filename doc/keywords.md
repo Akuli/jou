@@ -746,6 +746,26 @@ but that's not always possible.
 For example, [`pass` is often useful with `match` statements](match.md#special-casing-for-enums).
 
 
+## `pointer_diff`
+
+Use `pointer_diff(p, q)` to compute the difference between two pointers to the same object type as an `intnative`.
+That is, the result is `int` on 32-bit systems and `int64` on 64-bit systems.
+This returns the offset in units of the pointed-to type, similar to pointer subtraction in C.
+
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    nums = [10, 20, 30]
+    p1 = &nums[0]
+    p2 = &nums[2]
+    printf("%zd\n", pointer_diff(p2, p1))  # Output: 2
+    return 0
+```
+
+
 ## `return`
 
 The `return` keyword works just like you would expect:

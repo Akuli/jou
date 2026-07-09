@@ -1,0 +1,8 @@
+def foo() -> int:
+    return 1
+
+def main() -> int:
+    p: funcptr() -> int = foo
+    q: funcptr() -> int = foo
+    pointer_diff(p, q)  # Error: pointer_diff() cannot be used with function pointers
+    return 0

@@ -1,0 +1,6 @@
+def main() -> int:
+    x = 1
+    p1: int* = &x
+    p2: byte* = (&x as int*) as byte*
+    pointer_diff(p1, p2)  # Error: pointer_diff() requires pointers to the same object type
+    return 0

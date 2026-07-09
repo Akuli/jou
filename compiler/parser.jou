@@ -701,6 +701,9 @@ class Parser:
             case "enum_count":
                 expr.kind = AstExpressionKind.EnumCount
                 error = "enum type after enum_count must be in parentheses, e.g. enum_count(Foo)"
+            case "pointer_diff":
+                expr.kind = AstExpressionKind.PointerDiff
+                error = "two pointer arguments after pointer_diff must be in parentheses, e.g. pointer_diff(a, b)"
             case _:
                 assert False
 
@@ -710,6 +713,12 @@ class Parser:
 
         if expr.kind == AstExpressionKind.EnumCount:
             expr.enumcount.enum_type_ast = self.parse_type()
+        elif expr.kind == AstExpressionKind.PointerDiff:
+            expr.operands = malloc(sizeof(expr.operands[0]) * 2)
+            assert expr.operands != NULL
+            expr.operands[0] = self.parse_expression()
+            self.eat_operator(",", True, "a ',' between the two pointer arguments")
+            expr.operands[1] = self.parse_expression()
         else:
             expr.operands = malloc(sizeof(expr.operands[0]))
             assert expr.operands != NULL
@@ -775,6 +784,7 @@ class Parser:
                     or self.tokens.is_keyword("embed_binary_file")
                     or self.tokens.is_keyword("embed_text_file")
                     or self.tokens.is_keyword("enum_count")
+                    or self.tokens.is_keyword("pointer_diff")
                 ):
                     expr = self.parse_special_function_like_expression()
                 else:

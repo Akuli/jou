@@ -68,6 +68,8 @@ def short_expression_description(expr: AstExpression*) -> byte[200]:
             return "an embed_text_file expression"
         case AstExpressionKind.EnumCount:
             return "an enum_count expression"
+        case AstExpressionKind.PointerDiff:
+            return "a pointer_diff expression"
         case AstExpressionKind.Instantiate:
             return "a newly created instance"
         case AstExpressionKind.Array:
@@ -1230,6 +1232,24 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                     "enum %s has no member named '%s'",
                     expr.enum_member.enum_name, expr.enum_member.member_name)
                 fail(expr.location, msg)
+
+        case AstExpressionKind.PointerDiff:
+            lhs_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)
+            rhs_type = typecheck_expression_not_void(state, &expr.operands[1], NULL)
+            if not lhs_type.is_pointer_type() or not rhs_type.is_pointer_type():
+                snprintf(msg, sizeof(msg), "pointer_diff() requires two pointers")
+                fail(expr.location, msg)
+            if lhs_type.kind == TypeKind.FuncPtr or rhs_type.kind == TypeKind.FuncPtr:
+                snprintf(msg, sizeof(msg), "pointer_diff() cannot be used with function pointers")
+                fail(expr.location, msg)
+            if lhs_type.kind == TypeKind.VoidPointer or rhs_type.kind == TypeKind.VoidPointer:
+                snprintf(msg, sizeof(msg), "pointer_diff() cannot be used with void pointers")
+                fail(expr.location, msg)
+            if lhs_type.kind != rhs_type.kind or (lhs_type.kind == TypeKind.Pointer and lhs_type.value_type != rhs_type.value_type):
+                snprintf(msg, sizeof(msg), "pointer_diff() requires pointers to the same object type")
+                fail(expr.location, msg)
+            # pointer_diff() returns an intnative value: int on 32-bit systems, int64 on 64-bit systems.
+            result = int_type(32 if IS_32BIT else 64)
 
         case AstExpressionKind.SizeOf:
             if (

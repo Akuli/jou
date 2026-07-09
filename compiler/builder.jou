@@ -1233,6 +1233,30 @@ class Builder:
 
         return result
 
+    # pointer_diff(p, q)
+    @public
+    def pointer_diff(self, lhs: BuilderValue, rhs: BuilderValue) -> BuilderValue:
+        assert lhs.type.kind == TypeKind.Pointer
+        assert rhs.type.kind == TypeKind.Pointer
+        assert lhs.type == rhs.type
+        # pointer_diff() returns an intnative value: int on 32-bit systems, int64 on 64-bit systems.
+        result_type = int_type(32 if IS_32BIT else 64)
+        result = BuilderValue{type = result_type, uvalue = ANONYMOUS_UVG_VALUE_ID}
+
+        if self.llvm_builder != NULL:
+            self.hash.add_string("pointer_diff")
+            self.hash.add_int64(lhs.hvalue)
+            self.hash.add_int64(rhs.hvalue)
+            result.hvalue = self.hash_new_id()
+
+            lhs_int = self.cast(lhs, result_type)
+            rhs_int = self.cast(rhs, result_type)
+            diff = self.sub(lhs_int, rhs_int)
+            elem_size = self.cast(self.size_of(lhs.type.value_type), result_type)
+            result.lvalue = self.signed_floor_div(diff, elem_size).lvalue
+
+        return result
+
     # sizeof(any value of given type)
     @public
     def size_of(self, t: Type*) -> BuilderValue:
