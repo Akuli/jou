@@ -230,8 +230,8 @@ def test_unlink() -> None:
     if WINDOWS:
         wname: uint16[100]
         wmode: uint16[10]
-        string_to_windows("tmp/tests/fs_test_äö.txt", wname, sizeof(wname))
-        string_to_windows("w", wmode, sizeof(wmode))
+        string_to_windows("tmp/tests/fs_test_äö.txt", wname, array_count(wname))
+        string_to_windows("w", wmode, array_count(wmode))
         fclose(_wfopen(wname, wmode))
     else:
         fclose(fopen("tmp/tests/fs_test_äö.txt", "w"))
