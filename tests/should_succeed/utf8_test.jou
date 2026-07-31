@@ -219,7 +219,7 @@ def test_string_from_windows_basic() -> None:
     out: byte[10]
 
     out = "jjjjjjjjj"
-    assert string_from_windows(wstring, out, sizeof(out)) == &out[0]
+    assert string_from_windows(wstring, out, array_count(out)) == &out[0]
     puts(out)  # Output: hellö
     puts(&out[7])  # Output: jj
     # Here "c3 b6" is the ö character in UTF-8:
@@ -234,7 +234,7 @@ def test_string_from_windows_basic() -> None:
     # Smiley 😀 (U+1F600)
     wide_smile: uint16[3] = [0xd83d, 0xde00, 0]
     out = "jjjjjjjjj"
-    assert string_from_windows(wide_smile, out, sizeof(out)) == &out[0]
+    assert string_from_windows(wide_smile, out, array_count(out)) == &out[0]
     hexdump(out, sizeof(out))  # Output: f0 9f 98 80 00 6a 6a 6a 6a 00  .....jjjj.
     ptr = &out[0]
     printf("smiley = %d\n", utf8_decode_char(&ptr))  # Output: smiley = 128512
@@ -253,7 +253,7 @@ def test_string_from_windows_basic() -> None:
     #        = e    d    a    0    b    d
     #
     # Converting succeeds, but the result is not valid UTF-8.
-    assert string_from_windows(left_smile, out, sizeof(out)) == &out[0]
+    assert string_from_windows(left_smile, out, array_count(out)) == &out[0]
     hexdump(out, sizeof(out))  # Output: ed a0 bd 00 6a 6a 6a 6a 6a 00  ....jjjjj.
     ptr = &out[0]
     printf("%d\n", utf8_decode_char(&ptr))  # Output: -1
@@ -261,10 +261,10 @@ def test_string_from_windows_basic() -> None:
     # Left and right smiley halves mixed in with text
     mixed_smile: uint16[9] = ['a', 'a', 0xd83d, 'b', 'b', 0xde00, 'c', 'c', 0]
     out = "jjjjjjjjj"
-    assert string_from_windows(mixed_smile, out, sizeof(out)) == NULL  # doesn't fit
+    assert string_from_windows(mixed_smile, out, array_count(out)) == NULL  # doesn't fit
     hexdump(out, sizeof(out))  # Output: 61 61 ed a0 bd 62 62 ed b8 00  aa...bb...
     big_out: byte[15] = "jjjjjjjjjjjjjj"
-    assert string_from_windows(mixed_smile, big_out, sizeof(big_out)) == &big_out[0]
+    assert string_from_windows(mixed_smile, big_out, array_count(big_out)) == &big_out[0]
     hexdump(big_out, sizeof(big_out))  # Output: 61 61 ed a0 bd 62 62 ed b8 80 63 63 00 6a 00  aa...bb...cc.j.
 
     # Dynamic memory allocating
@@ -297,23 +297,23 @@ def test_string_to_windows_basic() -> None:
     out: uint16[10]
 
     memset(out, 0xab, sizeof(out))
-    assert string_to_windows("hello", out, sizeof(out)) != NULL
+    assert string_to_windows("hello", out, array_count(out)) != NULL
     hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0000 abab abab abab abab  hello.....
 
     memset(out, 0xab, sizeof(out))
-    assert string_to_windows("hello wor", out, sizeof(out)) != NULL
+    assert string_to_windows("hello wor", out, array_count(out)) != NULL
     hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0020 0077 006f 0072 0000  hello wor.
 
     memset(out, 0xab, sizeof(out))
-    assert string_to_windows("hello worl", out, sizeof(out)) == NULL
+    assert string_to_windows("hello worl", out, array_count(out)) == NULL
     hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0020 0077 006f 0072 0000  hello wor.
 
     memset(out, 0xab, sizeof(out))
-    assert string_to_windows("hello 😀 😀", out, sizeof(out)) == NULL
+    assert string_to_windows("hello 😀 😀", out, array_count(out)) == NULL
     hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0020 d83d de00 0020 0000  hello .. .
 
     memset(out, 0xab, sizeof(out))
-    assert string_to_windows("hello 😀😀", out, sizeof(out)) == NULL
+    assert string_to_windows("hello 😀😀", out, array_count(out)) == NULL
     # First half of smiley makes it to the output, second half does not
     hexdump16(out, 10)  # Output: 0068 0065 006c 006c 006f 0020 d83d de00 d83d 0000  hello ....
 
@@ -335,12 +335,12 @@ def test_windows_string_roundtrip() -> None:
         assert strlen(s1) <= 4*windows_len
 
         s2: byte[41]
-        assert string_from_windows(w1, s2, sizeof(s2)) == &s2[0]
+        assert string_from_windows(w1, s2, array_count(s2)) == &s2[0]
         assert strcmp(s1, s2) == 0
 
         w2 = string_to_windows(s1, NULL, 0)
         w3: uint16[11]
-        assert string_to_windows(s1, w3, sizeof(w3)) != NULL
+        assert string_to_windows(s1, w3, array_count(w3)) != NULL
 
         assert memcmp(w1, w2, 2*(windows_len + 1)) == 0
         assert memcmp(w1, w3, 2*(windows_len + 1)) == 0

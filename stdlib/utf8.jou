@@ -155,7 +155,7 @@ def utf8_encode_char(u: uint32) -> byte[5]:
 #
 #   # With stack memory
 #   s: byte[100]
-#   if string_from_windows(some_windows_string, s, sizeof(s)) != NULL:
+#   if string_from_windows(some_windows_string, s, array_count(s)) != NULL:
 #       # It fits into 100 bytes
 #       printf("Got %s\n", s)
 #
@@ -253,16 +253,15 @@ def string_from_windows(windows_string: uint16*, buf: byte*, buf_size: intnative
 #
 #   # With stack memory
 #   wstring: uint16[100]
-#   if string_to_windows(some_string, wstring, sizeof(wstring)) != NULL:
+#   if string_to_windows(some_string, wstring, array_count(wstring)) != NULL:
 #       # It fits into 100 units (200 bytes)
 #       SomeWindowsFunctionW(..., wstring, ...)
 #
 # The parameters and return value work similarly to string_from_windows(), with
-# one caveat: The buffer size is given in bytes, not in 16-bit units. For
-# arrays, this means you should use sizeof(), not array_count(). This way, if
-# you accidentally pass in the wrong kind of size (16-bit units instead of bytes),
-# there will be no stack overflow, although the second half of the buffer will
-# never be used.
+# one caveat: The buffer size is given in 16-bit units, not bytes. For arrays,
+# this means you should use array_count(), not sizeof(). If you use sizeof(),
+# the array will overflow. This is similar to most Windows functions that take
+# an array size for a string.
 #
 # This function succeeds if the UTF-8 string is valid UTF-8, or a string in the
 # format that string_from_windows() outputs (WTF-8). NULL is returned if the
@@ -270,12 +269,10 @@ def string_from_windows(windows_string: uint16*, buf: byte*, buf_size: intnative
 # NULL doesn't necessarily mean that the string didn't fit.
 #
 # If you want to compute a big enough buffer size beforehand, use
-# strlen(utf8_string)+1 or more 16-bit units. That's 2*(strlen(utf8_string)+1)
-# or more bytes.
+# strlen(utf8_string)+1 or more 16-bit units.
 @public
-def string_to_windows(utf8_string: byte*, buf: uint16*, buf_size: intnative) -> uint16*:
-    buf_size //= 2  # convert from bytes to 16-bit units
-    assert (buf == NULL and buf_size == 0) or (buf != NULL and buf_size > 0)
+def string_to_windows(utf8_string: byte*, buf: uint16*, buf_size_in_16bit_units: intnative) -> uint16*:
+    assert (buf == NULL and buf_size_in_16bit_units == 0) or (buf != NULL and buf_size_in_16bit_units > 0)
 
     list = List[uint16]{}  # used only if buf is NULL
     index: intnative = 0  # used only if buf is not NULL
@@ -336,10 +333,10 @@ def string_to_windows(utf8_string: byte*, buf: uint16*, buf_size: intnative) -> 
             # error
             if buf == NULL:
                 free(list.ptr)
-            elif index < buf_size:
+            elif index < buf_size_in_16bit_units:
                 buf[index] = 0
             else:
-                buf[buf_size - 1] = 0
+                buf[buf_size_in_16bit_units - 1] = 0
             return NULL
 
         output: uint16[2]
@@ -357,9 +354,9 @@ def string_to_windows(utf8_string: byte*, buf: uint16*, buf_size: intnative) -> 
             list.extend_from_ptr(output, output_len)
         else:
             for i = 0; i < output_len; i++:
-                if index == buf_size:
+                if index == buf_size_in_16bit_units:
                     # does not fit :(
-                    buf[buf_size - 1] = 0
+                    buf[buf_size_in_16bit_units - 1] = 0
                     return NULL
                 buf[index++] = output[i]
 

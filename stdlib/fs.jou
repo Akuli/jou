@@ -210,8 +210,8 @@ class DirIter:
             while found:
                 # TODO: Get rid of cFileName array limitation
                 name: byte[2000]
-                assert sizeof(name) >= 5*array_count(find_data.cFileName)  # surely big enough
-                string_from_windows(find_data.cFileName, name, sizeof(name))
+                assert array_count(name) >= 5*array_count(find_data.cFileName)  # surely big enough
+                string_from_windows(find_data.cFileName, name, array_count(name))
 
                 if self.set_name(name):
                     return True
