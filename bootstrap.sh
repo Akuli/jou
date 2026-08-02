@@ -99,6 +99,8 @@ function transpile_with_python_and_compile() {
     git archive --format=tar $commit | (cd $folder && tar xf -)
     cp -v config.jou $folder || true
 
+    cat config.jou
+
     if [[ "$OS" =~ Windows ]]; then
         echo "Copying LLVM files..."
         mkdir -p $folder/mingw64/lib
