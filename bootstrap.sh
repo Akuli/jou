@@ -101,6 +101,14 @@ function transpile_with_python_and_compile() {
 
     cat config.jou || true
 
+    set -x
+    echo '#include <stdio.h>' > hello.c
+    echo 'int main(){puts("hello");return 0;}' >> hello.c
+    "$clang" hello.c -o hello
+    ./hello
+    rm hello hello.c
+    set +x
+
     if [[ "$OS" =~ Windows ]]; then
         echo "Copying LLVM files..."
         mkdir -p $folder/mingw64/lib
