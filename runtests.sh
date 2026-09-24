@@ -228,6 +228,11 @@ function should_skip()
         return 0
     fi
 
+    # This is a debugger integration test, run by joutest on Linux only.
+    if [ $joufile = tests/should_succeed/debug_list.jou ]; then
+        return 0
+    fi
+
     # If liblzma is not readily available, skip tests that use it.
     if [[ $joufile =~ link_with_liblzma_dynamic ]]; then
         if ! (pkg-config --exists liblzma 2>/dev/null || compgen -G /usr/lib/liblzma.so* >/dev/null); then

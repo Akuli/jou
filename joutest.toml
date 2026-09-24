@@ -70,3 +70,10 @@ command = {
     windows = ["cmd", "/c", 'jou --stdin-name {file} - || ver>nul'],
     default = ["sh", "-c", "jou --stdin-name {file} - || true"],
 }
+
+############################
+# Debugger integration tests #
+############################
+[[tests]]
+files = "tests/should_succeed/debug_list.jou"
+skip_mode = {linux = "dont_skip", default = "skip_silently"}
