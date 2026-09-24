@@ -90,6 +90,22 @@ in the order they appear in the file.
 The space after `:` is required, but as a special case,
 `# Output:` at the end of a line means an empty line of output.
 
+By default, output comments are added to the expected output in the order they
+appear in the file. To use a different order, set `output_comment_order` in the
+test's `joutest.toml` configuration. It must contain every key from
+`output_comment_rules` exactly once. For example:
+
+```toml
+[[tests]]
+files = "test.jou"
+output_comment_rules = {Second = "second {comment}", First = "first {comment}"}
+output_comment_order = ["First", "Second"]
+```
+
+This collects all `First` comments before all `Second` comments, regardless of
+where those comments appear in the test file. The order of comments using the
+same rule is preserved.
+
 For example, the following test passes:
 
 ```python
@@ -338,6 +354,10 @@ Everything else is optional.
             The first line of the file is line 1.
         - `{{` is replaced with a `{` character.
         - `}}` is replaced with a `}` character.
+    - `output_comment_order` (default: the order of comments in the test file)
+        is an array of strings specifying the order in which output comment
+        rules are collected. It must contain every key from `output_comment_rules`
+        exactly once. Comments using the same rule retain their file order.
     - `skip_mode` (default: `"dont_skip"`) defines whether and how the test is skipped:
         - `"dont_skip"` means that the test will run unless something else causes it to be skipped.
             This is the default.

@@ -34,6 +34,7 @@ enum TestConfigOption:
     Stdout
     Stderr
     OutputCommentRules
+    OutputCommentOrder
     SkipMode
     SkipModeIfNoExpectedOutput
     Command
@@ -47,6 +48,7 @@ global TEST_CONFIG_OPTION_NAMES: byte*[enum_count(TestConfigOption)] = [
     "stdout",
     "stderr",
     "output_comment_rules",
+    "output_comment_order",
     "skip_mode",
     "skip_mode_if_no_expected_output",
     "command",
@@ -67,6 +69,7 @@ class TestConfig:
     stdout: CaptureMode
     stderr: CaptureMode
     output_comment_rules: List[byte*[2]]
+    output_comment_order: List[byte*]
     skip_mode: SkipMode
     skip_mode_if_no_expected_output: SkipMode
     command: List[byte*]  # may contain things like "{file}"
@@ -99,6 +102,9 @@ class TestConfig:
                 case TestConfigOption.OutputCommentRules:
                     dest.output_comment_rules.len = 0
                     dest.output_comment_rules.extend(self.output_comment_rules)
+                case TestConfigOption.OutputCommentOrder:
+                    dest.output_comment_order.len = 0
+                    dest.output_comment_order.extend(self.output_comment_order)
                 case TestConfigOption.SkipMode:
                     dest.skip_mode = self.skip_mode
                 case TestConfigOption.SkipModeIfNoExpectedOutput:

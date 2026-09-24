@@ -41,11 +41,15 @@ def find_expected_output_from_line(
     lineno: int,
     line: byte*,
     out: List[byte]*,
+    only_marker: byte*,
 ) -> None:
     for p = &line[strlen(line)]; p >= &line[0]; p--:
         for m = test.config.output_comment_rules.ptr; m < test.config.output_comment_rules.end(); m++:
             marker = (*m)[0]
             template = (*m)[1]
+
+            if only_marker != NULL and strcmp(marker, only_marker) != 0:
+                continue
 
             comment = skip_start_of_comment(p, marker)
             if comment != NULL:
@@ -68,8 +72,7 @@ def find_expected_output_from_line(
 global big_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
 
 
-def find_expected_output(test: Test*) -> None:
-    result = List[byte]{}
+def append_expected_output(test: Test*, only_marker: byte*, result: List[byte]*) -> None:
     lineno = 1
 
     if test.stdin_input == NULL:
@@ -82,7 +85,7 @@ def find_expected_output(test: Test*) -> None:
 
         while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
             big_buffer[strcspn(big_buffer, "\r\n")] = '\0'
-            find_expected_output_from_line(test, lineno++, big_buffer, &result)
+            find_expected_output_from_line(test, lineno++, big_buffer, result, only_marker)
 
         fclose(f)
 
@@ -92,13 +95,21 @@ def find_expected_output(test: Test*) -> None:
             line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1) as intnative
             memcpy(big_buffer, p, line_len)
             big_buffer[line_len] = '\0'
-            find_expected_output_from_line(test, lineno++, big_buffer, &result)
+            find_expected_output_from_line(test, lineno++, big_buffer, result, only_marker)
 
             p = &p[line_len]
             if *p == '\r':
                 p++
             if *p == '\n':
                 p++
+
+def find_expected_output(test: Test*) -> None:
+    result = List[byte]{}
+    if test.config.output_comment_order.len > 0:
+        for marker = test.config.output_comment_order.ptr; marker < test.config.output_comment_order.end(); marker++:
+            append_expected_output(test, *marker, &result)
+    else:
+        append_expected_output(test, NULL, &result)
 
     result.append('\0')
     test.expected_output = result.ptr
