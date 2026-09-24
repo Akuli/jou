@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"
 import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
@@ -5,6 +6,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/math.jou"
 import "stdlib/intnative.jou"
+import "stdlib/sort.jou"
 
 import "./fail.jou"
 import "./string_formatter.jou"
@@ -14,13 +16,13 @@ import "./state.jou"
 # Examples:
 #   "# Output: whatever\n", "Output" --> "whatever\n"
 #   "# Lolwat: whatever\n", "Output" --> NULL
-def skip_start_of_comment(p: byte*, marker: byte*) -> byte*:
+def skip_start_of_comment(p: byte*, key: byte*) -> byte*:
     if *p++ != '#':
         return NULL
     if *p++ != ' ':
         return NULL
-    while *marker != '\0':
-        if *p++ != *marker++:
+    while *key != '\0':
+        if *p++ != *key++:
             return NULL
     if *p++ != ':':
         return NULL
@@ -36,23 +38,20 @@ def skip_start_of_comment(p: byte*, marker: byte*) -> byte*:
             return NULL
 
 
-def find_expected_output_from_line(
-    test: Test*,
-    lineno: int,
-    line: byte*,
-    out: List[byte]*,
-    only_marker: byte*,
-) -> None:
+class Comment:
+    key: byte*   # e.g. "Output"
+    formatted_text: byte*  # without the trailing '\n', owned string
+    sort_key: int
+
+
+def parse_comment_from_line(test: Test*, lineno: int, line: byte*) -> Comment:
     for p = &line[strlen(line)]; p >= &line[0]; p--:
-        for m = test.config.output_comment_rules.ptr; m < test.config.output_comment_rules.end(); m++:
-            marker = (*m)[0]
-            template = (*m)[1]
+        for pair = test.config.output_comment_rules.ptr; pair < test.config.output_comment_rules.end(); pair++:
+            key = (*pair)[0]
+            template = (*pair)[1]
 
-            if only_marker != NULL and strcmp(marker, only_marker) != 0:
-                continue
-
-            comment = skip_start_of_comment(p, marker)
-            if comment != NULL:
+            comment_text = skip_start_of_comment(p, key)
+            if comment_text != NULL:
                 lineno_str: byte[100]
                 sprintf(lineno_str, "%d", lineno)
 
@@ -60,19 +59,21 @@ def find_expected_output_from_line(
                 memset(params, 0, sizeof(params))
                 params[FormatParam.File as int] = test.get_relative_path()
                 params[FormatParam.Line as int] = lineno_str
-                params[FormatParam.Comment as int] = comment
+                params[FormatParam.Comment as int] = comment_text
 
-                s = format_string(template, params)
-                out.extend_from_ptr(s, strlen(s))
-                out.append('\n')
-                free(s)
-                return
+                return Comment{
+                    key = key,
+                    formatted_text = format_string(template, params),
+                }
+
+    return Comment{}
 
 
 global big_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
 
 
-def append_expected_output(test: Test*, only_marker: byte*, result: List[byte]*) -> None:
+def parse_comments(test: Test*) -> List[Comment]:
+    comments = List[Comment]{}
     lineno = 1
 
     if test.stdin_input == NULL:
@@ -85,7 +86,10 @@ def append_expected_output(test: Test*, only_marker: byte*, result: List[byte]*)
 
         while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
             big_buffer[strcspn(big_buffer, "\r\n")] = '\0'
-            find_expected_output_from_line(test, lineno++, big_buffer, result, only_marker)
+
+            c = parse_comment_from_line(test, lineno++, big_buffer)
+            if c.key != NULL:
+                comments.append(c)
 
         fclose(f)
 
@@ -95,7 +99,10 @@ def append_expected_output(test: Test*, only_marker: byte*, result: List[byte]*)
             line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1) as intnative
             memcpy(big_buffer, p, line_len)
             big_buffer[line_len] = '\0'
-            find_expected_output_from_line(test, lineno++, big_buffer, result, only_marker)
+
+            c = parse_comment_from_line(test, lineno++, big_buffer)
+            if c.key != NULL:
+                comments.append(c)
 
             p = &p[line_len]
             if *p == '\r':
@@ -103,19 +110,89 @@ def append_expected_output(test: Test*, only_marker: byte*, result: List[byte]*)
             if *p == '\n':
                 p++
 
-def find_expected_output(test: Test*) -> None:
-    result = List[byte]{}
-    if test.config.output_comment_order.len > 0:
-        for marker = test.config.output_comment_order.ptr; marker < test.config.output_comment_order.end(); marker++:
-            append_expected_output(test, *marker, &result)
+    return comments
+
+
+# This must be done after merging configuration from different places but
+# before we need to use the order for sorting. That's why it's here.
+def check_config(config: TestConfig*) -> None:
+    if config.output_comment_order.len == 0:
+        ok = True
+    elif config.output_comment_order.len == config.output_comment_rules.len:
+        # Check that the order is same as the keys of the rules, in some order
+        ok = True
+        n = config.output_comment_order.len
+        for i1 = 0; i1 < n; i1++:
+            found = False
+            for i2 = 0; i2 < n; i2++:
+                if strcmp(config.output_comment_order.ptr[i1], config.output_comment_rules.ptr[i2][0]) == 0:
+                    found = True
+                    break
+            if not found:
+                ok = False
+                break
     else:
-        append_expected_output(test, NULL, &result)
+        ok = False
+
+    if not ok:
+        fail_in_toml(
+            config.value_linenos[TestConfigOption.OutputCommentOrder as int],
+            "'output_comment_order' must be the keys of 'output_comment_rules' in some order",
+        )
+
+
+def compare_comments(a: Comment*, b: Comment*) -> int:
+    if a.sort_key == b.sort_key:
+        # Preserve the original order when the sort keys are the same.
+        #
+        # Ideally this wouldn't be needed, but standard library qsort() is not
+        # a stable sort algorithm :(
+        if a < b:
+            return -1
+        if a > b:
+            return 1
+        return 0
+
+    return a.sort_key - b.sort_key
+
+
+def sort_comments(comments: List[Comment], config: TestConfig*) -> None:
+    if config.output_comment_order.len == 0:
+        return
+
+    for comment_index = 0; comment_index < comments.len; comment_index++:
+        c = &comments.ptr[comment_index]
+
+        # Primary sorting key: index of the comment's key in the config
+        c.sort_key = -1
+        for i = 0; i < config.output_comment_order.len; i++:
+            if strcmp(config.output_comment_order.ptr[i], c.key) == 0:
+                c.sort_key = i
+                break
+        assert c.sort_key != -1
+
+    Sorter[Comment]{}.sort(comments.ptr, comments.len, compare_comments)
+
+
+def join_comments_to_string(comments: List[Comment]) -> byte*:
+    result = List[byte]{}
+    for c = comments.ptr; c < comments.end(); c++:
+        result.extend_from_ptr(c.formatted_text, strlen(c.formatted_text))
+        result.append('\n')
 
     result.append('\0')
-    test.expected_output = result.ptr
+    return result.ptr
 
 
 @public
 def step4_gather_expected_outputs(tests: List[Test]) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        find_expected_output(test)
+        check_config(test.config)
+
+        comments = parse_comments(test)
+        sort_comments(comments, test.config)
+        test.expected_output = join_comments_to_string(comments)
+
+        while comments.len > 0:
+            free(comments.pop().formatted_text)
+        free(comments.ptr)
