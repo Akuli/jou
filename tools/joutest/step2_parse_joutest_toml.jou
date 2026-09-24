@@ -317,28 +317,6 @@ def toml_to_config(toml: TOML*, this_is_the_defaults_for_all_tests: bool) -> Tes
         config.value_present[opt as int] = True
         config.value_linenos[opt as int] = kv.value.lineno
 
-    if config.value_present[TestConfigOption.OutputCommentOrder as int]:
-        seen = List[bool]{}
-        for i = 0; i < config.output_comment_rules.len; i++:
-            seen.append(False)
-        for order_item = config.output_comment_order.ptr; order_item < config.output_comment_order.end(); order_item++:
-            found = False
-            for i = 0; i < config.output_comment_rules.len; i++:
-                if strcmp(*order_item, config.output_comment_rules.ptr[i][0]) == 0:
-                    if seen.ptr[i]:
-                        snprintf(error, sizeof(error), "'%s' is repeated in 'output_comment_order'", *order_item)
-                        fail_in_toml(config.value_linenos[TestConfigOption.OutputCommentOrder as int], error)
-                    seen.ptr[i] = True
-                    found = True
-                    break
-            if not found:
-                fail_in_toml(config.value_linenos[TestConfigOption.OutputCommentOrder as int], "'output_comment_order' must match the keys of 'output_comment_rules'")
-
-        for i = 0; i < config.output_comment_rules.len; i++:
-            if not seen.ptr[i]:
-                fail_in_toml(config.value_linenos[TestConfigOption.OutputCommentOrder as int], "'output_comment_order' must match the keys of 'output_comment_rules'")
-        free(seen.ptr)
-
     return config
 
 

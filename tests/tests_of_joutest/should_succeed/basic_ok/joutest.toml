@@ -10,9 +10,14 @@ files = "output_comments_disabled.jou"
 output_comment_rules = {}
 
 [[tests]]
-files = "output_comment_order.jou"
+files = "output_comment_order_2.jou"
+output_comment_rules = {Second = "second {comment}", First = "first {comment}"}
+output_comment_order = ["First", "Second"]
+
+[[tests]]
+files = "output_comment_order_3.jou"
+output_comment_order = ["First", "Second", "Third"]  # can be before output_comment_rules
 output_comment_rules = {Second = "second {comment}", First = "first {comment}", Third = "third {comment}"}
-output_comment_order = ["First", "Second", "Third"]
 
 [[tests]]
 files = "hello.jou"
@@ -21,6 +26,6 @@ output_comment_order = []  # This is the default value, I just want to check tha
 # These comments are for joutest. It is being used to test itself here.
 # See joutest.toml at the root of the repository.
 #
-# Output: .....
+# Output: ......
 # Output:
-# Output: 5 succeeded
+# Output: 6 succeeded
