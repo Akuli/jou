@@ -90,22 +90,6 @@ in the order they appear in the file.
 The space after `:` is required, but as a special case,
 `# Output:` at the end of a line means an empty line of output.
 
-By default, output comments are added to the expected output in the order they
-appear in the file. To use a different order, set `output_comment_order` in the
-test's `joutest.toml` configuration. It must contain every key from
-`output_comment_rules` exactly once. For example:
-
-```toml
-[[tests]]
-files = "test.jou"
-output_comment_rules = {Second = "second {comment}", First = "first {comment}"}
-output_comment_order = ["First", "Second"]
-```
-
-This collects all `First` comments before all `Second` comments, regardless of
-where those comments appear in the test file. The order of comments using the
-same rule is preserved.
-
 For example, the following test passes:
 
 ```python
@@ -354,10 +338,14 @@ Everything else is optional.
             The first line of the file is line 1.
         - `{{` is replaced with a `{` character.
         - `}}` is replaced with a `}` character.
-    - `output_comment_order` (default: the order of comments in the test file)
-        is an array of strings specifying the order in which output comment
-        rules are collected. It must contain every key from `output_comment_rules`
-        exactly once. Comments using the same rule retain their file order.
+    - `output_comment_order` (default: `[]`) can be used to sort the expected output
+        into a different order than it appears in the file being tested.
+        It must contain the keys of `output_comment_rules` in some order.
+        For example, if `output_comment_rules` looks like `{Output1 = ..., Output2 = ...}`
+        and `output_comment_order` is `["Output1", "Output2"]`,
+        then the output specified in `# Output1:` comments goes before the output specified in `# Output2:` comments,
+        even when `# Output1:` comments are placed after `# Output2:` comments.
+        An empty array means that all output comments are used in their original order.
     - `skip_mode` (default: `"dont_skip"`) defines whether and how the test is skipped:
         - `"dont_skip"` means that the test will run unless something else causes it to be skipped.
             This is the default.
