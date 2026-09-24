@@ -542,6 +542,14 @@ class Builder:
                 )
                 assert self.llvm_di_scope != NULL
                 LLVMSetSubprogram(self.llvm_func, self.llvm_di_scope)
+                function_debug_location = LLVMDIBuilderCreateDebugLocation(
+                    LLVMGetModuleContext(self.llvm_module),
+                    self.uvg_location.lineno as uint32,
+                    0,
+                    self.llvm_di_scope,
+                    NULL,
+                )
+                LLVMSetCurrentDebugLocation2(self.llvm_builder, function_debug_location)
             self.llvm_returns_a_value = sig.return_type != NULL
             self.llvm_alloca_block = LLVMAppendBasicBlock(self.llvm_func, "alloca")
             if not public:
@@ -608,6 +616,29 @@ class Builder:
         if inlining_signature == NULL:
             self.uvg_location = location
 
+    def debug_type(self, t: Type*) -> LLVMMetadata*:
+        assert self.llvm_di_builder != NULL
+
+        match t.kind:
+            case TypeKind.SignedInteger:
+                encoding = 5  # DW_ATE_signed
+            case TypeKind.UnsignedInteger | TypeKind.Enum:
+                encoding = 7  # DW_ATE_unsigned
+            case TypeKind.Bool:
+                encoding = 2  # DW_ATE_boolean
+            case TypeKind.FloatingPoint:
+                encoding = 4  # DW_ATE_float
+            case TypeKind.Pointer | TypeKind.VoidPointer:
+                pointee = self.debug_type(t.value_type) if t.kind == TypeKind.Pointer else NULL
+                return LLVMDIBuilderCreatePointerType(self.llvm_di_builder, pointee, 64, 0, 0, NULL, 0)
+            case TypeKind.FuncPtr:
+                return LLVMDIBuilderCreatePointerType(self.llvm_di_builder, NULL, 64, 0, 0, NULL, 0)
+            case _:
+                encoding = 0
+
+        size = t.size_in_bits if t.kind == TypeKind.SignedInteger or t.kind == TypeKind.UnsignedInteger or t.kind == TypeKind.Bool or t.kind == TypeKind.FloatingPoint else 0
+        return LLVMDIBuilderCreateBasicType(self.llvm_di_builder, t.name, strlen(t.name), size as uint64, encoding as uint32, 0)
+
     # Hashes and returns a unique ID number that represents a value in code.
     # Also hashes the type, because a changed type may be enough to need a recompile.
     #
@@ -642,6 +673,38 @@ class Builder:
             # var runs many times.
             LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_alloca_block)
             result.lvalue = LLVMBuildAlloca(self.llvm_builder, type_to_llvm(t), debug_name)
+            if varname != NULL and self.llvm_di_builder != NULL and self.llvm_di_scope != NULL:
+                variable = LLVMDIBuilderCreateAutoVariable(
+                    self.llvm_di_builder,
+                    self.llvm_di_scope,
+                    varname,
+                    strlen(varname),
+                    self.llvm_di_file,
+                    self.uvg_location.lineno as uint32,
+                    self.debug_type(t),
+                    True as int,
+                    0,
+                    0,
+                )
+                assert variable != NULL
+                expression = LLVMDIBuilderCreateExpression(self.llvm_di_builder, NULL, 0)
+                assert expression != NULL
+                location = LLVMDIBuilderCreateDebugLocation(
+                    LLVMGetModuleContext(self.llvm_module),
+                    self.uvg_location.lineno as uint32,
+                    0,
+                    self.llvm_di_scope,
+                    NULL,
+                )
+                assert location != NULL
+                LLVMDIBuilderInsertDeclareAtEnd(
+                    self.llvm_di_builder,
+                    result.lvalue,
+                    variable,
+                    expression,
+                    location,
+                    self.llvm_alloca_block,
+                )
             LLVMPositionBuilderAtEnd(self.llvm_builder, self.current_block.lblock)
 
             # Don't hash varname, so that renaming a local variable doesn't cause a rebuild

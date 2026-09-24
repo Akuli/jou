@@ -431,6 +431,16 @@ declare LLVMDIBuilderCreateFunction(Builder: LLVMDIBuilder*, Scope: LLVMMetadata
 @public
 declare LLVMDIBuilderCreateDebugLocation(Context: LLVMContext*, Line: uint32, Column: uint32, Scope: LLVMMetadata*, InlinedAt: LLVMMetadata*) -> LLVMMetadata*
 @public
+declare LLVMDIBuilderCreateBasicType(Builder: LLVMDIBuilder*, Name: byte*, NameLen: int64, SizeInBits: uint64, Encoding: uint32, Flags: uint32) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderCreatePointerType(Builder: LLVMDIBuilder*, PointeeTy: LLVMMetadata*, SizeInBits: uint64, AlignInBits: uint32, AddressSpace: uint32, Name: byte*, NameLen: int64) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderCreateExpression(Builder: LLVMDIBuilder*, Addr: uint64*, Length: int64) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderCreateAutoVariable(Builder: LLVMDIBuilder*, Scope: LLVMMetadata*, Name: byte*, NameLen: int64, File: LLVMMetadata*, LineNo: uint32, Ty: LLVMMetadata*, AlwaysPreserve: int, Flags: uint32, AlignInBits: uint32) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderInsertDeclareAtEnd(Builder: LLVMDIBuilder*, Storage: LLVMValue*, VarInfo: LLVMMetadata*, Expr: LLVMMetadata*, DebugLoc: LLVMMetadata*, Block: LLVMBasicBlock*) -> LLVMValue*
+@public
 declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> None
 @public
 declare LLVMAppendBasicBlock(Fn: LLVMValue*, Name: byte*) -> LLVMBasicBlock*
