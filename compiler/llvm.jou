@@ -43,6 +43,12 @@ class LLVMBuilder:
 class LLVMContext:
     pass
 @public
+class LLVMMetadata:
+    pass
+@public
+class LLVMDIBuilder:
+    pass
+@public
 class LLVMPassManager:
     pass
 @public
@@ -312,6 +318,24 @@ declare LLVMContextDispose(C: LLVMContext*) -> None
 @public
 declare LLVMGetGlobalContext() -> LLVMContext*
 @public
+declare LLVMSetCurrentDebugLocation2(Builder: LLVMBuilder*, Loc: LLVMMetadata*) -> None
+@public
+declare LLVMSetSubprogram(Func: LLVMValue*, SP: LLVMMetadata*) -> None
+@public
+declare LLVMGetModuleContext(M: LLVMModule*) -> LLVMContext*
+@public
+declare LLVMMetadataAsValue(C: LLVMContext*, MD: LLVMMetadata*) -> LLVMValue*
+@public
+declare LLVMAddNamedMetadataOperand(M: LLVMModule*, Name: byte*, Val: LLVMValue*) -> None
+@public
+declare LLVMDebugMetadataVersion() -> uint32
+@public
+declare LLVMMDStringInContext2(C: LLVMContext*, Str: byte*, SLen: int64) -> LLVMMetadata*
+@public
+declare LLVMMDNodeInContext2(C: LLVMContext*, MDs: LLVMMetadata**, Count: int64) -> LLVMMetadata*
+@public
+declare LLVMValueAsMetadata(Val: LLVMValue*) -> LLVMMetadata*
+@public
 declare LLVMVoidType() -> LLVMType*
 @public
 declare LLVMFloatType() -> LLVMType*
@@ -388,6 +412,24 @@ declare LLVMSetLinkage(Global: LLVMValue*, Linkage: LLVMLinkage) -> None
 declare LLVMAddGlobal(M: LLVMModule*, Ty: LLVMType*, Name: byte*) -> LLVMValue*
 @public
 declare LLVMGetNamedGlobal(M: LLVMModule*, Name: byte*) -> LLVMValue*
+
+# =========== DebugInfo.h ===========
+@public
+declare LLVMCreateDIBuilder(M: LLVMModule*) -> LLVMDIBuilder*
+@public
+declare LLVMDIBuilderFinalize(Builder: LLVMDIBuilder*) -> None
+@public
+declare LLVMDisposeDIBuilder(Builder: LLVMDIBuilder*) -> None
+@public
+declare LLVMDIBuilderCreateFile(Builder: LLVMDIBuilder*, Filename: byte*, FilenameLen: int64, Directory: byte*, DirectoryLen: int64) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderCreateCompileUnit(Builder: LLVMDIBuilder*, Lang: int, FileRef: LLVMMetadata*, Producer: byte*, ProducerLen: int64, IsOptimized: int, Flags: byte*, FlagsLen: int64, RuntimeVer: uint32, SplitName: byte*, SplitNameLen: int64, Kind: int, DWOId: uint32, SplitDebugInlining: int, DebugInfoForProfiling: int, SysRoot: byte*, SysRootLen: int64, SDK: byte*, SDKLen: int64) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderCreateSubroutineType(Builder: LLVMDIBuilder*, File: LLVMMetadata*, ParameterTypes: LLVMMetadata**, NumParameterTypes: uint32, Flags: uint32) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderCreateFunction(Builder: LLVMDIBuilder*, Scope: LLVMMetadata*, Name: byte*, NameLen: int64, LinkageName: byte*, LinkageNameLen: int64, File: LLVMMetadata*, LineNo: uint32, Ty: LLVMMetadata*, IsLocalToUnit: int, IsDefinition: int, ScopeLine: uint32, Flags: uint32, IsOptimized: int) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderCreateDebugLocation(Context: LLVMContext*, Line: uint32, Column: uint32, Scope: LLVMMetadata*, InlinedAt: LLVMMetadata*) -> LLVMMetadata*
 @public
 declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> None
 @public

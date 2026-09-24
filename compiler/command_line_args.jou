@@ -26,6 +26,7 @@ class CommandLineArgs:
     infile: byte*           # The main Jou file given on command line, can be "<stdin>" or similar
     infile_is_stdin: bool   # True if file "-" on command line, then infile is not really a file path
     outfile: byte*          # -o
+    debug_info: bool        # -g
     optlevel: int           # -O0, -O1, -O2, -O3
     parallelism: int        # -j1, -j2, ...
     valgrind: bool          # --valgrind
@@ -42,6 +43,7 @@ def print_help(argv0: byte*) -> None:
     printf("\n")
     printf("Options for compiling:\n")
     printf("  -o OUTFILE           output an executable file, don't run the code\n")
+    printf("  -g                   generate debug information\n")
     printf("  -O0/-O1/-O2/-O3      set optimization level (0 = no optimization, 1 = default,\n")
     printf("                       3 = runs fastest)\n")
     printf("  --check              do not output or run anything, just check for errors in\n")
@@ -166,6 +168,9 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                     fprintf(get_stderr(), "%s: the filename after -o should be an executable, not a Jou file (try \"%s --help\")\n", argv[0], argv[0])
                     exit(2)
                 i += 2
+            case "-g":
+                args.debug_info = True
+                i++
             case "-O0" | "-O1" | "-O2" | "-O3":
                 args.optlevel = argv[i][2] - '0'
                 optlevel_set = True

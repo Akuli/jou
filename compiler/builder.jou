@@ -433,6 +433,10 @@ class Builder:
 
     llvm_module: LLVMModule*
     llvm_builder: LLVMBuilder*
+    llvm_di_builder: LLVMDIBuilder*
+    llvm_di_file: LLVMMetadata*
+    llvm_di_compile_unit: LLVMMetadata*
+    llvm_di_scope: LLVMMetadata*
     llvm_func: LLVMValue*
     llvm_alloca_block: LLVMBasicBlock*  # local variables created here before code of function runs
     llvm_code_start_block: LLVMBasicBlock*
@@ -517,6 +521,27 @@ class Builder:
             self.hash.add_bool(public)
 
             self.llvm_func = declare_in_llvm(sig, self.llvm_module)
+            if self.llvm_di_builder != NULL:
+                subroutine_type = LLVMDIBuilderCreateSubroutineType(self.llvm_di_builder, self.llvm_di_file, NULL, 0, 0)
+                assert subroutine_type != NULL
+                self.llvm_di_scope = LLVMDIBuilderCreateFunction(
+                    self.llvm_di_builder,
+                    self.llvm_di_file,
+                    sig.name,
+                    strlen(sig.name),
+                    sig.name,
+                    strlen(sig.name),
+                    self.llvm_di_file,
+                    self.uvg_location.lineno as uint32,
+                    subroutine_type,
+                    (not public) as int,
+                    True as int,
+                    self.uvg_location.lineno as uint32,
+                    0,
+                    (global_compiler_state.args.optlevel != 0) as int,
+                )
+                assert self.llvm_di_scope != NULL
+                LLVMSetSubprogram(self.llvm_func, self.llvm_di_scope)
             self.llvm_returns_a_value = sig.return_type != NULL
             self.llvm_alloca_block = LLVMAppendBasicBlock(self.llvm_func, "alloca")
             if not public:
@@ -567,6 +592,16 @@ class Builder:
     @public
     def set_location(self, location: Location, inlining_signature: Signature*) -> None:
         self.uvg_inlining_signature = inlining_signature
+
+        if self.llvm_builder != NULL and self.llvm_di_builder != NULL and self.llvm_di_scope != NULL and location.lineno != 0:
+            debug_location = LLVMDIBuilderCreateDebugLocation(
+                LLVMGetModuleContext(self.llvm_module),
+                location.lineno as uint32,
+                0,
+                self.llvm_di_scope,
+                NULL,
+            )
+            LLVMSetCurrentDebugLocation2(self.llvm_builder, debug_location)
 
         # When inlining, do not store the location so that the locations in UVG
         # point at the place where inlined function is being called.
@@ -1452,6 +1487,51 @@ def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*
         builder.llvm_module = LLVMModuleCreateWithName(jou_file.path)
         builder.hash.add_string(jou_file.path)
 
+        if global_compiler_state.args.debug_info:
+            builder.llvm_di_builder = LLVMCreateDIBuilder(builder.llvm_module)
+            assert builder.llvm_di_builder != NULL
+            builder.llvm_di_file = LLVMDIBuilderCreateFile(
+                builder.llvm_di_builder,
+                jou_file.path,
+                strlen(jou_file.path),
+                "",
+                0,
+            )
+            assert builder.llvm_di_file != NULL
+            builder.llvm_di_compile_unit = LLVMDIBuilderCreateCompileUnit(
+                builder.llvm_di_builder,
+                1,
+                builder.llvm_di_file,
+                "jou",
+                3,
+                (global_compiler_state.args.optlevel != 0) as int,
+                "",
+                0,
+                0,
+                "",
+                0,
+                1,
+                0,
+                True as int,
+                False as int,
+                "",
+                0,
+                "",
+                0,
+            )
+            assert builder.llvm_di_compile_unit != NULL
+            context = LLVMGetModuleContext(builder.llvm_module)
+            module_flag_operands: LLVMMetadata*[3]
+            module_flag_operands[0] = LLVMValueAsMetadata(LLVMConstInt(LLVMInt32Type(), 2, False as int))
+            module_flag_operands[1] = LLVMMDStringInContext2(context, "Debug Info Version", 18)
+            module_flag_operands[2] = LLVMValueAsMetadata(LLVMConstInt(LLVMInt32Type(), LLVMDebugMetadataVersion(), False as int))
+            module_flag = LLVMMDNodeInContext2(context, module_flag_operands, 3)
+            LLVMAddNamedMetadataOperand(
+                builder.llvm_module,
+                "llvm.module.flags",
+                LLVMMetadataAsValue(context, module_flag),
+            )
+
         assert global_compiler_state.target.ready
 
         LLVMSetTarget(builder.llvm_module, global_compiler_state.target.triple)
@@ -1464,7 +1544,11 @@ def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*
 
     if we_are_making_object_file:
         *hash_out = builder.hash
+        if builder.llvm_di_builder != NULL:
+            LLVMDIBuilderFinalize(builder.llvm_di_builder)
         *llvm_out = LLVMWriteBitcodeToMemoryBuffer(builder.llvm_module)
         assert *llvm_out != NULL
         LLVMDisposeBuilder(builder.llvm_builder)
+        if builder.llvm_di_builder != NULL:
+            LLVMDisposeDIBuilder(builder.llvm_di_builder)
         LLVMDisposeModule(builder.llvm_module)
