@@ -119,7 +119,7 @@ def check_config(config: TestConfig*) -> None:
     if config.output_comment_order.len == 0:
         ok = True
     elif config.output_comment_order.len == config.output_comment_rules.len:
-        # Check that the order is same as the keys of the rules, in some order
+        # Check that they contain the same strings in some order
         ok = True
         n = config.output_comment_order.len
         for i1 = 0; i1 < n; i1++:
@@ -163,7 +163,7 @@ def sort_comments(comments: List[Comment], config: TestConfig*) -> None:
     for comment_index = 0; comment_index < comments.len; comment_index++:
         c = &comments.ptr[comment_index]
 
-        # Primary sorting key: index of the comment's key in the config
+        # Sort by index of the comment's key in the configured order
         c.sort_key = -1
         for i = 0; i < config.output_comment_order.len; i++:
             if strcmp(config.output_comment_order.ptr[i], c.key) == 0:
