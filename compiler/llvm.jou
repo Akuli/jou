@@ -119,6 +119,10 @@ declare LLVMCopyStringRepOfTargetData(TD: LLVMTargetData*) -> byte*
 declare LLVMStoreSizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> int64
 @public
 declare LLVMABISizeOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> int64
+@public
+declare LLVMABIAlignmentOfType(TD: LLVMTargetData*, Ty: LLVMType*) -> uint32
+@public
+declare LLVMOffsetOfElement(TD: LLVMTargetData*, StructTy: LLVMType*, Element: uint32) -> uint64
 
 
 
@@ -434,6 +438,10 @@ declare LLVMDIBuilderCreateDebugLocation(Context: LLVMContext*, Line: uint32, Co
 declare LLVMDIBuilderCreateBasicType(Builder: LLVMDIBuilder*, Name: byte*, NameLen: int64, SizeInBits: uint64, Encoding: uint32, Flags: uint32) -> LLVMMetadata*
 @public
 declare LLVMDIBuilderCreatePointerType(Builder: LLVMDIBuilder*, PointeeTy: LLVMMetadata*, SizeInBits: uint64, AlignInBits: uint32, AddressSpace: uint32, Name: byte*, NameLen: int64) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderCreateStructType(Builder: LLVMDIBuilder*, Scope: LLVMMetadata*, Name: byte*, NameLen: int64, File: LLVMMetadata*, LineNumber: uint32, SizeInBits: uint64, AlignInBits: uint32, Flags: uint32, DerivedFrom: LLVMMetadata*, Elements: LLVMMetadata**, NumElements: uint32, RunTimeLang: uint32, VTableHolder: LLVMMetadata*, UniqueId: byte*, UniqueIdLen: int64) -> LLVMMetadata*
+@public
+declare LLVMDIBuilderCreateMemberType(Builder: LLVMDIBuilder*, Scope: LLVMMetadata*, Name: byte*, NameLen: int64, File: LLVMMetadata*, LineNo: uint32, SizeInBits: uint64, AlignInBits: uint32, OffsetInBits: uint64, Flags: uint32, Ty: LLVMMetadata*) -> LLVMMetadata*
 @public
 declare LLVMDIBuilderCreateExpression(Builder: LLVMDIBuilder*, Addr: uint64*, Length: int64) -> LLVMMetadata*
 @public

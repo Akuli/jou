@@ -437,6 +437,8 @@ class Builder:
     llvm_di_file: LLVMMetadata*
     llvm_di_compile_unit: LLVMMetadata*
     llvm_di_scope: LLVMMetadata*
+    debug_inlining_depth: int
+    debug_inlining_location: Location
     llvm_func: LLVMValue*
     llvm_alloca_block: LLVMBasicBlock*  # local variables created here before code of function runs
     llvm_code_start_block: LLVMBasicBlock*
@@ -598,9 +600,7 @@ class Builder:
     # If inlining_signature is not NULL, it means that the given location is
     # inside an @inline function that is being called.
     @public
-    def set_location(self, location: Location, inlining_signature: Signature*) -> None:
-        self.uvg_inlining_signature = inlining_signature
-
+    def set_debug_location(self, location: Location) -> None:
         if self.llvm_builder != NULL and self.llvm_di_builder != NULL and self.llvm_di_scope != NULL and location.lineno != 0:
             debug_location = LLVMDIBuilderCreateDebugLocation(
                 LLVMGetModuleContext(self.llvm_module),
@@ -610,6 +610,15 @@ class Builder:
                 NULL,
             )
             LLVMSetCurrentDebugLocation2(self.llvm_builder, debug_location)
+
+    @public
+    def set_location(self, location: Location, inlining_signature: Signature*) -> None:
+        self.uvg_inlining_signature = inlining_signature
+
+        debug_source_location = location
+        if inlining_signature != NULL and self.debug_inlining_location.path != NULL:
+            debug_source_location = self.debug_inlining_location
+        self.set_debug_location(debug_source_location)
 
         # When inlining, do not store the location so that the locations in UVG
         # point at the place where inlined function is being called.
@@ -633,6 +642,45 @@ class Builder:
                 return LLVMDIBuilderCreatePointerType(self.llvm_di_builder, pointee, 64, 0, 0, NULL, 0)
             case TypeKind.FuncPtr:
                 return LLVMDIBuilderCreatePointerType(self.llvm_di_builder, NULL, 64, 0, 0, NULL, 0)
+            case TypeKind.Class:
+                llvm_type = type_to_llvm(t)
+                nfields = t.classdata.fields.len
+                assert nfields <= MAX_ARGS
+                elements: LLVMMetadata*[MAX_ARGS]
+                for i = 0; i < nfields; i++:
+                    field = &t.classdata.fields.ptr[i]
+                    field_llvm_type = type_to_llvm(field.type)
+                    elements[i] = LLVMDIBuilderCreateMemberType(
+                        self.llvm_di_builder,
+                        NULL,
+                        field.name,
+                        strlen(field.name),
+                        self.llvm_di_file,
+                        0,
+                        ((LLVMABISizeOfType(global_compiler_state.target.main_thread_only.data, field_llvm_type) as uint64) * 8) as uint64,
+                        (LLVMABIAlignmentOfType(global_compiler_state.target.main_thread_only.data, field_llvm_type) * 8) as uint32,
+                        (LLVMOffsetOfElement(global_compiler_state.target.main_thread_only.data, llvm_type, i as uint32) * 8) as uint64,
+                        0,
+                        self.debug_type(field.type),
+                    )
+                return LLVMDIBuilderCreateStructType(
+                    self.llvm_di_builder,
+                    NULL,
+                    t.name,
+                    strlen(t.name),
+                    self.llvm_di_file,
+                    0,
+                    ((LLVMABISizeOfType(global_compiler_state.target.main_thread_only.data, llvm_type) as uint64) * 8) as uint64,
+                    (LLVMABIAlignmentOfType(global_compiler_state.target.main_thread_only.data, llvm_type) * 8) as uint32,
+                    0,
+                    NULL,
+                    elements,
+                    nfields as uint32,
+                    0,
+                    NULL,
+                    NULL,
+                    0,
+                )
             case _:
                 encoding = 0
 
@@ -673,7 +721,7 @@ class Builder:
             # var runs many times.
             LLVMPositionBuilderAtEnd(self.llvm_builder, self.llvm_alloca_block)
             result.lvalue = LLVMBuildAlloca(self.llvm_builder, type_to_llvm(t), debug_name)
-            if varname != NULL and self.llvm_di_builder != NULL and self.llvm_di_scope != NULL:
+            if varname != NULL and self.debug_inlining_depth == 0 and self.llvm_di_builder != NULL and self.llvm_di_scope != NULL:
                 variable = LLVMDIBuilderCreateAutoVariable(
                     self.llvm_di_builder,
                     self.llvm_di_scope,

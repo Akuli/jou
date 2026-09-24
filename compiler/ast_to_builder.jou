@@ -109,6 +109,7 @@ class AstToBuilder:
         # First n local variables are the arguments
         assert signature.args.len <= locals.len
 
+        self.builder.debug_inlining_depth++
         # Must pass correct number of values for parameters of inlined function
         assert nargs == signature.args.len
 
@@ -122,7 +123,7 @@ class AstToBuilder:
                 # First n local variables are the function arguments
                 self.builder.set_ptr(var_ptr, args[i])
 
-    def inline(self, sig: Signature*, args: BuilderValue*, nargs: int) -> BuilderValue:
+    def inline(self, sig: Signature*, args: BuilderValue*, nargs: int, call_location: Location) -> BuilderValue:
         assert sig.ast_to_inline != NULL
         ast = sig.ast_to_inline
 
@@ -147,10 +148,18 @@ class AstToBuilder:
             assert n1 == n2
             info.typemap_count = n1 as int
 
+        old_debug_location = self.builder.debug_inlining_location
+        effective_call_location = call_location
+        if old_debug_location.path != NULL:
+            effective_call_location = old_debug_location
+        self.builder.debug_inlining_location = effective_call_location
         inliner = AstToBuilder{builder = self.builder, inlining_info = &info}
         inliner.begin_inlining(&ast.symbol.signature, ast.locals, args, nargs)
         inliner.build_body(ast.body)
         inliner.free()
+        self.builder.debug_inlining_location = old_debug_location
+        self.builder.set_debug_location(effective_call_location)
+        self.builder.debug_inlining_depth--
         self.builder.jump(info.return_jumps_to)  # the implicit 'return' at the end
 
         self.builder.set_current_block(info.return_jumps_to)
@@ -171,7 +180,7 @@ class AstToBuilder:
                 return local.ptr
         assert False
 
-    def build_call(self, call: AstCall*) -> BuilderValue:
+    def build_call(self, call: AstCall*, call_location: Location) -> BuilderValue:
         assert (
             call.function != NULL and call.method_call_self == NULL
         ) or (
@@ -223,7 +232,7 @@ class AstToBuilder:
             args[nargs++] = self.build_expression(p)
 
         if inline:
-            result = self.inline(sig, args, nargs)
+            result = self.inline(sig, args, nargs, call_location)
         elif call.method_call_self != NULL:
             assert sig != NULL
             result = self.builder.call_method(sig, args, nargs)
@@ -531,7 +540,7 @@ class AstToBuilder:
             case AstExpressionKind.Array:
                 return self.build_array(expr.types.orig_type, expr.array)
             case AstExpressionKind.Call:
-                return self.build_call(&expr.call)
+                return self.build_call(&expr.call, expr.location)
             case AstExpressionKind.Instantiate:
                 return self.build_instantiation(expr.types.orig_type, &expr.instantiation)
             case AstExpressionKind.Self:
