@@ -9,9 +9,14 @@ expected_exit_code = 1
 files = "output_comments_disabled.jou"
 output_comment_rules = {}
 
+[[tests]]
+files = "output_comment_order.jou"
+output_comment_rules = {Second = "second {comment}", First = "first {comment}", Third = "third {comment}"}
+output_comment_order = ["First", "Second", "Third"]
+
 # These comments are for joutest. It is being used to test itself here.
 # See joutest.toml at the root of the repository.
 #
-# Output: ....
+# Output: .....
 # Output:
-# Output: 4 succeeded
+# Output: 5 succeeded
