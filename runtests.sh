@@ -297,7 +297,6 @@ skipped=0
 
 for joufile in \
     tests/404/file.jou \
-    tests/already_exists_error/*.jou \
     tests/other_errors/*.jou \
     tests/should_succeed/compiler_cli.jou \
     tests/should_succeed/intnative_test.jou \
