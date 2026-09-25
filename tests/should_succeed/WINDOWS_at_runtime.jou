@@ -1,11 +1,14 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
+import "stdlib/fs.jou"
 
 def foo() -> bool:
     return WINDOWS
 
 def main() -> int:
+    mkdir("tmp/tests", 0o777)
+
     f = fopen("tmp/tests/asdasd.txt", "w")
     assert f != NULL
     fprintf(f, "asd asd\n")
