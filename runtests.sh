@@ -326,7 +326,6 @@ for joufile in \
     tests/should_succeed/intnative_test.jou \
     tests/should_succeed/link_with_liblzma_relative_path.jou \
     tests/should_succeed/sizeof.jou \
-    tests/wrong_type/pointer_to_integer_32bit.jou \
     tests/wrong_type/sort_comparator.jou \
 ; do
     if ! [[ $joufile == *"$file_filter"* ]]; then

@@ -70,6 +70,11 @@ skip_mode = "skip_silently"
 files = "examples/replace.jou"
 expected_exit_code = 1
 
+# 32-bit only test
+[[tests]]
+files = "tests/wrong_type/pointer_to_integer_32bit.jou"
+skip_mode = {32bit = "dont_skip", default = "skip_normally"}
+
 [[tests]]
 files = [
     # AoC files use fopen("sampleinput.txt", "r")
