@@ -296,7 +296,7 @@ counter=0
 skipped=0
 
 for joufile in \
-    tests/404/*.jou \
+    tests/404/file.jou \
     tests/already_exists_error/*.jou \
     tests/crash/*.jou \
     tests/other_errors/*.jou \

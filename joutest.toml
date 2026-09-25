@@ -24,9 +24,22 @@ output_comment_rules = {
 }
 output_comment_order = ["Warning", "Output"]
 
+[[tests]]
+files = [
+    "tests/404/*.jou",
+]
+output_comment_rules = {
+    Warning = 'compiler warning for file "{file}", line {line}: {comment}',
+    Error = 'compiler error in file "{file}", line {line}: {comment}',
+    ErrorNoLine = 'compiler error in file "{file}": {comment}',
+}
+output_comment_order = ["Warning", "Error", "ErrorNoLine"]
+expected_exit_code = 1
+
 # TODO: These files are still tested with legacy runtests.sh
 [[tests]]
 files = [
+    "tests/404/file.jou",
     "tests/should_succeed/compiler_cli.jou",
     "tests/should_succeed/intnative_test.jou",
     "tests/should_succeed/link_with_liblzma_relative_path.jou",
