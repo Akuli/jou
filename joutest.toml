@@ -11,6 +11,9 @@
 # TODO: tests/should_succeed/compiler_unit_tests.jou will need to be skipped
 #       when running under valgrind. Apparently LLVM leaks memory when the
 #       program starts, even if it is never called.
+#
+# TODO: When running under valgrind, everything with nonzero exit status should
+#       probably be skipped. That's how the old runtests.sh did it.
 
 [[tests]]
 files = [
@@ -50,9 +53,8 @@ files = [
     "tests/other_errors/source_file_contain_zero_byte.jou",
     "tests/should_succeed/compiler_cli.jou",
     "tests/should_succeed/intnative_test.jou",
-    "tests/should_succeed/link_with_liblzma_relative_path.jou",
+    "tests/should_succeed/*lzma*.jou",
     "tests/should_succeed/sizeof.jou",
-    "tests/wrong_type/pointer_to_integer_32bit.jou",
     "tests/wrong_type/sort_comparator.jou",
 ]
 skip_mode = "skip_normally"
@@ -74,6 +76,11 @@ expected_exit_code = 1
 [[tests]]
 files = "tests/wrong_type/pointer_to_integer_32bit.jou"
 skip_mode = {32bit = "dont_skip", default = "skip_normally"}
+
+# 64-bit only test
+[[tests]]
+files = "tests/wrong_type/pointer_to_integer_64bit.jou"
+skip_mode = {32bit = "skip_normally", default = "dont_skip"}
 
 [[tests]]
 files = [

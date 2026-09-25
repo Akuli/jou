@@ -198,36 +198,6 @@ function should_skip()
     local joufile="$1"
     local correct_exit_code="$2"
 
-    # This script is broken...
-    if [[ $joufile =~ "file name with space" ]]; then
-        return 0
-    fi
-
-    # When optimizations are enabled, skip tests that are supposed to crash.
-    # Running them would be unpredictable by design.
-    if [[ $joufile =~ ^tests/crash/ ]] && ! [[ "$jou_flags" =~ -O0 ]]; then
-        return 0
-    fi
-
-    # When running valgrind, skip tests that are supposed to fail, because:
-    #   - error handling is easier if you don't free memory (OS will do it)
-    #   - in the Jou compiler, error handling is simple and not very likely to contain UB
-    #   - valgrinding is slow, this means we valgrind a lot less
-    if [ $valgrind = yes ] && [ $correct_exit_code != 0 ]; then
-        return 0
-    fi
-
-    # When running valgrind, skip compiler unit tests. They link with LLVM and
-    # LLVM leaks memory when the program starts, even if it is never called.
-    if [ $valgrind = yes ] && [ $joufile = tests/should_succeed/compiler_unit_tests.jou ]; then
-        return 0
-    fi
-
-    # Skip special programs that don't interact nicely with automated tests
-    if [ $joufile = examples/memory_leak.jou ]; then
-        return 0
-    fi
-
     # If liblzma is not readily available, skip tests that use it.
     if [[ $joufile =~ link_with_liblzma_dynamic ]]; then
         if ! (pkg-config --exists liblzma 2>/dev/null || compgen -G /usr/lib/liblzma.so* >/dev/null); then
@@ -243,13 +213,6 @@ function should_skip()
         if ! [[ -e "$(pkg-config --variable=libdir liblzma 2>/dev/null)/liblzma.a" ]]; then
             return 0
         fi
-    fi
-
-    if (
-        ([ $joufile = tests/wrong_type/pointer_to_integer_32bit.jou ] && [ $intnative == int64 ]) ||
-        ([ $joufile = tests/wrong_type/pointer_to_integer_64bit.jou ] && [ $intnative == int ])
-    ); then
-        return 0
     fi
 
     return 1  # false, don't skip
@@ -271,18 +234,7 @@ function run_test()
     # jou flags start with space when non-empty
     command="$command$jou_flags"
 
-    if [[ "$joufile" =~ ^examples/aoc ]] || [[ $joufile == *double_dotdot_import* ]] || [[ $joufile == *perlin* ]]; then
-        # AoC files use fopen("sampleinput.txt", "r").
-        # We don't do this for all files, because I like relative paths in error messages.
-        #
-        # double_dotdot_import test had a bug that was reproducible only with relative path.
-        #
-        # Perlin noise example writes to a file. We want that file to end up in the examples
-        # folder, not in project root.
-        command="cd $(dirname $joufile) && $command $(basename $joufile)"
-    else
-        command="$command $joufile"
-    fi
+    command="$command $joufile"
 
     if [[ $joufile =~ link_with_liblzma_relative_path ]]; then
         # This test passes a relative path to the "link" keyword and expects to find liblzma.a with it
@@ -324,7 +276,7 @@ for joufile in \
     tests/other_errors/source_file_contain_zero_byte.jou \
     tests/should_succeed/compiler_cli.jou \
     tests/should_succeed/intnative_test.jou \
-    tests/should_succeed/link_with_liblzma_relative_path.jou \
+    tests/should_succeed/*lzma*.jou \
     tests/should_succeed/sizeof.jou \
     tests/wrong_type/sort_comparator.jou \
 ; do
@@ -333,13 +285,6 @@ for joufile in \
         # This produces less noisy output when you select only a few tests.
         continue
     fi
-
-    case $joufile in
-        examples/replace.jou) correct_exit_code=1; ;;
-        examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
-        *) correct_exit_code=1; ;;  # compiler or runtime error
-    esac
-    counter=$((counter + 1))
 
     if should_skip "$joufile" $correct_exit_code; then
         show_skip $joufile
