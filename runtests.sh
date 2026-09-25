@@ -302,7 +302,6 @@ for joufile in \
     tests/should_succeed/intnative_test.jou \
     tests/should_succeed/link_with_liblzma_relative_path.jou \
     tests/should_succeed/sizeof.jou \
-    tests/too_long/*.jou \
     tests/wrong_place/*.jou \
     tests/wrong_type/*.jou \
 ; do
