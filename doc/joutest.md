@@ -338,6 +338,14 @@ Everything else is optional.
             The first line of the file is line 1.
         - `{{` is replaced with a `{` character.
         - `}}` is replaced with a `}` character.
+    - `output_comment_order` (default: `[]`) can be used to sort the expected output
+        into a different order than it appears in the file being tested.
+        It must contain the keys of `output_comment_rules` in some order.
+        For example, if `output_comment_rules` looks like `{Output1 = ..., Output2 = ...}`
+        and `output_comment_order` is `["Output1", "Output2"]`,
+        then the output specified in `# Output1:` comments goes before the output specified in `# Output2:` comments,
+        even when `# Output1:` comments are placed after `# Output2:` comments.
+        An empty array means that all output comments are used in their original order.
     - `skip_mode` (default: `"dont_skip"`) defines whether and how the test is skipped:
         - `"dont_skip"` means that the test will run unless something else causes it to be skipped.
             This is the default.

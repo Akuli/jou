@@ -128,7 +128,7 @@ def read_joutest_toml_and_parse_to_toml_object() -> TOML:
     return toml
 
 
-def array_of_strings_from_toml(kv: TOMLKeyVal*, error: byte*) -> List[byte*]:
+def array_of_strings_from_toml(kv: TOMLKeyVal*, error: byte*, duplicates_are_banned: bool) -> List[byte*]:
     default_error: byte[200]
     if error == NULL:
         snprintf(default_error, sizeof(default_error), "'%s' must be an array of strings", kv.key)
@@ -139,9 +139,18 @@ def array_of_strings_from_toml(kv: TOMLKeyVal*, error: byte*) -> List[byte*]:
 
     result = List[byte*]{}
     for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
-        if toml_to_string(item) == NULL:
+        s = toml_to_string(item)
+        if s == NULL:
             fail_in_toml(item.lineno, error)
-        result.append(toml_to_string(item))
+
+        if duplicates_are_banned:
+            for old = result.ptr; old < result.end(); old++:
+                if strcmp(*old, s) == 0:
+                    duplicate_error: byte[200]
+                    snprintf(duplicate_error, sizeof(duplicate_error), "'%s' is repeated in '%s'", s, kv.key)
+                    fail_in_toml(item.lineno, duplicate_error)
+
+        result.append(s)
 
     return result
 
@@ -196,7 +205,7 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
             s = toml_to_string(&kv.value)
             if s == NULL:
                 free(config.files.ptr)
-                config.files = array_of_strings_from_toml(kv, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
+                config.files = array_of_strings_from_toml(kv, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns", False)
                 config.files_linenos.len = 0
                 for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
                     config.files_linenos.append(item.lineno)
@@ -240,6 +249,10 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
                 allowed[FormatParam.Comment as int] = True
                 validate_format_string_in_toml(s, inner_kv.value.lineno, allowed)
 
+        case TestConfigOption.OutputCommentOrder:
+            free(config.output_comment_order.ptr)
+            config.output_comment_order = array_of_strings_from_toml(kv, NULL, True)
+
         case TestConfigOption.SkipMode:
             config.skip_mode = enum_from_toml(kv, SKIP_MODE_NAMES, enum_count(SkipMode)) as SkipMode
 
@@ -248,7 +261,7 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
 
         case TestConfigOption.Command:
             free(config.command.ptr)
-            config.command = array_of_strings_from_toml(kv, NULL)
+            config.command = array_of_strings_from_toml(kv, NULL, False)
 
             if config.command.len == 0:
                 snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
@@ -277,7 +290,7 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
 
         case TestConfigOption.MarkdownCodeBlockLanguages:
             free(config.markdown_code_block_languages.ptr)
-            config.markdown_code_block_languages = array_of_strings_from_toml(kv, NULL)
+            config.markdown_code_block_languages = array_of_strings_from_toml(kv, NULL, False)
 
 
 def toml_to_config(toml: TOML*, this_is_the_defaults_for_all_tests: bool) -> TestConfig:
