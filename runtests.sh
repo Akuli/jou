@@ -148,15 +148,6 @@ function post_process_output()
         # Instead, ignore the output and check only the exit code.
         echo "A lot of output hidden..."
         grep "^Exit code:"
-    elif [[ $joufile =~ ^tests/crash/ ]]; then
-        if [ "$(uname -s)" != Linux ]; then
-            # Windows and macos don't seem to say "Segmentation fault" when
-            # a program crashes
-            echo "Segmentation fault"
-        fi
-        # Hide most of the output. We really only care about whether it
-        # mentions "Segmentation fault" somewhere inside it.
-        grep -oE "Segmentation fault|Exit code: .*"
     elif [[ $joufile =~ compiler_unit_tests ]] && [[ "${OS:=$(uname)}" =~ Darwin ]]; then
         # On MacOS, silence a linker warning that appears whenever linking
         # with LLVM. I don't know what causes the warning.
@@ -285,6 +276,12 @@ for joufile in \
         # This produces less noisy output when you select only a few tests.
         continue
     fi
+
+    case $joufile in
+        tests/should_succeed/*) correct_exit_code=0; ;;
+        *) correct_exit_code=1; ;;  # compiler or runtime error
+    esac
+    counter=$((counter + 1))
 
     if should_skip "$joufile" $correct_exit_code; then
         show_skip $joufile
