@@ -217,6 +217,17 @@ function should_skip()
         return 0
     fi
 
+    # When running valgrind, skip compiler unit tests. They link with LLVM and
+    # LLVM leaks memory when the program starts, even if it is never called.
+    if [ $valgrind = yes ] && [ $joufile = tests/should_succeed/compiler_unit_tests.jou ]; then
+        return 0
+    fi
+
+    # Skip special programs that don't interact nicely with automated tests
+    if [ $joufile = examples/memory_leak.jou ]; then
+        return 0
+    fi
+
     # If liblzma is not readily available, skip tests that use it.
     if [[ $joufile =~ link_with_liblzma_dynamic ]]; then
         if ! (pkg-config --exists liblzma 2>/dev/null || compgen -G /usr/lib/liblzma.so* >/dev/null); then
@@ -259,6 +270,19 @@ function run_test()
 
     # jou flags start with space when non-empty
     command="$command$jou_flags"
+
+    if [[ "$joufile" =~ ^examples/aoc ]] || [[ $joufile == *double_dotdot_import* ]] || [[ $joufile == *perlin* ]]; then
+        # AoC files use fopen("sampleinput.txt", "r").
+        # We don't do this for all files, because I like relative paths in error messages.
+        #
+        # double_dotdot_import test had a bug that was reproducible only with relative path.
+        #
+        # Perlin noise example writes to a file. We want that file to end up in the examples
+        # folder, not in project root.
+        command="cd $(dirname $joufile) && $command $(basename $joufile)"
+    else
+        command="$command $joufile"
+    fi
 
     if [[ $joufile =~ link_with_liblzma_relative_path ]]; then
         # This test passes a relative path to the "link" keyword and expects to find liblzma.a with it
@@ -312,7 +336,8 @@ for joufile in \
     fi
 
     case $joufile in
-        tests/should_succeed/*) correct_exit_code=0; ;;
+        examples/replace.jou) correct_exit_code=1; ;;
+        examples/* | tests/should_succeed/*) correct_exit_code=0; ;;
         *) correct_exit_code=1; ;;  # compiler or runtime error
     esac
     counter=$((counter + 1))

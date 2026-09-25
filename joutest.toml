@@ -15,8 +15,8 @@
 [[tests]]
 files = [
     "examples/*.jou",
-    "tests/should_succeed/*.jou",
-    "tests/should_succeed/double_dotdot_import/*/*.jou",
+    "examples/aoc*/day*/part*.jou",
+    "tests/should_succeed/**/*.jou",
 ]
 output_comment_rules = {
     Output = '{comment}',
@@ -57,6 +57,15 @@ files = [
 ]
 skip_mode = "skip_normally"
 
+# Don't run files that are only meant to be imported
+[[tests]]
+files = "tests/should_succeed/imported/*.jou"
+skip_mode = "skip_silently"
+
+# This is a command-line program that expects some arguments to be present
+#
+# The exit code from the program is actually 2, but the jou compiler is a bit
+# funny and instead exits with 1.
 [[tests]]
 files = "examples/replace.jou"
 expected_exit_code = 1
@@ -64,7 +73,7 @@ expected_exit_code = 1
 [[tests]]
 files = [
     # AoC files use fopen("sampleinput.txt", "r")
-    #"examples/aoc*/day*/part*.jou",
+    "examples/aoc*/day*/part*.jou",
     # double_dotdot_import test had a bug that was reproducible only with relative path.
     "tests/should_succeed/double_dotdot_import/*/*.jou",
     # Perlin noise example writes to a file. We want that file to end up in the examples
