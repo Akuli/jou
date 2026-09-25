@@ -1,3 +1,7 @@
+# Configuration file for joutest
+# For documentation, see doc/joutest.md
+
+
 #########################
 # Test the Jou compiler #
 #########################
@@ -14,7 +18,12 @@
 #
 # TODO: When running under valgrind, everything with nonzero exit status should
 #       probably be skipped. That's how the old runtests.sh did it.
+#
+# TODO: Eventually test this on macos (the macos CI is currently broken). I
+#       will probably need to work around this compiler warning I got before:
+#       https://github.com/Akuli/jou/issues/1005
 
+# Files that should compile and run successfully
 [[tests]]
 files = [
     "examples/*.jou",
@@ -27,6 +36,7 @@ output_comment_rules = {
 }
 output_comment_order = ["Warning", "Output"]
 
+# Files that should fail to compile
 [[tests]]
 files = [
     "tests/404/*.jou",
@@ -46,7 +56,7 @@ output_comment_rules = {
 output_comment_order = ["Warning", "Output", "Error", "ErrorNoLine"]
 expected_exit_code = 1
 
-# TODO: These files are still tested with legacy runtests.sh
+# TODO: A few files are still tested with the legacy runtests.sh
 [[tests]]
 files = [
     "tests/404/file.jou",
@@ -61,7 +71,7 @@ skip_mode = "skip_normally"
 
 # Don't run files that are only meant to be imported
 [[tests]]
-files = "tests/should_succeed/imported/*.jou"
+files = "tests/should_succeed/imported/**/*.jou"
 skip_mode = "skip_silently"
 
 # This is a command-line program that expects some arguments to be present
@@ -82,6 +92,9 @@ skip_mode = {32bit = "dont_skip", default = "skip_normally"}
 files = "tests/wrong_type/pointer_to_integer_64bit.jou"
 skip_mode = {32bit = "skip_normally", default = "dont_skip"}
 
+# Tests that expect working directory to be where the file is
+#
+# We don't do this for all files, because I like long but relative paths in error messages.
 [[tests]]
 files = [
     # AoC files use fopen("sampleinput.txt", "r")
@@ -92,7 +105,6 @@ files = [
     # folder, not in project root.
     "examples/perlin_noise.jou",
 ]
-# We don't do this for all files, because I like long but relative paths in error messages.
 cd_to_containing_directory = true
 
 

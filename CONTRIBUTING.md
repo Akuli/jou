@@ -17,7 +17,7 @@ Following the [instructions in the README](README.md#setup) is enough.
 2. Download and install Python (unless you are going to use `./windows_setup.sh --small`, see below).
     Any reasonably new version of Python will work.
 3. Open Git Bash from the start menu.
-    **You must use Git Bash** for running bash scripts such as `windows_setup.sh` and `runtests.sh`.
+    **You must use Git Bash** for running bash scripts such as `windows_setup.sh`.
 4. Clone the project:
     ```
     cd Desktop
@@ -78,18 +78,25 @@ That said, test-driven development works very well for developing compilers.
 There should be a test (or a TODO comment about adding a test)
 for every feature and for every compiler error/warning.
 
-Running tests (if on Windows, use Git Bash):
+Running tests on Windows:
 
 ```
-$ ./runtests.sh
+$ make && ./joutest.exe
 ```
 
-The `runtests.sh` script does a few things:
-- It compiles the Jou compiler if you have changed the compiler since the last time it was compiled.
-- It runs all Jou files in `examples/` and `tests/`. To speed things up, it runs two files in parallel.
-- It ensures that the Jou files output what is expected.
+Running tests on other systems:
 
-The expected output is auto-generated from comments in the Jou files:
+```
+$ make && ./joutest
+```
+
+Here `make` compiles the Jou compiler and the `joutest` test runner if you have changed them,
+and `./joutest` runs Jou files in `examples/` and `tests/`,
+and perhaps surprisingly, Jou code inside markdown files in `doc/`.
+It also ensures that the Jou files output what is expected.
+
+The expected output is auto-generated from comments in the Jou files.
+The comments mostly work like this:
 
 - A comment like `# Output: foo` appends a line `foo` to the expected output.
 - A comment like `# Error: foo` on line 123 of file `tests/bar/baz.jou` appends a line
@@ -98,6 +105,10 @@ The expected output is auto-generated from comments in the Jou files:
     `compiler warning for file "tests/bar/baz.jou", line 123: foo`.
 - Files in `examples/` and `tests/should_succeed/` should run successfully (exit code 0).
     All other files should cause a compiler error (exit code 1).
+- In markdown files, code examples that don't contain any `# Output:`, `# Warning:` or `# Error:` comments don't run at all.
+
+There are various special cases as defined in [`joutest.toml`](joutest.toml),
+but you can usually ignore them.
 
 If the actual output doesn't match the expected output, you will see diffs where
 green (+) is the program's output and red (-) is what was expected.
@@ -109,62 +120,39 @@ Because running tests is slow, you often want to run only one test, or only a fe
 For example, maybe you want to run all Advent of Code solutions.
 To do things like this, the test script takes a substring of the file path as an argument,
 and runs only tests whose path contains that substring.
-For example, `./runtests.sh aoc` finds files like `examples/aoc2023/day03/part2.jou`.
+For example, `make && ./joutest aoc` finds files like `examples/aoc2023/day03/part2.jou`.
 
 ```
-$ ./runtests.sh succ    # run tests/should_succeed/*, useful as a fast sanity check
-$ ./runtests.sh aoc     # run Advent of Code solutions
-$ ./runtests.sh class   # run tests related to defining classes
-$ ./runtests.sh ascii   # run tests for the "stdlib/ascii.jou" module
+$ make && ./joutest            # run all tests (very slow)
+$ make && ./joutest succ       # run tests/should_succeed/*, somewhat faster
+$ make && ./joutest hello      # run a few different hello worlds, very fast
+$ make && ./joutest aoc        # run Advent of Code solutions
+$ make && ./joutest class      # run tests related to defining classes
+$ make && ./joutest ascii      # run tests for the "stdlib/ascii.jou" module
+$ make && ./joutest doc/types  # run tests inside doc/types.md
+$ make && ./joutest joutest    # test runner runs its own tests
 ```
 
-You can use `--verbose` to see what test files get selected:
+You can use `-v` (or `--verbose`) to see what test files get selected:
 
 ```
-$ ./runtests.sh ascii_test --verbose
+$ make && ./joutest succ -v
 ```
+
+For more information about joutest, you can look at [joutest's documentation](doc/joutest.md).
+
+Sometimes it is useful to look at `.github/workflows/` to see how the CI runs tests.
 
 To find missing `free()`s and various other memory bugs,
-you can also run the tests under valgrind
-(but this doesn't work on Windows, because valgrind doesn't support Windows):
+there used to be a `--valgrind` flag you could pass to the test runner,
+but the new test runner doesn't have it yet.
+I will hopefully document that again when I add it back.
+
+There is also an older test runner that is no longer used for most of the tests:
 
 ```
-$ sudo apt install valgrind
-$ ./runtests.sh --valgrind
+$ ./runtests.sh
 ```
-
-This doesn't do anything with tests that are supposed to fail with an error, for a few reasons:
-- The compiler does not free memory allocations when it exits with an error.
-    This is fine because the operating system will free the memory anyway,
-    but `valgrind` would see it as many memory leaks.
-- Valgrinding is slow. Most tests are about compiler errors,
-    and valgrinding would take several minutes if they weren't skipped.
-- Most problems in error message code are spotted by non-valgrinded tests.
-
-There are also a few other ways to run the tests.
-You can look at `.github/workflows/` to see how the CI runs tests.
-
-To ensure that documentation stays up to date,
-it is also possible to run code examples in the documentation as tests:
-
-```
-$ ./joutest.exe doc     # if you are on Windows
-$ ./joutest doc         # other operating systems
-```
-
-Currently the Jou project itself is switching to `joutest`,
-a test runner written in Jou rather than bash.
-For now, `joutest` is used only to test itself and the documentation.
-
-In many ways, `joutest` behaves just like the `runtests.sh` script documented above.
-For example, it similarly looks for `# Output:`, `# Warning:` and `# Error:` comments.
-
-Note that `joutest` **does not run** code examples that don't contain any
-`# Output:`, `# Warning:` or `# Error:` comments,
-because the [joutest.toml](./joutest.toml) configuration file sets
-`skip_mode_if_no_expected_output = "skip_silently"` for all markdown files.
-
-If you need to know more about `joutest`, see [joutest's documentation](doc/joutest.md).
 
 
 ## Releases
