@@ -326,7 +326,10 @@ for joufile in \
     tests/already_exists_error/*.jou \
     tests/crash/*.jou \
     tests/other_errors/*.jou \
-    tests/should_succeed/*.jou \
+    tests/should_succeed/compiler_cli.jou \
+    tests/should_succeed/intnative_test.jou \
+    tests/should_succeed/link_with_liblzma_relative_path.jou \
+    tests/should_succeed/sizeof.jou \
     tests/should_succeed/double_dotdot_import/*/*.jou \
     tests/syntax_error/*.jou \
     tests/too_long/*.jou \

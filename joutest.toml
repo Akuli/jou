@@ -1,3 +1,28 @@
+#########################
+# Test the Jou compiler #
+#########################
+#
+# These tests are still partially done by runtests.sh. I am in the middle of
+# moving runtests.sh tests here, and likely will be for quite some time.
+[[tests]]
+files = "tests/should_succeed/*.jou"
+output_comment_rules = {
+    Output = '{comment}',
+    Warning = 'compiler warning for file "{file}", line {line}: {comment}'
+}
+output_comment_order = ["Warning", "Output"]
+
+# These files are still tested with legacy runtests.sh
+[[tests]]
+files = [
+    "tests/should_succeed/compiler_cli.jou",
+    "tests/should_succeed/intnative_test.jou",
+    "tests/should_succeed/link_with_liblzma_relative_path.jou",
+    "tests/should_succeed/sizeof.jou",
+]
+skip_mode = "skip_normally"
+
+
 ############################
 # Test joutest with itself #
 ############################
@@ -27,6 +52,7 @@ command = {
     windows = ['cmd', '/c', '..\..\..\..\joutest --no-colors | ..\..\..\..\jou windows_output_hack.jou'],
     default = ['joutest', '--no-colors'],
 }
+
 
 ###############################
 # Test code in markdown files #
