@@ -297,7 +297,7 @@ skipped=0
 
 for joufile in \
     tests/404/file.jou \
-    tests/other_errors/*.jou \
+    tests/other_errors/source_file_contain_zero_byte.jou \
     tests/should_succeed/compiler_cli.jou \
     tests/should_succeed/intnative_test.jou \
     tests/should_succeed/link_with_liblzma_relative_path.jou \
