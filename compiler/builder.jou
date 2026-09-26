@@ -18,6 +18,25 @@ import "./types.jou"
 import "./uvg.jou"
 import "./uvg_analyze.jou"
 
+if WINDOWS:
+    const LLVM_19_OR_NEWER: bool = True
+else:
+    import "../config.jou"
+
+def insert_debug_declare(
+    builder: LLVMDIBuilder*,
+    storage: LLVMValue*,
+    variable: LLVMMetadata*,
+    expression: LLVMMetadata*,
+    location: LLVMMetadata*,
+    block: LLVMBasicBlock*,
+) -> None:
+    use_debug_records = LLVM_19_OR_NEWER
+    if use_debug_records:
+        LLVMDIBuilderInsertDeclareRecordAtEnd(builder, storage, variable, expression, location, block)
+    else:
+        LLVMDIBuilderInsertDeclareAtEnd(builder, storage, variable, expression, location, block)
+
 
 # LLVM doesn't have a built-in union type, and you're supposed to abuse other types for that:
 # https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/unions.html
@@ -745,7 +764,7 @@ class Builder:
                     NULL,
                 )
                 assert location != NULL
-                LLVMDIBuilderInsertDeclareAtEnd(
+                insert_debug_declare(
                     self.llvm_di_builder,
                     result.lvalue,
                     variable,

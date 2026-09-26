@@ -49,6 +49,9 @@ class LLVMMetadata:
 class LLVMDIBuilder:
     pass
 @public
+class LLVMDbgRecord:
+    pass
+@public
 class LLVMPassManager:
     pass
 @public
@@ -448,6 +451,8 @@ declare LLVMDIBuilderCreateExpression(Builder: LLVMDIBuilder*, Addr: uint64*, Le
 declare LLVMDIBuilderCreateAutoVariable(Builder: LLVMDIBuilder*, Scope: LLVMMetadata*, Name: byte*, NameLen: int64, File: LLVMMetadata*, LineNo: uint32, Ty: LLVMMetadata*, AlwaysPreserve: int, Flags: uint32, AlignInBits: uint32) -> LLVMMetadata*
 @public
 declare LLVMDIBuilderInsertDeclareAtEnd(Builder: LLVMDIBuilder*, Storage: LLVMValue*, VarInfo: LLVMMetadata*, Expr: LLVMMetadata*, DebugLoc: LLVMMetadata*, Block: LLVMBasicBlock*) -> LLVMValue*
+@public
+declare LLVMDIBuilderInsertDeclareRecordAtEnd(Builder: LLVMDIBuilder*, Storage: LLVMValue*, VarInfo: LLVMMetadata*, Expr: LLVMMetadata*, DebugLoc: LLVMMetadata*, Block: LLVMBasicBlock*) -> LLVMDbgRecord*
 @public
 declare LLVMSetInitializer(GlobalVar: LLVMValue*, ConstantVal: LLVMValue*) -> None
 @public

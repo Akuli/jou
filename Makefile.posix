@@ -52,6 +52,9 @@ config.jou: Makefile.posix
 	echo '' >> config.jou
 	echo '@public' >> config.jou
 	printf 'const JOU_TARGET: byte* = "%s"\n' "`$(LLVM_CONFIG) --host-target | { { uname -mp | grep -q armv6; } && sed -e 's/^arm-/armv6-/'; }`" >> config.jou
+	echo '' >> config.jou
+	echo '@public' >> config.jou
+	printf 'const LLVM_19_OR_NEWER: bool = %s\n' `$(LLVM_CONFIG) --version | awk -F. '{ if ($$1 >= 19) print "True"; else print "False" }'` >> config.jou
 
 
 jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou
