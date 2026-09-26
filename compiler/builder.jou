@@ -458,6 +458,8 @@ class Builder:
     llvm_di_scope: LLVMMetadata*
     debug_inlining_depth: int
     debug_inlining_location: Location
+    debug_type_stack: Type*[MAX_ARGS]
+    debug_type_stack_len: int
     llvm_func: LLVMValue*
     llvm_alloca_block: LLVMBasicBlock*  # local variables created here before code of function runs
     llvm_code_start_block: LLVMBasicBlock*
@@ -657,15 +659,57 @@ class Builder:
             case TypeKind.FloatingPoint:
                 encoding = 4  # DW_ATE_float
             case TypeKind.Pointer | TypeKind.VoidPointer:
-                pointee = self.debug_type(t.value_type) if t.kind == TypeKind.Pointer else NULL
+                if t.kind == TypeKind.Pointer and t.value_type.kind == TypeKind.Class:
+                    pointee = LLVMDIBuilderCreateBasicType(
+                        self.llvm_di_builder,
+                        t.value_type.name,
+                        strlen(t.value_type.name),
+                        0,
+                        0,
+                        0,
+                    )
+                else:
+                    pointee = self.debug_type(t.value_type) if t.kind == TypeKind.Pointer else NULL
                 return LLVMDIBuilderCreatePointerType(self.llvm_di_builder, pointee, 64, 0, 0, NULL, 0)
             case TypeKind.FuncPtr:
                 return LLVMDIBuilderCreatePointerType(self.llvm_di_builder, NULL, 64, 0, 0, NULL, 0)
             case TypeKind.Class:
+                for field = t.classdata.fields.ptr; field < t.classdata.fields.end(); field++:
+                    if field.type.kind == TypeKind.Class or field.type.kind == TypeKind.Array:
+                        return LLVMDIBuilderCreateBasicType(
+                            self.llvm_di_builder,
+                            t.name,
+                            strlen(t.name),
+                            0,
+                            0,
+                            0,
+                        )
                 llvm_type = type_to_llvm(t)
+                if self.debug_type_stack_len >= 8:
+                    return LLVMDIBuilderCreateBasicType(
+                        self.llvm_di_builder,
+                        t.name,
+                        strlen(t.name),
+                        0,
+                        0,
+                        0,
+                    )
+                for i = 0; i < self.debug_type_stack_len; i++:
+                    if self.debug_type_stack[i] == t:
+                        return LLVMDIBuilderCreateBasicType(
+                            self.llvm_di_builder,
+                            t.name,
+                            strlen(t.name),
+                            0,
+                            0,
+                            0,
+                        )
+
                 nfields = t.classdata.fields.len
                 assert nfields <= MAX_ARGS
                 elements: LLVMMetadata*[MAX_ARGS]
+                assert self.debug_type_stack_len < MAX_ARGS
+                self.debug_type_stack[self.debug_type_stack_len++] = t
                 for i = 0; i < nfields; i++:
                     field = &t.classdata.fields.ptr[i]
                     field_llvm_type = type_to_llvm(field.type)
@@ -682,7 +726,7 @@ class Builder:
                         0,
                         self.debug_type(field.type),
                     )
-                return LLVMDIBuilderCreateStructType(
+                result = LLVMDIBuilderCreateStructType(
                     self.llvm_di_builder,
                     NULL,
                     t.name,
@@ -700,6 +744,8 @@ class Builder:
                     NULL,
                     0,
                 )
+                self.debug_type_stack_len--
+                return result
             case _:
                 encoding = 0
 
