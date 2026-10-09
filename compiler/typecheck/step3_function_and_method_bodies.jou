@@ -22,6 +22,7 @@ import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../evaluate.jou"
 import "../types.jou"
+import "../global_symbols.jou"
 import "./common.jou"
 import "./step1_global_symbols.jou"
 
@@ -58,7 +59,14 @@ class State:
 
             if not explicitly_declared and not already_warned:
                 msg: byte[300]
-                snprintf(msg, sizeof(msg), "global variable '%s' used without a 'global %s' statement", name, name)
+                snprintf(
+                    msg,
+                    sizeof(msg),
+                    "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler",
+                    name,
+                    self.fom.symbol.name,
+                    "method" if self.fom.symbol.kind == GlobalSymbolKind.Method else "function",
+                )
                 show_warning(location, msg)
                 warned_name: byte[100]
                 strcpy(warned_name, name)

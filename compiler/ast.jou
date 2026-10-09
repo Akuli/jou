@@ -693,7 +693,6 @@ enum AstStatementKind:
     Break
     Continue
     DeclareLocalVar         # x: SomeType = y (the "= y" is optional)
-    GlobalVariableAccess    # global foo inside a function or method
     ClassField              # x: SomeType (inside a class)
     ClassUnion              # "union:" followed by indented fields inside a class
     Assign                  # x = y
@@ -716,7 +715,8 @@ enum AstStatementKind:
     TypeDef
     GlobalVariableDeclare
     GlobalVariableDef
-    Const           # const x: SomeType = y
+    GlobalVariableAccess    # `global foo` inside a function or method
+    Const                   # const x: SomeType = y
 
 @public
 class AstStatement:
