@@ -693,6 +693,7 @@ enum AstStatementKind:
     Break
     Continue
     DeclareLocalVar         # x: SomeType = y (the "= y" is optional)
+    GlobalVariableAccess    # global foo inside a function or method
     ClassField              # x: SomeType (inside a class)
     ClassUnion              # "union:" followed by indented fields inside a class
     Assign                  # x = y
@@ -730,6 +731,7 @@ class AstStatement:
         return_value: AstExpression*        # can be NULL
         assignment: AstAssignment           # also used for +=, -= etc
         local_var_declare: AstNameTypeValue # DeclareLocalVar
+        global_var_access: byte[100]
         global_var_declare: AstGlobalVarDeclare  # GlobalVariableDeclare
         global_var_def: AstGlobalVarDef     # GlobalVariableDef
         class_field: AstNameTypeValue       # ClassField
@@ -784,6 +786,8 @@ class AstStatement:
             case AstStatementKind.DeclareLocalVar:
                 printf("declare local var ")
                 self.local_var_declare.print_with_tree_printer(&tp)
+            case AstStatementKind.GlobalVariableAccess:
+                printf("declare global access '%s'\n", self.global_var_access)
             case AstStatementKind.Assign:
                 printf("assign\n")
                 self.assignment.print_with_tree_printer(tp)
@@ -879,6 +883,8 @@ class AstStatement:
                 self.match_statement.free()
             case AstStatementKind.DeclareLocalVar:
                 self.local_var_declare.free()
+            case AstStatementKind.GlobalVariableAccess:
+                pass
             case AstStatementKind.GlobalVariableDeclare:
                 self.global_var_declare.free()
             case AstStatementKind.GlobalVariableDef:
@@ -939,6 +945,7 @@ class AstStatement:
                 | AstStatementKind.Break
                 | AstStatementKind.Continue
                 | AstStatementKind.DeclareLocalVar
+                | AstStatementKind.GlobalVariableAccess
                 | AstStatementKind.ClassField
                 | AstStatementKind.ClassUnion
                 | AstStatementKind.Assign

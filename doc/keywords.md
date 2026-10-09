@@ -504,6 +504,7 @@ import "stdlib/io.jou"
 global x: int
 
 def print_x() -> None:
+    global x
     printf("%d\n", x)
 
 def main() -> int:
@@ -513,8 +514,10 @@ def main() -> int:
     return 0
 ```
 
-Note that unlike in Python,
-you don't need to use `global` inside a function to modify the global variable.
+Include a `global` statement inside a function or method to access a global variable,
+whether reading or modifying it. The declaration applies to the whole function or method.
+For backwards compatibility, omitting the statement still accesses the global variable
+but emits a compiler warning.
 
 By default, global variables are always initialized to zero memory.
 For example, numbers are initialized to zero, booleans are initialized to `False` and pointers are initialized to `NULL`.

@@ -29,21 +29,76 @@ import "./step1_global_symbols.jou"
 class State:
     jou_file: JouFile*
     fom: AstFunctionOrMethod*
+    explicit_global_names: List[byte[100]]
+    warned_implicit_global_names: List[byte[100]]
 
-    def find_any_var(self, name: byte*) -> Type*:
+    def find_any_var(self, name: byte*, location: Location, warn_implicit_global: bool) -> Type*:
         for local = self.fom.locals.ptr; local < self.fom.locals.end(); local++:
             if strcmp(local.name, name) == 0:
                 return local.type
-        return find_and_typecheck_global_var(self.jou_file, name)
+        result = find_and_typecheck_global_var(self.jou_file, name)
+        # The bootstrap compiler predates function-body global declarations.
+        if (
+            result != NULL
+            and warn_implicit_global
+            and not starts_with(location.path, global_compiler_state.stdlib_path)
+        ):
+            explicitly_declared = False
+            for global_name = self.explicit_global_names.ptr; global_name < self.explicit_global_names.end(); global_name++:
+                if strcmp(*global_name, name) == 0:
+                    explicitly_declared = True
+                    break
 
-    def find_any_var_or_constant(self, name: byte*) -> Type*:
-        vartype = self.find_any_var(name)
+            already_warned = False
+            if not explicitly_declared:
+                for global_name = self.warned_implicit_global_names.ptr; global_name < self.warned_implicit_global_names.end(); global_name++:
+                    if strcmp(*global_name, name) == 0:
+                        already_warned = True
+                        break
+
+            if not explicitly_declared and not already_warned:
+                msg: byte[300]
+                snprintf(msg, sizeof(msg), "global variable '%s' used without a 'global %s' statement", name, name)
+                show_warning(location, msg)
+                warned_name: byte[100]
+                strcpy(warned_name, name)
+                self.warned_implicit_global_names.append(warned_name)
+        return result
+
+    def find_any_var_or_constant(self, name: byte*, location: Location) -> Type*:
+        vartype = self.find_any_var(name, location, True)
         if vartype != NULL:
             return vartype
         c = find_and_typecheck_constant(self.jou_file, name)
         if c != NULL:
             return c.get_type()
         return NULL
+
+
+def collect_global_accesses_in_body(jou_file: JouFile*, body: List[AstStatement], names: List[byte[100]]*) -> None:
+    for stmt = body.ptr; stmt < body.end(); stmt++:
+        match stmt.kind:
+            case AstStatementKind.GlobalVariableAccess:
+                if find_and_typecheck_global_var(jou_file, stmt.global_var_access) == NULL:
+                    msg: byte[300]
+                    snprintf(msg, sizeof(msg), "there is no global variable named '%s'", stmt.global_var_access)
+                    fail(stmt.location, msg)
+                names.append(stmt.global_var_access)
+            case AstStatementKind.If:
+                for branch = stmt.if_statement.if_and_elifs.ptr; branch < stmt.if_statement.if_and_elifs.end(); branch++:
+                    collect_global_accesses_in_body(jou_file, branch.body, names)
+                collect_global_accesses_in_body(jou_file, stmt.if_statement.else_body, names)
+            case AstStatementKind.WhileLoop:
+                collect_global_accesses_in_body(jou_file, stmt.while_loop.body, names)
+            case AstStatementKind.ForLoop:
+                collect_global_accesses_in_body(jou_file, stmt.for_loop.body, names)
+            case AstStatementKind.Match:
+                for case_stmt = stmt.match_statement.cases.ptr; case_stmt < stmt.match_statement.cases.end(); case_stmt++:
+                    collect_global_accesses_in_body(jou_file, case_stmt.body, names)
+                if stmt.match_statement.case_underscore != NULL:
+                    collect_global_accesses_in_body(jou_file, *stmt.match_statement.case_underscore, names)
+            case _:
+                pass
 
 
 # Intended for errors. Returned string can be overwritten in next call.
@@ -832,7 +887,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
         if (
             call.function.kind == AstExpressionKind.GetVariable
             and find_and_typecheck_function(state.jou_file, call.function.varname) == NULL
-            and state.find_any_var(call.function.varname) == NULL
+            and state.find_any_var(call.function.varname, call.function.location, True) == NULL
         ):
             snprintf(msg, sizeof(msg), "function '%s' not found", call.function.varname)
             match call.function.varname with strcmp:
@@ -1141,7 +1196,7 @@ def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
     enum_name: byte[100] = expr.class_field.instance.varname
     member_name: byte[100] = expr.class_field.field_name
 
-    if state.find_any_var(enum_name) != NULL:
+    if state.find_any_var(enum_name, expr.location, True) != NULL:
         # there is a variable named "foo", use that
         return
 
@@ -1313,7 +1368,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 result = c_ptr.get_type()
             else:
                 # Not a constant, proceed with normal variable lookup
-                result = state.find_any_var(expr.varname)
+                result = state.find_any_var(expr.varname, expr.location, True)
                 if result == NULL:
                     # Is it a function?
                     sig = find_and_typecheck_function(state.jou_file, expr.varname)
@@ -1642,7 +1697,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
 
             if (
                 targetexpr.kind == AstExpressionKind.GetVariable
-                and state.find_any_var_or_constant(targetexpr.varname) == NULL
+                and state.find_any_var_or_constant(targetexpr.varname, targetexpr.location) == NULL
             ):
                 # Making a new variable. Use the type of the value being assigned.
                 type = typecheck_expression_not_void(state, valueexpr, NULL)
@@ -1769,7 +1824,7 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
         case AstStatementKind.DeclareLocalVar:
             varname = stmt.local_var_declare.name
 
-            if state.find_any_var(varname) != NULL:
+            if state.find_any_var(varname, stmt.location, False) != NULL:
                 snprintf(msg, sizeof(msg), "a variable named '%s' already exists", varname)
                 fail(stmt.location, msg)
 
@@ -1784,6 +1839,9 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 typecheck_expression_with_implicit_cast(
                     state, stmt.local_var_declare.value, type,
                     "initial value for variable of type <to> cannot be of type <from>")
+
+        case AstStatementKind.GlobalVariableAccess:
+            pass
 
         case AstStatementKind.ExpressionStatement:
             typecheck_expression(state, &stmt.expression, NULL)
@@ -1823,7 +1881,12 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
     for arg = sig.args.ptr; arg < sig.args.end(); arg++:
         state.fom.locals.append(LocalVariable{name=arg.name, type=arg.type})
 
+    state.explicit_global_names = List[byte[100]]{}
+    state.warned_implicit_global_names = List[byte[100]]{}
+    collect_global_accesses_in_body(state.jou_file, fom.body, &state.explicit_global_names)
     typecheck_body(state, fom.body)
+    free(state.explicit_global_names.ptr)
+    free(state.warned_implicit_global_names.ptr)
     state.fom = NULL
 
 

@@ -1402,8 +1402,6 @@ class Parser:
                 }
             self.eat_newline()
         elif self.tokens.is_keyword("global"):
-            # Special case for placing "global foo" inside a function or method,
-            # like you would need to do in Python
             if (
                 (
                     self.what_are_we_parsing == WhatAreWeParsing.FunctionBody
@@ -1412,44 +1410,48 @@ class Parser:
                 and self.tokens[1].kind == TokenKind.Name
                 and self.tokens[2].kind == TokenKind.Newline
             ):
-                fail(
-                    self.tokens.location,
-                    "you don't need 'global' inside a function or method to use a global variable",
-                )
+                location = (self.tokens++).location
+                varname = self.eat_by_kind(TokenKind.Name, True, "a variable name").short_string
+                self.eat_newline()
+                result = AstStatement{
+                    location = location,
+                    kind = AstStatementKind.GlobalVariableAccess,
+                    global_var_access = varname,
+                }
+            else:
+                self.check_top_level("global variables")
+                location = (self.tokens++).location
+                varname = self.eat_by_kind(TokenKind.Name, True, "a variable name").short_string
 
-            self.check_top_level("global variables")
-            location = (self.tokens++).location
-            varname = self.eat_by_kind(TokenKind.Name, True, "a variable name").short_string
+                if not self.tokens.is_operator(":") and not self.tokens.is_operator("="):
+                    msg: byte[500]
+                    snprintf(msg, sizeof(msg), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 123)", varname, varname)
+                    self.tokens.fail_expected_got(msg)
 
-            if not self.tokens.is_operator(":") and not self.tokens.is_operator("="):
-                msg: byte[500]
-                snprintf(msg, sizeof(msg), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 123)", varname, varname)
-                self.tokens.fail_expected_got(msg)
+                type: AstType* = NULL
+                if self.tokens.is_operator(":"):
+                    self.eat_operator(":", False, NULL)
+                    type = malloc(sizeof(*type))
+                    assert type != NULL
+                    *type = self.parse_type()
 
-            type: AstType* = NULL
-            if self.tokens.is_operator(":"):
-                self.eat_operator(":", False, NULL)
-                type = malloc(sizeof(*type))
-                assert type != NULL
-                *type = self.parse_type()
+                value: AstExpression* = NULL
+                if self.tokens.is_operator("="):
+                    self.eat_operator("=", False, NULL)
+                    value = malloc(sizeof(*value))
+                    assert value != NULL
+                    *value = self.parse_expression()
 
-            value: AstExpression* = NULL
-            if self.tokens.is_operator("="):
-                self.eat_operator("=", False, NULL)
-                value = malloc(sizeof(*value))
-                assert value != NULL
-                *value = self.parse_expression()
+                symbol = GlobalSymbol{kind = GlobalSymbolKind.GlobalVar}
+                assert array_count(symbol.name) >= array_count(varname)
+                strcpy(symbol.name, varname)
 
-            symbol = GlobalSymbol{kind = GlobalSymbolKind.GlobalVar}
-            assert array_count(symbol.name) >= array_count(varname)
-            strcpy(symbol.name, varname)
-
-            result = AstStatement{
-                location = location,
-                kind = AstStatementKind.GlobalVariableDef,
-                global_var_def = AstGlobalVarDef{symbol = symbol, type = type, initial_value = value},
-            }
-            self.eat_newline()
+                result = AstStatement{
+                    location = location,
+                    kind = AstStatementKind.GlobalVariableDef,
+                    global_var_def = AstGlobalVarDef{symbol = symbol, type = type, initial_value = value},
+                }
+                self.eat_newline()
         elif self.tokens.is_keyword("class"):
             result = AstStatement{
                 location = self.tokens.location,
