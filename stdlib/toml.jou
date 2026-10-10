@@ -82,6 +82,7 @@ class TOML:
     # For debugging
     @public
     def print(self) -> None:
+        global TOML_TYPE_NAMES
         printf("%s on line %d:", TOML_TYPE_NAMES[self.type as int], self.lineno)
         match self.type:
             case TOMLType.Error:

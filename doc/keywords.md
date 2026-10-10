@@ -520,30 +520,19 @@ def main() -> int:
 
 Note that unlike in Python, you always need an explicit `global your_variable`
 inside the function to access a global variable.
-Without it, the variable name will be treated as a local variable in future versions of Jou.
-Currently the compiler shows a warning if you forget this.
-
-For example, the following currently prints `1 2`, but in a future version of Jou it will print `1 0`:
+You will get a compiler error if you forget this:
 
 ```python
 import "stdlib/io.jou"
 
 global x: int
-global y: int
-
-def print_xy() -> None:
-    global x, y     # this is same as "global x" and "global y" on separate lines
-    printf("%d %d\n", x, y)
 
 def main() -> int:
-    global x
-    # In the future, this will create a local variable named y, but for now
-    # it accesses the global variable.
-    x = 1
-    y = 2  # Warning: please add a 'global y' statement inside the main() function, this will be required in a future version of the Jou compiler
-    print_xy()  # Output: 1 2
+    x++  # Error: a 'global x' statement inside main() is needed to use the global 'x' variable
     return 0
 ```
+
+You can also do `global foo, bar, baz` to make several global variables accessible at once.
 
 By default, global variables are always initialized to zero memory.
 For example, numbers are initialized to zero, booleans are initialized to `False` and pointers are initialized to `NULL`.

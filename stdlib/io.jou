@@ -88,10 +88,13 @@ def get_stdin() -> FILE*:
     if WINDOWS:
         return __acrt_iob_func(0)
     elif MACOS:
+        global __stdinp
         return __stdinp
     elif LINUX:
+        global stdin
         return stdin
     elif NETBSD:
+        global __sF
         return &__sF[0] as FILE*
     else:
         assert False
@@ -102,10 +105,13 @@ def get_stdout() -> FILE*:
     if WINDOWS:
         return __acrt_iob_func(1)
     elif MACOS:
+        global __stdoutp
         return __stdoutp
     elif LINUX:
+        global stdout
         return stdout
     elif NETBSD:
+        global __sF
         return &__sF[1] as FILE*
     else:
         assert False
@@ -122,10 +128,13 @@ def get_stderr() -> FILE*:
     if WINDOWS:
         return __acrt_iob_func(2)
     elif MACOS:
+        global __stderrp
         return __stderrp
     elif LINUX:
+        global stderr
         return stderr
     elif NETBSD:
+        global __sF
         return &__sF[2] as FILE*
     else:
         assert False

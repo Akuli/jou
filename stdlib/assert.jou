@@ -9,6 +9,7 @@ global jou_assert_fail_handler: funcptr(byte*, byte*, int) -> None
 # This function is called when `assert False` runs.
 @public
 def _jou_assert_fail(assertion: byte*, path: byte*, lineno: int) -> noreturn:
+    global jou_assert_fail_handler
     if jou_assert_fail_handler != NULL:
         jou_assert_fail_handler(assertion, path, lineno)
 
