@@ -157,12 +157,21 @@ function post_process_output()
         # Hide most of the output. We really only care about whether it
         # mentions "Segmentation fault" somewhere inside it.
         grep -oE "Segmentation fault|Exit code: .*"
-    elif [[ $joufile =~ compiler_unit_tests ]] && [[ "${OS:=$(uname)}" =~ Darwin ]]; then
-        # On MacOS, silence a linker warning that appears whenever linking
-        # with LLVM. I don't know what causes the warning.
-        #
-        # See: https://github.com/Akuli/jou/issues/1005
-        grep -v "ld: warning: reexported library with install name"
+    elif [[ $joufile =~ compiler_unit_tests ]]; then
+        (
+            if [[ "$(uname)" =~ Darwin ]]; then
+                # On MacOS, silence a linker warning that appears whenever linking
+                # with LLVM. I don't know what causes the warning.
+                #
+                # See: https://github.com/Akuli/jou/issues/1005
+                grep -v "ld: warning: reexported library with install name"
+            else
+                cat
+            fi
+        ) | grep -v "please add a 'global "  # TODO: can't use new global variable syntax in compiler yet
+    elif [[ $joufile =~ joutest_diff_bug ]] || [[ $joufile =~ windows_argument_quoting ]]; then
+        # TODO: can't use new global variable syntax in joutest yet
+        grep -v "please add a 'global "
     else
         # Pass the output through unchanged.
         cat
