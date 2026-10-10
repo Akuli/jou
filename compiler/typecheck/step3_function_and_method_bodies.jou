@@ -30,46 +30,50 @@ import "./step1_global_symbols.jou"
 class State:
     jou_file: JouFile*
     fom: AstFunctionOrMethod*
-    warned_implicit_global_names: List[byte[100]]
+    implicit_globals: List[byte[100]]
 
     def find_any_var(self, name: byte*, location: Location, warn_implicit_global: bool) -> Type*:
         for local = self.fom.locals.ptr; local < self.fom.locals.end(); local++:
             if strcmp(local.name, name) == 0:
                 return local.type
         result = find_and_typecheck_global_var(self.jou_file, name)
-        # The bootstrap compiler predates function-body global declarations.
+
         if (
             result != NULL
             and warn_implicit_global
+            # TODO: The bootstrap compiler doesn't support "global foo"
+            #       inside a function, but it uses the same stdlib, so we can't
+            #       use "global foo" inside stdlib functions yet. This silences
+            #       the warning for stdlib so that everyone who uses stdlib
+            #       doesn't get it.
             and not starts_with(location.path, global_compiler_state.stdlib_path)
         ):
-            explicitly_declared = False
-            for global_name = self.fom.global_names.ptr; global_name < self.fom.global_names.end(); global_name++:
-                if strcmp(global_name.name, name) == 0:
-                    explicitly_declared = True
+            explicitly_global = False
+            for g = self.fom.global_names.ptr; g < self.fom.global_names.end(); g++:
+                if strcmp(g.name, name) == 0:
+                    explicitly_global = True
                     break
-
-            already_warned = False
-            if not explicitly_declared:
-                for warned_name_ptr = self.warned_implicit_global_names.ptr; warned_name_ptr < self.warned_implicit_global_names.end(); warned_name_ptr++:
-                    if strcmp(*warned_name_ptr, name) == 0:
-                        already_warned = True
+            if not explicitly_global:
+                found = False
+                for iglobal = self.implicit_globals.ptr; iglobal < self.implicit_globals.end(); iglobal++:
+                    if strcmp(*iglobal, name) == 0:
+                        found = True
                         break
+                if not found:
+                    msg: byte[300]
+                    snprintf(
+                        msg,
+                        sizeof(msg),
+                        "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler",
+                        name,
+                        self.fom.symbol.name,
+                        "method" if self.fom.symbol.kind == GlobalSymbolKind.Method else "function",
+                    )
+                    show_warning(location, msg)
+                    name_copy: byte[100]
+                    snprintf(name_copy, sizeof(name_copy), "%s", name)
+                    self.implicit_globals.append(name_copy)
 
-            if not explicitly_declared and not already_warned:
-                msg: byte[300]
-                snprintf(
-                    msg,
-                    sizeof(msg),
-                    "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler",
-                    name,
-                    self.fom.symbol.name,
-                    "method" if self.fom.symbol.kind == GlobalSymbolKind.Method else "function",
-                )
-                show_warning(location, msg)
-                warned_name: byte[100]
-                strcpy(warned_name, name)
-                self.warned_implicit_global_names.append(warned_name)
         return result
 
     def find_any_var_or_constant(self, name: byte*, location: Location) -> Type*:
@@ -1859,14 +1863,14 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
     for arg = sig.args.ptr; arg < sig.args.end(); arg++:
         state.fom.locals.append(LocalVariable{name=arg.name, type=arg.type})
 
-    state.warned_implicit_global_names = List[byte[100]]{}
+    state.implicit_globals = List[byte[100]]{}
     for global_name = fom.global_names.ptr; global_name < fom.global_names.end(); global_name++:
         if find_and_typecheck_global_var(state.jou_file, global_name.name) == NULL:
             msg: byte[300]
             snprintf(msg, sizeof(msg), "there is no global variable named '%s'", global_name.name)
             fail(global_name.location, msg)
     typecheck_body(state, fom.body)
-    free(state.warned_implicit_global_names.ptr)
+    free(state.implicit_globals.ptr)
     state.fom = NULL
 
 
