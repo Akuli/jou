@@ -715,7 +715,7 @@ enum AstStatementKind:
     TypeDef
     GlobalVariableDeclare
     GlobalVariableDef
-    Const                   # const x: SomeType = y
+    Const           # const x: SomeType = y
 
 @public
 class AstStatement:
@@ -1352,7 +1352,6 @@ class LocalVariable:
     name: byte[100]
     type: Type*
 
-
 @public
 class AstGlobalName:
     name: byte[100]
@@ -1377,8 +1376,14 @@ class AstFunctionOrMethod:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         self.ast_signature.print()
-        for global_name = self.global_names.ptr; global_name < self.global_names.end(); global_name++:
-            printf("global %s\n", global_name.name)
+        if self.global_names.len > 0:
+            tp.print_prefix(False)
+            printf("global variables: ")
+            for g = self.global_names.ptr; g < self.global_names.end(); g++:
+                if g > self.global_names.ptr:
+                    printf(", ")
+                printf("%s", g.name)
+            printf("\n")
         print_body(self.body, tp)
 
     def free(self) -> None:
