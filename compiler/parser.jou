@@ -1532,7 +1532,7 @@ class Parser:
 
         while True:
             name = self.eat_by_kind(TokenKind.Name, True, "a global variable name").short_string
-            global_names.append(AstGlobalName{name = name, location = location})
+            global_names.append(AstGlobalName{name = name, location = location, used = False})
             if not self.tokens.is_operator(","):
                 break
             self.tokens++

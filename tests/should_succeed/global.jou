@@ -29,10 +29,16 @@ def increment_all() -> None:
 def read_legacy_global() -> int:
     return legacy_global + legacy_global  # Warning: please add a 'global legacy_global' statement inside the read_legacy_global() function, this will be required in a future version of the Jou compiler
 
+def unused_function_global() -> None:
+    global y  # Warning: global variable 'y' declared but not used
+
 class GlobalAccess:
     def increment(self) -> None:
         global method_counter
         method_counter++
+
+    def unused_global(self) -> None:
+        global legacy_global  # Warning: global variable 'legacy_global' declared but not used
 
 def main() -> int:
     global x, y, z
@@ -50,11 +56,13 @@ def main() -> int:
     printf("%d %d %d\n", int16_array[0], int16_array[1], int16_array[2])  # Output: 42 50 60
     printf("%s %s\n", string_array[0], string_array[1])  # Output: hello rld
     printf("%d\n", read_legacy_global())  # Output: 246
+    unused_function_global()
     #printf("%s %s\n", arraystring_array[0], arraystring_array[1])  # TODO
 
     access = GlobalAccess{}
     access.increment()
     access.increment()
+    access.unused_global()
     printf("%d\n", method_counter)  # Output: 2
 
     return 0

@@ -38,6 +38,14 @@ class State:
                 return local.type
         result = find_and_typecheck_global_var(self.jou_file, name)
 
+        explicitly_global = False
+        if result != NULL and warn_implicit_global:
+            for g = self.fom.global_names.ptr; g < self.fom.global_names.end(); g++:
+                if strcmp(g.name, name) == 0:
+                    g.used = True
+                    explicitly_global = True
+                    break
+
         if (
             result != NULL
             and warn_implicit_global
@@ -48,11 +56,6 @@ class State:
             #       doesn't get it.
             and not starts_with(location.path, global_compiler_state.stdlib_path)
         ):
-            explicitly_global = False
-            for g = self.fom.global_names.ptr; g < self.fom.global_names.end(); g++:
-                if strcmp(g.name, name) == 0:
-                    explicitly_global = True
-                    break
             if not explicitly_global:
                 found = False
                 for iglobal = self.implicit_globals.ptr; iglobal < self.implicit_globals.end(); iglobal++:
@@ -1870,6 +1873,11 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
             snprintf(msg, sizeof(msg), "there is no global variable named '%s'", global_name.name)
             fail(global_name.location, msg)
     typecheck_body(state, fom.body)
+    for global_name = fom.global_names.ptr; global_name < fom.global_names.end(); global_name++:
+        if not global_name.used:
+            unused_global_message: byte[300]
+            snprintf(unused_global_message, sizeof(unused_global_message), "global variable '%s' declared but not used", global_name.name)
+            show_warning(global_name.location, unused_global_message)
     free(state.implicit_globals.ptr)
     state.fom = NULL
 
