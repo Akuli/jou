@@ -1411,45 +1411,68 @@ class Parser:
                 self.what_are_we_parsing == WhatAreWeParsing.FunctionBody
                 or self.what_are_we_parsing == WhatAreWeParsing.MethodBody
             ):
-                snprintf(
-                    msg,
-                    sizeof(msg),
-                    "'global %s' must be at the beginning of the %s",
-                    varname,
-                    "method" if self.what_are_we_parsing == WhatAreWeParsing.MethodBody else "function",
-                )
-                fail(location, msg)
+                names = List[byte[100]]{}
+                names.append(varname)
+                while self.tokens.is_operator(","):
+                    self.tokens++
+                    names.append(self.eat_by_kind(TokenKind.Name, True, "a variable name").short_string)
 
-            self.check_top_level("global variable definitions")
+                if self.tokens.is_operator(":") or self.tokens.is_operator("="):
+                    joined = malloc((sizeof(names.ptr[0]) + 50) * names.len)
+                    assert joined != NULL
+                    strcpy(joined, names.ptr[0])
+                    for i = 1; i < names.len; i++:
+                        strcat(joined, ", ")
+                        strcat(joined, names.ptr[i])
+                    snprintf(
+                        msg,
+                        sizeof(msg),
+                        "to access %s inside a %s, use 'global %s' without anything else after it",
+                        "a global variable" if names.len == 1 else "global variables",
+                        "method" if self.what_are_we_parsing == WhatAreWeParsing.MethodBody else "function",
+                        joined,
+                    )
+                    fail(location, msg)
 
-            if not self.tokens.is_operator(":") and not self.tokens.is_operator("="):
-                snprintf(msg, sizeof(msg), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 123)", varname, varname)
-                self.tokens.fail_expected_got(msg)
+                result = AstStatement{
+                    location = location,
+                    kind = AstStatementKind.GlobalVariableUsed,
+                    global_var_used = AstGlobalVarUsed{names = names},
+                }
+                self.eat_newline()
 
-            type: AstType* = NULL
-            if self.tokens.is_operator(":"):
-                self.eat_operator(":", False, NULL)
-                type = malloc(sizeof(*type))
-                assert type != NULL
-                *type = self.parse_type()
+            else:
+                self.check_top_level("global variable definitions")
 
-            value: AstExpression* = NULL
-            if self.tokens.is_operator("="):
-                self.eat_operator("=", False, NULL)
-                value = malloc(sizeof(*value))
-                assert value != NULL
-                *value = self.parse_expression()
+                if not self.tokens.is_operator(":") and not self.tokens.is_operator("="):
+                    snprintf(msg, sizeof(msg), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 123)", varname, varname)
+                    self.tokens.fail_expected_got(msg)
 
-            symbol = GlobalSymbol{kind = GlobalSymbolKind.GlobalVar}
-            assert array_count(symbol.name) >= array_count(varname)
-            strcpy(symbol.name, varname)
+                type: AstType* = NULL
+                if self.tokens.is_operator(":"):
+                    self.eat_operator(":", False, NULL)
+                    type = malloc(sizeof(*type))
+                    assert type != NULL
+                    *type = self.parse_type()
 
-            result = AstStatement{
-                location = location,
-                kind = AstStatementKind.GlobalVariableDef,
-                global_var_def = AstGlobalVarDef{symbol = symbol, type = type, initial_value = value},
-            }
-            self.eat_newline()
+                value: AstExpression* = NULL
+                if self.tokens.is_operator("="):
+                    self.eat_operator("=", False, NULL)
+                    value = malloc(sizeof(*value))
+                    assert value != NULL
+                    *value = self.parse_expression()
+
+                symbol = GlobalSymbol{kind = GlobalSymbolKind.GlobalVar}
+                assert array_count(symbol.name) >= array_count(varname)
+                strcpy(symbol.name, varname)
+
+                result = AstStatement{
+                    location = location,
+                    kind = AstStatementKind.GlobalVariableDef,
+                    global_var_def = AstGlobalVarDef{symbol = symbol, type = type, initial_value = value},
+                }
+                self.eat_newline()
+
         elif self.tokens.is_keyword("class"):
             result = AstStatement{
                 location = self.tokens.location,
@@ -1526,45 +1549,8 @@ class Parser:
         self.tokens++
         return result
 
-    def parse_global_access(self, global_names: List[AstGlobalName]*) -> None:
-        location = (self.tokens++).location
-        start_index = global_names.len
-
-        while True:
-            name = self.eat_by_kind(TokenKind.Name, True, "a global variable name").short_string
-            global_names.append(AstGlobalName{name = name, location = location, used = False})
-            if not self.tokens.is_operator(","):
-                break
-            self.tokens++
-
-        if self.tokens.is_operator(":") or self.tokens.is_operator("="):
-            joined = List[byte]{}
-            for i = start_index; i < global_names.len; i++:
-                if i > 0:
-                    joined.append(',')
-                    joined.append(' ')
-                joined.extend_from_ptr(global_names.ptr[i].name, strlen(global_names.ptr[i].name))
-            joined.append('\0')
-
-            msg: byte[500]
-            snprintf(
-                msg,
-                sizeof(msg),
-                "to access %s inside a %s, use 'global %s' without anything else after it",
-                "a global variable" if start_index + 1 == global_names.len else "global variables",
-                "method" if self.what_are_we_parsing == WhatAreWeParsing.MethodBody else "function",
-                joined.ptr,
-            )
-            fail(location, msg)
-
-        self.eat_newline()
-
-    def parse_function_body(self, global_names: List[AstGlobalName]*) -> List[AstStatement]:
+    def parse_function_body(self) -> List[AstStatement]:
         self.parse_start_of_body()
-
-        while self.tokens.is_keyword("global"):
-            self.parse_global_access(global_names)
-
         result = List[AstStatement]{}
         while self.tokens.kind != TokenKind.Dedent:
             result.append(self.parse_statement())
@@ -1587,8 +1573,7 @@ class Parser:
             self.what_are_we_parsing = WhatAreWeParsing.MethodBody
         else:
             self.what_are_we_parsing = WhatAreWeParsing.FunctionBody
-        global_names = List[AstGlobalName]{}
-        body = self.parse_function_body(&global_names)
+        body = self.parse_function_body()
         self.what_are_we_parsing = old
 
         symbol = GlobalSymbol{kind = GlobalSymbolKind.Method if is_method else GlobalSymbolKind.Function}
@@ -1606,7 +1591,6 @@ class Parser:
         return AstFunctionOrMethod{
             symbol = symbol,
             ast_signature = signature,
-            global_names = global_names,
             body = body,
         }
 

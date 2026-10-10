@@ -27,50 +27,52 @@ import "./common.jou"
 import "./step1_global_symbols.jou"
 
 
+class ImplicitGlobal:
+    name: byte[100]
+    location: Location
+
+class ExplicitGlobal:
+    name: byte[100]
+    location: Location
+    used: bool
+
+
 class State:
     jou_file: JouFile*
     fom: AstFunctionOrMethod*
-    implicit_globals: List[byte[100]]
+    implicit_globals: List[ImplicitGlobal]
+    explicit_globals: List[ExplicitGlobal]
 
-    def find_any_var(self, name: byte*, location: Location, warn_implicit_global: bool) -> Type*:
+    def find_local_var(self, name: byte*) -> Type*:
         for local = self.fom.locals.ptr; local < self.fom.locals.end(); local++:
             if strcmp(local.name, name) == 0:
                 return local.type
+        return NULL
+
+    def find_any_var(self, name: byte*, location: Location, warn_implicit_global: bool) -> Type*:
+        result = self.find_local_var(name)
+        if result != NULL:
+            return result
+
         result = find_and_typecheck_global_var(self.jou_file, name)
 
         if result != NULL and warn_implicit_global:
-            explicitly_global = False
-            for g = self.fom.global_names.ptr; g < self.fom.global_names.end(); g++:
-                if strcmp(g.name, name) == 0:
-                    g.used = True
-                    explicitly_global = True
+            explicit = False
+            for eg = self.explicit_globals.ptr; eg < self.explicit_globals.end(); eg++:
+                if strcmp(eg.name, name) == 0:
+                    eg.used = True
+                    explicit = True
                     break
-            if not explicitly_global:
-                found = False
-                for iglobal = self.implicit_globals.ptr; iglobal < self.implicit_globals.end(); iglobal++:
-                    if strcmp(*iglobal, name) == 0:
-                        found = True
+            if not explicit:
+                implicit = False
+                for ig = self.implicit_globals.ptr; ig < self.implicit_globals.end(); ig++:
+                    if strcmp(ig.name, name) == 0:
+                        implicit = True
                         break
-                if not found:
-                    msg: byte[300]
-                    snprintf(
-                        msg,
-                        sizeof(msg),
-                        "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler",
-                        name,
-                        self.fom.symbol.name,
-                        "method" if self.fom.symbol.kind == GlobalSymbolKind.Method else "function",
-                    )
-                    # TODO: The bootstrap compiler doesn't support "global foo"
-                    #       inside a function, but it uses the same stdlib, so we can't
-                    #       use "global foo" inside stdlib functions yet. This silences
-                    #       the warning for stdlib so that everyone who uses stdlib
-                    #       doesn't get it.
-                    if not starts_with(location.path, global_compiler_state.stdlib_path):
-                        show_warning(location, msg)
-                    name_copy: byte[100]
-                    snprintf(name_copy, sizeof(name_copy), "%s", name)
-                    self.implicit_globals.append(name_copy)
+                if not implicit:
+                    new_ig = ImplicitGlobal{location = location}
+                    snprintf(new_ig.name, sizeof(new_ig.name), "%s", name)
+                    self.implicit_globals.append(new_ig)
 
         return result
 
@@ -1823,6 +1825,41 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     state, stmt.local_var_declare.value, type,
                     "initial value for variable of type <to> cannot be of type <from>")
 
+        case AstStatementKind.GlobalVariableUsed:
+            for nameptr = stmt.global_var_used.names.ptr; nameptr < stmt.global_var_used.names.end(); nameptr++:
+                name: byte* = *nameptr
+
+                if find_and_typecheck_global_var(state.jou_file, name) == NULL:
+                    snprintf(msg, sizeof(msg), "there is no global variable named '%s'", name)
+                    fail(stmt.location, msg)
+
+                for ig = state.implicit_globals.ptr; ig < state.implicit_globals.end(); ig++:
+                    if strcmp(ig.name, name) == 0:
+                        snprintf(
+                            msg,
+                            sizeof(msg),
+                            "'global %s' must be placed before the first use of '%s' in the %s",
+                            name,
+                            name,
+                            "method" if state.fom.symbol.kind == GlobalSymbolKind.Method else "function",
+                        )
+                        fail(stmt.location, msg)
+
+                for eg = state.explicit_globals.ptr; eg < state.explicit_globals.end(); eg++:
+                    if strcmp(eg.name, name) == 0:
+                        snprintf(
+                            msg,
+                            sizeof(msg),
+                            "'global %s' cannot be repeated twice in the same %s",
+                            name,
+                            "method" if state.fom.symbol.kind == GlobalSymbolKind.Method else "function",
+                        )
+                        fail(stmt.location, msg)
+
+                new_eg = ExplicitGlobal{location = stmt.location}
+                snprintf(new_eg.name, sizeof(new_eg.name), "%s", name)
+                state.explicit_globals.append(new_eg)
+
         case AstStatementKind.ExpressionStatement:
             typecheck_expression(state, &stmt.expression, NULL)
 
@@ -1863,26 +1900,38 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
     for arg = sig.args.ptr; arg < sig.args.end(); arg++:
         state.fom.locals.append(LocalVariable{name=arg.name, type=arg.type})
 
-    for g = fom.global_names.ptr; g < fom.global_names.end(); g++:
-        if find_and_typecheck_global_var(state.jou_file, g.name) == NULL:
-            snprintf(msg, sizeof(msg), "there is no global variable named '%s'", g.name)
-            fail(g.location, msg)
-
-    state.implicit_globals = List[byte[100]]{}
+    state.implicit_globals.len = 0
+    state.explicit_globals.len = 0
     typecheck_body(state, fom.body)
-    free(state.implicit_globals.ptr)
 
-    for g = fom.global_names.ptr; g < fom.global_names.end(); g++:
-        if not g.used:
+    for ig = state.implicit_globals.ptr; ig < state.implicit_globals.end(); ig++:
+        snprintf(
+            msg,
+            sizeof(msg),
+            "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler",
+            ig.name,
+            fom.symbol.name,
+            "method" if fom.symbol.kind == GlobalSymbolKind.Method else "function",
+        )
+        # TODO: The bootstrap compiler doesn't support "global foo"
+        #       inside a function, but it uses the same stdlib, so we can't
+        #       use "global foo" inside stdlib functions yet. This silences
+        #       the warning for stdlib so that everyone who uses stdlib
+        #       doesn't get it.
+        if not starts_with(ig.location.path, global_compiler_state.stdlib_path):
+            show_warning(ig.location, msg)
+
+    for eg = state.explicit_globals.ptr; eg < state.explicit_globals.end(); eg++:
+        if not eg.used:
             snprintf(
                 msg,
                 sizeof(msg),
                 "'global %s' is unnecessary because this %s doesn't use '%s'",
-                g.name,
+                eg.name,
                 "method" if fom.symbol.kind == GlobalSymbolKind.Method else "function",
-                g.name,
+                eg.name,
             )
-            show_warning(g.location, msg)
+            show_warning(eg.location, msg)
     state.fom = NULL
 
 
@@ -1910,3 +1959,6 @@ def typecheck_step3_function_and_method_bodies() -> None:
                             typecheck_function_or_method_body(&state, &inner.method)
                 case _:
                     pass
+
+        free(state.implicit_globals.ptr)
+        free(state.explicit_globals.ptr)

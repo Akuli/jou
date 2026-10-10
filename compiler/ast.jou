@@ -713,8 +713,9 @@ enum AstStatementKind:
     Class
     Enum
     TypeDef
-    GlobalVariableDeclare
-    GlobalVariableDef
+    GlobalVariableDeclare   # declare global foo: type
+    GlobalVariableDef       # global foo: type = value  (type or value may be omitted)
+    GlobalVariableUsed      # global foo
     Const           # const x: SomeType = y
 
 @public
@@ -732,6 +733,7 @@ class AstStatement:
         local_var_declare: AstNameTypeValue # DeclareLocalVar
         global_var_declare: AstGlobalVarDeclare  # GlobalVariableDeclare
         global_var_def: AstGlobalVarDef     # GlobalVariableDef
+        global_var_used: AstGlobalVarUsed   # GlobalVariableUsed
         class_field: AstNameTypeValue       # ClassField
         union_fields: List[AstNameTypeValue]  # ClassUnion
         function: AstFunctionOrMethod
@@ -841,6 +843,8 @@ class AstStatement:
                 printf("define global var ")
                 self.global_var_def.print()
                 printf("\n")
+            case AstStatementKind.GlobalVariableUsed:
+                self.global_var_used.print()
             case AstStatementKind.Import:
                 self.import_statement.print()
             case AstStatementKind.ClassField:
@@ -918,7 +922,7 @@ class AstStatement:
                 self.const_statement.free()
             case AstStatementKind.TypeDef:
                 self.typedef_statement.free()
-            case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue:
+            case AstStatementKind.Pass | AstStatementKind.Break | AstStatementKind.Continue | AstStatementKind.GlobalVariableUsed:
                 pass
 
     @inline
@@ -939,6 +943,7 @@ class AstStatement:
                 | AstStatementKind.Break
                 | AstStatementKind.Continue
                 | AstStatementKind.DeclareLocalVar
+                | AstStatementKind.GlobalVariableUsed
                 | AstStatementKind.ClassField
                 | AstStatementKind.ClassUnion
                 | AstStatementKind.Assign
@@ -1224,6 +1229,8 @@ class AstGlobalVarDeclare:
 
 
 # global foo: int
+# global foo = 1
+# global foo: int = 1
 @public
 class AstGlobalVarDef:
     symbol: GlobalSymbol
@@ -1257,6 +1264,20 @@ class AstGlobalVarDef:
             self.initial_value.free()
             self.initial_value_constant.free()
             free(self.initial_value)
+
+
+# global foo
+@public
+class AstGlobalVarUsed:
+    names: List[byte[100]]
+
+    @public
+    def print(self) -> None:
+        assert self.names.len >= 1
+        printf("global %s", self.names.ptr[0])
+        for i = 1; i < self.names.len; i++:
+            printf(", %s", self.names.ptr[i])
+        printf("\n")
 
 
 # Body is ":" followed by statements, represented with simply List[AstStatement].
@@ -1352,12 +1373,6 @@ class LocalVariable:
     name: byte[100]
     type: Type*
 
-@public
-class AstGlobalName:
-    name: byte[100]
-    location: Location
-    used: bool
-
 
 # def foo() -> bar:
 #     ...
@@ -1365,7 +1380,6 @@ class AstGlobalName:
 class AstFunctionOrMethod:
     symbol: GlobalSymbol
     ast_signature: AstSignature
-    global_names: List[AstGlobalName]
     body: List[AstStatement]
     locals: List[LocalVariable]  # populated in typecheck, empty before typecheck
     inline: bool  # is it decorated with @inline
@@ -1377,20 +1391,11 @@ class AstFunctionOrMethod:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         self.ast_signature.print()
-        if self.global_names.len > 0:
-            tp.print_prefix(False)
-            printf("global variables: ")
-            for g = self.global_names.ptr; g < self.global_names.end(); g++:
-                if g > self.global_names.ptr:
-                    printf(", ")
-                printf("%s", g.name)
-            printf("\n")
         print_body(self.body, tp)
 
     def free(self) -> None:
         self.symbol.free()
         self.ast_signature.free()
-        free(self.global_names.ptr)
         free_body(self.body)
         free(self.locals.ptr)
 
