@@ -53,6 +53,8 @@ class ThreadLocalTarget:
 def init_global_target() -> None:
     # This should be called only once because this affects LLVM's global state and
     # there's no cleanup to some of the things this does.
+    global global_compiler_state
+
     assert not global_compiler_state.target.ready
     global_compiler_state.target.ready = True
 
@@ -127,6 +129,7 @@ def init_global_target() -> None:
 
 @public
 def init_thread_local_target() -> ThreadLocalTarget:
+    global global_compiler_state
     assert global_compiler_state.target.ready
 
     machine = LLVMCreateTargetMachine(

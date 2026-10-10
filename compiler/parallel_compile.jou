@@ -51,12 +51,16 @@ def get_number_of_cpus() -> int:
     else:
         result = sysconf(_SC_NPROCESSORS_ONLN) as int
 
+    global global_compiler_state
     if global_compiler_state.args.verbosity >= 2:
         printf("%d CPU cores\n", result)
+
     return result
 
 
 def choose_num_threads(num_files_to_compile: int) -> int:
+    global global_compiler_state
+
     if LLVMIsMultithreaded() == 0:
         if global_compiler_state.args.verbosity >= 1:
             printf("LLVMIsMultithreaded() returns 0. Not using threads.\n")
@@ -92,6 +96,8 @@ def print_llvm_ir(module: LLVMModule*, is_optimized: bool) -> None:
 
 
 def optimize(state: ThreadLocalCompilerState*, module: LLVMModule*, level: int) -> None:
+    global global_compiler_state
+
     if global_compiler_state.args.verbosity >= 2:
         len = 0 as int64
         filename = LLVMGetSourceFileName(module, &len)
@@ -111,6 +117,8 @@ def optimize(state: ThreadLocalCompilerState*, module: LLVMModule*, level: int) 
 
 
 def write_llvm_ir_to_file(state: ThreadLocalCompilerState*, mod: LLVMModule*, o_path: byte*) -> None:
+    global global_compiler_state
+
     if global_compiler_state.args.verbosity >= 1:
         printf("[thread %zx] Writing LLVM IR to %s\n", pthread_self(), o_path)
 
@@ -143,6 +151,8 @@ def write_llvm_ir_to_file(state: ThreadLocalCompilerState*, mod: LLVMModule*, o_
 
 
 def compile_to_object_file(state: ThreadLocalCompilerState*, jou_file: JouFile*) -> None:
+    global global_compiler_state
+
     if jou_file.llvm_ir == NULL:
         # This file was found from cache, it does not need compiling to file.
         return
@@ -221,6 +231,8 @@ class ThreadInputs:
 
 # This is the function that runs in another thread
 def pthreads_callback(inputs_ptr: void*) -> void*:
+    global global_compiler_state
+
     inputs: ThreadInputs* = inputs_ptr
 
     if global_compiler_state.args.verbosity >= 2:
@@ -240,6 +252,8 @@ def pthreads_callback(inputs_ptr: void*) -> void*:
 
 @public
 def optimize_llvm_ir_and_write_object_files_in_parallel() -> None:
+    global global_compiler_state
+
     n = 0
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if jou_file.llvm_ir != NULL:

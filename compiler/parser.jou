@@ -337,6 +337,8 @@ class Parser:
         self.eat_by_kind(TokenKind.Newline, True, "end of line")
 
     def parse_import(self) -> AstImport:
+        global global_compiler_state
+
         import_keyword = self.eat_keyword("import", False, NULL)
         if self.what_are_we_parsing != WhatAreWeParsing.TopLevel:
             fail(import_keyword.location, "imports must be in the beginning of the file")

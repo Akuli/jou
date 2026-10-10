@@ -57,6 +57,8 @@ def handle_class_members(jou_file: JouFile*, classdef: AstClassDef*) -> None:
 
 @public
 def typecheck_step2_class_members() -> None:
+    global global_compiler_state
+
     if global_compiler_state.args.verbosity >= 1:
         printf("Typecheck: class bodies (step 2/3)\n")
 

@@ -37,12 +37,15 @@ def defines_main(jou_file: JouFile*) -> bool:
 
 
 def fail_if_missing_main() -> None:
+    global global_compiler_state
+
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         if jou_file.is_main_file and not defines_main(jou_file):
             fail(Location{path = jou_file.path}, "missing `main` function to execute the program")
 
 
 def warn_about_unused() -> None:
+    global global_compiler_state
     msg: byte[500]
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
@@ -205,6 +208,7 @@ def collect_symbol_statements(ast: List[AstStatement]) -> List[AstStatement*]:
 
 
 def find_file(path: byte*) -> JouFile*:
+    global global_compiler_state
     for p = global_compiler_state.jou_files.ptr; p < global_compiler_state.jou_files.end(); p++:
         if strcmp(p.path, path) == 0:
             return p
@@ -212,6 +216,8 @@ def find_file(path: byte*) -> JouFile*:
 
 
 def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
+    global global_compiler_state
+
     if find_file(path) != NULL:
         # already parsed
         return
@@ -257,6 +263,7 @@ def tokenize_and_parse(path: byte*, import_statement: AstStatement*) -> None:
 
 
 def tokenize_and_parse_all_files() -> None:
+    global global_compiler_state
     assert global_compiler_state.args.infile != NULL
     tokenize_and_parse(global_compiler_state.args.infile, NULL)
 
@@ -268,6 +275,7 @@ def tokenize_and_parse_all_files() -> None:
 #   - This assumes that no more Jou files will be discovered afterwards.
 #   - This doesn't e.g. look inside `if` statements when looping through @public things.
 def make_imported_statements_available() -> None:
+    global global_compiler_state
     if global_compiler_state.args.verbosity >= 1:
         printf("Making imported statements available...\n")
 
@@ -348,6 +356,8 @@ def make_imported_statements_available() -> None:
 
 
 def build_everything(we_are_making_object_files: bool) -> None:
+    global global_compiler_state
+
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         assert jou_file.object_file_path == NULL
         assert jou_file.llvm_ir == NULL
@@ -385,6 +395,8 @@ def typecheck_and_build_everything(we_are_making_object_files: bool) -> None:
 
 
 def tokenize_only() -> None:
+    global global_compiler_state
+
     tokenize_result = tokenize(global_compiler_state.args.infile, NULL)
     print_tokens(tokenize_result.tokens)
     tokenize_result.free()
@@ -392,6 +404,8 @@ def tokenize_only() -> None:
 
 
 def parse_only() -> None:
+    global global_compiler_state
+
     tokenize_result = tokenize(global_compiler_state.args.infile, NULL)
     ast = parse(tokenize_result.tokens, True)
     printf("===== AST for file \"%s\" =====\n", global_compiler_state.args.infile)
@@ -426,12 +440,16 @@ def compile_to_jou_compiled_and_run() -> int:
 
 
 def compile_to_outfile() -> None:
+    global global_compiler_state
+
     assert global_compiler_state.args.outfile != NULL
     compile_to_object_files()
     run_linker(global_compiler_state.args.outfile)
 
 
 def main(argc: int, argv: byte**) -> int:
+    global global_compiler_state
+
     global_compiler_state.args = parse_command_line_args(argc, argv)
     global_compiler_state.stdlib_path = find_stdlib()
     init_types()

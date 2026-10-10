@@ -614,6 +614,8 @@ def handle_indentations(raw_tokens: Token*) -> Token*:
 
 
 def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
+    global global_compiler_state
+
     if import_statement != NULL:
         assert import_statement.kind == AstStatementKind.Import
 

@@ -1891,6 +1891,8 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
 
 
 def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) -> None:
+    global global_compiler_state
+
     msg: byte[300]
 
     assert state.fom == NULL
@@ -1942,6 +1944,8 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
 
 @public
 def typecheck_step3_function_and_method_bodies() -> None:
+    global global_compiler_state
+
     if global_compiler_state.args.verbosity >= 1:
         printf("Typecheck: function and method bodies (step 3/3)\n")
 

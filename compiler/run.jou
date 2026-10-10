@@ -30,6 +30,8 @@ def set_env_var(name: byte*, value: byte*) -> bool:
 
 
 def get_quoted_object_file_paths() -> byte*:
+    global global_compiler_state
+
     result = List[byte]{}
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         assert jou_file.object_file_path != NULL
@@ -46,6 +48,8 @@ def get_quoted_object_file_paths() -> byte*:
 #   - files with 'link' statements
 #   - command-line --linker-flags argument
 def collect_linker_flags() -> byte*:
+    global global_compiler_state
+
     maxlen: intnative = 0
     maxlen += strlen("-lm") + 1  # TODO: delete this
     if global_compiler_state.args.linker_flags != NULL:
@@ -108,6 +112,7 @@ def run_linker(exepath: byte*) -> None:
     free(linker_flags)
     free(quoted_object_files)
 
+    global global_compiler_state
     if global_compiler_state.args.verbosity >= 1:
         printf("Running linker: %s\n", command)
 
@@ -118,6 +123,8 @@ def run_linker(exepath: byte*) -> None:
 
 @public
 def run_exe(exepath: byte*) -> int:
+    global global_compiler_state
+
     if global_compiler_state.args.verbosity >= 1:
         printf("Run: %s\n", exepath)
 

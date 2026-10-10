@@ -76,6 +76,8 @@ def check_global_var_def(jou_file: JouFile*, global_stmt: AstGlobalVarDef*, loca
 # To support various cyclic things, this may also type-check other things than
 # the one statement we tell it to check.
 def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
+    global global_compiler_state
+
     msg: byte[500]
 
     # Find the Jou file where the statement is defined
@@ -229,6 +231,8 @@ def check_compile_time_assert(jou_file: JouFile*, location: Location, condition:
 
 @public
 def typecheck_step1_global_symbols() -> None:
+    global global_compiler_state
+
     if global_compiler_state.args.verbosity >= 1:
         printf("Typecheck: global symbols (step 1/3)\n")
 

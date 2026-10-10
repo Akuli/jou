@@ -37,6 +37,8 @@ import "./uvg_analyze.jou"
 #
 # As a "last resort" I just use an array of i64 large enough and hope it's aligned as needed.
 def union_type_to_llvm(types: LLVMType**, ntypes: int) -> LLVMType*:
+    global global_compiler_state
+
     if ntypes == 1:
         return types[0]
 
@@ -1415,6 +1417,8 @@ class Builder:
 # This always builds and checks UVG's.
 @public
 def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*) -> None:
+    global global_compiler_state
+
     assert (llvm_out != NULL and hash_out != NULL) or (llvm_out == NULL and hash_out == NULL)
     we_are_making_object_file = llvm_out != NULL
 

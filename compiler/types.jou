@@ -434,21 +434,25 @@ class TypeState:
 # Returns the "bool" type
 @public
 def bool_type() -> Type*:
+    global global_compiler_state
     return &global_compiler_state.types.boolean.type
 
 # Returns the "float" type
 @public
 def float_type() -> Type*:
+    global global_compiler_state
     return &global_compiler_state.types.floater.type
 
 # Returns the "double" type
 @public
 def double_type() -> Type*:
+    global global_compiler_state
     return &global_compiler_state.types.doublelele.type
 
 # Returns the "void*" type
 @public
 def void_ptr_type() -> Type*:
+    global global_compiler_state
     return &global_compiler_state.types.voidptr.type
 
 
@@ -456,6 +460,7 @@ def void_ptr_type() -> Type*:
 # int_type(128) is not accessible in Jou code and is used only for intermediate values.
 @public
 def int_type(bits: int) -> Type*:
+    global global_compiler_state
     match bits:
         case 8:
             return &global_compiler_state.types.ints[0].type
@@ -474,6 +479,7 @@ def int_type(bits: int) -> Type*:
 # uint_type(128) is not accessible in Jou code and is used only for intermediate values.
 @public
 def uint_type(bits: int) -> Type*:
+    global global_compiler_state
     match bits:
         case 8:
             return &global_compiler_state.types.uints[0].type
@@ -492,6 +498,8 @@ def uint_type(bits: int) -> Type*:
 # Return a function pointer type like "funcptr(int, int) -> int"
 @public
 def funcptr_type(argtypes: Type**, nargs: intnative, takes_varargs: bool, return_type: Type*, is_noreturn: bool) -> Type*:
+    global global_compiler_state
+
     if is_noreturn:
         assert return_type == NULL
 
@@ -545,6 +553,8 @@ def funcptr_type(argtypes: Type**, nargs: intnative, takes_varargs: bool, return
 
 @public
 def init_types() -> None:
+    global global_compiler_state
+
     memset(&global_compiler_state.types, 0, sizeof(global_compiler_state.types))
     *bool_type() = Type{name = "bool", kind = TypeKind.Bool }
     *void_ptr_type() = Type{name = "void*", kind = TypeKind.VoidPointer }
@@ -591,6 +601,7 @@ def free_type(t: Type*) -> None:
 # do it anyway, but communicating this to valgrind is complicated because of
 # how pointers and arrays work.
 def satisfy_valgrind(ti: TypeInfo*) -> None:
+    global global_compiler_state
     global_compiler_state.types.other_types.append(ti)
 
 

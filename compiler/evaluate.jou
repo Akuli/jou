@@ -18,6 +18,8 @@ import "./types.jou"
 
 @public
 def get_special_constant(name: byte*) -> Constant*:
+    global global_compiler_state
+
     if global_compiler_state.special_constants[0].name == NULL:
         # called for the first time, initialize special constants
         global_compiler_state.special_constants = [

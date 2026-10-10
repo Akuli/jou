@@ -25,6 +25,8 @@ def file_exists(path: byte*) -> bool:
 # Returns a value that changes when the compiler is recompiled.
 @public
 def hash_of_compiler() -> Hash:
+    global global_compiler_state
+
     if global_compiler_state.cached_compiler_hash.hash != 0:
         return global_compiler_state.cached_compiler_hash
 
@@ -134,6 +136,8 @@ def skip_slashes(name: byte*) -> byte*:
 # at the same time. Feel free to clean this up if you implement locking.
 # See also: https://github.com/Akuli/jou/issues/743
 def get_path_to_jou_compiled_subfolder() -> byte*:
+    global global_compiler_state
+
     # Place jou_compiled into the same directory with the main file we are compiling.
     # No strong reason for doing this. Feel free to change this if it causes problems.
     infile = strdup(global_compiler_state.args.infile)
@@ -167,6 +171,8 @@ def get_path_to_jou_compiled_subfolder() -> byte*:
 # This may occasionally miss some files because they are being deleted while
 # looping through the directory.
 def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
+    global global_compiler_state
+
     iter = DirIter{dir = dir}
     while iter.next():
         if ends_with(iter.name, suffix):
@@ -208,6 +214,8 @@ def get_simple_name(jou_file_path: byte*) -> byte[50]:
 # This means we store two compiled versions of foo.jou for the two optimization
 # levels, and we always have it ready regardless of which level is used.
 def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
+    global global_compiler_state
+
     h = new_hash()
     h.add_byte(global_compiler_state.args.optlevel as byte)
     h.add_bytes(jou_file_path, strlen(jou_file_path))
@@ -246,6 +254,8 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Ha
 # Returns the path of compiled `.exe` when the Jou compiler runs it directly.
 @public
 def get_jou_compiled_exe_path() -> byte*:
+    global global_compiler_state
+
     assert global_compiler_state.args.outfile == NULL
 
     if global_compiler_state.args.infile_is_stdin:

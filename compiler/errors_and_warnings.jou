@@ -25,6 +25,7 @@ def show_warning(location: Location, message: byte*) -> None:
         fprintf(get_stderr(), ", line %d", location.lineno)
     fprintf(get_stderr(), ": %s\n", message)
 
+    global global_compiler_state
     global_compiler_state.warnings_shown = True
 
 
@@ -32,6 +33,7 @@ def show_warning(location: Location, message: byte*) -> None:
 # warnings have been shown.
 @public
 def fail_if_warnings_and_flag() -> None:
+    global global_compiler_state
     if global_compiler_state.warnings_shown and global_compiler_state.args.fail_on_warnings:
         fprintf(get_stderr(), "compiler error: there were warnings and --fail-on-warnings was given\n")
         exit(1)
