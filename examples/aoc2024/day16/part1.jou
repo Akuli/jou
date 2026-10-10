@@ -21,6 +21,8 @@ class State:
     score: int
 
     def next_states(self) -> State[3]:
+        global visual_mode
+
         x = self.place[0]
         y = self.place[1]
         dx = self.direction[0]
@@ -57,6 +59,7 @@ def min4(a: int, b: int, c: int, d: int) -> int:
 
 
 def visualize(grid: Grid*, smallest_scores: int[4][150][150]*, todo: State*, todo_len: int) -> None:
+    global visual_mode
     assert visual_mode
 
     for y = 0; y < grid.height; y++:
@@ -99,6 +102,8 @@ else:
 
 
 def main() -> int:
+    global visual_mode
+
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
     grid = read_grid_from_file(f)

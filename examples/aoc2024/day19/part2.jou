@@ -16,6 +16,8 @@ global avail_cache_len: int = 0
 
 
 def count_availability(towel: byte*, patterns: List[byte*]) -> int64:
+    global avail_cache, avail_cache_len
+
     cacheptr: CacheEntry* = NULL
     if strlen(towel) < sizeof(avail_cache[0].towel):
         # Find value from cache if exists
@@ -43,6 +45,8 @@ def count_availability(towel: byte*, patterns: List[byte*]) -> int64:
 
 
 def main() -> int:
+    global avail_cache_len
+
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 

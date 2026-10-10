@@ -27,6 +27,8 @@ global cost_cache: int64[128][128][26]
 
 
 def init_tables() -> None:
+    global arrow_keypad_table, numpad_table
+
     #   ^ A
     # < v >
     arrow_keypad_table['^']['^'] = ["A", NULL]
@@ -108,6 +110,8 @@ def add_dy_string(dy: int, dest: byte*, dest_size: int) -> None:
 #   - start with no moves (1 empty sequence)
 #   - for each move, we have in the worst case 2 different ways to do it, doubles 4 times
 def get_numpad_move_sequences(code: byte*) -> byte[25][17]:
+    global numpad_table
+
     assert strlen(code) == 4
     assert is_ascii_digit(code[0])
     assert is_ascii_digit(code[1])
@@ -174,6 +178,8 @@ def get_numpad_move_sequences(code: byte*) -> byte[25][17]:
 # the keypad at the level. Assumes smaller-numbered levels start at A. This
 # makes sense, because they also go to A at end of pressing the key.
 def keypad_cost(level: int, prev_key: byte, key: byte) -> int64:
+    global arrow_keypad_table, cost_cache
+
     cacheptr = &cost_cache[level][prev_key][key]
     if *cacheptr != 0:
         return *cacheptr

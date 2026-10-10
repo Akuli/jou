@@ -9,7 +9,7 @@ import "stdlib/str.jou"
 import "stdlib/sort.jou"
 
 const BITS: int = 16
-global DEBUG_PRINTS = False
+global DEBUG_PRINTS = False  # TODO: ideally this would be const, but that causes warnings
 
 
 def parse_vector(p: byte*) -> int[BITS]:
@@ -64,6 +64,8 @@ def compare_vectors(v1: int[BITS]*, v2: int[BITS]*) -> int:
 # Assumes that all vectors only contain 0 or 1, and there's at least one 1
 # somewhere in every vector.
 def find_smallest_count_to_get_sum(vectors: int[BITS]*, nvectors: int, goal: int[BITS], depth: int, result_so_far: int, best_result: int*) -> None:
+    global DEBUG_PRINTS
+
     if result_so_far >= *best_result:
         # Not worth exploring
         return
@@ -137,6 +139,8 @@ def find_smallest_count_to_get_sum(vectors: int[BITS]*, nvectors: int, goal: int
 
 
 def main() -> int:
+    global DEBUG_PRINTS
+
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
