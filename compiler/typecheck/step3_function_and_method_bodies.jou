@@ -1909,19 +1909,21 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
         snprintf(
             msg,
             sizeof(msg),
-            "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler (debug: %s --> %s)",
+            "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler",
             ig.name,
             fom.symbol.name,
             "method" if fom.symbol.kind == GlobalSymbolKind.Method else "function",
-            find_current_executable(),
-            global_compiler_state.stdlib_path,
         )
         # TODO: The bootstrap compiler doesn't support "global foo"
         #       inside a function, but it uses the same stdlib, so we can't
         #       use "global foo" inside stdlib functions yet. This silences
         #       the warning for stdlib so that everyone who uses stdlib
         #       doesn't get it.
-        if not starts_with(ig.location.path, global_compiler_state.stdlib_path):
+        if not (
+            starts_with(ig.location.path, global_compiler_state.stdlib_path)
+            # TODO: netbsd problem: https://github.com/Akuli/jou/issues/1417
+            or (NETBSD and strstr(ig.location.path, "/stdlib/") != NULL)
+        ):
             show_warning(ig.location, msg)
 
     for eg = state.explicit_globals.ptr; eg < state.explicit_globals.end(); eg++:
