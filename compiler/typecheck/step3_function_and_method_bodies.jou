@@ -1908,10 +1908,11 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
         snprintf(
             msg,
             sizeof(msg),
-            "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler",
+            "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler (debug: %s)",
             ig.name,
             fom.symbol.name,
             "method" if fom.symbol.kind == GlobalSymbolKind.Method else "function",
+            global_compiler_state.stdlib_path,
         )
         # TODO: The bootstrap compiler doesn't support "global foo"
         #       inside a function, but it uses the same stdlib, so we can't
@@ -1932,6 +1933,7 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
                 eg.name,
             )
             show_warning(eg.location, msg)
+
     state.fom = NULL
 
 
