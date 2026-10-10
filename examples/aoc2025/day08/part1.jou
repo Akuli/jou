@@ -27,8 +27,6 @@ def comparator_func(pair1: int[2]*, pair2: int[2]*) -> int:
 
 
 def main() -> int:
-    global points
-
     # sample input parameters
     f = fopen("sampleinput.txt", "r")
     connect_count = 10
@@ -39,6 +37,7 @@ def main() -> int:
 
     assert f != NULL
 
+    global points
     x, y, z: int
     while fscanf(f, "%d,%d,%d\n", &x, &y, &z) == 3:
         points.append([x, y, z])

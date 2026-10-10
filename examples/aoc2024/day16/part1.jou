@@ -21,13 +21,12 @@ class State:
     score: int
 
     def next_states(self) -> State[3]:
-        global visual_mode
-
         x = self.place[0]
         y = self.place[1]
         dx = self.direction[0]
         dy = self.direction[1]
 
+        global visual_mode
         if visual_mode:
             turn_cost = 1
         else:
@@ -102,8 +101,6 @@ else:
 
 
 def main() -> int:
-    global visual_mode
-
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
     grid = read_grid_from_file(f)
@@ -149,6 +146,7 @@ def main() -> int:
             memcpy(&todo[todo_len], &next_states, sizeof(next_states))
             todo_len += 3
 
+        global visual_mode
         if visual_mode:
             visualize(&grid, smallest_scores, todo, todo_len)
             usleep(100000)

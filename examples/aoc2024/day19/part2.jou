@@ -45,8 +45,6 @@ def count_availability(towel: byte*, patterns: List[byte*]) -> int64:
 
 
 def main() -> int:
-    global avail_cache_len
-
     f = fopen("sampleinput.txt", "r")
     assert f != NULL
 
@@ -70,6 +68,7 @@ def main() -> int:
 
         # Re-fill the cache every time, so that it works in whatever way
         # is best for this line of input.
+        global avail_cache_len
         avail_cache_len = 0
 
         result += count_availability(line, patterns)

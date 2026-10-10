@@ -110,8 +110,6 @@ def add_dy_string(dy: int, dest: byte*, dest_size: int) -> None:
 #   - start with no moves (1 empty sequence)
 #   - for each move, we have in the worst case 2 different ways to do it, doubles 4 times
 def get_numpad_move_sequences(code: byte*) -> byte[25][17]:
-    global numpad_table
-
     assert strlen(code) == 4
     assert is_ascii_digit(code[0])
     assert is_ascii_digit(code[1])
@@ -128,6 +126,7 @@ def get_numpad_move_sequences(code: byte*) -> byte[25][17]:
         else:
             prev = p[-1]
 
+        global numpad_table
         old_pos = numpad_table[prev]
         new_pos = numpad_table[*p]
         dx = new_pos[0] - old_pos[0]
