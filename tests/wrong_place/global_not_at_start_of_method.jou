@@ -1,0 +1,9 @@
+global x: int
+
+class Foo:
+    def bar(self) -> None:
+        x = 123
+        global x  # Error: 'global x' should be at the beginning of the method
+
+def main() -> int:
+    return 0

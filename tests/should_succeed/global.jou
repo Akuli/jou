@@ -8,8 +8,8 @@ global int_array = [10, 20, 30]
 global int16_array: int16[3] = [40, 50, 60]
 global string_array = ["hello", "world"]
 global legacy_global: int = 123
-global method_counter: int
 #global arraystring_array: byte[10][2] = ["hello", "world"]  # TODO: doesn't work
+global method_counter: int
 
 def increment_all() -> None:
     global y
@@ -17,8 +17,8 @@ def increment_all() -> None:
     global int16_array
     global int_array
     global string_array
-    x++
     global x
+    x++
     y++
     z++
     int16_array[0]++  # TODO
@@ -35,9 +35,7 @@ class GlobalAccess:
         method_counter++
 
 def main() -> int:
-    global x
-    global y
-    global z
+    global x, y, z
     global int16_array
     global int_array
     global string_array
@@ -52,11 +50,11 @@ def main() -> int:
     printf("%d %d %d\n", int16_array[0], int16_array[1], int16_array[2])  # Output: 42 50 60
     printf("%s %s\n", string_array[0], string_array[1])  # Output: hello rld
     printf("%d\n", read_legacy_global())  # Output: 246
+    #printf("%s %s\n", arraystring_array[0], arraystring_array[1])  # TODO
 
     access = GlobalAccess{}
     access.increment()
     access.increment()
     printf("%d\n", method_counter)  # Output: 2
-    #printf("%s %s\n", arraystring_array[0], arraystring_array[1])  # TODO
 
     return 0

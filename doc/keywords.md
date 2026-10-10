@@ -520,7 +520,7 @@ def main() -> int:
 
 Note that unlike in Python, you always need an explicit `global your_variable`
 inside the function to access a global variable.
-Without it, the variable name is treated as a local variable in future versions of Jou.
+Without it, the variable name will be treated as a local variable in future versions of Jou.
 Currently the compiler shows a warning if you forget this.
 
 For example, the following currently prints `1`, but in a future version of Jou it will print `0`:
