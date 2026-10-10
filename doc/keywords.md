@@ -523,22 +523,25 @@ inside the function to access a global variable.
 Without it, the variable name will be treated as a local variable in future versions of Jou.
 Currently the compiler shows a warning if you forget this.
 
-For example, the following currently prints `1`, but in a future version of Jou it will print `0`:
+For example, the following currently prints `1 2`, but in a future version of Jou it will print `1 0`:
 
 ```python
 import "stdlib/io.jou"
 
 global x: int
+global y: int
 
-def print_x() -> None:
-    global x
-    printf("%d\n", x)
+def print_xy() -> None:
+    global x, y     # this is same as "global x" and "global y" on separate lines
+    printf("%d %d\n", x, y)
 
 def main() -> int:
-    # In the future, this will create a local variable named x, but for now
+    global x
+    # In the future, this will create a local variable named y, but for now
     # it accesses the global variable.
-    x = 1  # Warning: please add a 'global x' statement inside the main() function, this will be required in a future version of the Jou compiler
-    print_x()  # Output: 1
+    x = 1
+    y = 2  # Warning: please add a 'global y' statement inside the main() function, this will be required in a future version of the Jou compiler
+    print_xy()  # Output: 1 2
     return 0
 ```
 
