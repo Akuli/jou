@@ -919,8 +919,6 @@ class AstToBuilder:
                     var_ptr = self.local_var_ptr(stmt.local_var_declare.name)
                     value = self.build_expression(stmt.local_var_declare.value)
                     self.builder.set_ptr(var_ptr, value)
-            case AstStatementKind.GlobalVariableAccess:
-                pass
             case AstStatementKind.ExpressionStatement:
                 self.build_expression(&stmt.expression)
             case _:

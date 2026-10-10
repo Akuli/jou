@@ -30,7 +30,6 @@ import "./step1_global_symbols.jou"
 class State:
     jou_file: JouFile*
     fom: AstFunctionOrMethod*
-    explicit_global_names: List[byte[100]]
     warned_implicit_global_names: List[byte[100]]
 
     def find_any_var(self, name: byte*, location: Location, warn_implicit_global: bool) -> Type*:
@@ -45,15 +44,15 @@ class State:
             and not starts_with(location.path, global_compiler_state.stdlib_path)
         ):
             explicitly_declared = False
-            for global_name = self.explicit_global_names.ptr; global_name < self.explicit_global_names.end(); global_name++:
-                if strcmp(*global_name, name) == 0:
+            for global_name = self.fom.global_names.ptr; global_name < self.fom.global_names.end(); global_name++:
+                if strcmp(global_name.name, name) == 0:
                     explicitly_declared = True
                     break
 
             already_warned = False
             if not explicitly_declared:
-                for global_name = self.warned_implicit_global_names.ptr; global_name < self.warned_implicit_global_names.end(); global_name++:
-                    if strcmp(*global_name, name) == 0:
+                for warned_name_ptr = self.warned_implicit_global_names.ptr; warned_name_ptr < self.warned_implicit_global_names.end(); warned_name_ptr++:
+                    if strcmp(*warned_name_ptr, name) == 0:
                         already_warned = True
                         break
 
@@ -81,32 +80,6 @@ class State:
         if c != NULL:
             return c.get_type()
         return NULL
-
-
-def collect_global_accesses_in_body(jou_file: JouFile*, body: List[AstStatement], names: List[byte[100]]*) -> None:
-    for stmt = body.ptr; stmt < body.end(); stmt++:
-        match stmt.kind:
-            case AstStatementKind.GlobalVariableAccess:
-                if find_and_typecheck_global_var(jou_file, stmt.global_var_access) == NULL:
-                    msg: byte[300]
-                    snprintf(msg, sizeof(msg), "there is no global variable named '%s'", stmt.global_var_access)
-                    fail(stmt.location, msg)
-                names.append(stmt.global_var_access)
-            case AstStatementKind.If:
-                for branch = stmt.if_statement.if_and_elifs.ptr; branch < stmt.if_statement.if_and_elifs.end(); branch++:
-                    collect_global_accesses_in_body(jou_file, branch.body, names)
-                collect_global_accesses_in_body(jou_file, stmt.if_statement.else_body, names)
-            case AstStatementKind.WhileLoop:
-                collect_global_accesses_in_body(jou_file, stmt.while_loop.body, names)
-            case AstStatementKind.ForLoop:
-                collect_global_accesses_in_body(jou_file, stmt.for_loop.body, names)
-            case AstStatementKind.Match:
-                for case_stmt = stmt.match_statement.cases.ptr; case_stmt < stmt.match_statement.cases.end(); case_stmt++:
-                    collect_global_accesses_in_body(jou_file, case_stmt.body, names)
-                if stmt.match_statement.case_underscore != NULL:
-                    collect_global_accesses_in_body(jou_file, *stmt.match_statement.case_underscore, names)
-            case _:
-                pass
 
 
 # Intended for errors. Returned string can be overwritten in next call.
@@ -1848,9 +1821,6 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                     state, stmt.local_var_declare.value, type,
                     "initial value for variable of type <to> cannot be of type <from>")
 
-        case AstStatementKind.GlobalVariableAccess:
-            pass
-
         case AstStatementKind.ExpressionStatement:
             typecheck_expression(state, &stmt.expression, NULL)
 
@@ -1889,11 +1859,13 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
     for arg = sig.args.ptr; arg < sig.args.end(); arg++:
         state.fom.locals.append(LocalVariable{name=arg.name, type=arg.type})
 
-    state.explicit_global_names = List[byte[100]]{}
     state.warned_implicit_global_names = List[byte[100]]{}
-    collect_global_accesses_in_body(state.jou_file, fom.body, &state.explicit_global_names)
+    for global_name = fom.global_names.ptr; global_name < fom.global_names.end(); global_name++:
+        if find_and_typecheck_global_var(state.jou_file, global_name.name) == NULL:
+            msg: byte[300]
+            snprintf(msg, sizeof(msg), "there is no global variable named '%s'", global_name.name)
+            fail(global_name.location, msg)
     typecheck_body(state, fom.body)
-    free(state.explicit_global_names.ptr)
     free(state.warned_implicit_global_names.ptr)
     state.fom = NULL
 

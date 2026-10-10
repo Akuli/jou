@@ -715,7 +715,6 @@ enum AstStatementKind:
     TypeDef
     GlobalVariableDeclare
     GlobalVariableDef
-    GlobalVariableAccess    # `global foo` inside a function or method
     Const                   # const x: SomeType = y
 
 @public
@@ -731,7 +730,6 @@ class AstStatement:
         return_value: AstExpression*        # can be NULL
         assignment: AstAssignment           # also used for +=, -= etc
         local_var_declare: AstNameTypeValue # DeclareLocalVar
-        global_var_access: byte[100]
         global_var_declare: AstGlobalVarDeclare  # GlobalVariableDeclare
         global_var_def: AstGlobalVarDef     # GlobalVariableDef
         class_field: AstNameTypeValue       # ClassField
@@ -786,8 +784,6 @@ class AstStatement:
             case AstStatementKind.DeclareLocalVar:
                 printf("declare local var ")
                 self.local_var_declare.print_with_tree_printer(&tp)
-            case AstStatementKind.GlobalVariableAccess:
-                printf("declare global access '%s'\n", self.global_var_access)
             case AstStatementKind.Assign:
                 printf("assign\n")
                 self.assignment.print_with_tree_printer(tp)
@@ -883,8 +879,6 @@ class AstStatement:
                 self.match_statement.free()
             case AstStatementKind.DeclareLocalVar:
                 self.local_var_declare.free()
-            case AstStatementKind.GlobalVariableAccess:
-                pass
             case AstStatementKind.GlobalVariableDeclare:
                 self.global_var_declare.free()
             case AstStatementKind.GlobalVariableDef:
@@ -945,7 +939,6 @@ class AstStatement:
                 | AstStatementKind.Break
                 | AstStatementKind.Continue
                 | AstStatementKind.DeclareLocalVar
-                | AstStatementKind.GlobalVariableAccess
                 | AstStatementKind.ClassField
                 | AstStatementKind.ClassUnion
                 | AstStatementKind.Assign
@@ -1360,12 +1353,19 @@ class LocalVariable:
     type: Type*
 
 
+@public
+class AstGlobalName:
+    name: byte[100]
+    location: Location
+
+
 # def foo() -> bar:
 #     ...
 @public
 class AstFunctionOrMethod:
     symbol: GlobalSymbol
     ast_signature: AstSignature
+    global_names: List[AstGlobalName]
     body: List[AstStatement]
     locals: List[LocalVariable]  # populated in typecheck, empty before typecheck
     inline: bool  # is it decorated with @inline
@@ -1377,11 +1377,14 @@ class AstFunctionOrMethod:
 
     def print_with_tree_printer(self, tp: TreePrinter) -> None:
         self.ast_signature.print()
+        for global_name = self.global_names.ptr; global_name < self.global_names.end(); global_name++:
+            printf("global %s\n", global_name.name)
         print_body(self.body, tp)
 
     def free(self) -> None:
         self.symbol.free()
         self.ast_signature.free()
+        free(self.global_names.ptr)
         free_body(self.body)
         free(self.locals.ptr)
 

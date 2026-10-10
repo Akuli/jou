@@ -1403,21 +1403,22 @@ class Parser:
             self.eat_newline()
         elif self.tokens.is_keyword("global"):
             if (
-                (
-                    self.what_are_we_parsing == WhatAreWeParsing.FunctionBody
-                    or self.what_are_we_parsing == WhatAreWeParsing.MethodBody
-                )
-                and self.tokens[1].kind == TokenKind.Name
-                and self.tokens[2].kind == TokenKind.Newline
+                self.what_are_we_parsing == WhatAreWeParsing.FunctionBody
+                or self.what_are_we_parsing == WhatAreWeParsing.MethodBody
             ):
+                if self.tokens[2].is_operator(":") or self.tokens[2].is_operator("="):
+                    self.check_top_level("global variables")
                 location = (self.tokens++).location
-                varname = self.eat_by_kind(TokenKind.Name, True, "a variable name").short_string
-                self.eat_newline()
-                result = AstStatement{
-                    location = location,
-                    kind = AstStatementKind.GlobalVariableAccess,
-                    global_var_access = varname,
-                }
+                varname = self.eat_by_kind(TokenKind.Name, True, "a global variable name").short_string
+                late_global_message: byte[300]
+                snprintf(
+                    late_global_message,
+                    sizeof(late_global_message),
+                    "'global %s' should be at the beginning of the %s",
+                    varname,
+                    "method" if self.what_are_we_parsing == WhatAreWeParsing.MethodBody else "function",
+                )
+                fail(location, late_global_message)
             else:
                 self.check_top_level("global variables")
                 location = (self.tokens++).location
@@ -1528,6 +1529,43 @@ class Parser:
         self.tokens++
         return result
 
+    def is_global_name_list(self) -> bool:
+        if not self.tokens.is_keyword("global"):
+            return False
+
+        token = &self.tokens[1]
+        if token.kind != TokenKind.Name:
+            return False
+
+        while True:
+            token++
+            if token.kind == TokenKind.Newline:
+                return True
+            if not token.is_operator(","):
+                return False
+            token++
+            if token.kind != TokenKind.Name:
+                return False
+
+    def parse_function_body(self, global_names: List[AstGlobalName]*) -> List[AstStatement]:
+        self.parse_start_of_body()
+
+        while self.is_global_name_list():
+            location = (self.tokens++).location
+            while True:
+                name = self.eat_by_kind(TokenKind.Name, True, "a global variable name").short_string
+                global_names.append(AstGlobalName{name = name, location = location})
+                if not self.tokens.is_operator(","):
+                    break
+                self.tokens++
+            self.eat_newline()
+
+        result = List[AstStatement]{}
+        while self.tokens.kind != TokenKind.Dedent:
+            result.append(self.parse_statement())
+        self.tokens++
+        return result
+
     def parse_function_or_method(self, is_method: bool) -> AstFunctionOrMethod:
         assert self.tokens.is_keyword("def")
         self.tokens++
@@ -1544,7 +1582,8 @@ class Parser:
             self.what_are_we_parsing = WhatAreWeParsing.MethodBody
         else:
             self.what_are_we_parsing = WhatAreWeParsing.FunctionBody
-        body = self.parse_body()
+        global_names = List[AstGlobalName]{}
+        body = self.parse_function_body(&global_names)
         self.what_are_we_parsing = old
 
         symbol = GlobalSymbol{kind = GlobalSymbolKind.Method if is_method else GlobalSymbolKind.Function}
@@ -1559,7 +1598,12 @@ class Parser:
                 # Implicitly public main function
                 symbol.public = True
 
-        return AstFunctionOrMethod{symbol = symbol, ast_signature = signature, body = body}
+        return AstFunctionOrMethod{
+            symbol = symbol,
+            ast_signature = signature,
+            global_names = global_names,
+            body = body,
+        }
 
     def parse_class(self) -> AstClassDef:
         assert self.tokens.is_keyword("class")
