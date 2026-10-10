@@ -7,6 +7,7 @@ import "./state.jou"
 
 @public
 def print_test_info_without_newlines(test: Test*) -> None:
+    global CYAN, RESET
     printf("%s%s", RESET, test.actual_command_string)
     if test.working_directory != NULL:
         printf(" %s(in %s)%s", CYAN, test.working_directory, RESET)
@@ -25,6 +26,7 @@ def print_test_info_without_newlines(test: Test*) -> None:
 
 @public
 def print_test_info_multiline(test: Test*) -> None:
+    global YELLOW, RESET
     printf("%s*** Command: %s\n", YELLOW, test.actual_command_string)
     if test.working_directory != NULL:
         printf("    Working directory: %s\n", test.working_directory)
@@ -37,6 +39,7 @@ def print_test_info_multiline(test: Test*) -> None:
 
 @public
 def print_run(test: Test*, verbose: bool) -> None:
+    global BLUE, RESET
     assert verbose  # In non-verbose mode you shouldn't print anything when the test starts
     printf("%srun:%s ", BLUE, RESET)
     print_test_info_without_newlines(test)
@@ -45,6 +48,7 @@ def print_run(test: Test*, verbose: bool) -> None:
 
 @public
 def print_ok(test: Test*, verbose: bool) -> None:
+    global GREEN, RESET
     if verbose:
         printf("%s ok %s ", GREEN, RESET)
         print_test_info_without_newlines(test)
@@ -55,6 +59,7 @@ def print_ok(test: Test*, verbose: bool) -> None:
 
 @public
 def print_skip(test: Test*, verbose: bool) -> None:
+    global YELLOW, RESET
     if verbose:
         printf("%sskip%s ", YELLOW, RESET)
         print_test_info_without_newlines(test)
@@ -65,6 +70,7 @@ def print_skip(test: Test*, verbose: bool) -> None:
 
 @public
 def print_fail(test: Test*, verbose: bool) -> None:
+    global RED, RESET
     if verbose:
         printf("%sFAIL%s ", RED, RESET)
         print_test_info_without_newlines(test)

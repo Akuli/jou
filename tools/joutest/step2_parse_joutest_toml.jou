@@ -41,6 +41,8 @@ def condition_is_true(c: Condition) -> bool:
             return True
 
 def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
+    global CONDITION_STRINGS
+
     error: byte[300]
 
     while True:
@@ -103,6 +105,8 @@ global big_file_content_buffer: byte[1_000_000]
 
 
 def read_joutest_toml_and_parse_to_toml_object() -> TOML:
+    global big_file_content_buffer
+
     f = fopen("joutest.toml", "rb")
     if f == NULL:
         fail_with_errno("cannot open joutest.toml", get_errno())
@@ -197,6 +201,8 @@ def enum_from_toml(kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> int:
 
 
 def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*) -> None:
+    global SKIP_MODE_NAMES, CAPTURE_MODE_NAMES
+
     allowed: bool[enum_count(FormatParam)]
     error: byte[500]  # surely big enough, see above
 
@@ -294,6 +300,8 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
 
 
 def toml_to_config(toml: TOML*, this_is_the_defaults_for_all_tests: bool) -> TestConfig:
+    global TEST_CONFIG_OPTION_NAMES
+
     assert toml != NULL
 
     if toml.type != TOMLType.Table:

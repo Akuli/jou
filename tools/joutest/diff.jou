@@ -50,7 +50,18 @@ def lines_equal(line1: byte*, line2: byte*) -> bool:
     return True
 
 # Prints a line of diff. Does not access the line beyond \n (if any).
-def print_line(color: byte*, prefix: byte, line: byte*) -> None:
+def print_line(prefix: byte, line: byte*) -> None:
+    global RED, GREEN, RESET
+    match prefix:
+        case '+':
+            color = GREEN
+        case '-':
+            color = RED
+        case ' ':
+            color = NULL
+        case _:
+            assert False
+
     line_len = strcspn(line, "\n")
     assert line_len <= INT32_MAX
 
@@ -91,8 +102,9 @@ class DiffPrinter:
                 # makes the user wonder why we aren't just printing the line.
                 # So let's just print the line.
                 assert self.last_discarded_line != NULL
-                print_line(NULL, ' ', self.last_discarded_line)
+                print_line(' ', self.last_discarded_line)
             case _:
+                global CYAN, RESET
                 printf("%s@@ %d lines not shown @@%s\n", CYAN, self.skip_count, RESET)
         self.skip_count = 0
 
@@ -100,7 +112,7 @@ class DiffPrinter:
         for i = 0; i < array_count(self.context_buf); i++:
             line = self.context_buf[i]
             if line != NULL:
-                print_line(NULL, ' ', line)
+                print_line(' ', line)
 
         memset(self.context_buf, 0, sizeof(self.context_buf))
         self.context_to_print_before_buffering = array_count(self.context_buf)
@@ -109,7 +121,7 @@ class DiffPrinter:
         if self.context_to_print_before_buffering > 0:
             # We recently showed an addition or removal. This is part of the
             # context for that and printed immediately.
-            print_line(NULL, ' ', line)
+            print_line(' ', line)
             self.context_to_print_before_buffering--
         else:
             # It's been a while since an addition or removal was shown. We may
@@ -127,12 +139,12 @@ class DiffPrinter:
     def addition(self, line: byte*) -> None:
         self.print_skip()
         self.print_context_from_buffer()
-        print_line(GREEN, '+', line)
+        print_line('+', line)
 
     def removal(self, line: byte*) -> None:
         self.print_skip()
         self.print_context_from_buffer()
-        print_line(RED, '-', line)
+        print_line('-', line)
 
     def finish(self) -> None:
         for i = 0; i < array_count(self.context_buf); i++:

@@ -22,6 +22,8 @@ def format_string_is_valid(
     format: byte*,  # the format string
     allowed: bool[enum_count(FormatParam)],  # True means the param is allowed
 ) -> bool:
+    global PLACEHOLDERS
+
     assert format != NULL
     while *format != '\0':
         match *format:
@@ -52,6 +54,8 @@ def validate_format_string_in_toml(
     error_lineno: int,  # line number of format string in joutest.toml
     allowed: bool[enum_count(FormatParam)],  # True means the param is allowed
 ) -> None:
+    global PLACEHOLDERS
+
     assert format != NULL
     if not format_string_is_valid(format, allowed):
         error: byte[1000] = "braces are allowed only for "
@@ -66,6 +70,8 @@ def validate_format_string_in_toml(
 
 @public
 def format_string(format: byte*, params: byte*[enum_count(FormatParam)]) -> byte*:
+    global PLACEHOLDERS
+
     allowed: bool[enum_count(FormatParam)]
     for i = 0; i < enum_count(FormatParam); i++:
         allowed[i] = (params[i] != NULL)

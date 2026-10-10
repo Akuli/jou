@@ -73,6 +73,8 @@ global big_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
 
 
 def parse_comments(test: Test*) -> List[Comment]:
+    global big_buffer
+
     comments = List[Comment]{}
     lineno = 1
 

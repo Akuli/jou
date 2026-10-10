@@ -20,6 +20,7 @@ def show_failures(tests: List[Test]) -> None:
         if test.simple_result != SimpleResult.Failed:
             continue
 
+        global YELLOW, RESET
         printf("%s*** Command: %s\n", YELLOW, test.actual_command_string)
         if test.working_directory != NULL:
             printf("    Working directory: %s\n", test.working_directory)
@@ -118,6 +119,7 @@ def step7_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
     if failed != 0:
         show_failures(tests)
 
+    global RED, GREEN, YELLOW, RESET
     printf("%s%d succeeded", GREEN, succeeded)
     if failed != 0:
         printf(", %s%d failed", RED, failed)
