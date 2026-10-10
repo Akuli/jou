@@ -1403,7 +1403,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             result = bool_type()
 
         case AstExpressionKind.Negate:
-            result = typecheck_expression_not_void(state, &expr.operands[0], NULL)
+            result = typecheck_expression_not_void(state, &expr.operands[0], type_hint)
             if (
                 not result.is_signed_number_type()
                 and not (
