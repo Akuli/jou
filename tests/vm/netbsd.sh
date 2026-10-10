@@ -33,7 +33,7 @@ cd "$(dirname "$0")/netbsd-$arch"
 
 # Download NetBSD
 if ! [ -f disk.img ]; then
-    ../download.sh https://cdn.netbsd.org/pub/NetBSD/images/10.1/NetBSD-10.1-$arch-live.img.gz $sha256
+    ../download.sh https://archive.netbsd.org/pub/NetBSD-archive/images/10.1/NetBSD-10.1-$arch-live.img.gz $sha256
 
     echo "Extracting..."
     rm -vf NetBSD-10.1-$arch-live.img  # If this exists, gzip asks whether to overwrite
