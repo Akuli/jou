@@ -9,6 +9,7 @@
 # has and what parameter types they take.
 
 import "stdlib/assert.jou"
+import "stdlib/fs.jou"
 import "stdlib/intnative.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
@@ -1908,10 +1909,11 @@ def typecheck_function_or_method_body(state: State*, fom: AstFunctionOrMethod*) 
         snprintf(
             msg,
             sizeof(msg),
-            "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler (debug: %s)",
+            "please add a 'global %s' statement inside the %s() %s, this will be required in a future version of the Jou compiler (debug: %s --> %s)",
             ig.name,
             fom.symbol.name,
             "method" if fom.symbol.kind == GlobalSymbolKind.Method else "function",
+            find_current_executable(),
             global_compiler_state.stdlib_path,
         )
         # TODO: The bootstrap compiler doesn't support "global foo"
