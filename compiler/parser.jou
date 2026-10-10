@@ -1418,7 +1418,7 @@ class Parser:
                     names.append(self.eat_by_kind(TokenKind.Name, True, "a variable name").short_string)
 
                 if self.tokens.is_operator(":") or self.tokens.is_operator("="):
-                    joined = malloc((sizeof(names.ptr[0]) + 50) * names.len)
+                    joined = malloc((array_count(names.ptr[0]) + 50) * names.len)
                     assert joined != NULL
                     strcpy(joined, names.ptr[0])
                     for i = 1; i < names.len; i++:
