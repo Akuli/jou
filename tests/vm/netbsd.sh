@@ -10,7 +10,7 @@ arch=$1
 case $arch in
     amd64)
         qemu=kvm
-        sha256=92a40431b2488785172bccf589de2005d03c618e7e2618a6a4dd0465af375bfd
+        sha256=1bb2acdbf162e34648f795d8fb8280f9750d2d4510ffa63fb014df2092fd7f3c
         ;;
     *)
         echo "$0: Unsupported architecture '$arch' (must be amd64)"
@@ -33,12 +33,12 @@ cd "$(dirname "$0")/netbsd-$arch"
 
 # Download NetBSD
 if ! [ -f disk.img ]; then
-    ../download.sh https://archive.netbsd.org/pub/NetBSD-archive/images/10.1/NetBSD-10.1-$arch-live.img.gz $sha256
+    ../download.sh https://cdn.netbsd.org/pub/NetBSD/images/10.2/NetBSD-10.2-$arch-live.img.gz $sha256
 
     echo "Extracting..."
-    rm -vf NetBSD-10.1-$arch-live.img  # If this exists, gzip asks whether to overwrite
-    gunzip NetBSD-10.1-$arch-live.img.gz
-    mv NetBSD-10.1-$arch-live.img disk.img
+    rm -vf NetBSD-10.2-$arch-live.img  # If this exists, gzip asks whether to overwrite
+    gunzip NetBSD-10.2-$arch-live.img.gz
+    mv NetBSD-10.2-$arch-live.img disk.img
     trap 'rm -v disk.img' EXIT  # Avoid leaving behind a broken disk image
 
     echo "Enabling getty on serial port..."
