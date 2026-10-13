@@ -16,6 +16,8 @@ global avail_cache_len: int = 0
 
 
 def count_availability(towel: byte*, patterns: List[byte*]) -> int64:
+    global avail_cache, avail_cache_len
+
     cacheptr: CacheEntry* = NULL
     if strlen(towel) < sizeof(avail_cache[0].towel):
         # Find value from cache if exists
@@ -66,6 +68,7 @@ def main() -> int:
 
         # Re-fill the cache every time, so that it works in whatever way
         # is best for this line of input.
+        global avail_cache_len
         avail_cache_len = 0
 
         result += count_availability(line, patterns)

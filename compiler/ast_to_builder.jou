@@ -856,7 +856,7 @@ class AstToBuilder:
                 self.build_if_statement(&stmt.if_statement)
             case AstStatementKind.Assert:
                 self.build_assert(stmt.location, &stmt.assertion)
-            case AstStatementKind.Pass:
+            case AstStatementKind.Pass | AstStatementKind.GlobalVariableUsed:
                 pass
             case AstStatementKind.WhileLoop:
                 self.build_loop(&stmt.while_loop.condition, NULL, stmt.while_loop.body)
