@@ -1,12 +1,7 @@
 import "stdlib/intnative.jou"
-import "stdlib/list.jou"
+import "stdlib/str.jou"
 
 import "./allocator.jou"
-
-
-# TODO: implement these
-typedef FileAst = int
-typedef AstStatement = int
 
 
 @public
@@ -27,11 +22,33 @@ enum QueryKind:
     FindPublicDefinition
     FindAccessibleDefinition
 
+global QUERY_KIND_NAMES: byte*[enum_count(QueryKind)] = ["ReadFile", "FindPublicDefinition", "FindAccessibleDefinition"]
+
+
+class ReadFileResult:
+    content: byte*  # always set to some valid string, even if there is an error
+    content_hash: uint64
+    error: byte[500]  # empty string means success
+
+    @public
+    @inline
+    def equals(self, other: ReadFileResult*) -> bool:
+        # Check hash first because that detects almost all changes very quickly
+        return (
+            self.content_hash == other.content_hash
+            and strcmp(self.content, other.content) == 0
+            and strcmp(self.error, other.error) == 0
+        )
+
 
 # Please increment this when you add a field to QueryParams. This should help
 # find places that must be updated to use the new field.
 @public
 const NUMBER_OF_THINGS_IN_QUERY_PARAMS: int = 3
+
+# Multiple buffers so you can print multiple things in the same printf(...) call
+global debug_string_bufs: byte[1000][5]
+global debug_string_index: int
 
 @public
 class QueryParams:
@@ -39,20 +56,30 @@ class QueryParams:
     context: SymbolContext
     name: byte*     # FindDefinition
 
+    @public
+    def debug_string(self) -> byte*:
+        debug_string_index++
+        debug_string_index %= array_count(debug_string_bufs)
+        snprintf(
+            debug_string_bufs[debug_string_index],
+            sizeof(debug_string_bufs[0]),
+            "Query{%s, context=SymbolContext{\"%s\", func=\"%s\", class=\"%s\"}, name=\"%s\"}",
+            QUERY_KIND_NAMES[self.kind as int],
+            self.context.uri,
+            self.context.funcname,
+            self.context.classname,
+            self.name,
+        )
+        return debug_string_bufs[debug_string_index]
+
 @public
 class QueryResults:
     # All memory allocated with this is freed when version number increments
     allocator: Allocator
 
     union:
-        # ReadFile
-        file_content: byte*
-
-        # ParseFile
-        file_ast: FileAst
-
-        # FindDefinition
-        definition: AstStatement*
+        read_file: ReadFileResult
+        dummy: int  # TODO: more queries
 
 @public
 class QueryAndVersion:
@@ -112,7 +139,7 @@ class State:
     queries_count: intnative        # number of slots that contain a Query*
     queries_capacity: intnative     # includes empty slots
 
-    # This is non-empty when we are running a query. This is used to figure out
-    # the dependencies: if running query foo triggers running another query
-    # bar, then bar is added to foo's list of dependencies.
-    running_queries: List[Query*]
+    # This is used to figure out the dependencies. If running query foo
+    # triggers running another query bar, then bar is added to foo's list of
+    # dependencies. To do that, this is set to foo.
+    innermost_running_query: Query*  # can be NULL

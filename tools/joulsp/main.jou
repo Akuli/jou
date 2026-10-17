@@ -1,0 +1,20 @@
+import "stdlib/io.jou"
+
+import "./state.jou"
+import "./query_engine.jou"
+
+
+def main() -> int:
+    state = State{}
+
+    # Read the content of this file through the query system
+    params = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{uri="file:///home/akuli/jou/examples/hello.jou"}}
+    puts(params.debug_string())
+
+    results = run_query(&state, &params)
+
+    printf("File content: %s\n", results.read_file.content)
+    printf("File content hash: %llx\n", results.read_file.content_hash)
+    printf("Error: %s\n", results.read_file.error)
+
+    return 0
