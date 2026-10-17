@@ -1,0 +1,74 @@
+import "stdlib/intnative.jou"
+
+import "./allocator.jou"
+import "stdlib/list.jou"
+
+
+# TODO: implement these
+typedef FileAst = int
+typedef AstStatement = int
+
+
+enum QueryKind:
+    ReadFile
+    FindDefinition
+
+class QueryParams:
+    uri: byte*          # all queries
+    name: byte*         # FindDefinition
+    funcname: byte*     # FindDefinition
+    classname: byte*    # FindDefinition
+    lineno: int         # FindDefinition
+
+class QueryResults:
+    union:
+        # ReadFile
+        file_content: byte*
+
+        # ParseFile
+        file_ast: FileAst
+
+        # FindDefinition
+        definition: AstStatement*
+
+class QueryAndVersion:
+    query: Query*
+    version: int64
+
+class Query:
+    # Stuff used to identify what the query is supposed to do. These never
+    # change after creating the query.
+    kind: QueryKind
+    params: QueryParams
+
+    # If another query has ran, we may need to re-run this
+    dependencies: List[QueryAndVersion]
+
+    # If the version number of a dependency has changed, any queries that
+    # depend on this query's results should be re-evaluated. For example, we
+    # should tokenize and parse a file when its content changes.
+    version: int64
+
+    # WARNING:  Check the version numbers of the dependencies before you access
+    #           the results!
+    #
+    # If a dependency has changed and bumped its version, these results may
+    # point into memory that was owned by the old version of the dependency and
+    # is now freed.
+    results: QueryResults
+
+    # Timestamp from monotonic_ns(), used to delete queries that haven't been
+    # used in a long time
+    last_used: int64
+
+    query_allocator: Allocator   # freed when the whole query hasn't been used in a long time (see last_used)
+    result_allocator: Allocator  # freed when version number increments
+
+
+@public
+class State:
+    # Each query is allocated with its own allocator, and those Query* pointers
+    # are stored in a hash table
+    queries: Query**
+    queries_len: intnative
+    queries_size: intnative     # includes empty slots
