@@ -39,8 +39,11 @@ class QueryParams:
     context: SymbolContext
     name: byte*     # FindDefinition
 
-
+@public
 class QueryResults:
+    # All memory allocated with this is freed when version number increments
+    allocator: Allocator
+
     union:
         # ReadFile
         file_content: byte*
@@ -90,8 +93,12 @@ class Query:
     # used in a long time
     last_used_time: int64
 
-    query_allocator: Allocator   # freed when the whole query goes away due to not being used in a long time
-    result_allocator: Allocator  # freed when version number increments
+    # This allocator is freed when the whole query goes away due to not being
+    # used in a long time.
+    #
+    # There's another allocator in QueryResults. That one is useful if you want
+    # the allocated memory to be freed when the query reruns.
+    query_allocator: Allocator
 
     # This is used to check for cyclic dependencies
     running: bool
@@ -102,8 +109,9 @@ class State:
     # Each query is allocated with its own allocator, and those Query* pointers
     # are stored in a hash table
     queries_table: Query**
-    queries_len: intnative
-    queries_capacity: intnative     # includes empty slots
+    queries_count: intnative        # number of slots that contain a Query*
+    queries_tombstones: intnative   # number of deleted slots
+    queries_capacity: intnative     # includes empty and tombstone slots
 
     # This is non-empty when we are running a query. This is used to figure out
     # the dependencies: if running query foo triggers running another query
