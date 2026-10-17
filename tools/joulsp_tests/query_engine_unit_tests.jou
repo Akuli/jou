@@ -10,8 +10,8 @@ import "../joulsp/allocator.jou"
 def test_adding_and_finding() -> None:
     state = State{}
 
-    p1 = QueryParams{kind = QueryKind.ReadFile, uri = "file:///home/akuli/jou/stdlib/io.jou"}
-    p2 = QueryParams{kind = QueryKind.FindDefinition, uri = "file:///home/akuli/jou/foo.jou", name = "thing"}
+    p1 = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{uri = "file:///home/akuli/jou/stdlib/io.jou"}}
+    p2 = QueryParams{kind = QueryKind.FindAccessibleDefinition, context = SymbolContext{uri = "file:///home/akuli/jou/foo.jou"}, name = "thing"}
     assert find_query(&state, &p1) == NULL
     assert find_query(&state, &p2) == NULL
 
@@ -26,25 +26,25 @@ def test_adding_and_finding() -> None:
     assert find_query(&state, &p2) != NULL
 
     # Output: queries_table:
-    # Output:   NULL
+    # Output:   Query: uri="file:///home/akuli/jou/foo.jou", last_used_time=0, ndeps=0
     # Output:   Query: uri="file:///home/akuli/jou/stdlib/io.jou", last_used_time=0, ndeps=0
     # Output:   NULL
-    # Output:   Query: uri="file:///home/akuli/jou/foo.jou", last_used_time=0, ndeps=0
+    # Output:   NULL
     printf("queries_table:\n")
     for i = 0; i < state.queries_capacity; i++:
         q = state.queries_table[i]
         if q == NULL:
             printf("  NULL\n")
         else:
-            printf("  Query: uri=\"%s\", last_used_time=%lld, ndeps=%d\n", q.params.uri, q.last_used_time, q.ndeps)
+            printf("  Query: uri=\"%s\", last_used_time=%lld, ndeps=%d\n", q.params.context.uri, q.last_used_time, q.ndeps)
 
 
 def test_deleting_old() -> None:
     state = State{}
 
-    p1 = QueryParams{kind = QueryKind.ReadFile, uri = "file:///home/akuli/jou/stdlib/io.jou"}
-    p2 = QueryParams{kind = QueryKind.FindDefinition, uri = "file:///home/akuli/jou/foo.jou", name = "foo"}
-    p3 = QueryParams{kind = QueryKind.FindDefinition, uri = "file:///home/akuli/jou/foo.jou", name = "bar"}
+    p1 = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{uri = "file:///home/akuli/jou/stdlib/io.jou"}}
+    p2 = QueryParams{kind = QueryKind.FindAccessibleDefinition, context = SymbolContext{uri = "file:///home/akuli/jou/foo.jou"}, name = "foo"}
+    p3 = QueryParams{kind = QueryKind.FindAccessibleDefinition, context = SymbolContext{uri = "file:///home/akuli/jou/foo.jou"}, name = "bar"}
     # Output: Query hash table grew to 4 slots (1 used)
     # Output: Query hash table grew to 8 slots (3 used)
     add_query(&state, &p1)
@@ -65,18 +65,18 @@ def test_deleting_old() -> None:
     # Output:   NULL
     # Output:   Query: uri="file:///home/akuli/jou/stdlib/io.jou", last_used_time=0, ndeps=0
     # Output:   NULL
-    # Output:   NULL
+    # Output:   Query: uri="file:///home/akuli/jou/foo.jou", last_used_time=0, ndeps=1
     # Output:   Query: uri="file:///home/akuli/jou/foo.jou", last_used_time=0, ndeps=1
     # Output:   NULL
     # Output:   NULL
-    # Output:   Query: uri="file:///home/akuli/jou/foo.jou", last_used_time=0, ndeps=1
+    # Output:   NULL
     printf("queries_table:\n")
     for i = 0; i < state.queries_capacity; i++:
         q = state.queries_table[i]
         if q == NULL:
             printf("  NULL\n")
         else:
-            printf("  Query: uri=\"%s\", last_used_time=%lld, ndeps=%d\n", q.params.uri, q.last_used_time, q.ndeps)
+            printf("  Query: uri=\"%s\", last_used_time=%lld, ndeps=%d\n", q.params.context.uri, q.last_used_time, q.ndeps)
 
     # Suppose it's been a long time since file was read or we had anything to
     # do with foo, but we used bar recently
@@ -95,6 +95,8 @@ def test_deleting_old() -> None:
 
 
 def main() -> int:
+    QUERY_ENGINE_DEBUG_PRINTS = True
+
     test_adding_and_finding()
     test_deleting_old()
     return 0

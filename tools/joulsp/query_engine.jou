@@ -10,38 +10,9 @@ import "./state.jou"
 import "./allocator.jou"
 
 
-def sanity_check(params: QueryParams*) -> None:
-    n = 0
-
-    # kind needs no checking, hopefully
-    n++
-
-    # Every query applies to some file
-    assert params.uri != NULL
-    n++
-
-    match params.kind:
-        case QueryKind.ReadFile:
-            assert params.name == NULL
-            n++
-            assert params.funcname == NULL
-            n++
-            assert params.classname == NULL
-            n++
-            #params.lineno  # TODO: query for reading a specific line
-
-        case QueryKind.FindDefinition:
-            assert params.name != NULL
-            n++
-            # All combinations of funcname and classname make sense:
-            #
-            # funcname and classname    --> looking for local variable in a method
-            # funcname only             --> looking for local variable in a function
-            # classname only            --> looking for class field definition
-            # neither                   --> looking for a global symbol
-            n += 2
-
-    assert n == NUMBER_OF_THINGS_IN_QUERY_PARAMS
+# Public mostly for tests, but also might help with some debugging
+@public
+global QUERY_ENGINE_DEBUG_PRINTS = False
 
 
 # FNV-1a hash
@@ -64,20 +35,16 @@ def hash_query_params(params: QueryParams*) -> uint64:
     hash *= FNV_PRIME
     n++
 
-    assert params.uri != NULL
-    hash_string(&hash, params.uri)
+    assert params.context.uri != NULL
+    hash_string(&hash, params.context.uri)
+    if params.context.funcname != NULL:
+        hash_string(&hash, params.context.funcname)
+    if params.context.classname != NULL:
+        hash_string(&hash, params.context.classname)
     n++
 
     if params.name != NULL:
         hash_string(&hash, params.name)
-    n++
-
-    if params.funcname != NULL:
-        hash_string(&hash, params.funcname)
-    n++
-
-    if params.classname != NULL:
-        hash_string(&hash, params.classname)
     n++
 
 #    # Not strictly FNV-1a because we don't go one byte a time
@@ -96,24 +63,30 @@ def hash_query_params(params: QueryParams*) -> uint64:
 def nully_string_equals(s1: byte*, s2: byte*) -> bool:
     return s1 == s2 or (s1 != NULL and s2 != NULL and strcmp(s1, s2) == 0)
 
+def symbol_contexts_equal(ctx1: SymbolContext*, ctx2: SymbolContext*) -> bool:
+    assert ctx1.uri != NULL
+    assert ctx2.uri != NULL
+
+    return (
+        strcmp(ctx1.uri, ctx2.uri) == 0
+        and nully_string_equals(ctx1.funcname, ctx2.funcname)
+        and nully_string_equals(ctx1.classname, ctx2.classname)
+    )
+
 def query_params_equal(p1: QueryParams*, p2: QueryParams*) -> bool:
-    assert NUMBER_OF_THINGS_IN_QUERY_PARAMS == 5
+    assert NUMBER_OF_THINGS_IN_QUERY_PARAMS == 3
     return (
         p1.kind == p2.kind
-        and strcmp(p1.uri, p2.uri) == 0
+        and symbol_contexts_equal(&p1.context, &p2.context)
         and nully_string_equals(p1.name, p2.name)
-        and nully_string_equals(p1.funcname, p2.funcname)
-        and nully_string_equals(p1.classname, p2.classname)
     )
 
 
-def duplicate_string(allocator: Allocator*, s: byte*) -> byte*:
-    if s == NULL:
-        return NULL
-
-    result = allocator.alloc(strlen(s) + 1)
-    strcpy(result, s)
-    return result
+def reallocate_string(allocator: Allocator*, s: byte**) -> None:
+    if *s != NULL:
+        result = allocator.alloc(strlen(*s) + 1)
+        strcpy(result, *s)
+        *s = result
 
 
 def add_query_without_growing(state: State*, q: Query*) -> None:
@@ -126,7 +99,8 @@ def add_query_without_growing(state: State*, q: Query*) -> None:
             # If this assert succeeds, we have a hash collision, which should
             # be very rare but can happen.
             assert not query_params_equal(&state.queries_table[pos].params, &q.params)
-            #printf("hash collision in query table\n")
+            if QUERY_ENGINE_DEBUG_PRINTS:
+                printf("hash collision in query table\n")
         pos++
         pos %= state.queries_capacity
     state.queries_table[pos] = q
@@ -134,15 +108,9 @@ def add_query_without_growing(state: State*, q: Query*) -> None:
 # Public only for tests. TODO: delete the tests?
 @public
 def add_query(state: State*, params: QueryParams*) -> Query*:
-    sanity_check(params)
-
-    # Reallocate the query
-    # TODO: reallocate q using its query_allocator, including most of its params
-
-    old_capacity = state.queries_capacity
-
     # Keep the hash table at most 50% full
     if (state.queries_len + 1)*2 > state.queries_capacity:
+        old_capacity = state.queries_capacity
         if state.queries_capacity == 0:
             state.queries_capacity = 4
         else:
@@ -154,12 +122,13 @@ def add_query(state: State*, params: QueryParams*) -> Query*:
         assert state.queries_table != NULL
 
         # Insert all the old queries to their new places
-        for i: intnative = 0; i < old_capacity; i++:
+        for i = 0 as intnative; i < old_capacity; i++:
             if old_table[i] != NULL:
                 add_query_without_growing(state, old_table[i])
 
         free(old_table)
-        printf("Query hash table grew to %zd slots (%d used)\n", state.queries_capacity, state.queries_len + 1)
+        if QUERY_ENGINE_DEBUG_PRINTS:
+            printf("Query hash table grew to %zd slots (%d used)\n", state.queries_capacity, state.queries_len + 1)
 
     # Allocate the query using its own allocator
     temp = Allocator{}
@@ -167,13 +136,10 @@ def add_query(state: State*, params: QueryParams*) -> Query*:
     assert q != NULL
     *q = Query{query_allocator = temp, params = *params}
 
-    # Fields are assigned one by one to make sure we reallocate them with the
-    # new allocator where needed.
-    q.params.kind = params.kind
-    q.params.uri = duplicate_string(&q.query_allocator, params.uri)
-    q.params.name = duplicate_string(&q.query_allocator, params.name)
-    q.params.funcname = duplicate_string(&q.query_allocator, params.funcname)
-    q.params.classname = duplicate_string(&q.query_allocator, params.classname)
+    reallocate_string(&q.query_allocator, &q.params.context.uri)
+    reallocate_string(&q.query_allocator, &q.params.context.funcname)
+    reallocate_string(&q.query_allocator, &q.params.context.classname)
+    reallocate_string(&q.query_allocator, &q.params.name)
 
     h1 = hash_query_params(&q.params)
     h2 = hash_query_params(params)
@@ -202,9 +168,6 @@ def find_query(state: State*, params: QueryParams*) -> Query*:
 # results when you call this!
 @public
 def delete_old_queries(state: State*) -> None:
-    # TODO: check that all loops elsewhere use 64-bit indexing on 64-bit systems?
-    i: intnative
-
     # If a query was used 5 seconds ago and one of its dependencies was used 10
     # seconds ago, mark the dependency as being used 5 seconds ago.
     #
@@ -213,7 +176,7 @@ def delete_old_queries(state: State*) -> None:
     while True:
         did_something = False
 
-        for i = 0; i < state.queries_capacity; i++:
+        for i = 0 as intnative; i < state.queries_capacity; i++:
             q = state.queries_table[i]
             if q != NULL:
                 for dep = q.deps; dep < &q.deps[q.ndeps]; dep++:
@@ -229,7 +192,7 @@ def delete_old_queries(state: State*) -> None:
 
     # Delete old queries from hash table and free their memory
     old_len = state.queries_len
-    for i = 0; i < state.queries_capacity; i++:
+    for i = 0 as intnative; i < state.queries_capacity; i++:
         q = state.queries_table[i]
         if q != NULL and q.last_used_time < threshold_time:
             q.result_allocator.free_all()
@@ -241,7 +204,7 @@ def delete_old_queries(state: State*) -> None:
         # Deleting may have caused gaps in the hash table that would prevent
         # finding entries properly. Re-insert everything into the hash table.
         temp = List[Query*]{}
-        for i = 0; i < state.queries_capacity; i++:
+        for i = 0 as intnative; i < state.queries_capacity; i++:
             q = state.queries_table[i]
             if q != NULL:
                 temp.append(q)
@@ -250,8 +213,9 @@ def delete_old_queries(state: State*) -> None:
             add_query_without_growing(state, *qptr)
         free(temp.ptr)
 
-        printf(
-            "Old query cleanup: %zd/%zd queries deleted\n",
-            old_len - state.queries_len,
-            old_len,
-        )
+        if QUERY_ENGINE_DEBUG_PRINTS:
+            printf(
+                "Old query cleanup: %zd/%zd queries deleted\n",
+                old_len - state.queries_len,
+                old_len,
+            )
