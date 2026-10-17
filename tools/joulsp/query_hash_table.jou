@@ -1,0 +1,241 @@
+import "stdlib/assert.jou"
+import "stdlib/list.jou"
+import "stdlib/time.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/intnative.jou"
+import "stdlib/mem.jou"
+
+import "./state.jou"
+import "./allocator.jou"
+
+
+# Public mostly for tests, but also might help with some debugging
+@public
+global QUERY_HASH_TABLE_DEBUG_PRINTS = False
+
+
+# FNV-1a hash
+# https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function#FNV-1a_hash
+
+const FNV_PRIME: uint64 = 0x100_0000_01b3
+
+def hash_string(h: uint64*, s: byte*) -> None:
+    while True:
+        *h ^= *s
+        *h *= FNV_PRIME
+        if *s++ == '\0':  # Include '\0' in the hash, so "a" then "bc" hashes different from "ab" then "c"
+            break
+
+def hash_query_params(params: QueryParams*) -> uint64:
+    n = 0
+    hash: uint64 = 0xcbf2_9ce4_8422_2325
+
+    hash ^= params.kind as int
+    hash *= FNV_PRIME
+    n++
+
+    assert params.context.uri != NULL
+    hash_string(&hash, params.context.uri)
+    if params.context.funcname != NULL:
+        hash_string(&hash, params.context.funcname)
+    if params.context.classname != NULL:
+        hash_string(&hash, params.context.classname)
+    n++
+
+    if params.name != NULL:
+        hash_string(&hash, params.name)
+    n++
+
+#    # Not strictly FNV-1a because we don't go one byte a time
+#    hash ^= params.lineno
+#    hash *= FNV_PRIME
+#    n++
+#
+#    hash ^= params.column
+#    hash *= FNV_PRIME
+#    n++
+
+    assert n == NUMBER_OF_THINGS_IN_QUERY_PARAMS
+    return hash
+
+
+def nully_string_equals(s1: byte*, s2: byte*) -> bool:
+    return s1 == s2 or (s1 != NULL and s2 != NULL and strcmp(s1, s2) == 0)
+
+def symbol_contexts_equal(ctx1: SymbolContext*, ctx2: SymbolContext*) -> bool:
+    assert ctx1.uri != NULL
+    assert ctx2.uri != NULL
+
+    return (
+        strcmp(ctx1.uri, ctx2.uri) == 0
+        and nully_string_equals(ctx1.funcname, ctx2.funcname)
+        and nully_string_equals(ctx1.classname, ctx2.classname)
+    )
+
+def query_params_equal(p1: QueryParams*, p2: QueryParams*) -> bool:
+    assert NUMBER_OF_THINGS_IN_QUERY_PARAMS == 3
+    return (
+        p1.kind == p2.kind
+        and symbol_contexts_equal(&p1.context, &p2.context)
+        and nully_string_equals(p1.name, p2.name)
+    )
+
+
+def reallocate_string(allocator: Allocator*, s: byte**) -> None:
+    if *s != NULL:
+        result = allocator.alloc(strlen(*s) + 1)
+        strcpy(result, *s)
+        *s = result
+
+
+# A special marker that indicates a deleted slot in the hash table.
+# This is different from NULL which means empty.
+#
+# TODO(Jou): this would ideally be a constant, not a function
+@inline
+def tombstone() -> void*:
+    return 1 as intnative as void*
+
+
+def add_query_without_growing(state: State*, q: Query*) -> None:
+    pos = q.params_hash % state.queries_capacity
+    while state.queries_table[pos] != NULL and state.queries_table[pos] != tombstone():
+        if state.queries_table[pos].params_hash == q.params_hash:
+            # If this assert fails, the query already exists, and you should
+            # either use its result or re-run it.
+            #
+            # If this assert succeeds, we have a hash collision, which should
+            # be very rare but can happen.
+            assert not query_params_equal(&state.queries_table[pos].params, &q.params)
+            if QUERY_HASH_TABLE_DEBUG_PRINTS:
+                printf("hash collision in query table\n")
+        pos++
+        pos %= state.queries_capacity
+    state.queries_table[pos] = q
+
+@public
+def add_query_to_hash_table(state: State*, params: QueryParams*) -> Query*:
+    if state.queries_tombstones > state.queries_count:
+        
+    # Keep the hash table at most 50% full
+    if (state.queries_count + state.queries_tombstones + 1)*2 > state.queries_capacity:
+        old_capacity = state.queries_capacity
+        if state.queries_capacity == 0:
+            state.queries_capacity = 4
+        else:
+            state.queries_capacity *= 2
+
+        if QUERY_HASH_TABLE_DEBUG_PRINTS:
+            printf(
+                "Growing query hash table to %zd slots (%zd used, %zd tombstones --> %zd used, 0 tombstones)\n",
+                state.queries_capacity,
+                state.queries_count,
+                state.queries_tombstones,
+                state.queries_count + 1,
+            )
+
+        # Allocate a bigger hash table
+        old_table = state.queries_table
+        state.queries_table = calloc(sizeof(state.queries_table[0]), state.queries_capacity)
+        assert state.queries_table != NULL
+
+        # Insert all the old queries to their new places
+        for i = 0 as intnative; i < old_capacity; i++:
+            if old_table[i] != NULL and old_table[i] != tombstone():
+                add_query_without_growing(state, old_table[i])
+        state.queries_tombstones = 0
+
+        free(old_table)
+
+    # Allocate the query using its own allocator
+    temp = Allocator{}
+    q: Query* = temp.alloc(sizeof(*q))
+    assert q != NULL
+    *q = Query{query_allocator = temp, params = *params}
+
+    reallocate_string(&q.query_allocator, &q.params.context.uri)
+    reallocate_string(&q.query_allocator, &q.params.context.funcname)
+    reallocate_string(&q.query_allocator, &q.params.context.classname)
+    reallocate_string(&q.query_allocator, &q.params.name)
+
+    h1 = hash_query_params(&q.params)
+    h2 = hash_query_params(params)
+    assert h1 == h2
+    q.params_hash = h1
+
+    add_query_without_growing(state, q)
+    state.queries_count++
+    return q
+
+
+# Public only for tests. TODO: delete the tests?
+@public
+def find_query_from_hash_table(state: State*, params: QueryParams*) -> Query*:
+    if state.queries_count == 0:
+        return NULL
+
+    h = hash_query_params(params)
+    for pos = h % state.queries_capacity; state.queries_table[pos] != NULL; pos = (pos+1) % state.queries_capacity:
+        if (
+            state.queries_table[pos] != tombstone()
+            and state.queries_table[pos].params_hash == h
+            and query_params_equal(&state.queries_table[pos].params, params)
+        ):
+            return state.queries_table[pos]
+    return NULL
+
+
+@public
+def delete_query_from_hash_table(state: State*, query: Query*) -> None:
+    assert state.queries_count >= 1
+    assert query != NULL
+    assert query != tombstone()
+
+    for pos = query.params_hash % state.queries_capacity; state.queries_table[pos] != NULL; pos = (pos+1) % state.queries_capacity:
+        if state.queries_table[pos] == query:
+            state.queries_table[pos] = tombstone()
+            state.queries_tombstones++
+            state.queries_count--
+            return
+
+    assert False
+
+
+# Make sure that nothing outside the query table holds pointers to query
+# results when you call this!
+@public
+def delete_old_queries(state: State*) -> None:
+    # If a query was used 5 seconds ago and one of its dependencies was used 10
+    # seconds ago, mark the dependency as being used 5 seconds ago.
+    #
+    # This looks like it's slow: O(nd), where d is depth of the dependency tree.
+    # Please replace with a faster algorithm only if this is actually slow.
+    while True:
+        did_something = False
+
+        for i = 0 as intnative; i < state.queries_capacity; i++:
+            q = state.queries_table[i]
+            if q != NULL:
+                for dep = q.deps; dep < &q.deps[q.ndeps]; dep++:
+                    if dep.query.last_used_time < q.last_used_time:
+                        # Dependency was indirectly used more recently than it thinks it was used.
+                        dep.query.last_used_time = q.last_used_time
+                        did_something = True
+
+        if not did_something:
+            break
+
+    threshold_time = time(NULL) - 60
+
+    # Delete old queries from hash table and free their memory
+    old_count = state.queries_count
+    for i = 0 as intnative; i < state.queries_capacity; i++:
+        q = state.queries_table[i]
+        if q != NULL and q.last_used_time < threshold_time:
+            q.results.allocator.free_all()
+            q.query_allocator.free_all()  # makes q invalid
+
+            state.queries_table[i] = tombstone()
+            state.queries_count--
+            state.queries_tombstones++
