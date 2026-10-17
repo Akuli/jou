@@ -11,6 +11,11 @@ import "./allocator.jou"
 import "./query_hash_table.jou"
 
 
+# Public mostly for tests, but also might help with some debugging
+@public
+global QUERY_ENGINE_DEBUG_PRINTS = False
+
+
 def reallocate_string(allocator: Allocator*, s: byte**) -> None:
     if *s != NULL:
         result = allocator.alloc(strlen(*s) + 1)
@@ -168,7 +173,6 @@ def run_query(state: State*, params: QueryParams*) -> QueryResults*:
     assert q.running
     q.running = False
 
-    printf("debug asd 3\n")
     return &q.results
 
 

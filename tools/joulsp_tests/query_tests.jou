@@ -1,4 +1,6 @@
 import "stdlib/assert.jou"
+import "stdlib/str.jou"
+import "stdlib/errno.jou"
 import "stdlib/time.jou"
 import "stdlib/io.jou"
 
@@ -120,9 +122,82 @@ def test_deleting_old() -> None:
     assert find_query_from_hash_table(&state, &q3.params) == &q3
 
 
+def show_nicely(s: byte*) -> byte*:
+    if WINDOWS and s != NULL and strcmp(s, strerror(2)) == 0:
+        return "No such file or directory"
+    if s != NULL and s[0] == '\0':
+        return "(empty)"
+    return s
+
+def test_read_file() -> None:
+    state = State{}
+    params = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{path="hello.txt"}}
+
+    # Output: ReadFile "hello.txt": new query
+    results = run_query(&state, &params)
+    assert results != NULL  # not cyclic dependency
+
+    # Output: File content: hello
+    # Output:
+    # Output: File content hash: 0xa9bc80cca21f28b3
+    # Output: Error: (empty)
+    # Output: ----
+    printf("File content: %s\n", show_nicely(results.read_file.content))
+    printf("File content hash: 0x%llx\n", results.read_file.content_hash)
+    printf("Error: %s\n", show_nicely(results.read_file.error))
+    printf("----\n")
+
+    # Output: ReadFile "hello.txt": using previous result
+    results = run_query(&state, &params)
+    assert results != NULL  # not cyclic dependency
+
+    # Output: File content: hello
+    # Output:
+    # Output: File content hash: 0xa9bc80cca21f28b3
+    # Output: Error: (empty)
+    # Output: ----
+    printf("File content: %s\n", show_nicely(results.read_file.content))
+    printf("File content hash: 0x%llx\n", results.read_file.content_hash)
+    printf("Error: %s\n", show_nicely(results.read_file.error))
+    printf("----\n")
+
+    params.context.path = "does_not_exist.txt"
+
+    # Output: ReadFile "does_not_exist.txt": new query
+    results = run_query(&state, &params)
+    assert results != NULL  # not cyclic dependency
+
+    # Output: File content: (empty)
+    # Output: File content hash: 0xcbf29ce484222325
+    # Output: Error: No such file or directory
+    # Output: ----
+    printf("File content: %s\n", show_nicely(results.read_file.content))
+    printf("File content hash: 0x%llx\n", results.read_file.content_hash)
+    printf("Error: %s\n", show_nicely(results.read_file.error))
+    printf("----\n")
+
+    # Output: ReadFile "does_not_exist.txt": using previous result
+    results = run_query(&state, &params)
+    assert results != NULL  # not cyclic dependency
+
+    # Output: File content: (empty)
+    # Output: File content hash: 0xcbf29ce484222325
+    # Output: Error: No such file or directory
+    # Output: ----
+    printf("File content: %s\n", show_nicely(results.read_file.content))
+    printf("File content hash: 0x%llx\n", results.read_file.content_hash)
+    printf("Error: %s\n", show_nicely(results.read_file.error))
+    printf("----\n")
+
+
 def main() -> int:
     QUERY_HASH_TABLE_DEBUG_PRINTS = True
-
     test_adding_and_finding()
     test_deleting_old()
+    QUERY_HASH_TABLE_DEBUG_PRINTS = False
+
+    QUERY_ENGINE_DEBUG_PRINTS = True
+    test_read_file()
+    QUERY_ENGINE_DEBUG_PRINTS = False
+
     return 0
