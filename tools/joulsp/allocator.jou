@@ -65,7 +65,7 @@ class Allocator:
             return &(block as byte*)[sizeof(NULL)]
 
     @public
-    def free_all(self) -> None:
+    def free_everything(self) -> None:
         # Access memory from the allocator before we begin, so that it's possible to put
         # the allocator inside memory allocated with the same allocator.
         #
@@ -95,5 +95,5 @@ def main() -> int:
 
     for i = 0; i < 200; i++:
         printf("%d bytes --> %p\n", i, a.alloc(i))
-    a.free_all()
+    a.free_everything()
     return 0

@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/mem.jou"
 import "stdlib/time.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
@@ -9,6 +10,27 @@ import "./allocator.jou"
 import "./query_hash_table.jou"
 
 
+def reallocate_string(allocator: Allocator*, s: byte**) -> None:
+    if *s != NULL:
+        result = allocator.alloc(strlen(*s) + 1)
+        strcpy(result, *s)
+        *s = result
+
+def allocate_query(params: QueryParams*) -> Query*:
+    # Allocate the query using its own allocator
+    temp = Allocator{}
+    q: Query* = temp.alloc(sizeof(*q))
+    assert q != NULL
+    *q = Query{query_allocator = temp, params = *params}
+
+    reallocate_string(&q.query_allocator, &q.params.context.uri)
+    reallocate_string(&q.query_allocator, &q.params.context.funcname)
+    reallocate_string(&q.query_allocator, &q.params.context.classname)
+    reallocate_string(&q.query_allocator, &q.params.name)
+
+    return q
+
+
 # If a query was used 5 seconds ago and one of its dependencies was used 10
 # seconds ago, mark the dependency as being used 5 seconds ago.
 def fix_times_recursively(q: Query*) -> None:
@@ -16,7 +38,6 @@ def fix_times_recursively(q: Query*) -> None:
         if dep.query.last_used_time < q.last_used_time:
             dep.query.last_used_time = q.last_used_time
             fix_times_recursively(dep.query)
-
 
 # Make sure that nothing outside the query table holds pointers to query
 # results when you call this!
@@ -38,18 +59,48 @@ def delete_old_queries(state: State*) -> None:
         q = state.queries_table[i]
         if q != NULL and q.last_used_time < threshold_time:
             remove_query_from_hash_table_by_index(state, i)
-            q.results.allocator.free_all()
-            q.query_allocator.free_all()  # makes q.whatever invalid
+            q.results.allocator.free_everything()
+            q.query_allocator.free_everything()  # makes q.whatever invalid
             counter++
 
     printf("Old query cleanup: %zd/%zd queries deleted\n", counter, old_total)
 
 
-def reallocate_string(allocator: Allocator*, s: byte**) -> None:
-    if *s != NULL:
-        result = allocator.alloc(strlen(*s) + 1)
-        strcpy(result, *s)
-        *s = result
+# TODO(Jou): use this pattern more? it seems pretty nice for building
+# dynamic arrays without explicit capacity member.
+@inline
+def should_grow(size: int) -> bool:
+    # Return True if the size is 0,1,2,4,8,16,32,...
+    return size & (size - 1) == 0
+
+@inline
+def next_size(size: int) -> int:
+    if size == 0:
+        # TODO: bigger initial size?
+        return 1
+    return 2*size
+
+# Adds a dependency like "q1 depends on q2"
+def add_dependency(q1: Query*, q2: Query*) -> None:
+    if should_grow(q1.ndeps):
+        old_deps = q1.deps
+        q1.deps = q1.results.allocator.alloc(sizeof(q1.deps[0]) * next_size(q1.ndeps))
+        memcpy(q1.deps, old_deps, sizeof(q1.deps[0]) * q1.ndeps)
+
+    q1.deps[q1.ndeps++] = QueryAndVersion{query = q2, version = q2.version}
+
+
+def can_reuse_previous_result(q: Query*) -> bool:
+    assert not q.running
+
+    for dep = q.deps; dep < &q.deps[q.ndeps]; dep++:
+        # If the dependency is currently running, and hence invoking this
+        # query as a part of it, that's not necessarily a cyclic dependency
+        # error because the dependency may go away when we rerun this query.
+        if dep.query.version != dep.version or dep.query.running:
+            return False
+
+    return True
 
 
 # Return value NULL means a cyclic dependency: we are already running a query
@@ -58,38 +109,67 @@ def reallocate_string(allocator: Allocator*, s: byte**) -> None:
 def run_query(state: State*, params: QueryParams*) -> QueryResults*:
     q: Query* = find_query_from_hash_table(state, params)
     if q == NULL:
-        # Allocate the query using its own allocator
-        temp = Allocator{}
-        q = temp.alloc(sizeof(*q))
-        assert q != NULL
-        *q = Query{query_allocator = temp, params = *params}
-
-        reallocate_string(&q.query_allocator, &q.params.context.uri)
-        reallocate_string(&q.query_allocator, &q.params.context.funcname)
-        reallocate_string(&q.query_allocator, &q.params.context.classname)
-        reallocate_string(&q.query_allocator, &q.params.name)
-
+        q = allocate_query(params)
         add_query_to_hash_table(state, q)
-
+        assert q.version == 0
     else:
         # Check for cyclic dependencies and reuse previous result if possible
         if q.running:
-            return NULL  # cyclic dependency error
-
+            printf("%s: cyclic dependency\n", params.debug_string())
+            return NULL  # cyclic dependency detected
+        if can_reuse_previous_result(q):
+            printf("%s: using previous result\n", params.debug_string())
+            # TODO: refactor so that this isn't repeated
+            if state.innermost_running_query != NULL:
+                add_dependency(state.innermost_running_query, q)
+            return &q.results
         assert q.version >= 1
 
-        needs_rerun = False
-        for dep = q.deps; dep < &q.deps[q.ndeps]; dep++:
-            # If the dependency is currently running, and hence invoking this
-            # query as a part of it, that's not necessarily a cyclic dependency
-            # error because the dependency may go away when we rerun this query.
-            if dep.query.version != dep.version or dep.query.running:
-                needs_rerun = True
-                break
+    assert not q.running
+    q.running = True
 
-        if not needs_rerun:
-            return &q.results
+    old_results = q.results
+    new_results = QueryResults{}
+    # TODO: free one of old_results or new_results, use the other one
 
-#    old_results = 
+    other_running_query = state.innermost_running_query
+    state.innermost_running_query = q
 
-    return NULL
+    match q.params.kind:
+        case QueryKind.ReadFile:
+            do_read_file(&q.params, &new_results)
+        case QueryKind.FindPublicDefinition | QueryKind.FindAccessibleDefinition:
+            assert False  # TODO
+
+    # TODO: check if results match, in that case keep using the old one
+    # if results equal:
+    #     if q.version == 0:
+    #         nuke it from everywhere
+    #     free new result
+    #     update dependencies ??? not sure what should happen to these, old or new?
+    # else:
+    if True:
+        old_results.allocator.free_everything()
+        q.results = new_results
+        q.version++
+
+    assert state.innermost_running_query == q
+    state.innermost_running_query = other_running_query
+    if other_running_query != NULL:
+        add_dependency(other_running_query, q)
+
+    return &q.results
+
+
+def do_read_file(params: QueryParams*, results: QueryResults*) -> None:
+    # TODO: implement this for real
+    results.read_file.content = results.allocator.alloc(1000)
+    sprintf(results.read_file.content, "content of %s", params.context.uri)
+
+    # FNV-1a hash
+    # https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function#FNV-1a_hash
+    h: uint64 = 0xcbf2_9ce4_8422_2325
+    for s = results.read_file.content; *s != '\0'; s++:
+        h ^= *s
+        h *= 0x100_0000_01b3
+    results.read_file.content_hash = h
