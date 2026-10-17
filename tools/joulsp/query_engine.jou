@@ -24,7 +24,7 @@ def allocate_query(params: QueryParams*) -> Query*:
     assert q != NULL
     *q = Query{query_allocator = temp, params = *params}
 
-    reallocate_string(&q.query_allocator, &q.params.context.uri)
+    reallocate_string(&q.query_allocator, &q.params.context.path)
     reallocate_string(&q.query_allocator, &q.params.context.funcname)
     reallocate_string(&q.query_allocator, &q.params.context.classname)
     reallocate_string(&q.query_allocator, &q.params.name)
@@ -185,50 +185,44 @@ def do_read_file(params: QueryParams*, results: QueryResults*) -> None:
     results.read_file.content = ""
     results.read_file.error = ""
 
-    if not starts_with(params.context.uri, "file://"):
-        results.read_file.error = "bad URI"
+    f = fopen(params.context.path, "rb")
+    if f == NULL:
+        snprintf(results.read_file.error, array_count(results.read_file.error), "%s", strerror(get_errno()))
     else:
-        # TODO: this is not the correct way to convert URI to path!
-        path = &params.context.uri[7]
+        content: byte* = results.allocator.alloc(1)
+        content_len: intnative = 0
+        buffered: intnative = 0
 
-        f = fopen(path, "rb")
-        if f == NULL:
-            snprintf(results.read_file.error, array_count(results.read_file.error), "%s", strerror(get_errno()))
-        else:
-            content: byte* = results.allocator.alloc(1)
-            content_len: intnative = 0
-            buffered: intnative = 0
-
-            while True:
-                n = fread(&big_buffer[buffered], 1, sizeof(big_buffer) - buffered, f)
-                if n == 0:
-                    break
-                buffered += n
-                if buffered == sizeof(big_buffer):
-                    content = concat_buffers_plus1(&results.allocator, content, content_len, big_buffer, buffered)
-                    content_len += buffered
-                    buffered = 0
-
-            if ferror(f) != 0:
-                snprintf(results.read_file.error, array_count(results.read_file.error), "%s", strerror(get_errno()))
-            fclose(f)
-
-            if buffered > 0:
+        while True:
+            n = fread(&big_buffer[buffered], 1, sizeof(big_buffer) - buffered, f)
+            if n == 0:
+                break
+            buffered += n
+            if buffered == sizeof(big_buffer):
                 content = concat_buffers_plus1(&results.allocator, content, content_len, big_buffer, buffered)
                 content_len += buffered
                 buffered = 0
 
-            # if contains '\0' bytes, delete them and set the error
-            dest = content
-            for i = 0 as intnative; i < content_len; i++:
-                b = content[i]
-                if b == '\0':
-                    results.read_file.error = "source file contains a zero byte"
-                else:
-                    *dest++ = b
-            *dest = '\0'
+        if ferror(f) != 0:
+            snprintf(results.read_file.error, array_count(results.read_file.error), "%s", strerror(get_errno()))
+        fclose(f)
 
-            results.read_file.content = content
+        if buffered > 0:
+            content = concat_buffers_plus1(&results.allocator, content, content_len, big_buffer, buffered)
+            content_len += buffered
+            buffered = 0
+
+        # if contains '\0' bytes, delete them and set the error
+        dest = content
+        for i = 0 as intnative; i < content_len; i++:
+            b = content[i]
+            if b == '\0':
+                results.read_file.error = "source file contains a zero byte"
+            else:
+                *dest++ = b
+        *dest = '\0'
+
+        results.read_file.content = content
 
     # FNV-1a hash
     # https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function#FNV-1a_hash

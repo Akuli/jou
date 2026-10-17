@@ -1,0 +1,34 @@
+import "stdlib/assert.jou"
+
+class DebugBuf:
+    string: byte[1000]
+    index: int
+
+# There's multiple, so that you can do this:
+#
+#   printf("%s %s\n", foo.debug_string(), bar.debug_string())
+#
+global bufs: DebugBuf[5]
+global current_buf: DebugBuf*
+
+@public
+def debug_strcat(s: byte*) -> None:
+    if current_buf == NULL:
+        current_buf = &bufs[0]
+
+    while *s != '\0' and current_buf.index < sizeof(current_buf.string) - 1:  # leave room for '\0' at end
+        current_buf.string[current_buf.index++] = *s++
+    current_buf.string[current_buf.index] = '\0'
+
+@public
+def debug_str() -> byte*:
+    assert current_buf != NULL
+    current_buf.string[current_buf.index] = '\0'
+    result: byte* = current_buf.string
+
+    current_buf++
+    if current_buf == &bufs[array_count(bufs)]:
+        current_buf = &bufs[0]
+    debug_strcat("")
+
+    return result

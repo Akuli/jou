@@ -2,11 +2,12 @@ import "stdlib/intnative.jou"
 import "stdlib/str.jou"
 
 import "./allocator.jou"
+import "./debug_str.jou"
 
 
 @public
 class SymbolContext:
-    uri: byte*      # basically file path, looks like file:///home/akuli/foo.py
+    path: byte*
 
     # funcname and classname    --> we are in a method
     # funcname only             --> we are in a function
@@ -46,10 +47,6 @@ class ReadFileResult:
 @public
 const NUMBER_OF_THINGS_IN_QUERY_PARAMS: int = 3
 
-# Multiple buffers so you can print multiple things in the same printf(...) call
-global debug_string_bufs: byte[1000][5]
-global debug_string_index: int
-
 @public
 class QueryParams:
     kind: QueryKind
@@ -58,16 +55,14 @@ class QueryParams:
 
     @public
     def debug_string(self) -> byte*:
-        debug_string_index++
-        debug_string_index %= array_count(debug_string_bufs)
-        snprintf(
-            debug_string_bufs[debug_string_index],
-            sizeof(debug_string_bufs[0]),
-            "%s \"%s\"",
-            QUERY_KIND_NAMES[self.kind as int],
-            self.context.uri,
-        )
-        return debug_string_bufs[debug_string_index]
+        debug_strcat(QUERY_KIND_NAMES[self.kind as int])
+        debug_strcat(" \"")
+        debug_strcat(self.context.path)
+        debug_strcat("\"")
+        if self.name != NULL:
+            debug_strcat(" ")
+            debug_strcat(self.name)
+        return debug_str()
 
 @public
 class QueryResults:

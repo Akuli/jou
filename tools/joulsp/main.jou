@@ -9,7 +9,7 @@ def main() -> int:
     state = State{}
 
     # Read the content of this file through the query system
-    params = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{uri="file:///home/akuli/jou/examples/helloa.jou"}}
+    params = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{path="examples/hello.jou"}}
 
     results = run_query(&state, &params)
     assert results != NULL  # not cyclic dependency
