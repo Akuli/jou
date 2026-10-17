@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/errno.jou"
 import "stdlib/mem.jou"
 import "stdlib/time.jou"
 import "stdlib/str.jou"
@@ -69,22 +70,26 @@ def delete_old_queries(state: State*) -> None:
 # TODO(Jou): use this pattern more? it seems pretty nice for building
 # dynamic arrays without explicit capacity member.
 @inline
-def should_grow(size: int) -> bool:
-    # Return True if the size is 0,1,2,4,8,16,32,...
-    return size & (size - 1) == 0
-
-@inline
-def next_size(size: int) -> int:
-    if size == 0:
+def choose_capacity(len: int) -> int:
+    if len == 0:
         # TODO: bigger initial size?
         return 1
-    return 2*size
+
+    # Choose next power of two, e.g. 5 --> 8
+    # It's easier to choose 2^n - 1 = 0b1111...111 by smearing the bits around.
+    len--
+    len |= len >> 1
+    len |= len >> 2
+    len |= len >> 4
+    len |= len >> 8
+    len |= len >> 16
+    return len+1
 
 # Adds a dependency like "q1 depends on q2"
 def add_dependency(q1: Query*, q2: Query*) -> None:
-    if should_grow(q1.ndeps):
+    if choose_capacity(q1.ndeps) != choose_capacity(q1.ndeps + 1):
         old_deps = q1.deps
-        q1.deps = q1.results.allocator.alloc(sizeof(q1.deps[0]) * next_size(q1.ndeps))
+        q1.deps = q1.results.allocator.alloc(sizeof(q1.deps[0]) * choose_capacity(q1.ndeps + 1))
         memcpy(q1.deps, old_deps, sizeof(q1.deps[0]) * q1.ndeps)
 
     q1.deps[q1.ndeps++] = QueryAndVersion{query = q2, version = q2.version}
@@ -109,6 +114,7 @@ def can_reuse_previous_result(q: Query*) -> bool:
 def run_query(state: State*, params: QueryParams*) -> QueryResults*:
     q: Query* = find_query_from_hash_table(state, params)
     if q == NULL:
+        printf("%s: new query\n", params.debug_string())
         q = allocate_query(params)
         add_query_to_hash_table(state, q)
         assert q.version == 0
@@ -123,6 +129,7 @@ def run_query(state: State*, params: QueryParams*) -> QueryResults*:
             if state.innermost_running_query != NULL:
                 add_dependency(state.innermost_running_query, q)
             return &q.results
+        printf("%s: re-evaluating query\n", params.debug_string())
         assert q.version >= 1
 
     assert not q.running
@@ -161,10 +168,63 @@ def run_query(state: State*, params: QueryParams*) -> QueryResults*:
     return &q.results
 
 
+global big_buffer: byte[1_000_000]
+
+
+def concat_buffers_plus1(allocator: Allocator*, buf1: byte*, len1: intnative, buf2: byte*, len2: intnative) -> byte*:
+    result: byte* = allocator.alloc(len1 + len2 + 1)  # there's always room for '\0' byte at the end
+    memcpy(result, buf1, len1)
+    memcpy(&result[len1], buf2, len2)
+    return result
+
 def do_read_file(params: QueryParams*, results: QueryResults*) -> None:
-    # TODO: implement this for real
-    results.read_file.content = results.allocator.alloc(1000)
-    sprintf(results.read_file.content, "content of %s", params.context.uri)
+    results.read_file.content = ""
+    results.read_file.error = ""
+
+    if not starts_with(params.context.uri, "file://"):
+        results.read_file.error = "bad URI"
+    else:
+        # TODO: this is not the correct way to convert URI to path!
+        path = &params.context.uri[7]
+
+        f = fopen(path, "rb")
+        if f == NULL:
+            snprintf(results.read_file.error, array_count(results.read_file.error), "%s", strerror(get_errno()))
+        else:
+            content: byte* = results.allocator.alloc(1)
+            content_len: intnative = 0
+            buffered: intnative = 0
+
+            while True:
+                n = fread(&big_buffer[buffered], 1, sizeof(big_buffer) - buffered, f)
+                if n == 0:
+                    break
+                buffered += n
+                if buffered == sizeof(big_buffer):
+                    content = concat_buffers_plus1(&results.allocator, content, content_len, big_buffer, buffered)
+                    content_len += buffered
+                    buffered = 0
+
+            if ferror(f) != 0:
+                snprintf(results.read_file.error, array_count(results.read_file.error), "%s", strerror(get_errno()))
+            fclose(f)
+
+            if buffered > 0:
+                content = concat_buffers_plus1(&results.allocator, content, content_len, big_buffer, buffered)
+                content_len += buffered
+                buffered = 0
+
+            # if contains '\0' bytes, delete them and set the error
+            dest = content
+            for i = 0 as intnative; i < content_len; i++:
+                b = content[i]
+                if b == '\0':
+                    results.read_file.error = "source file contains a zero byte"
+                else:
+                    *dest++ = b
+            *dest = '\0'
+
+            results.read_file.content = content
 
     # FNV-1a hash
     # https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function#FNV-1a_hash

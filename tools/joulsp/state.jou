@@ -63,12 +63,9 @@ class QueryParams:
         snprintf(
             debug_string_bufs[debug_string_index],
             sizeof(debug_string_bufs[0]),
-            "Query{%s, context=SymbolContext{\"%s\", func=\"%s\", class=\"%s\"}, name=\"%s\"}",
+            "%s \"%s\"",
             QUERY_KIND_NAMES[self.kind as int],
             self.context.uri,
-            self.context.funcname,
-            self.context.classname,
-            self.name,
         )
         return debug_string_bufs[debug_string_index]
 
