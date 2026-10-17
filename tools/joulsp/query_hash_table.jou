@@ -1,13 +1,10 @@
 import "stdlib/assert.jou"
-import "stdlib/list.jou"
-import "stdlib/time.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/intnative.jou"
 import "stdlib/mem.jou"
 
 import "./state.jou"
-import "./allocator.jou"
 
 
 # Public mostly for tests, but also might help with some debugging
@@ -82,44 +79,17 @@ def query_params_equal(p1: QueryParams*, p2: QueryParams*) -> bool:
     )
 
 
-def reallocate_string(allocator: Allocator*, s: byte**) -> None:
-    if *s != NULL:
-        result = allocator.alloc(strlen(*s) + 1)
-        strcpy(result, *s)
-        *s = result
-
-
-# A special marker that indicates a deleted slot in the hash table.
-# This is different from NULL which means empty.
-#
-# TODO(Jou): this would ideally be a constant, not a function
-@inline
-def tombstone() -> void*:
-    return 1 as intnative as void*
-
-
-def add_query_without_growing(state: State*, q: Query*) -> None:
-    pos = q.params_hash % state.queries_capacity
-    while state.queries_table[pos] != NULL and state.queries_table[pos] != tombstone():
-        if state.queries_table[pos].params_hash == q.params_hash:
-            # If this assert fails, the query already exists, and you should
-            # either use its result or re-run it.
-            #
-            # If this assert succeeds, we have a hash collision, which should
-            # be very rare but can happen.
-            assert not query_params_equal(&state.queries_table[pos].params, &q.params)
-            if QUERY_HASH_TABLE_DEBUG_PRINTS:
-                printf("hash collision in query table\n")
-        pos++
-        pos %= state.queries_capacity
+def add_without_growing(state: State*, q: Query*) -> None:
+    N = state.queries_capacity
+    pos = q.params_hash % N
+    while state.queries_table[pos] != NULL:
+        pos = (pos+1) % N
     state.queries_table[pos] = q
 
 @public
-def add_query_to_hash_table(state: State*, params: QueryParams*) -> Query*:
-    if state.queries_tombstones > state.queries_count:
-        
+def add_query_to_hash_table(state: State*, q: Query*) -> None:
     # Keep the hash table at most 50% full
-    if (state.queries_count + state.queries_tombstones + 1)*2 > state.queries_capacity:
+    if 2*(state.queries_count + 1) > state.queries_capacity:
         old_capacity = state.queries_capacity
         if state.queries_capacity == 0:
             state.queries_capacity = 4
@@ -128,10 +98,8 @@ def add_query_to_hash_table(state: State*, params: QueryParams*) -> Query*:
 
         if QUERY_HASH_TABLE_DEBUG_PRINTS:
             printf(
-                "Growing query hash table to %zd slots (%zd used, %zd tombstones --> %zd used, 0 tombstones)\n",
+                "Growing query hash table to %zd slots (%zd used)\n",
                 state.queries_capacity,
-                state.queries_count,
-                state.queries_tombstones,
                 state.queries_count + 1,
             )
 
@@ -142,100 +110,96 @@ def add_query_to_hash_table(state: State*, params: QueryParams*) -> Query*:
 
         # Insert all the old queries to their new places
         for i = 0 as intnative; i < old_capacity; i++:
-            if old_table[i] != NULL and old_table[i] != tombstone():
-                add_query_without_growing(state, old_table[i])
-        state.queries_tombstones = 0
+            if old_table[i] != NULL:
+                add_without_growing(state, old_table[i])
 
         free(old_table)
 
-    # Allocate the query using its own allocator
-    temp = Allocator{}
-    q: Query* = temp.alloc(sizeof(*q))
-    assert q != NULL
-    *q = Query{query_allocator = temp, params = *params}
-
-    reallocate_string(&q.query_allocator, &q.params.context.uri)
-    reallocate_string(&q.query_allocator, &q.params.context.funcname)
-    reallocate_string(&q.query_allocator, &q.params.context.classname)
-    reallocate_string(&q.query_allocator, &q.params.name)
-
-    h1 = hash_query_params(&q.params)
-    h2 = hash_query_params(params)
-    assert h1 == h2
-    q.params_hash = h1
-
-    add_query_without_growing(state, q)
+    q.params_hash = hash_query_params(&q.params)
+    add_without_growing(state, q)
     state.queries_count++
-    return q
 
 
-# Public only for tests. TODO: delete the tests?
 @public
 def find_query_from_hash_table(state: State*, params: QueryParams*) -> Query*:
     if state.queries_count == 0:
         return NULL
 
     h = hash_query_params(params)
-    for pos = h % state.queries_capacity; state.queries_table[pos] != NULL; pos = (pos+1) % state.queries_capacity:
+    N = state.queries_capacity
+    for i = h % N; state.queries_table[i] != NULL; i = (i+1) % N:
         if (
-            state.queries_table[pos] != tombstone()
-            and state.queries_table[pos].params_hash == h
-            and query_params_equal(&state.queries_table[pos].params, params)
+            state.queries_table[i].params_hash == h
+            and query_params_equal(&state.queries_table[i].params, params)
         ):
-            return state.queries_table[pos]
+            return state.queries_table[i]
+
     return NULL
 
 
+# A hole in the hash table means an empty slot (that is, NULL) that prevents an
+# element from being found.
+#
+# This function fixes a hole by moving another element to where the hole is,
+# but it may introduce another hole to where the element was.
+#
+# Return values:
+#   -1      hole fixed, no new hole created
+#   other   index where a new hole may be, needs to be fixed by calling again
+def fix_hole(state: State*, hole: intnative) -> intnative:
+    N = state.queries_capacity
+
+    assert 0 <= hole and hole < N
+    assert state.queries_table[hole] == NULL
+
+    # Look at consecutive elements after the hole. Try to move them to where
+    # the hole is.
+    for i = (hole+1) % N; state.queries_table[i] != NULL; i = (i+1) % N:
+        ideal = state.queries_table[i].params_hash % N
+
+        # These rely on how '%' handles negative numbers in Python and Jou.
+        # For example, this code wouldn't work as is in C.
+        how_far_it_would_be = (hole - ideal) % N
+        how_far_it_is_now = (i - ideal) % N
+
+        if how_far_it_would_be < how_far_it_is_now:
+            # The element is happier in the hole we're trying to fill than
+            # in its current place. Let's move it into the hole.
+            state.queries_table[hole] = state.queries_table[i]
+            state.queries_table[i] = NULL
+
+            # We may have created a new hole to where the item as.
+            # That needs to be fixed by calling this function again.
+            return i
+
+    # The hole doesn't matter because the ideal place of every element
+    # immediately after the hole is somewhere after the hole.
+    return -1
+
+
 @public
-def delete_query_from_hash_table(state: State*, query: Query*) -> None:
-    assert state.queries_count >= 1
-    assert query != NULL
-    assert query != tombstone()
+def remove_query_from_hash_table_by_index(state: State*, i: intnative) -> None:
+    assert 0 <= i and i < state.queries_capacity
+    assert state.queries_table[i] != NULL
 
-    for pos = query.params_hash % state.queries_capacity; state.queries_table[pos] != NULL; pos = (pos+1) % state.queries_capacity:
-        if state.queries_table[pos] == query:
-            state.queries_table[pos] = tombstone()
-            state.queries_tombstones++
-            state.queries_count--
-            return
+    state.queries_table[i] = NULL
+    state.queries_count--
 
-    assert False
+    while i != -1:
+        i = fix_hole(state, i)
 
 
-# Make sure that nothing outside the query table holds pointers to query
-# results when you call this!
 @public
-def delete_old_queries(state: State*) -> None:
-    # If a query was used 5 seconds ago and one of its dependencies was used 10
-    # seconds ago, mark the dependency as being used 5 seconds ago.
-    #
-    # This looks like it's slow: O(nd), where d is depth of the dependency tree.
-    # Please replace with a faster algorithm only if this is actually slow.
-    while True:
-        did_something = False
+def remove_query_from_hash_table(state: State*, q: Query*) -> None:
+    assert state.queries_count > 0
+    assert q != NULL
 
-        for i = 0 as intnative; i < state.queries_capacity; i++:
-            q = state.queries_table[i]
-            if q != NULL:
-                for dep = q.deps; dep < &q.deps[q.ndeps]; dep++:
-                    if dep.query.last_used_time < q.last_used_time:
-                        # Dependency was indirectly used more recently than it thinks it was used.
-                        dep.query.last_used_time = q.last_used_time
-                        did_something = True
+    # Find the query
+    N = state.queries_capacity
+    i = q.params_hash % N
+    while state.queries_table[i] != q and state.queries_table[i] != NULL:
+        i++
 
-        if not did_something:
-            break
-
-    threshold_time = time(NULL) - 60
-
-    # Delete old queries from hash table and free their memory
-    old_count = state.queries_count
-    for i = 0 as intnative; i < state.queries_capacity; i++:
-        q = state.queries_table[i]
-        if q != NULL and q.last_used_time < threshold_time:
-            q.results.allocator.free_all()
-            q.query_allocator.free_all()  # makes q invalid
-
-            state.queries_table[i] = tombstone()
-            state.queries_count--
-            state.queries_tombstones++
+    # If this assert fails, the query is not in the hash table
+    assert state.queries_table[i] == q
+    remove_query_from_hash_table_by_index(state, i)

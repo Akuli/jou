@@ -1,27 +1,82 @@
 import "stdlib/assert.jou"
-import "stdlib/list.jou"
 import "stdlib/time.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/intnative.jou"
-import "stdlib/mem.jou"
 
 import "./state.jou"
 import "./allocator.jou"
 import "./query_hash_table.jou"
 
 
+# If a query was used 5 seconds ago and one of its dependencies was used 10
+# seconds ago, mark the dependency as being used 5 seconds ago.
+def fix_times_recursively(q: Query*) -> None:
+    for dep = q.deps; dep < &q.deps[q.ndeps]; dep++:
+        if dep.query.last_used_time < q.last_used_time:
+            dep.query.last_used_time = q.last_used_time
+            fix_times_recursively(dep.query)
+
+
+# Make sure that nothing outside the query table holds pointers to query
+# results when you call this!
+@public
+def delete_old_queries(state: State*) -> None:
+    for i = 0 as intnative; i < state.queries_capacity; i++:
+        if state.queries_table[i] != NULL:
+            fix_times_recursively(state.queries_table[i])
+
+    threshold_time = time(NULL) - 60
+    counter: intnative = 0
+    old_total = state.queries_count
+
+    # Delete old queries from hash table and free their memory
+    #
+    # If there are multiple old queries, this may not delete all of them because
+    # of how hash table items move around when they are deleted. It's fine.
+    for i = 0 as intnative; i < state.queries_capacity; i++:
+        q = state.queries_table[i]
+        if q != NULL and q.last_used_time < threshold_time:
+            remove_query_from_hash_table_by_index(state, i)
+            q.results.allocator.free_all()
+            q.query_allocator.free_all()  # makes q.whatever invalid
+            counter++
+
+    printf("Old query cleanup: %zd/%zd queries deleted\n", counter, old_total)
+
+
+def reallocate_string(allocator: Allocator*, s: byte**) -> None:
+    if *s != NULL:
+        result = allocator.alloc(strlen(*s) + 1)
+        strcpy(result, *s)
+        *s = result
+
+
 # Return value NULL means a cyclic dependency: we are already running a query
 # with the same params as given here.
 @public
 def run_query(state: State*, params: QueryParams*) -> QueryResults*:
-    q = find_query_from_hash_table(state, params)
+    q: Query* = find_query_from_hash_table(state, params)
     if q == NULL:
-        # Create new query
-        q = add_query_to_hash_table(state, params)
+        # Allocate the query using its own allocator
+        temp = Allocator{}
+        q = temp.alloc(sizeof(*q))
+        assert q != NULL
+        *q = Query{query_allocator = temp, params = *params}
+
+        reallocate_string(&q.query_allocator, &q.params.context.uri)
+        reallocate_string(&q.query_allocator, &q.params.context.funcname)
+        reallocate_string(&q.query_allocator, &q.params.context.classname)
+        reallocate_string(&q.query_allocator, &q.params.name)
+
+        add_query_to_hash_table(state, q)
+
     else:
+        # Check for cyclic dependencies and reuse previous result if possible
         if q.running:
             return NULL  # cyclic dependency error
+
+        assert q.version >= 1
 
         needs_rerun = False
         for dep = q.deps; dep < &q.deps[q.ndeps]; dep++:
@@ -35,6 +90,6 @@ def run_query(state: State*, params: QueryParams*) -> QueryResults*:
         if not needs_rerun:
             return &q.results
 
-    old_results = 
+#    old_results = 
 
     return NULL

@@ -87,7 +87,7 @@ class MySet:
             i = (i + 1) % self.capacity
             assert self.table[i] is not None
 
-        # Clear the slot. This creates a hole in the hash table that may
+        # This creates a hole in the hash table that may
         # prevent finding other elements that have been placed after the hole.
         self.table[i] = None
         self.count -= 1
