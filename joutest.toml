@@ -70,3 +70,18 @@ command = {
     windows = ["cmd", "/c", 'jou --stdin-name {file} - || ver>nul'],
     default = ["sh", "-c", "jou --stdin-name {file} - || true"],
 }
+
+
+###############
+# Test joulsp #
+###############
+
+[[tests]]
+files = [
+    "tools/joulsp_tests/*.jou",
+]
+output_comment_rules = {
+    Output = '{comment}',
+    Warning = 'compiler warning for file "{file}", line {line}: {comment}'
+}
+output_comment_order = ["Warning", "Output"]

@@ -22,10 +22,6 @@ const NUMBER_OF_THINGS_IN_QUERY_PARAMS: int = 5
 @public
 class QueryParams:
     kind: QueryKind
-
-    # If you add fields here, please update the following functions:
-    #   sanity_check()
-    #   hash_query_inputs()
     uri: byte*          # all queries
     name: byte*         # FindDefinition
     funcname: byte*     # FindDefinition
@@ -43,6 +39,7 @@ class QueryResults:
         # FindDefinition
         definition: AstStatement*
 
+@public
 class QueryAndVersion:
     query: Query*
     version: int64
@@ -53,9 +50,16 @@ class Query:
     # after creating the query. Allocated using query_allocator.
     params: QueryParams
 
-    # If another query that is a dependency has changed, we may need to re-run this query
-    dependencies: QueryAndVersion*
-    num_dependencies: intnative
+    # Cached to find queries faster
+    params_hash: uint64
+
+    # If another query that is a dependency has changed, we may need to re-run
+    # this query.
+    #
+    # Dependencies are figured out automatically while the query runs, and
+    # hence, allocated with result_allocator.
+    deps: QueryAndVersion*
+    ndeps: int
 
     # If the version number of a dependency has changed, this query needs to
     # re-run before its results can be used again. For example, if we need the
@@ -70,11 +74,11 @@ class Query:
     # is now freed.
     results: QueryResults
 
-    # Timestamp from monotonic_ns(), used to delete queries that haven't been
+    # Timestamp from time(), used to delete queries that haven't been
     # used in a long time
-    last_used: int64
+    last_used_time: int64
 
-    query_allocator: Allocator   # freed when the whole query hasn't been used in a long time (see last_used)
+    query_allocator: Allocator   # freed when the whole query goes away due to not being used in a long time
     result_allocator: Allocator  # freed when version number increments
 
     # This is used to check for cyclic dependencies

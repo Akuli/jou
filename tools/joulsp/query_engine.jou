@@ -1,4 +1,6 @@
 import "stdlib/assert.jou"
+import "stdlib/list.jou"
+import "stdlib/time.jou"
 import "stdlib/str.jou"
 import "stdlib/io.jou"
 import "stdlib/intnative.jou"
@@ -22,18 +24,15 @@ def sanity_check(params: QueryParams*) -> None:
         case QueryKind.ReadFile:
             assert params.name == NULL
             n++
-
             assert params.funcname == NULL
             n++
-
             assert params.classname == NULL
             n++
-
             #params.lineno  # TODO: query for reading a specific line
+
         case QueryKind.FindDefinition:
             assert params.name != NULL
             n++
-
             # All combinations of funcname and classname make sense:
             #
             # funcname and classname    --> looking for local variable in a method
@@ -94,6 +93,20 @@ def hash_query_params(params: QueryParams*) -> uint64:
     return hash
 
 
+def nully_string_equals(s1: byte*, s2: byte*) -> bool:
+    return s1 == s2 or (s1 != NULL and s2 != NULL and strcmp(s1, s2) == 0)
+
+def query_params_equal(p1: QueryParams*, p2: QueryParams*) -> bool:
+    assert NUMBER_OF_THINGS_IN_QUERY_PARAMS == 5
+    return (
+        p1.kind == p2.kind
+        and strcmp(p1.uri, p2.uri) == 0
+        and nully_string_equals(p1.name, p2.name)
+        and nully_string_equals(p1.funcname, p2.funcname)
+        and nully_string_equals(p1.classname, p2.classname)
+    )
+
+
 def duplicate_string(allocator: Allocator*, s: byte*) -> byte*:
     if s == NULL:
         return NULL
@@ -102,6 +115,24 @@ def duplicate_string(allocator: Allocator*, s: byte*) -> byte*:
     strcpy(result, s)
     return result
 
+
+def add_query_without_growing(state: State*, q: Query*) -> None:
+    pos = q.params_hash % state.queries_capacity
+    while state.queries_table[pos] != NULL:
+        if state.queries_table[pos].params_hash == q.params_hash:
+            # If this assert fails, the query already exists, and you should
+            # either use its result or re-run it.
+            #
+            # If this assert succeeds, we have a hash collision, which should
+            # be very rare but can happen.
+            assert not query_params_equal(&state.queries_table[pos].params, &q.params)
+            #printf("hash collision in query table\n")
+        pos++
+        pos %= state.queries_capacity
+    state.queries_table[pos] = q
+
+# Public only for tests. TODO: delete the tests?
+@public
 def add_query(state: State*, params: QueryParams*) -> Query*:
     sanity_check(params)
 
@@ -114,7 +145,8 @@ def add_query(state: State*, params: QueryParams*) -> Query*:
     if (state.queries_len + 1)*4 > state.queries_capacity:
         if state.queries_capacity == 0:
             state.queries_capacity = 4
-        state.queries_capacity *= 2
+        else:
+            state.queries_capacity *= 2
 
         # Allocate a bigger hash table
         old_table = state.queries_table
@@ -123,13 +155,8 @@ def add_query(state: State*, params: QueryParams*) -> Query*:
 
         # Insert all the old queries to their new places
         for i: intnative = 0; i < old_capacity; i++:
-            old_q = old_table[i]
-            if old_q != NULL:
-                pos = hash_query_params(&old_q.params) % state.queries_capacity
-                while state.queries_table[pos] != NULL:
-                    pos++
-                    pos %= state.queries_capacity
-                state.queries_table[pos] = old_q
+            if old_table[i] != NULL:
+                add_query_without_growing(state, old_table[i])
 
         free(old_table)
         printf("Query hash table grew to %zd slots (%d used)\n", state.queries_capacity, state.queries_len + 1)
@@ -147,38 +174,84 @@ def add_query(state: State*, params: QueryParams*) -> Query*:
     q.params.name = duplicate_string(&q.query_allocator, params.name)
     q.params.funcname = duplicate_string(&q.query_allocator, params.funcname)
     q.params.classname = duplicate_string(&q.query_allocator, params.classname)
-    assert hash_query_params(&q.params) == hash_query_params(params)
 
-    pos = hash_query_params(params) % state.queries_capacity
-    while state.queries_table[pos] != NULL:
-        pos++
-        pos %= state.queries_capacity
-    state.queries_table[pos] = q
+    h1 = hash_query_params(&q.params)
+    h2 = hash_query_params(params)
+    assert h1 == h2
+    q.params_hash = h1
+
+    add_query_without_growing(state, q)
     state.queries_len++
-
     return q
 
 
-def main() -> int:
-    state = State{}
+# Public only for tests. TODO: delete the tests?
+@public
+def find_query(state: State*, params: QueryParams*) -> Query*:
+    if state.queries_len == 0:
+        return NULL
 
-    p1 = QueryParams{kind = QueryKind.ReadFile, uri = "file:///home/akuli/jou/stdlib/io.jou"}
-    p2 = QueryParams{kind = QueryKind.FindDefinition, uri = "file:///home/akuli/jou/foo.jou", name = "thing"}
-    add_query(&state, &p1)
-    add_query(&state, &p2)
-    add_query(&state, &p2)
-    add_query(&state, &p2)
-    add_query(&state, &p2)
-    add_query(&state, &p2)
-    add_query(&state, &p2)
+    h = hash_query_params(params)
+    for pos = h % state.queries_capacity; state.queries_table[pos] != NULL; pos = (pos+1) % state.queries_capacity:
+        if state.queries_table[pos].params_hash == h and query_params_equal(&state.queries_table[pos].params, params):
+            return state.queries_table[pos]
+    return NULL
 
-    printf("queries_table = [\n")
+
+# Make sure that nothing outside the query table holds pointers to query
+# results when you call this!
+@public
+def delete_old_queries(state: State*) -> None:
+    # TODO: check that all loops elsewhere use 64-bit indexing on 64-bit systems?
+    i: intnative
+
+    # If a query was used 5 seconds ago and one of its dependencies was used 10
+    # seconds ago, mark the dependency as being used 5 seconds ago.
+    #
+    # This looks like it's slow: O(nd), where d is depth of the dependency tree.
+    # Please replace with a faster algorithm only if this is actually slow.
+    while True:
+        did_something = False
+
+        for i = 0; i < state.queries_capacity; i++:
+            q = state.queries_table[i]
+            if q != NULL:
+                for dep = q.deps; dep < &q.deps[q.ndeps]; dep++:
+                    if dep.query.last_used_time < q.last_used_time:
+                        # Dependency was indirectly used more recently than it thinks it was used.
+                        dep.query.last_used_time = q.last_used_time
+                        did_something = True
+
+        if not did_something:
+            break
+
+    threshold_time = time(NULL) - 60
+
+    # Delete old queries from hash table and free their memory
+    old_len = state.queries_len
     for i = 0; i < state.queries_capacity; i++:
         q = state.queries_table[i]
-        if q == NULL:
-            printf("  NULL,\n")
-        else:
-            printf("  Query for \"%s\",\n", q.params.uri)
-    printf("]\n")
+        if q != NULL and q.last_used_time < threshold_time:
+            q.result_allocator.free_all()
+            q.query_allocator.free_all()  # makes q invalid
+            state.queries_table[i] = NULL
+            state.queries_len--
 
-    return 0
+    if state.queries_len != old_len:
+        # Deleting may have caused gaps in the hash table that would prevent
+        # finding entries properly. Re-insert everything into the hash table.
+        temp = List[Query*]{}
+        for i = 0; i < state.queries_capacity; i++:
+            q = state.queries_table[i]
+            if q != NULL:
+                temp.append(q)
+        memset(state.queries_table, 0, sizeof(state.queries_table[0]) * state.queries_capacity)
+        for qptr = temp.ptr; qptr < temp.end(); qptr++:
+            add_query_without_growing(state, *qptr)
+        free(temp.ptr)
+
+        printf(
+            "Old query cleanup: %zd/%zd queries deleted\n",
+            old_len - state.queries_len,
+            old_len,
+        )
