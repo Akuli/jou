@@ -165,6 +165,10 @@ def run_query(state: State*, params: QueryParams*) -> QueryResults*:
     if other_running_query != NULL:
         add_dependency(other_running_query, q)
 
+    assert q.running
+    q.running = False
+
+    printf("debug asd 3\n")
     return &q.results
 
 
