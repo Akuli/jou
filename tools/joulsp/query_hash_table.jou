@@ -32,8 +32,8 @@ def hash_query_params(params: QueryParams*) -> uint64:
     hash *= FNV_PRIME
     n++
 
-    assert params.context.uri != NULL
-    hash_string(&hash, params.context.uri)
+    assert params.context.path != NULL
+    hash_string(&hash, params.context.path)
     if params.context.funcname != NULL:
         hash_string(&hash, params.context.funcname)
     if params.context.classname != NULL:
@@ -61,11 +61,11 @@ def nully_string_equals(s1: byte*, s2: byte*) -> bool:
     return s1 == s2 or (s1 != NULL and s2 != NULL and strcmp(s1, s2) == 0)
 
 def symbol_contexts_equal(ctx1: SymbolContext*, ctx2: SymbolContext*) -> bool:
-    assert ctx1.uri != NULL
-    assert ctx2.uri != NULL
+    assert ctx1.path != NULL
+    assert ctx2.path != NULL
 
     return (
-        strcmp(ctx1.uri, ctx2.uri) == 0
+        strcmp(ctx1.path, ctx2.path) == 0
         and nully_string_equals(ctx1.funcname, ctx2.funcname)
         and nully_string_equals(ctx1.classname, ctx2.classname)
     )

@@ -14,13 +14,13 @@ def test_adding_and_finding() -> None:
     q1 = Query{
         params = QueryParams{
             kind = QueryKind.ReadFile,
-            context = SymbolContext{uri = "file:///home/akuli/jou/stdlib/io.jou"},
+            context = SymbolContext{path = "/home/akuli/jou/stdlib/io.jou"},
         },
     }
     q2 = Query{
         params = QueryParams{
             kind = QueryKind.FindAccessibleDefinition,
-            context = SymbolContext{uri = "file:///home/akuli/foo.jou"},
+            context = SymbolContext{path = "/home/akuli/foo.jou"},
             name = "thing",
         },
     }
@@ -39,16 +39,16 @@ def test_adding_and_finding() -> None:
 
     # Output: queries_table:
     # Output:   NULL
-    # Output:   Query: uri="file:///home/akuli/jou/stdlib/io.jou", last_used_time=0, ndeps=0
+    # Output:   ReadFile "/home/akuli/jou/stdlib/io.jou"
     # Output:   NULL
-    # Output:   Query: uri="file:///home/akuli/foo.jou", last_used_time=0, ndeps=0
+    # Output:   FindAccessibleDefinition "/home/akuli/foo.jou" thing
     printf("queries_table:\n")
     for i = 0; i < state.queries_capacity; i++:
         q = state.queries_table[i]
         if q == NULL:
             printf("  NULL\n")
         else:
-            printf("  Query: uri=\"%s\", last_used_time=%lld, ndeps=%d\n", q.params.context.uri, q.last_used_time, q.ndeps)
+            printf("  %s\n", q.params.debug_string())
 
 
 def test_deleting_old() -> None:
@@ -57,20 +57,20 @@ def test_deleting_old() -> None:
     q1 = Query{
         params = QueryParams{
             kind = QueryKind.ReadFile,
-            context = SymbolContext{uri = "file:///home/akuli/jou/stdlib/io.jou"},
+            context = SymbolContext{path = "/home/akuli/jou/stdlib/io.jou"},
         },
     }
     q2 = Query{
         params = QueryParams{
             kind = QueryKind.FindAccessibleDefinition,
-            context = SymbolContext{uri = "file:///home/akuli/jou/foo.jou"},
+            context = SymbolContext{path = "/home/akuli/jou/foobar.jou"},
             name = "foo",
         },
     }
     q3 = Query{
         params = QueryParams{
             kind = QueryKind.FindAccessibleDefinition,
-            context = SymbolContext{uri = "file:///home/akuli/jou/foo.jou"},
+            context = SymbolContext{path = "/home/akuli/jou/foobar.jou"},
             name = "bar",
         },
     }
@@ -88,11 +88,11 @@ def test_deleting_old() -> None:
         q.ndeps = 1
 
     # Output: queries_table:
+    # Output:   FindAccessibleDefinition "/home/akuli/jou/foobar.jou" bar ndeps=1
+    # Output:   ReadFile "/home/akuli/jou/stdlib/io.jou" ndeps=0
     # Output:   NULL
-    # Output:   Query: uri="file:///home/akuli/jou/stdlib/io.jou", last_used_time=0, ndeps=0
+    # Output:   FindAccessibleDefinition "/home/akuli/jou/foobar.jou" foo ndeps=1
     # Output:   NULL
-    # Output:   Query: uri="file:///home/akuli/jou/foo.jou", last_used_time=0, ndeps=1
-    # Output:   Query: uri="file:///home/akuli/jou/foo.jou", last_used_time=0, ndeps=1
     # Output:   NULL
     # Output:   NULL
     # Output:   NULL
@@ -102,7 +102,7 @@ def test_deleting_old() -> None:
         if q == NULL:
             printf("  NULL\n")
         else:
-            printf("  Query: uri=\"%s\", last_used_time=%lld, ndeps=%d\n", q.params.context.uri, q.last_used_time, q.ndeps)
+            printf("  %s ndeps=%d\n", q.params.debug_string(), q.ndeps)
 
     # Suppose it's been a long time since file was read or we had anything to
     # do with foo, but we used bar recently
