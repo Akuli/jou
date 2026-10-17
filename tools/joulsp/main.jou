@@ -1,3 +1,4 @@
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
 
 import "./state.jou"
@@ -11,14 +12,16 @@ def main() -> int:
     params = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{uri="file:///home/akuli/jou/examples/hello.jou"}}
 
     results = run_query(&state, &params)
+    assert results != NULL  # not cyclic dependency
     printf("File content: %s\n", results.read_file.content)
     printf("File content hash: %llx\n", results.read_file.content_hash)
     printf("Error: %s\n", results.read_file.error)
 
     # TODO: why segfault?
-#    results = run_query(&state, &params)
-#    printf("File content: %s\n", results.read_file.content)
-#    printf("File content hash: %llx\n", results.read_file.content_hash)
-#    printf("Error: %s\n", results.read_file.error)
+    results = run_query(&state, &params)
+    assert results != NULL  # not cyclic dependency
+    printf("File content: %s\n", results.read_file.content)
+    printf("File content hash: %llx\n", results.read_file.content_hash)
+    printf("Error: %s\n", results.read_file.error)
 
     return 0
