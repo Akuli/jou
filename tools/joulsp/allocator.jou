@@ -1,0 +1,99 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+import "stdlib/intnative.jou"
+
+
+@public
+class Allocator:
+    nblocks: int  # never very many, block size grows quickly
+    block_size: intnative
+    current_block: void*
+    current_block_used: intnative
+
+    # Returned memory contains uninitialized/garbage values
+    # Always aligned properly for practical use cases
+    # Returns NULL for zero byte allocations
+    @public
+    def alloc(self, nbytes: intnative) -> void*:
+        assert nbytes >= 0
+        if nbytes == 0:
+            return NULL  # make sure that accessing alloc(0) result will crash
+
+        # Align everything to native size (e.g. multiple of 8 bytes)
+        # On 64-bit systems:
+        #   1 --> 8
+        #   2 --> 8
+        #   3 --> 8
+        #   4 --> 8
+        #   5 --> 8
+        #   6 --> 8
+        #   7 --> 8
+        #   8 --> 8
+        #   9 --> 16
+        #   10 --> 16
+        #   ...
+        align = sizeof(1 as intnative)
+        nbytes += align - 1
+        nbytes &= ~((align - 1) as intnative)
+
+        if self.current_block_used + nbytes <= self.block_size:
+            # Fast path: continue using the previous block
+            result = &(self.current_block as byte*)[self.current_block_used]
+            self.current_block_used += nbytes
+            return result
+        else:
+            # Slow path: allocate a new block
+            nbytes += sizeof(NULL)  # add room for previous block pointer
+
+            if self.block_size == 0:
+                self.block_size = 1
+            self.block_size *= 2  # always grow exponentially
+            while self.block_size < nbytes:
+                self.block_size *= 2
+
+            block = calloc(1, self.block_size)
+            printf("New block of size %zd: %p\n", self.block_size, block)
+            assert block != NULL
+            memset(block, 'j', self.block_size)  # for debugging
+
+            *(block as void**) = self.current_block
+            self.current_block = block
+            self.nblocks++
+
+            self.current_block_used = nbytes
+            return &(block as byte*)[sizeof(NULL)]
+
+    @public
+    def free_all(self) -> None:
+        # Access memory from the allocator before we begin, so that it's possible to put
+        # the allocator inside memory allocated with the same allocator.
+        #
+        # Example:
+        #    temp = Allocator{}
+        #    allocator: Allocator* = temp.alloc(sizeof(*allocator))
+        #    *allocator = temp
+        #    ...    # use the allocator
+        #    allocator.free_all()
+        block = self.current_block
+        nblocks = self.nblocks
+
+        while nblocks --> 0:
+            assert block != NULL
+            prev = *(block as void**)
+            #printf("Freeing block %p\n", block)
+            free(block)
+            block = prev
+
+        assert block == NULL
+
+
+def main() -> int:
+    temp = Allocator{}
+    a: Allocator* = temp.alloc(sizeof(*a))
+    *a = temp
+
+    for i = 0; i < 200; i++:
+        printf("%d bytes --> %p\n", i, a.alloc(i))
+    a.free_all()
+    return 0
