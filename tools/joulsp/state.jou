@@ -1,4 +1,5 @@
 import "stdlib/intnative.jou"
+import "stdlib/list.jou"
 
 import "./allocator.jou"
 
@@ -9,23 +10,34 @@ typedef AstStatement = int
 
 
 @public
+class SymbolContext:
+    uri: byte*      # basically file path, looks like file:///home/akuli/foo.py
+
+    # funcname and classname    --> we are in a method
+    # funcname only             --> we are in a function
+    # classname only            --> we are in a class
+    # neither                   --> we are looking at global-level stuff in a file
+    funcname: byte*
+    classname: byte*
+
+
+@public
 enum QueryKind:
     ReadFile
-    FindDefinition
+    FindPublicDefinition
+    FindAccessibleDefinition
 
 
 # Please increment this when you add a field to QueryParams. This should help
 # find places that must be updated to use the new field.
 @public
-const NUMBER_OF_THINGS_IN_QUERY_PARAMS: int = 5
+const NUMBER_OF_THINGS_IN_QUERY_PARAMS: int = 3
 
 @public
 class QueryParams:
     kind: QueryKind
-    uri: byte*          # all queries
-    name: byte*         # FindDefinition
-    funcname: byte*     # FindDefinition
-    classname: byte*    # FindDefinition
+    context: SymbolContext
+    name: byte*     # FindDefinition
 
 
 class QueryResults:
@@ -92,3 +104,8 @@ class State:
     queries_table: Query**
     queries_len: intnative
     queries_capacity: intnative     # includes empty slots
+
+    # This is non-empty when we are running a query. This is used to figure out
+    # the dependencies: if running query foo triggers running another query
+    # bar, then bar is added to foo's list of dependencies.
+    running_queries: List[Query*]
