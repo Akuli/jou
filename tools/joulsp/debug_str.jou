@@ -29,6 +29,6 @@ def debug_str() -> byte*:
     current_buf++
     if current_buf == &bufs[array_count(bufs)]:
         current_buf = &bufs[0]
-    debug_strcat("")
+    *current_buf = DebugBuf{}
 
     return result
