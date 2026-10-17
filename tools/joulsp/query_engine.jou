@@ -141,8 +141,8 @@ def add_query(state: State*, params: QueryParams*) -> Query*:
 
     old_capacity = state.queries_capacity
 
-    # Keep the hash table at most 25% full
-    if (state.queries_len + 1)*4 > state.queries_capacity:
+    # Keep the hash table at most 50% full
+    if (state.queries_len + 1)*2 > state.queries_capacity:
         if state.queries_capacity == 0:
             state.queries_capacity = 4
         else:
