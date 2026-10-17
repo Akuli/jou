@@ -1,7 +1,6 @@
 import "stdlib/intnative.jou"
 
 import "./allocator.jou"
-import "stdlib/list.jou"
 
 
 # TODO: implement these
@@ -9,16 +8,29 @@ typedef FileAst = int
 typedef AstStatement = int
 
 
+@public
 enum QueryKind:
     ReadFile
     FindDefinition
 
+
+# Please increment this when you add a field to QueryParams. This should help
+# find places that must be updated to use the new field.
+@public
+const NUMBER_OF_THINGS_IN_QUERY_PARAMS: int = 5
+
+@public
 class QueryParams:
+    kind: QueryKind
+
+    # If you add fields here, please update the following functions:
+    #   sanity_check()
+    #   hash_query_inputs()
     uri: byte*          # all queries
     name: byte*         # FindDefinition
     funcname: byte*     # FindDefinition
     classname: byte*    # FindDefinition
-    lineno: int         # FindDefinition
+
 
 class QueryResults:
     union:
@@ -35,18 +47,19 @@ class QueryAndVersion:
     query: Query*
     version: int64
 
+@public
 class Query:
-    # Stuff used to identify what the query is supposed to do. These never
-    # change after creating the query.
-    kind: QueryKind
+    # Stuff used to identify what the query is supposed to do. Never changes
+    # after creating the query. Allocated using query_allocator.
     params: QueryParams
 
-    # If another query has ran, we may need to re-run this
-    dependencies: List[QueryAndVersion]
+    # If another query that is a dependency has changed, we may need to re-run this query
+    dependencies: QueryAndVersion*
+    num_dependencies: intnative
 
-    # If the version number of a dependency has changed, any queries that
-    # depend on this query's results should be re-evaluated. For example, we
-    # should tokenize and parse a file when its content changes.
+    # If the version number of a dependency has changed, this query needs to
+    # re-run before its results can be used again. For example, if we need the
+    # AST and the file content has changed, we need tokenize and parse again.
     version: int64
 
     # WARNING:  Check the version numbers of the dependencies before you access
@@ -64,11 +77,14 @@ class Query:
     query_allocator: Allocator   # freed when the whole query hasn't been used in a long time (see last_used)
     result_allocator: Allocator  # freed when version number increments
 
+    # This is used to check for cyclic dependencies
+    running: bool
+
 
 @public
 class State:
     # Each query is allocated with its own allocator, and those Query* pointers
     # are stored in a hash table
-    queries: Query**
+    queries_table: Query**
     queries_len: intnative
-    queries_size: intnative     # includes empty slots
+    queries_capacity: intnative     # includes empty slots
