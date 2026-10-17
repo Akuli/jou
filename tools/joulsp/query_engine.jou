@@ -1,0 +1,184 @@
+import "stdlib/assert.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+import "stdlib/intnative.jou"
+import "stdlib/mem.jou"
+
+import "./state.jou"
+import "./allocator.jou"
+
+
+def sanity_check(params: QueryParams*) -> None:
+    n = 0
+
+    # kind needs no checking, hopefully
+    n++
+
+    # Every query applies to some file
+    assert params.uri != NULL
+    n++
+
+    match params.kind:
+        case QueryKind.ReadFile:
+            assert params.name == NULL
+            n++
+
+            assert params.funcname == NULL
+            n++
+
+            assert params.classname == NULL
+            n++
+
+            #params.lineno  # TODO: query for reading a specific line
+        case QueryKind.FindDefinition:
+            assert params.name != NULL
+            n++
+
+            # All combinations of funcname and classname make sense:
+            #
+            # funcname and classname    --> looking for local variable in a method
+            # funcname only             --> looking for local variable in a function
+            # classname only            --> looking for class field definition
+            # neither                   --> looking for a global symbol
+            n += 2
+
+    assert n == NUMBER_OF_THINGS_IN_QUERY_PARAMS
+
+
+# FNV-1a hash
+# https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function#FNV-1a_hash
+
+const FNV_PRIME: uint64 = 0x100_0000_01b3
+
+def hash_string(h: uint64*, s: byte*) -> None:
+    while True:
+        *h ^= *s
+        *h *= FNV_PRIME
+        if *s++ == '\0':  # Include '\0' in the hash, so "a" then "bc" hashes different from "ab" then "c"
+            break
+
+def hash_query_params(params: QueryParams*) -> uint64:
+    n = 0
+    hash: uint64 = 0xcbf2_9ce4_8422_2325
+
+    hash ^= params.kind as int
+    hash *= FNV_PRIME
+    n++
+
+    assert params.uri != NULL
+    hash_string(&hash, params.uri)
+    n++
+
+    if params.name != NULL:
+        hash_string(&hash, params.name)
+    n++
+
+    if params.funcname != NULL:
+        hash_string(&hash, params.funcname)
+    n++
+
+    if params.classname != NULL:
+        hash_string(&hash, params.classname)
+    n++
+
+#    # Not strictly FNV-1a because we don't go one byte a time
+#    hash ^= params.lineno
+#    hash *= FNV_PRIME
+#    n++
+#
+#    hash ^= params.column
+#    hash *= FNV_PRIME
+#    n++
+
+    assert n == NUMBER_OF_THINGS_IN_QUERY_PARAMS
+    return hash
+
+
+def duplicate_string(allocator: Allocator*, s: byte*) -> byte*:
+    if s == NULL:
+        return NULL
+
+    result = allocator.alloc(strlen(s) + 1)
+    strcpy(result, s)
+    return result
+
+def add_query(state: State*, params: QueryParams*) -> Query*:
+    sanity_check(params)
+
+    # Reallocate the query
+    # TODO: reallocate q using its query_allocator, including most of its params
+
+    old_capacity = state.queries_capacity
+
+    # Keep the hash table at most 25% full
+    if (state.queries_len + 1)*4 > state.queries_capacity:
+        if state.queries_capacity == 0:
+            state.queries_capacity = 4
+        state.queries_capacity *= 2
+
+        # Allocate a bigger hash table
+        old_table = state.queries_table
+        state.queries_table = calloc(sizeof(state.queries_table[0]), state.queries_capacity)
+        assert state.queries_table != NULL
+
+        # Insert all the old queries to their new places
+        for i: intnative = 0; i < old_capacity; i++:
+            old_q = old_table[i]
+            if old_q != NULL:
+                pos = hash_query_params(&old_q.params) % state.queries_capacity
+                while state.queries_table[pos] != NULL:
+                    pos++
+                    pos %= state.queries_capacity
+                state.queries_table[pos] = old_q
+
+        free(old_table)
+        printf("Query hash table grew to %zd slots (%d used)\n", state.queries_capacity, state.queries_len + 1)
+
+    # Allocate the query using its own allocator
+    temp = Allocator{}
+    q: Query* = temp.alloc(sizeof(*q))
+    assert q != NULL
+    *q = Query{query_allocator = temp, params = *params}
+
+    # Fields are assigned one by one to make sure we reallocate them with the
+    # new allocator where needed.
+    q.params.kind = params.kind
+    q.params.uri = duplicate_string(&q.query_allocator, params.uri)
+    q.params.name = duplicate_string(&q.query_allocator, params.name)
+    q.params.funcname = duplicate_string(&q.query_allocator, params.funcname)
+    q.params.classname = duplicate_string(&q.query_allocator, params.classname)
+    assert hash_query_params(&q.params) == hash_query_params(params)
+
+    pos = hash_query_params(params) % state.queries_capacity
+    while state.queries_table[pos] != NULL:
+        pos++
+        pos %= state.queries_capacity
+    state.queries_table[pos] = q
+    state.queries_len++
+
+    return q
+
+
+def main() -> int:
+    state = State{}
+
+    p1 = QueryParams{kind = QueryKind.ReadFile, uri = "file:///home/akuli/jou/stdlib/io.jou"}
+    p2 = QueryParams{kind = QueryKind.FindDefinition, uri = "file:///home/akuli/jou/foo.jou", name = "thing"}
+    add_query(&state, &p1)
+    add_query(&state, &p2)
+    add_query(&state, &p2)
+    add_query(&state, &p2)
+    add_query(&state, &p2)
+    add_query(&state, &p2)
+    add_query(&state, &p2)
+
+    printf("queries_table = [\n")
+    for i = 0; i < state.queries_capacity; i++:
+        q = state.queries_table[i]
+        if q == NULL:
+            printf("  NULL,\n")
+        else:
+            printf("  Query for \"%s\",\n", q.params.uri)
+    printf("]\n")
+
+    return 0
