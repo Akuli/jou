@@ -60,6 +60,7 @@ global TEST_CONFIG_OPTION_NAMES: byte*[enum_count(TestConfigOption)] = [
 @public
 class TestConfig:
     lineno: int
+    base_directory: byte*
 
     value_present: bool[enum_count(TestConfigOption)]  # True if the TOML assigns some value for the option
     value_linenos: int[enum_count(TestConfigOption)]
@@ -125,12 +126,6 @@ class TestConfig:
 class ParsedJoutestToml:
     tests: List[TestConfig]
 
-    # These can't be merged into each config immediately, because they would
-    # mess up overriding settings from one item of `tests` with another. That
-    # happens when multiple items of `tests` specify the same file, typically
-    # with a glob.
-    defaults_for_all_tests: TestConfig
-
 
 @public
 enum SimpleResult:
@@ -173,5 +168,9 @@ class Test:
             while p > self.path and not (p[-1] == '/' or (p[-1] == '\\' and WINDOWS)):
                 p--
             return p
-        else:
+        base_directory = self.config.base_directory
+        if base_directory == NULL or strcmp(base_directory, ".") == 0:
             return self.path
+        if starts_with(self.path, base_directory) and self.path[strlen(base_directory)] == '/':
+            return &self.path[strlen(base_directory) + 1]
+        return self.path

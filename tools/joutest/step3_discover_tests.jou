@@ -99,7 +99,7 @@ class PathAndTestConfig:
     config: TestConfig
 
 
-def get_default_config(defaults_for_all_tests: TestConfig*, markdown: bool) -> TestConfig:
+def get_default_config(markdown: bool) -> TestConfig:
     defaults = TestConfig{}
 
     defaults.output_comment_rules.append(["Output", "{comment}"])
@@ -118,7 +118,6 @@ def get_default_config(defaults_for_all_tests: TestConfig*, markdown: bool) -> T
         defaults.command.append("{file}")
     defaults.value_present[TestConfigOption.Command as int] = True
 
-    defaults_for_all_tests.assign_to(&defaults)
     return defaults
 
 
@@ -141,7 +140,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
             glob_lineno = config.files_linenos.ptr[i]
 
             glob_result = List[byte*]{}
-            do_glob(glob, ".", &glob_result, 10)  # TODO: don't hard-code depth limit?
+            do_glob(glob, config.base_directory, &glob_result, 10)  # TODO: don't hard-code depth limit?
             if glob_result.len == 0:
                 error: byte[500]
                 if strstr(glob, "*") == NULL:
@@ -155,7 +154,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
             for path = glob_result.ptr; path < glob_result.end(); path++:
                 merged_config: PathAndTestConfig* = NULL
                 for m = merged_configs.ptr; m < merged_configs.end(); m++:
-                    if strcmp(m.path, *path) == 0:
+                    if strcmp(m.path, *path) == 0 and strcmp(m.config.base_directory, config.base_directory) == 0:
                         merged_config = m
                         break
                 if merged_config == NULL:
@@ -163,11 +162,11 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
                         path = *path,
                         glob_lineno = glob_lineno,
                         config = get_default_config(
-                            &parsed_joutest_toml.defaults_for_all_tests,
                             is_markdown_file(*path),
                         ),
                     })
                     merged_config = &merged_configs.end()[-1]
+                    merged_config.config.base_directory = config.base_directory
                 config.assign_to(&merged_config.config)
 
             free(glob_result.ptr)

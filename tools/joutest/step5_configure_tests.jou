@@ -114,6 +114,9 @@ def configure_working_directory(test: Test*) -> None:
         assert temp != NULL
         test.working_directory = strdup(dirname(temp))  # may modify temp string
         free(temp)
+    elif strcmp(test.config.base_directory, ".") != 0:
+        test.working_directory = strdup(test.config.base_directory)
+        assert test.working_directory != NULL
 
 
 def configure_command(test: Test*) -> None:
