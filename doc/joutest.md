@@ -386,6 +386,14 @@ Everything else is optional.
     except that you cannot specify `files`.
     As the name suggests, these settings are used
     when an item of the `tests` array does not specify something.
+- `include` (default: empty array) is an array of paths to other `joutest.toml` files
+    whose tests will also run when `joutest` is invoked.
+    In other words, if you set `include = ["foo/joutest.toml"]`,
+    then `joutest` will also run the tests that would run if you do `cd foo && joutest`.
+    This is useful for repositories that contains multiple projects (that is, monorepos),
+    because a top-level `joutest.toml` can be used to conveniently run all tests of all projects.
+    Globs like `include = "*/joutest.toml"` are not supported,
+    and it is an error if an included file specifies its own `include`.
 
 If the `tests` array contains multiple tables whose `files` glob matches the same file,
 then values in the last matching table are preferred.
