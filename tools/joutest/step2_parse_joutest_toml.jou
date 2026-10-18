@@ -102,12 +102,10 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
 global big_file_content_buffer: byte[1_000_000]
 
 
-def read_joutest_toml_and_parse_to_toml_object(path: byte*) -> TOML:
-    f = fopen(path, "rb")
+def read_joutest_toml_and_parse_to_toml_object() -> TOML:
+    f = fopen("joutest.toml", "rb")
     if f == NULL:
-        message: byte[500]
-        snprintf(message, sizeof(message), "cannot open %s", path)
-        fail_with_errno(message, get_errno())
+        fail_with_errno("cannot open joutest.toml", get_errno())
 
     n = fread(big_file_content_buffer, 1, sizeof(big_file_content_buffer), f)
     if ferror(f) != 0:
@@ -331,11 +329,7 @@ def toml_to_config(toml: TOML*, this_is_the_defaults_for_all_tests: bool) -> Tes
     return config
 
 
-def parse_tests_array(
-    defaults_for_all_tests: TestConfig*,
-    toml: TOML*,
-    base_directory: byte*,
-) -> List[TestConfig]:
+def parse_tests_array(defaults_for_all_tests: TestConfig*, toml: TOML*) -> List[TestConfig]:
     assert toml != NULL
     if toml.type != TOMLType.Array:
         fail_in_toml(toml.lineno, "'tests' must be an array")
@@ -344,52 +338,17 @@ def parse_tests_array(
 
     result = List[TestConfig]{}
     for p = toml.array.ptr; p < toml.array.end(); p++:
-        config = TestConfig{lineno = p.lineno, base_directory = strdup(base_directory)}
-        assert config.base_directory != NULL
-        defaults_for_all_tests.assign_to(&config)
-        parsed_config = toml_to_config(p, False)
-        parsed_config.assign_to(&config)
-        result.append(config)
+        result.append(toml_to_config(p, False))
     return result
 
 
-declare dirname(path: byte*) -> byte*
-
-
-def join_paths(directory: byte*, path: byte*) -> byte*:
-    if strcmp(directory, ".") == 0:
-        return strdup(path)
-
-    result: byte*
-    asprintf(&result, "%s/%s", directory, path)
-    assert result != NULL
-    return result
-
-
-def directory_of_path(path: byte*) -> byte*:
-    temp = strdup(path)
-    assert temp != NULL
-    directory = dirname(temp)
-    if starts_with(directory, "./"):
-        directory = &directory[2]
-    result = strdup(directory)
-    assert result != NULL
-    free(temp)
-    return result
-
-
-def parse_joutest_toml_file(
-    path: byte*,
-    base_directory: byte*,
-    included_file: bool,
-    all_tests: List[TestConfig]*,
-) -> List[byte*]:
-    toml = read_joutest_toml_and_parse_to_toml_object(path)
+@public
+def step2_parse_joutest_toml() -> ParsedJoutestToml:
+    toml = read_joutest_toml_and_parse_to_toml_object()
     eliminate_condition_tables(&toml, 0)
 
     tests_toml: TOML* = NULL
     defaults_for_all_tests = TestConfig{}
-    include_toml: TOMLKeyVal* = NULL
 
     assert toml.type == TOMLType.Table
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
@@ -398,45 +357,15 @@ def parse_joutest_toml_file(
                 tests_toml = &kv.value
             case "defaults_for_all_tests":
                 defaults_for_all_tests = toml_to_config(&kv.value, True)
-            case "include":
-                if included_file:
-                    fail_in_toml(kv.value.lineno, "included files cannot specify 'include'")
-                include_toml = kv
             case _:
                 error: byte[200]
                 snprintf(error, sizeof(error), "unknown setting '%s'", kv.key)
                 fail_in_toml(kv.value.lineno, error)
 
-    includes = List[byte*]{}
-    if include_toml != NULL:
-        includes = array_of_strings_from_toml(include_toml, NULL, False)
-        for include_path = includes.ptr; include_path < includes.end(); include_path++:
-            if strcspn(*include_path, "*?[]{}") != strlen(*include_path):
-                fail_in_toml(include_toml.value.lineno, "'include' paths cannot contain glob patterns")
-            if strchr(*include_path, '\\') != NULL:
-                fail_in_toml(include_toml.value.lineno, "please use forward slashes in 'include' paths")
-            if **include_path == '\0':
-                fail_in_toml(include_toml.value.lineno, "'include' paths cannot be empty")
-
-    if tests_toml == NULL and include_toml == NULL:
+    if tests_toml == NULL:
         fail("joutest.toml must define an array named 'tests'")
 
-    if tests_toml != NULL:
-        parsed_tests = parse_tests_array(&defaults_for_all_tests, tests_toml, base_directory)
-        all_tests.extend(parsed_tests)
-
-    return includes
-
-
-@public
-def step2_parse_joutest_toml() -> ParsedJoutestToml:
-    tests = List[TestConfig]{}
-    root_includes = parse_joutest_toml_file("joutest.toml", ".", False, &tests)
-
-    for include_path = root_includes.ptr; include_path < root_includes.end(); include_path++:
-        full_path = join_paths(".", *include_path)
-        base_directory = directory_of_path(full_path)
-        nested_includes = parse_joutest_toml_file(full_path, base_directory, True, &tests)
-        assert nested_includes.len == 0
-
-    return ParsedJoutestToml{tests = tests}
+    return ParsedJoutestToml{
+        tests = parse_tests_array(&defaults_for_all_tests, tests_toml),
+        defaults_for_all_tests = defaults_for_all_tests,
+    }
