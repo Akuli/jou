@@ -169,6 +169,7 @@ else:
     const F_SETFL: int = 4
 
     const FD_CLOEXEC: int = 1
+    const EPIPE: int = 32
 
     if LINUX:
         const O_NONBLOCK: int = 0o4000
@@ -694,13 +695,13 @@ else:
                     assert input != NULL
 
                     n = write(p.fd, input, strlen(input))
-                    if n < 0:
-                        fail_with_errno("write() failed", get_errno())
-                    elif n == 0:
+                    if n == 0 or (n < 0 and get_errno() == EPIPE):
                         # Process closed its stdin or we got to the end of input
                         close(run_state.input_pipe_write)
                         run_state.input_pipe_write = -1
                         input = NULL
+                    elif n < 0:
+                        fail_with_errno("write() failed", get_errno())
                     else:
                         input = &input[n]
 
