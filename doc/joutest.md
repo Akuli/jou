@@ -392,7 +392,7 @@ Everything else is optional.
     then `joutest` will also run the tests that would run if you do `cd foo && joutest`.
     This is useful for repositories that contains multiple projects (that is, monorepos),
     because a top-level `joutest.toml` can be used to conveniently run all tests of all projects.
-    Globs like `include = "*/joutest.toml"` are not supported,
+    Globs like `include = ["*/joutest.toml"]` are not supported,
     and it is an error if an included file specifies its own `include`.
 
 If the `tests` array contains multiple tables whose `files` glob matches the same file,
