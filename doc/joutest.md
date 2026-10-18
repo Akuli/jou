@@ -308,10 +308,10 @@ files = {
 
 Note that any value can be specified as a [condition table](#condition-tables).
 
-The only required things are the `tests` array, and `files` inside each table of the `tests` array.
+The only required things are either `tests` or `include`, and `files` inside each table of the `tests` array.
 Everything else is optional.
 
-- `tests` (required) is an array of one or more tables with the following keys:
+- `tests` is an array of one or more tables with the following keys:
     - `files` (required) is a glob string or an array of one or more glob strings.
         The supported glob features are `*` (match zero or more characters within a path component)
         and `**` (match zero or more entire path components).
