@@ -418,11 +418,12 @@ def parse_joutest_toml_file(
             if **include_path == '\0':
                 fail_in_toml(include_toml.value.lineno, "'include' paths cannot be empty")
 
-    if tests_toml == NULL:
+    if tests_toml == NULL and include_toml == NULL:
         fail("joutest.toml must define an array named 'tests'")
 
-    parsed_tests = parse_tests_array(&defaults_for_all_tests, tests_toml, base_directory)
-    all_tests.extend(parsed_tests)
+    if tests_toml != NULL:
+        parsed_tests = parse_tests_array(&defaults_for_all_tests, tests_toml, base_directory)
+        all_tests.extend(parsed_tests)
 
     return includes
 
