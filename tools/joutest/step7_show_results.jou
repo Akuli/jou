@@ -85,7 +85,7 @@ def fail_with_no_tests_found_error_including_filter_strings(filter_strings: List
         strcat(error_message, "\"")
     strcat(error_message, " as a substring")
 
-    fail(error_message)
+    fail(Location{}, error_message)
 
 
 @public
@@ -109,7 +109,7 @@ def step7_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
     if succeeded == 0 and failed == 0 and skipped == 0:
         # No tests were ran, likely because user filtered them all out on command line.
         if args.filter_strings.len == 0:
-            fail("found no tests")
+            fail(Location{}, "found no tests")
         else:
             fail_with_no_tests_found_error_including_filter_strings(args.filter_strings)
 

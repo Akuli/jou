@@ -527,10 +527,10 @@ else:
         # pipe and setting the flag.
         pipefd: int[2]
         if pipe(&pipefd) != 0:
-            fail_with_errno("pipe() failed", get_errno())
+            fail_with_errno(Location{}, "pipe() failed", get_errno())
 
         if fcntl(pipefd[0], F_SETFD, FD_CLOEXEC) != 0 or fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0:
-            fail_with_errno("fcntl() failed", get_errno())
+            fail_with_errno(Location{}, "fcntl() failed", get_errno())
 
         *read_end = pipefd[0]
         *write_end = pipefd[1]
@@ -538,9 +538,9 @@ else:
     def set_nonblocking(fd: int) -> None:
         flags = fcntl(fd, F_GETFL, 0)
         if flags == -1:
-            fail_with_errno("fcntl() failed", get_errno())
+            fail_with_errno(Location{}, "fcntl() failed", get_errno())
         if fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1:
-            fail_with_errno("fcntl() failed", get_errno())
+            fail_with_errno(Location{}, "fcntl() failed", get_errno())
 
     def fail_child_process_before_exec(error_pipe_write: int) -> None:
         e: int = get_errno()
@@ -620,7 +620,7 @@ else:
 
         pid = fork()
         if pid < 0:
-            fail_with_errno("fork() failed", get_errno())
+            fail_with_errno(Location{}, "fork() failed", get_errno())
         elif pid == 0:
             this_runs_in_child_process(run_state, input_pipe_read, output_pipe_write, error_pipe_read, error_pipe_write)
 
@@ -642,7 +642,7 @@ else:
         #       writing to the pipe while the parent is waiting for it.
         e: int = 0
         if read(error_pipe_read, &e, sizeof(e)) < 0:
-            fail_with_errno("read() failed", get_errno())
+            fail_with_errno(Location{}, "read() failed", get_errno())
 
         run_state.test.start_error = e
         close(error_pipe_read)
@@ -670,7 +670,7 @@ else:
 
             ret = poll(polls, npolls, -1)
             if ret == -1:
-                fail_with_errno("poll() failed", get_errno())
+                fail_with_errno(Location{}, "poll() failed", get_errno())
 
             for p = &polls[0]; p < &polls[npolls]; p++:
                 assert p.revents & POLLNVAL == 0
@@ -681,7 +681,7 @@ else:
 
                     n = read(p.fd, output_buf, sizeof(output_buf))
                     if n < 0:  # TODO: retry on EINTR
-                        fail_with_errno("read() failed", get_errno())
+                        fail_with_errno(Location{}, "read() failed", get_errno())
                     elif n == 0:
                         # No more output
                         close(run_state.output_pipe_read)
@@ -701,7 +701,7 @@ else:
                         run_state.input_pipe_write = -1
                         input = NULL
                     elif n < 0:
-                        fail_with_errno("write() failed", get_errno())
+                        fail_with_errno(Location{}, "write() failed", get_errno())
                     else:
                         input = &input[n]
 
@@ -730,7 +730,7 @@ else:
 
             if ret == -1:
                 # TODO: retry if we get EINTR
-                fail_with_errno("waitpid() failed", get_errno())
+                fail_with_errno(Location{}, "waitpid() failed", get_errno())
 
             if WIFEXITED(wstatus):
                 run_state.test.actual_exit_code = WEXITSTATUS(wstatus)
@@ -803,14 +803,14 @@ if not WINDOWS:
     def add_joutest_dir_to_PATH() -> None:
         joutest_exe = find_current_executable()
         if joutest_exe == NULL:
-            fail("cannot locate the currently running joutest executable, needed for finding the Jou compiler")
+            fail(Location{}, "cannot locate the currently running joutest executable, needed for finding the Jou compiler")
         joutest_dir = dirname(joutest_exe)
         if strstr(joutest_dir, ":") != NULL:
-            fail("directory containing joutest contains ':' and hence cannot be added to PATH")
+            fail(Location{}, "directory containing joutest contains ':' and hence cannot be added to PATH")
 
         old_path = getenv("PATH")
         if old_path == NULL:
-            fail("no PATH environment variable")
+            fail(Location{}, "no PATH environment variable")
 
         new_path: byte* = NULL
         asprintf(&new_path, "%s:%s", joutest_dir, old_path)

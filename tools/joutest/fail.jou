@@ -8,26 +8,33 @@ if WINDOWS:
 import "./state.jou"
 
 
-@public
-def fail(message: byte*) -> noreturn:
-    fprintf(get_stderr(), "joutest error: %s\n", message)
-    exit(1)
+def print_location(location: Location) -> None:
+    if location.path != NULL:
+        fprintf(get_stderr(), " in file \"%s\"", location.path)
+        if location.lineno != 0:
+            fprintf(get_stderr(), ", line %d", location.lineno)
 
 @public
-def fail_at(location: Location, message: byte*) -> noreturn:
-    fprintf(get_stderr(), "joutest error in file \"%s\", line %d: %s\n", location.path, location.lineno, message)
+def fail(location: Location, message: byte*) -> noreturn:
+    fprintf(get_stderr(), "joutest error")
+    print_location(location)
+    fprintf(get_stderr(), ": %s\n", message)
     exit(1)
 
 # This should only be used for syntax errors. Don't use this when the TOML file
 # contains valid TOML that doesn't mean anything reasonable in joutest.
 @public
 def fail_with_toml_syntax_error(location: Location, message: byte*) -> noreturn:
-    fprintf(get_stderr(), "TOML syntax error in file \"%s\", line %d: %s\n", location.path, location.lineno, message)
+    fprintf(get_stderr(), "TOML syntax error")
+    print_location(location)
+    fprintf(get_stderr(), ": %s\n", message)
     exit(1)
 
 @public
-def fail_with_errno(message: byte*, errno_value: int) -> noreturn:
-    fprintf(get_stderr(), "joutest error: %s: %s\n", message, strerror(errno_value))
+def fail_with_errno(location: Location, message: byte*, errno_value: int) -> noreturn:
+    fprintf(get_stderr(), "joutest error")
+    print_location(location)
+    fprintf(get_stderr(), ": %s: %s\n", message, strerror(errno_value))
     exit(1)
 
 
@@ -61,5 +68,5 @@ if WINDOWS:
     @public
     def fail_with_windows_error(message: byte*, error_code: uint32) -> noreturn:
         error_string = windows_error_to_string(error_code)
-        fprintf(get_stderr(), "joutest error: %s: %s\n", message, error_string)
+        fprintf(get_stderr(), "joutest error: %s: %s\n", message, strerror(errno_value))
         exit(1)

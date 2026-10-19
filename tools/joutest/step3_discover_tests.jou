@@ -27,7 +27,7 @@ def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*
     f = fopen(path, "rb")
     if f == NULL:
         snprintf(message, sizeof(message), "failed to open file '%s': %s", path, strerror(get_errno()))
-        fail(message)
+        fail(glob_location, message)
 
     lineno = 0
     code_first_lineno = 0  # 0 if not inside a code block
@@ -78,7 +78,7 @@ def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*
 
     if ferror(f) != 0:
         snprintf(message, sizeof(message), "failed to read file '%s': %s", path, strerror(get_errno()))
-        fail_at(glob_location, message)
+        fail(glob_location, message)
 
     fclose(f)
 
@@ -134,7 +134,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
 
     for config = parsed_joutest_toml.tests.ptr; config < parsed_joutest_toml.tests.end(); config++:
         if not config.value_present[TestConfigOption.Files as int]:
-            fail_at(config.location, "each 'tests' table must contain 'files'")
+            fail(config.location, "each 'tests' table must contain 'files'")
 
         for i = 0; i < config.files.len; i++:
             glob = config.files.ptr[i]
@@ -149,7 +149,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
                     snprintf(error, sizeof(error), "file not found: %s", glob)
                 else:
                     snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
-                fail_at(glob_location, error)
+                fail(glob_location, error)
 
             sort_strings(glob_result.ptr, glob_result.len)
             for path = glob_result.ptr; path < glob_result.end(); path++:
