@@ -160,6 +160,26 @@ def array_of_strings_from_toml(location: Location, kv: TOMLKeyVal*, error: byte*
     return result
 
 
+# TODO: just always use strings with locations?
+def array_of_strings_with_locations_from_toml(location: Location, kv: TOMLKeyVal*, error: byte*, duplicates_are_banned: bool) -> List[ValueAndLocation[byte*]]:
+    strings = array_of_strings_from_toml(location, kv, error, duplicates_are_banned)
+    result = List[ValueAndLocation[byte*]]{}
+
+    sptr = strings.ptr
+    iptr = kv.value.array.ptr
+    while sptr < strings.end() and iptr < kv.value.array.end():
+        result.append(ValueAndLocation[byte*]{
+            value = *sptr++,
+            location = Location{path = location.path, lineno = (iptr++).lineno},
+        })
+
+    assert sptr == strings.end()
+    assert iptr == kv.value.array.end()
+
+    free(strings.ptr)
+    return result
+
+
 def table_with_string_values_from_toml(location: Location, kv: TOMLKeyVal*) -> List[byte*[2]]:
     error: byte[200]
     snprintf(error, sizeof(error), "'%s' must be a table with string keys and string values", kv.key)
@@ -211,25 +231,21 @@ def option_to_config(location: Location, opt: TestConfigOption, kv: TOMLKeyVal*,
             s = toml_to_string(&kv.value)
             if s == NULL:
                 free(config.files.ptr)
-                config.files = array_of_strings_from_toml(location, kv, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns", False)
-                config.files_locations.len = 0
-                for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
-                    config.files_locations.append(Location{path = location.path, lineno = item.lineno})
+                config.files = array_of_strings_with_locations_from_toml(location, kv, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns", False)
             else:
                 config.files.len = 0
-                config.files.append(s)
-                config.files_locations.len = 0
-                config.files_locations.append(Location{path = location.path, lineno = kv.value.lineno})
+                config.files.append(ValueAndLocation[byte*]{
+                    value = s,
+                    location = Location{path = location.path, lineno = kv.value.lineno},
+                })
 
-            assert config.files.len == config.files_locations.len
             for i = 0; i < config.files.len; i++:
                 glob = config.files.ptr[i]
-                glob_location = config.files_locations.ptr[i]
-                if strstr(glob, "\\") != NULL:
-                    fail(glob_location, "please use forward slashes instead of backslashes")
-                if not glob_is_valid(glob):
-                    snprintf(error, sizeof(error), "invalid path or glob pattern: %s", glob)
-                    fail(glob_location, error)
+                if strstr(glob.value, "\\") != NULL:
+                    fail(glob.location, "please use forward slashes instead of backslashes")
+                if not glob_is_valid(glob.value):
+                    snprintf(error, sizeof(error), "invalid path or glob pattern: %s", glob.value)
+                    fail(glob.location, error)
 
         case TestConfigOption.Stdout:
             config.stdout = enum_from_toml(location, kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode

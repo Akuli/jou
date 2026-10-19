@@ -8,6 +8,11 @@ class Location:
     path: byte*
     lineno: int
 
+@public
+class ValueAndLocation[T]:
+    value: T
+    location: Location
+
 
 @public
 class CommandLineArgs:
@@ -70,8 +75,7 @@ class TestConfig:
     value_present: bool[enum_count(TestConfigOption)]  # True if the TOML assigns some value for the option
     value_locations: Location[enum_count(TestConfigOption)]
 
-    files: List[byte*]  # may contain globs
-    files_locations: List[Location]  # same length as files
+    files: List[ValueAndLocation[byte*]]  # may contain globs
     stdout: CaptureMode
     stderr: CaptureMode
     output_comment_rules: List[byte*[2]]
@@ -99,8 +103,6 @@ class TestConfig:
                 case TestConfigOption.Files:
                     dest.files.len = 0
                     dest.files.extend(self.files)
-                    dest.files_locations.len = 0
-                    dest.files_locations.extend(self.files_locations)
                 case TestConfigOption.Stdout:
                     dest.stdout = self.stdout
                 case TestConfigOption.Stderr:

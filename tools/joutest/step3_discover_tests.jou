@@ -138,18 +138,17 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
 
         for i = 0; i < config.files.len; i++:
             glob = config.files.ptr[i]
-            glob_location = config.files_locations.ptr[i]
 
             glob_result = List[byte*]{}
-            do_glob(glob, ".", &glob_result, 10)  # TODO: don't hard-code depth limit?
+            do_glob(glob.value, ".", &glob_result, 10)  # TODO: don't hard-code depth limit?
             if glob_result.len == 0:
                 error: byte[500]
-                if strstr(glob, "*") == NULL:
+                if strstr(glob.value, "*") == NULL:
                     # not really a glob
-                    snprintf(error, sizeof(error), "file not found: %s", glob)
+                    snprintf(error, sizeof(error), "file not found: %s", glob.value)
                 else:
-                    snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
-                fail(glob_location, error)
+                    snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob.value)
+                fail(glob.location, error)
 
             sort_strings(glob_result.ptr, glob_result.len)
             for path = glob_result.ptr; path < glob_result.end(); path++:
@@ -161,7 +160,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
                 if merged_config == NULL:
                     merged_configs.append(PathAndTestConfig{
                         path = *path,
-                        glob_location = glob_location,
+                        glob_location = glob.location,
                         config = get_default_config(
                             &parsed_joutest_toml.defaults_for_all_tests,
                             is_markdown_file(*path),
