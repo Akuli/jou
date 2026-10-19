@@ -21,7 +21,7 @@ def list_contains_string(list: List[byte*], string: byte*) -> bool:
 
 global huge_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
 
-def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*, glob_lineno: int) -> None:
+def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*, glob_location: Location) -> None:
     message: byte[500]
 
     f = fopen(path, "rb")
@@ -78,7 +78,7 @@ def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*
 
     if ferror(f) != 0:
         snprintf(message, sizeof(message), "failed to read file '%s': %s", path, strerror(get_errno()))
-        fail_in_toml(glob_lineno, message)
+        fail_at(glob_location, message)
 
     fclose(f)
 
@@ -95,7 +95,7 @@ def is_markdown_file(path: byte*) -> bool:
 
 class PathAndTestConfig:
     path: byte*
-    glob_lineno: int
+    glob_location: Location
     config: TestConfig
 
 
@@ -134,11 +134,11 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
 
     for config = parsed_joutest_toml.tests.ptr; config < parsed_joutest_toml.tests.end(); config++:
         if not config.value_present[TestConfigOption.Files as int]:
-            fail_in_toml(config.lineno, "each 'tests' table must contain 'files'")
+            fail_at(config.location, "each 'tests' table must contain 'files'")
 
         for i = 0; i < config.files.len; i++:
             glob = config.files.ptr[i]
-            glob_lineno = config.files_linenos.ptr[i]
+            glob_location = config.files_locations.ptr[i]
 
             glob_result = List[byte*]{}
             do_glob(glob, ".", &glob_result, 10)  # TODO: don't hard-code depth limit?
@@ -149,7 +149,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
                     snprintf(error, sizeof(error), "file not found: %s", glob)
                 else:
                     snprintf(error, sizeof(error), "glob pattern '%s' does not match any files", glob)
-                fail_in_toml(glob_lineno, error)
+                fail_at(glob_location, error)
 
             sort_strings(glob_result.ptr, glob_result.len)
             for path = glob_result.ptr; path < glob_result.end(); path++:
@@ -161,7 +161,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
                 if merged_config == NULL:
                     merged_configs.append(PathAndTestConfig{
                         path = *path,
-                        glob_lineno = glob_lineno,
+                        glob_location = glob_location,
                         config = get_default_config(
                             &parsed_joutest_toml.defaults_for_all_tests,
                             is_markdown_file(*path),
@@ -176,7 +176,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
     tests = List[Test]{}
     for merged_config = merged_configs.ptr; merged_config < merged_configs.end(); merged_config++:
         if is_markdown_file(merged_config.path):
-            add_tests_from_markdown(&tests, merged_config.path, &merged_config.config, merged_config.glob_lineno)
+            add_tests_from_markdown(&tests, merged_config.path, &merged_config.config, merged_config.glob_location)
         else:
             tests.append(Test{path = merged_config.path, config = &merged_config.config})
 

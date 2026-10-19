@@ -3,6 +3,7 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "./fail.jou"
+import "./state.jou"
 
 
 @public
@@ -49,7 +50,7 @@ def format_string_is_valid(
 @public
 def validate_format_string_in_toml(
     format: byte*,  # the format string
-    error_lineno: int,  # line number of format string in joutest.toml
+    error_location: Location,  # where is format string in joutest.toml
     allowed: bool[enum_count(FormatParam)],  # True means the param is allowed
 ) -> None:
     assert format != NULL
@@ -61,7 +62,7 @@ def validate_format_string_in_toml(
                 strcat(error, PLACEHOLDERS[i])
                 strcat(error, ", ")
         strcat(error, "{{ and }} (repeating the braces escapes them)")
-        fail_in_toml(error_lineno, error)
+        fail_at(error_location, error)
 
 
 @public

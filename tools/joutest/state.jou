@@ -4,6 +4,12 @@ import "stdlib/str.jou"
 
 
 @public
+class Location:
+    path: byte*
+    lineno: int
+
+
+@public
 class CommandLineArgs:
     verbose: bool
     filter_strings: List[byte*]  # Only tests with one or more of these as substring are executed
@@ -59,13 +65,13 @@ global TEST_CONFIG_OPTION_NAMES: byte*[enum_count(TestConfigOption)] = [
 
 @public
 class TestConfig:
-    lineno: int
+    location: Location
 
     value_present: bool[enum_count(TestConfigOption)]  # True if the TOML assigns some value for the option
-    value_linenos: int[enum_count(TestConfigOption)]
+    value_locations: Location[enum_count(TestConfigOption)]
 
     files: List[byte*]  # may contain globs
-    files_linenos: List[int]  # same length as files
+    files_locations: List[Location]  # same length as files
     stdout: CaptureMode
     stderr: CaptureMode
     output_comment_rules: List[byte*[2]]
@@ -87,14 +93,14 @@ class TestConfig:
                 continue
 
             dest.value_present[opt] = True
-            dest.value_linenos[opt] = self.value_linenos[opt]
+            dest.value_locations[opt] = self.value_locations[opt]
 
             match opt as TestConfigOption:
                 case TestConfigOption.Files:
                     dest.files.len = 0
                     dest.files.extend(self.files)
-                    dest.files_linenos.len = 0
-                    dest.files_linenos.extend(self.files_linenos)
+                    dest.files_locations.len = 0
+                    dest.files_locations.extend(self.files_locations)
                 case TestConfigOption.Stdout:
                     dest.stdout = self.stdout
                 case TestConfigOption.Stderr:
