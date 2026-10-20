@@ -34,6 +34,8 @@ global cache: int64[100][100]
 # Handles the blinking of one stone.
 # Returns how many stones it splits into once all the blinking is done.
 def analyze_stone(stone_number: int64, remaining_blinks: int) -> int64:
+    global cache
+
     cacheptr: int64* = NULL
     if stone_number < array_count(cache) and remaining_blinks < array_count(cache[0]):
         cacheptr = &cache[stone_number][remaining_blinks]
@@ -68,6 +70,7 @@ def analyze_stone(stone_number: int64, remaining_blinks: int) -> int64:
 
 
 def main() -> int:
+    global cache
     memset(&cache, 0, sizeof(cache))
 
     f = fopen("sampleinput.txt", "r")

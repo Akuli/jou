@@ -13,12 +13,15 @@ class Robot:
     velocity: int[2]
 
     def move(self) -> None:
+        global width, height
         self.position += self.velocity
         self.position[0] %= width
         self.position[1] %= height
 
 
 def main() -> int:
+    global width, height
+
 #    # actual input params
 #    width = 101
 #    height = 103

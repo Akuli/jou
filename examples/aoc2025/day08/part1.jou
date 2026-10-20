@@ -16,6 +16,7 @@ def distance_squared(p1: int[3], p2: int[3]) -> int64:
 
 
 def comparator_func(pair1: int[2]*, pair2: int[2]*) -> int:
+    global points
     dist1_squared = distance_squared(points.ptr[(*pair1)[0]], points.ptr[(*pair1)[1]])
     dist2_squared = distance_squared(points.ptr[(*pair2)[0]], points.ptr[(*pair2)[1]])
     if dist1_squared > dist2_squared:
@@ -36,6 +37,7 @@ def main() -> int:
 
     assert f != NULL
 
+    global points
     x, y, z: int
     while fscanf(f, "%d,%d,%d\n", &x, &y, &z) == 3:
         points.append([x, y, z])
