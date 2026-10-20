@@ -95,21 +95,21 @@ def configure_skip(test: Test*, filters: List[byte*]) -> None:
             test.skip = SkipMode.SkipSilently
             return
 
-    test.skip = test.config.skip_mode
+    test.skip = test.config.skip_mode.value
 
     # The "highest" skip mode wins (no skip specified < normal skip < silent skip)
     if (
         *test.expected_output == '\0'
-        and (test.config.skip_mode_if_no_expected_output as int) > (test.skip as int)
+        and (test.config.skip_mode_if_no_expected_output.value as int) > (test.skip as int)
     ):
-        test.skip = test.config.skip_mode_if_no_expected_output
+        test.skip = test.config.skip_mode_if_no_expected_output.value
 
 
 declare dirname(path: byte*) -> byte*
 
 def configure_working_directory(test: Test*) -> None:
     assert test.working_directory == NULL
-    if test.config.cd_to_containing_directory:
+    if test.config.cd_to_containing_directory.value:
         temp = strdup(test.path)
         assert temp != NULL
         test.working_directory = strdup(dirname(temp))  # may modify temp string
@@ -123,7 +123,7 @@ def configure_command(test: Test*) -> None:
 
     assert test.config.value_present[TestConfigOption.Command as int]
     assert test.actual_command_list.len == 0
-    for arg = test.config.command.ptr; arg < test.config.command.end(); arg++:
+    for arg = test.config.command.value.ptr; arg < test.config.command.value.end(); arg++:
         test.actual_command_list.append(format_string(*arg, params))
 
     assert test.actual_command_string == NULL
@@ -135,8 +135,8 @@ def configure_command(test: Test*) -> None:
 
 def configure_uses_output_capturing(test: Test*) -> None:
     test.uses_output_capturing = (
-        test.config.stdout != CaptureMode.DoNotCapture
-        or test.config.stderr != CaptureMode.DoNotCapture
+        test.config.stdout.value != CaptureMode.DoNotCapture
+        or test.config.stderr.value != CaptureMode.DoNotCapture
     )
 
 

@@ -73,19 +73,18 @@ class TestConfig:
     location: Location
 
     value_present: bool[enum_count(TestConfigOption)]  # True if the TOML assigns some value for the option
-    value_locations: Location[enum_count(TestConfigOption)]
 
     files: List[ValueAndLocation[byte*]]  # may contain globs
-    stdout: CaptureMode
-    stderr: CaptureMode
-    output_comment_rules: List[byte*[2]]
-    output_comment_order: List[byte*]
-    skip_mode: SkipMode
-    skip_mode_if_no_expected_output: SkipMode
-    command: List[byte*]  # may contain things like "{file}"
-    cd_to_containing_directory: bool
-    expected_exit_code: int
-    markdown_code_block_languages: List[byte*]
+    stdout: ValueAndLocation[CaptureMode]
+    stderr: ValueAndLocation[CaptureMode]
+    output_comment_rules: ValueAndLocation[List[byte*[2]]]
+    output_comment_order: ValueAndLocation[List[byte*]]
+    skip_mode: ValueAndLocation[SkipMode]
+    skip_mode_if_no_expected_output: ValueAndLocation[SkipMode]
+    command: ValueAndLocation[List[byte*]]  # may contain things like "{file}"
+    cd_to_containing_directory: ValueAndLocation[bool]
+    expected_exit_code: ValueAndLocation[int]
+    markdown_code_block_languages: ValueAndLocation[List[byte*]]
 
     @public
     def assign_to(self, dest: TestConfig*) -> None:
@@ -97,10 +96,12 @@ class TestConfig:
                 continue
 
             dest.value_present[opt] = True
-            dest.value_locations[opt] = self.value_locations[opt]
 
             match opt as TestConfigOption:
                 case TestConfigOption.Files:
+#                    dest.files.location = self.files.location
+#                    dest.files.value.len = 0
+#                    dest.files.value.extend(self.files.value)
                     dest.files.len = 0
                     dest.files.extend(self.files)
                 case TestConfigOption.Stdout:
@@ -108,25 +109,29 @@ class TestConfig:
                 case TestConfigOption.Stderr:
                     dest.stderr = self.stderr
                 case TestConfigOption.OutputCommentRules:
-                    dest.output_comment_rules.len = 0
-                    dest.output_comment_rules.extend(self.output_comment_rules)
+                    dest.output_comment_rules.location = self.output_comment_rules.location
+                    dest.output_comment_rules.value.len = 0
+                    dest.output_comment_rules.value.extend(self.output_comment_rules.value)
                 case TestConfigOption.OutputCommentOrder:
-                    dest.output_comment_order.len = 0
-                    dest.output_comment_order.extend(self.output_comment_order)
+                    dest.output_comment_order.location = self.output_comment_order.location
+                    dest.output_comment_order.value.len = 0
+                    dest.output_comment_order.value.extend(self.output_comment_order.value)
                 case TestConfigOption.SkipMode:
                     dest.skip_mode = self.skip_mode
                 case TestConfigOption.SkipModeIfNoExpectedOutput:
                     dest.skip_mode_if_no_expected_output = self.skip_mode_if_no_expected_output
                 case TestConfigOption.Command:
-                    dest.command.len = 0
-                    dest.command.extend(self.command)
+                    dest.command.location = self.command.location
+                    dest.command.value.len = 0
+                    dest.command.value.extend(self.command.value)
                 case TestConfigOption.CdToContainingDirectory:
                     dest.cd_to_containing_directory = self.cd_to_containing_directory
                 case TestConfigOption.ExpectedExitCode:
                     dest.expected_exit_code = self.expected_exit_code
                 case TestConfigOption.MarkdownCodeBlockLanguages:
-                    dest.markdown_code_block_languages.len = 0
-                    dest.markdown_code_block_languages.extend(self.markdown_code_block_languages)
+                    dest.markdown_code_block_languages.location = self.markdown_code_block_languages.location
+                    dest.markdown_code_block_languages.value.len = 0
+                    dest.markdown_code_block_languages.value.extend(self.markdown_code_block_languages.value)
 
 
 @public
@@ -175,7 +180,7 @@ class Test:
     # "configure tests" step that sets up many of the members here.
     @public
     def get_relative_path(self) -> byte*:
-        if self.config.cd_to_containing_directory:
+        if self.config.cd_to_containing_directory.value:
             # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
             p = &self.path[strlen(self.path)]
             while p > self.path and not (p[-1] == '/' or (p[-1] == '\\' and WINDOWS)):

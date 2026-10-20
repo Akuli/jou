@@ -40,7 +40,7 @@ def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*
             lang = &huge_buffer[3]
             trim_ascii_whitespace(lang)
 
-            if *lang != '\0' and list_contains_string(config.markdown_code_block_languages, lang):
+            if *lang != '\0' and list_contains_string(config.markdown_code_block_languages.value, lang):
                 # Start of code block
                 code_first_lineno = lineno + 1
                 assert code.len == 0
@@ -102,20 +102,20 @@ class PathAndTestConfig:
 def get_default_config(defaults_for_all_tests: TestConfig*, markdown: bool) -> TestConfig:
     defaults = TestConfig{}
 
-    defaults.output_comment_rules.append(["Output", "{comment}"])
+    defaults.output_comment_rules.value.append(["Output", "{comment}"])
     defaults.value_present[TestConfigOption.OutputCommentRules as int] = True
 
-    defaults.markdown_code_block_languages.append("jou")
+    defaults.markdown_code_block_languages.value.append("jou")
     defaults.value_present[TestConfigOption.MarkdownCodeBlockLanguages as int] = True
 
     if markdown:
-        defaults.command.append("jou")
-        defaults.command.append("--stdin-name")
-        defaults.command.append("{file}")
-        defaults.command.append("-")
+        defaults.command.value.append("jou")
+        defaults.command.value.append("--stdin-name")
+        defaults.command.value.append("{file}")
+        defaults.command.value.append("-")
     else:
-        defaults.command.append("jou")
-        defaults.command.append("{file}")
+        defaults.command.value.append("jou")
+        defaults.command.value.append("{file}")
     defaults.value_present[TestConfigOption.Command as int] = True
 
     defaults_for_all_tests.assign_to(&defaults)

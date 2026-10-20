@@ -180,7 +180,14 @@ def array_of_strings_with_locations_from_toml(location: Location, kv: TOMLKeyVal
     return result
 
 
-def table_with_string_values_from_toml(location: Location, kv: TOMLKeyVal*) -> List[byte*[2]]:
+def array_of_strings_with_location_from_toml(location: Location, kv: TOMLKeyVal*, error: byte*, duplicates_are_banned: bool) -> ValueAndLocation[List[byte*]]:
+    return ValueAndLocation[List[byte*]]{
+        value = array_of_strings_from_toml(location, kv, error, duplicates_are_banned),
+        location = Location{path = location.path, lineno = kv.value.lineno},
+    }
+
+
+def table_with_string_values_from_toml(location: Location, kv: TOMLKeyVal*) -> ValueAndLocation[List[byte*[2]]]:
     error: byte[200]
     snprintf(error, sizeof(error), "'%s' must be a table with string keys and string values", kv.key)
 
@@ -193,10 +200,13 @@ def table_with_string_values_from_toml(location: Location, kv: TOMLKeyVal*) -> L
             fail(Location{path = location.path, lineno = inner_kv.value.lineno}, error)
         result.append([inner_kv.key, toml_to_string(&inner_kv.value)])
 
-    return result
+    return ValueAndLocation[List[byte*[2]]]{
+        value = result,
+        location = Location{path = location.path, lineno = kv.value.lineno},
+    }
 
 
-def enum_from_toml(location: Location, kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> int:
+def enum_from_toml(location: Location, kv: TOMLKeyVal*, strings: byte**, nstrings: int) -> ValueAndLocation[int]:
     # Sanity checks, so that creating the error message below is simpler
     # This ensures that the strings themselves take up less than 1.1kB.
     assert strlen(kv.key) < 100
@@ -209,7 +219,10 @@ def enum_from_toml(location: Location, kv: TOMLKeyVal*, strings: byte**, nstring
     if s != NULL:
         for i = 0; i < nstrings; i++:
             if strcmp(s, strings[i]) == 0:
-                return i
+                return ValueAndLocation[int]{
+                    value = i,
+                    location = Location{path = location.path, lineno = kv.value.lineno},
+                }
 
     error: byte[2000]  # surely big enough, see above
     sprintf(error, "'%s' must be \"%s\"", kv.key, strings[0])
@@ -223,6 +236,8 @@ def enum_from_toml(location: Location, kv: TOMLKeyVal*, strings: byte**, nstring
 
 
 def option_to_config(location: Location, opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*) -> None:
+    location.lineno = kv.value.lineno
+
     allowed: bool[enum_count(FormatParam)]
     error: byte[500]  # surely big enough, see above
 
@@ -234,10 +249,7 @@ def option_to_config(location: Location, opt: TestConfigOption, kv: TOMLKeyVal*,
                 config.files = array_of_strings_with_locations_from_toml(location, kv, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns", False)
             else:
                 config.files.len = 0
-                config.files.append(ValueAndLocation[byte*]{
-                    value = s,
-                    location = Location{path = location.path, lineno = kv.value.lineno},
-                })
+                config.files.append(ValueAndLocation[byte*]{value = s, location = location})
 
             for i = 0; i < config.files.len; i++:
                 glob = config.files.ptr[i]
@@ -248,13 +260,13 @@ def option_to_config(location: Location, opt: TestConfigOption, kv: TOMLKeyVal*,
                     fail(glob.location, error)
 
         case TestConfigOption.Stdout:
-            config.stdout = enum_from_toml(location, kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
+            *(&config.stdout as ValueAndLocation[int]*) = enum_from_toml(location, kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode))
 
         case TestConfigOption.Stderr:
-            config.stdout = enum_from_toml(location, kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
+            *(&config.stdout as ValueAndLocation[int]*) = enum_from_toml(location, kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode))
 
         case TestConfigOption.OutputCommentRules:
-            free(config.output_comment_rules.ptr)
+            free(config.output_comment_rules.value.ptr)
             config.output_comment_rules = table_with_string_values_from_toml(location, kv)
 
             assert kv.value.type == TOMLType.Table
@@ -273,22 +285,22 @@ def option_to_config(location: Location, opt: TestConfigOption, kv: TOMLKeyVal*,
                 validate_format_string_in_toml(s, Location{path = location.path, lineno = inner_kv.value.lineno}, allowed)
 
         case TestConfigOption.OutputCommentOrder:
-            free(config.output_comment_order.ptr)
-            config.output_comment_order = array_of_strings_from_toml(location, kv, NULL, True)
+            free(config.output_comment_order.value.ptr)
+            config.output_comment_order = array_of_strings_with_location_from_toml(location, kv, NULL, True)
 
         case TestConfigOption.SkipMode:
-            config.skip_mode = enum_from_toml(location, kv, SKIP_MODE_NAMES, enum_count(SkipMode)) as SkipMode
+            *(&config.skip_mode as ValueAndLocation[int]*) = enum_from_toml(location, kv, SKIP_MODE_NAMES, enum_count(SkipMode))
 
         case TestConfigOption.SkipModeIfNoExpectedOutput:
-            config.skip_mode_if_no_expected_output = enum_from_toml(location, kv, SKIP_MODE_NAMES, enum_count(SkipMode)) as SkipMode
+            *(&config.skip_mode_if_no_expected_output as ValueAndLocation[int]*) = enum_from_toml(location, kv, SKIP_MODE_NAMES, enum_count(SkipMode))
 
         case TestConfigOption.Command:
-            free(config.command.ptr)
-            config.command = array_of_strings_from_toml(location, kv, NULL, False)
+            free(config.command.value.ptr)
+            config.command = array_of_strings_with_location_from_toml(location, kv, NULL, True)
 
-            if config.command.len == 0:
+            if config.command.value.len == 0:
                 snprintf(error, sizeof(error), "'%s' cannot be empty", kv.key)
-                fail(Location{path = location.path, lineno = kv.value.lineno}, error)
+                fail(config.command.location, error)
 
             assert kv.value.type == TOMLType.Array
             for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
@@ -300,20 +312,20 @@ def option_to_config(location: Location, opt: TestConfigOption, kv: TOMLKeyVal*,
 
         case TestConfigOption.CdToContainingDirectory:
             if toml_is_true(&kv.value):
-                config.cd_to_containing_directory = True
+                config.cd_to_containing_directory = ValueAndLocation[bool]{value = True, location = location}
             elif toml_is_false(&kv.value):
-                config.cd_to_containing_directory = False
+                config.cd_to_containing_directory = ValueAndLocation[bool]{value = False, location = location}
             else:
-                fail(Location{path = location.path, lineno = kv.value.lineno}, "'cd_to_containing_directory' must be a boolean")
+                fail(location, "'cd_to_containing_directory' must be a boolean")
 
         case TestConfigOption.ExpectedExitCode:
-            config.expected_exit_code = toml_to_int(&kv.value, -1)
-            if config.expected_exit_code < 0 or config.expected_exit_code > 255:
-                fail(Location{path = location.path, lineno = kv.value.lineno}, "'expected_exit_code' must be an integer between 0 and 255")
+            config.expected_exit_code = ValueAndLocation[int]{value = toml_to_int(&kv.value, -1), location = location}
+            if config.expected_exit_code.value < 0 or config.expected_exit_code.value > 255:
+                fail(config.expected_exit_code.location, "'expected_exit_code' must be an integer between 0 and 255")
 
         case TestConfigOption.MarkdownCodeBlockLanguages:
-            free(config.markdown_code_block_languages.ptr)
-            config.markdown_code_block_languages = array_of_strings_from_toml(location, kv, NULL, False)
+            free(config.markdown_code_block_languages.value.ptr)
+            config.markdown_code_block_languages = array_of_strings_with_location_from_toml(location, kv, NULL, False)
 
 
 def toml_to_config(location: Location, toml: TOML*, this_is_the_defaults_for_all_tests: bool) -> TestConfig:
@@ -330,8 +342,6 @@ def toml_to_config(location: Location, toml: TOML*, this_is_the_defaults_for_all
     error: byte[500]
 
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-        kv_location = Location{path = location.path, lineno = kv.value.lineno}
-
         opt = 0 as TestConfigOption
         found = False
         for i = 0; i < enum_count(TestConfigOption); i++:
@@ -342,15 +352,14 @@ def toml_to_config(location: Location, toml: TOML*, this_is_the_defaults_for_all
 
         if not found:
             snprintf(error, sizeof(error), "unknown setting '%s' for a test", kv.key)
-            fail(kv_location, error)
+            fail(Location{path = location.path, lineno = kv.value.lineno}, error)
 
         if this_is_the_defaults_for_all_tests and opt == TestConfigOption.Files:
-            fail(kv_location, "you cannot specify 'files' inside defaults_for_all_tests")
+            fail(Location{path = location.path, lineno = kv.value.lineno}, "you cannot specify 'files' inside defaults_for_all_tests")
 
         assert not config.value_present[opt as int]
         option_to_config(location, opt, kv, &config)
         config.value_present[opt as int] = True
-        config.value_locations[opt as int] = kv_location
 
     return config
 

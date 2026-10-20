@@ -46,7 +46,7 @@ class Comment:
 
 def parse_comment_from_line(test: Test*, lineno: int, line: byte*) -> Comment:
     for p = &line[strlen(line)]; p >= &line[0]; p--:
-        for pair = test.config.output_comment_rules.ptr; pair < test.config.output_comment_rules.end(); pair++:
+        for pair = test.config.output_comment_rules.value.ptr; pair < test.config.output_comment_rules.value.end(); pair++:
             key = (*pair)[0]
             template = (*pair)[1]
 
@@ -116,16 +116,16 @@ def parse_comments(test: Test*) -> List[Comment]:
 # This must be done after merging configuration from different places but
 # before we need to use the order for sorting. That's why it's here.
 def check_config(config: TestConfig*) -> None:
-    if config.output_comment_order.len == 0:
+    if config.output_comment_order.value.len == 0:
         ok = True
-    elif config.output_comment_order.len == config.output_comment_rules.len:
+    elif config.output_comment_order.value.len == config.output_comment_rules.value.len:
         # Check that they contain the same strings in some order
         ok = True
-        n = config.output_comment_order.len
+        n = config.output_comment_order.value.len
         for i1 = 0; i1 < n; i1++:
             found = False
             for i2 = 0; i2 < n; i2++:
-                if strcmp(config.output_comment_order.ptr[i1], config.output_comment_rules.ptr[i2][0]) == 0:
+                if strcmp(config.output_comment_order.value.ptr[i1], config.output_comment_rules.value.ptr[i2][0]) == 0:
                     found = True
                     break
             if not found:
@@ -136,7 +136,7 @@ def check_config(config: TestConfig*) -> None:
 
     if not ok:
         fail(
-            config.value_locations[TestConfigOption.OutputCommentOrder as int],
+            config.output_comment_order.location,
             "'output_comment_order' must contain the keys of 'output_comment_rules' in some order",
         )
 
@@ -157,7 +157,7 @@ def compare_comments(a: Comment*, b: Comment*) -> int:
 
 
 def sort_comments(comments: List[Comment], config: TestConfig*) -> None:
-    if config.output_comment_order.len == 0:
+    if config.output_comment_order.value.len == 0:
         return
 
     for comment_index = 0; comment_index < comments.len; comment_index++:
@@ -165,8 +165,8 @@ def sort_comments(comments: List[Comment], config: TestConfig*) -> None:
 
         # Sort by index of the comment's key in the configured order
         c.sort_key = -1
-        for i = 0; i < config.output_comment_order.len; i++:
-            if strcmp(config.output_comment_order.ptr[i], c.key) == 0:
+        for i = 0; i < config.output_comment_order.value.len; i++:
+            if strcmp(config.output_comment_order.value.ptr[i], c.key) == 0:
                 c.sort_key = i
                 break
         assert c.sort_key != -1

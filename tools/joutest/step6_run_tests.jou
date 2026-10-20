@@ -567,14 +567,14 @@ else:
             if dup2(input_pipe_read, 0) == -1:
                 fail_child_process_before_exec(error_pipe_write)
 
-        match run_state.test.config.stdout:
+        match run_state.test.config.stdout.value:
             case CaptureMode.CompareToComments:
                 if dup2(output_pipe_write, 1) == -1:
                     fail_child_process_before_exec(error_pipe_write)
             case CaptureMode.DoNotCapture:
                 pass
 
-        match run_state.test.config.stderr:
+        match run_state.test.config.stderr.value:
             case CaptureMode.CompareToComments:
                 if dup2(output_pipe_write, 2) == -1:
                     fail_child_process_before_exec(error_pipe_write)
@@ -769,7 +769,7 @@ def run_test(test: Test*, verbose: bool) -> None:
     if (
         test.start_error == 0
         and test.terminating_signal == 0
-        and test.config.expected_exit_code == test.actual_exit_code
+        and test.config.expected_exit_code.value == test.actual_exit_code
         and (
             (not test.uses_output_capturing)
             or strcmp(test.expected_output, test.actual_output) == 0
