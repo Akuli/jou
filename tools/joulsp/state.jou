@@ -55,14 +55,14 @@ class QueryParams:
 
     @public
     def debug_string(self) -> byte*:
-        debug_strcat(QUERY_KIND_NAMES[self.kind as int])
-        debug_strcat(" \"")
-        debug_strcat(self.context.path)
-        debug_strcat("\"")
+        debug_str_add(QUERY_KIND_NAMES[self.kind as int])
+        debug_str_add(" \"")
+        debug_str_add(self.context.path)
+        debug_str_add("\"")
         if self.name != NULL:
-            debug_strcat(" ")
-            debug_strcat(self.name)
-        return debug_str()
+            debug_str_add(" ")
+            debug_str_add(self.name)
+        return debug_str_finish()
 
 @public
 class QueryResults:
