@@ -1,0 +1,299 @@
+import "stdlib/io.jou"
+import "stdlib/intnative.jou"
+import "stdlib/assert.jou"
+import "stdlib/mem.jou"
+import "stdlib/ascii.jou"
+import "stdlib/str.jou"
+
+import "./debug_str.jou"
+import "./big_buffer.jou"
+
+@public
+enum TokenKind:
+    Byte        # 'a'
+    Integer     # 123
+    Double      # 12.34 (never negative)
+    String      # "hello"
+    Name        # foo
+    Keyword     # import
+    Decorator   # @public
+    Newline
+    Indent
+    Dedent
+    Operator
+    EndOfFile  # Marks the end of an array of tokens.
+
+global TokenKind_NAMES: byte*[enum_count(TokenKind)] = [
+    "Byte",
+    "Integer",
+    "Double",
+    "String",
+    "Name",
+    "Keyword",
+    "Decorator",
+    "Newline",
+    "Indent",
+    "Dedent",
+    "Operator",
+    "EndOfFile",
+]
+
+
+@public
+class Token:
+    kind: TokenKind
+    start: byte*
+    end: byte*
+
+    @public
+    def debug_string(self) -> byte*:
+        debug_str_add(TokenKind_NAMES[self.kind as int])
+        debug_str_add("(")
+        for p = self.start; p < self.end; p++:
+            s = [*p, '\0']
+            debug_str_add(s)
+        debug_str_add(")")
+        return debug_str_finish()
+
+    @public
+    def print(self) -> None:
+        puts(self.debug_string())
+
+
+# This seems to trick the compiler to optimize better.
+@inline
+def load(mem: byte*, n: int) -> uint64:
+    assert n <= 8  # must fit into uint64
+    # little-endian order to hopefully optimize nicely
+    result: uint64 = 0
+    for i = 0; i < n; i++:
+        result |= (mem[i] as uint64) << (8*i)
+    return result
+
+# This function is performance critical!
+@public
+def is_keyword(start: byte*, end: byte*) -> bool:
+    # See also: tests/should_succeed/keywords.jou
+    match (end as intnative) - (start as intnative):
+        case 2:
+            return (
+                load(start, 2) == load("as", 2)
+                or load(start, 2) == load("if", 2)
+                or load(start, 2) == load("or", 2)
+            )
+        case 3:
+            return (
+                load(start, 3) == load("and", 3)
+                or load(start, 3) == load("def", 3)
+                or load(start, 3) == load("for", 3)
+                or load(start, 3) == load("int", 3)
+                or load(start, 3) == load("not", 3)
+            )
+        case 4:
+            return (
+                load(start, 4) == load("bool", 4)
+                or load(start, 4) == load("byte", 4)
+                or load(start, 4) == load("case", 4)
+                or load(start, 4) == load("elif", 4)
+                or load(start, 4) == load("else", 4)
+                or load(start, 4) == load("enum", 4)
+                or load(start, 4) == load("int8", 4)
+                or load(start, 4) == load("link", 4)
+                or load(start, 4) == load("None", 4)
+                or load(start, 4) == load("NULL", 4)
+                or load(start, 4) == load("pass", 4)
+                or load(start, 4) == load("self", 4)
+                or load(start, 4) == load("True", 4)
+                or load(start, 4) == load("void", 4)
+                or load(start, 4) == load("with", 4)
+            )
+        case 5:
+            return (
+                load(start, 5) == load("break", 5)
+                or load(start, 5) == load("class", 5)
+                or load(start, 5) == load("const", 5)
+                or load(start, 5) == load("False", 5)
+                or load(start, 5) == load("float", 5)
+                or load(start, 5) == load("int16", 5)
+                or load(start, 5) == load("int32", 5)
+                or load(start, 5) == load("int64", 5)
+                or load(start, 5) == load("match", 5)
+                or load(start, 5) == load("uint8", 5)
+                or load(start, 5) == load("union", 5)
+                or load(start, 5) == load("while", 5)
+            )
+        case 6:
+            return (
+                load(start, 6) == load("assert", 6)
+                or load(start, 6) == load("double", 6)
+                or load(start, 6) == load("global", 6)
+                or load(start, 6) == load("import", 6)
+                or load(start, 6) == load("return", 6)
+                or load(start, 6) == load("sizeof", 6)
+                or load(start, 6) == load("uint16", 6)
+                or load(start, 6) == load("uint32", 6)
+                or load(start, 6) == load("uint64", 6)
+            )
+        case 7:
+            return (
+                load(start, 7) == load("declare", 7)
+                or load(start, 7) == load("funcptr", 7)
+                or load(start, 7) == load("typedef", 7)
+            )
+        case 8:
+            return (
+                load(start, 8) == load("continue", 8)
+                or load(start, 8) == load("noreturn", 8)
+            )
+        case 9:
+            # These don't fit into uint64
+            return starts_with(start, "array_end")
+        case 10:
+            return starts_with(start, "enum_count")
+        case 11:
+            return starts_with(start, "array_count")
+        case 15:
+            return starts_with(start, "embed_text_file")
+        case 17:
+            return starts_with(start, "embed_binary_file")
+        case _:
+            return False
+
+
+## TODO(Jou): use this pattern more? it seems pretty nice for building
+## dynamic arrays without explicit capacity member.
+#@inline
+#def choose_capacity(len: int) -> int:
+#    if len == 0:
+#        # TODO: bigger initial size?
+#        return 1
+#
+#    # Choose next power of two, e.g. 5 --> 8
+#    # It's easier to choose 2^n - 1 = 0b1111...111 by smearing the bits around.
+#    len--
+#    len |= len >> 1
+#    len |= len >> 2
+#    len |= len >> 4
+#    len |= len >> 8
+#    len |= len >> 16
+#    return len+1
+
+
+def error(message: byte*) -> None:
+    # TODO: collect the errors, don't print right away
+    printf("ERROR: %s\n", message)
+
+
+def looks_like_identifier(b: byte) -> bool:
+    return b >= 128 or is_ascii_letter(b) or is_ascii_digit(b) or b == '_'
+
+# This function mostly splits the code into tokens and does as little other
+# work as possible. A lot of checking is done after calling this.
+def tokenize(code: byte*) -> None:
+    while *code != '\0':
+        t = Token{start = code}
+        match *code:
+            case '#':
+                while *code != '\0' and *code != '\n':
+                    code++
+                continue
+
+            case '@':
+                t.kind = TokenKind.Decorator
+                code++
+                while looks_like_identifier(*code):
+                    code++
+
+            case ' ':
+                code++
+                continue
+
+            case '"' | '\'':
+                quote = *code++
+                t.kind = TokenKind.String if quote == '"' else TokenKind.Byte
+                # TODO: test backslash at end of file without anything (not even newline) after it
+                while *code != '\0' and *code != '\n' and *code != quote:
+                    c = *code++
+                    if c == '\\' and *code != '\0':
+                        code++  # ignore byte just after backslash
+                if *code == quote:
+                    code++
+
+            case '\n':
+                t.kind = TokenKind.Newline
+                # TODO: read indentation level
+                # TODO: ignore everything if in space only mode
+                code++
+
+            # TODO: numbers
+
+            case (
+                '=' | '<' | '>' | '!' | '.' | ',' | '(' | ')' | '[' | ']' | '{' | '}'
+                | ';' | ':' | '+' | '-' | '*' | '/' | '&' | '%' | '|' | '^' | '~'
+            ):
+                t.kind = TokenKind.Operator
+                # Please update the syntax documentation if you add new operators.
+                # Longer operators are first, so that '==' does not tokenize as '=' '='
+                if (
+                    starts_with(code, "<<=")
+                    or starts_with(code, ">>=")
+                    or starts_with(code, "//=")
+                    or starts_with(code, "...")
+                    or starts_with(code, "===")  # only for error messages
+                    or starts_with(code, "!==")  # only for error messages
+                ):
+                    code = &code[3]
+                elif (
+                    starts_with(code, "==")
+                    or starts_with(code, "!=")
+                    or starts_with(code, "->")
+                    or starts_with(code, "<=")
+                    or starts_with(code, ">=")
+                    or starts_with(code, "++")
+                    or starts_with(code, "--")
+                    or starts_with(code, "+=")
+                    or starts_with(code, "-=")
+                    or starts_with(code, "*=")
+                    or starts_with(code, "/=")
+                    or starts_with(code, "%=")
+                    or starts_with(code, "&=")
+                    or starts_with(code, "|=")
+                    or starts_with(code, "^=")
+                    or starts_with(code, "<<")
+                    or starts_with(code, ">>")
+                    or starts_with(code, "//")
+                    or starts_with(code, "&&")  # only for error messages
+                    or starts_with(code, "||")  # only for error messages
+                ):
+                    code = &code[2]
+                else:
+                    code++
+
+            case _:
+                if looks_like_identifier(*code):
+                    # variable name or keyword, numbers were handled above
+                    while looks_like_identifier(*code):
+                        code++
+                    if is_keyword(t.start, code):
+                        t.kind = TokenKind.Keyword
+                    else:
+                        t.kind = TokenKind.Name
+                else:
+                    if is_ascii_printable(*code):
+                        sprintf(big_buffer, "unexpected byte '%c' (%#02x)", *code, *code)
+                    else:
+                        sprintf(big_buffer, "unexpected byte %#02x", *code)
+                    error(big_buffer)
+                    # Don't get stuck when an error happens, move on to tokenize the rest
+                    code++
+                    continue
+
+        t.end = code
+        t.print()
+
+
+def main() -> int:
+    memset(big_buffer, 0, sizeof(big_buffer))
+    fread(big_buffer, 1, sizeof(big_buffer) - 1, get_stdin())
+    tokenize(strdup(big_buffer))
+    return 0
