@@ -1,0 +1,11 @@
+import "stdlib/io.jou"
+
+class Point:
+    x: int
+    y: int
+
+global points: Point[2] = [Point{x = 1, y = 2}, Point{x = 3, y = 4}]  # Error: cannot evaluate initial value at compile time
+
+def main() -> int:
+    printf("%d %d\n", points[0].x, points[1].y)
+    return 0
