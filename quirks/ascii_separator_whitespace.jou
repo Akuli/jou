@@ -1,0 +1,14 @@
+import "stdlib/ascii.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+def main() -> int:
+    printf("is_ascii_whitespace(0x1c) = %d\n", is_ascii_whitespace('\x1c'))
+
+    text: byte[20] = "left\x1cright"
+    words = split_by_ascii_whitespace(text)
+    printf("word count = %zd\n", words.len)
+    for i = 0; i < words.len; i++:
+        puts(words.ptr[i])
+    free(words.ptr)
+    return 0
