@@ -257,30 +257,27 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                 return False
 
             lhs_rhs: Constant[2]
-            lhs_rhs_doubles: double[2]
-            integer_only = True
             for i = 0; i < 2; i++:
-                if not evaluate_constant_expression(jou_file, &expr.operands[i], &lhs_rhs[i], NULL):
+                if not evaluate_constant_expression(jou_file, &expr.operands[i], &lhs_rhs[i], type_hint):
+                    if not evaluate_constant_expression(jou_file, &expr.operands[i], &lhs_rhs[i], NULL):
+                        return False
+                if lhs_rhs[i].kind == ConstantKind.Integer:
+                    # it's an integer, it just needs an implicit cast
+                    lhs_rhs[i] = Constant{
+                        kind = ConstantKind.Float if type_hint == float_type() else ConstantKind.Double,
+                        float_or_double_value = (
+                            lhs_rhs[i].integer.value as double
+                            if lhs_rhs[i].integer.is_signed
+                            else lhs_rhs[i].integer.value as uint64 as double
+                        ),
+                    }
+                if lhs_rhs[i].get_type() != type_hint:
                     return False
 
-                if lhs_rhs[i].get_type() == type_hint:
-                    integer_only = False
-                    lhs_rhs_doubles[i] = lhs_rhs[i].float_or_double_value
-                elif lhs_rhs[i].kind == ConstantKind.Integer:
-                    if lhs_rhs[i].integer.is_signed:
-                        lhs_rhs_doubles[i] = lhs_rhs[i].integer.value as double
-                    else:
-                        lhs_rhs_doubles[i] = lhs_rhs[i].integer.value as uint64 as double
-                else:
-                    return False
-
-            if type_hint == float_type() and integer_only:
-                # 1 / 2 produces a double at runtime, don't allow that to implicitly become a float
-                return False
-
+            assert lhs_rhs[0].kind == lhs_rhs[1].kind
             *result = Constant{
-                kind = ConstantKind.Float if type_hint == float_type() else ConstantKind.Double,
-                float_or_double_value = lhs_rhs_doubles[0] / lhs_rhs_doubles[1],
+                kind = lhs_rhs[0].kind,
+                float_or_double_value = lhs_rhs[0].float_or_double_value / lhs_rhs[1].float_or_double_value,
             }
             return True
 
