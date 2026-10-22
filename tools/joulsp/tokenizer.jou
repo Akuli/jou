@@ -1,10 +1,14 @@
 import "stdlib/io.jou"
+import "stdlib/limits.jou"
+import "stdlib/math.jou"
 import "stdlib/intnative.jou"
 import "stdlib/assert.jou"
 import "stdlib/mem.jou"
 import "stdlib/ascii.jou"
 import "stdlib/str.jou"
+import "stdlib/utf8.jou"
 
+import "./allocator.jou"
 import "./debug_str.jou"
 import "./big_buffer.jou"
 
@@ -21,6 +25,7 @@ enum TokenKind:
     Indent
     Dedent
     Operator
+    Error       # an error message has been added, probably shouldn't complain more about how this token is used
     EndOfFile  # Marks the end of an array of tokens.
 
 global TokenKind_NAMES: byte*[enum_count(TokenKind)] = [
@@ -35,6 +40,7 @@ global TokenKind_NAMES: byte*[enum_count(TokenKind)] = [
     "Indent",
     "Dedent",
     "Operator",
+    "Error",
     "EndOfFile",
 ]
 
@@ -160,140 +166,385 @@ def is_keyword(start: byte*, end: byte*) -> bool:
             return False
 
 
-## TODO(Jou): use this pattern more? it seems pretty nice for building
-## dynamic arrays without explicit capacity member.
-#@inline
-#def choose_capacity(len: int) -> int:
-#    if len == 0:
-#        # TODO: bigger initial size?
-#        return 1
-#
-#    # Choose next power of two, e.g. 5 --> 8
-#    # It's easier to choose 2^n - 1 = 0b1111...111 by smearing the bits around.
-#    len--
-#    len |= len >> 1
-#    len |= len >> 2
-#    len |= len >> 4
-#    len |= len >> 8
-#    len |= len >> 16
-#    return len+1
-
-
 def error(message: byte*) -> None:
     # TODO: collect the errors, don't print right away
     printf("ERROR: %s\n", message)
 
 
+
+def detect_banned_unicode_whitespace_character(codepoint: int) -> byte*:
+    # Ban all UTF-8 whitespace characters (longest one is 3 bytes)
+    # Python code used to generate this:
+    #
+    #    import unicodedata
+    #    for x in range(128, 0x110000):  # 128 to skip ascii, chr(0x110000) errors
+    #        if chr(x).isspace():
+    #            try:
+    #                name = unicodedata.name(chr(x))
+    #            except ValueError:
+    #                name = "???"
+    #            print('BadChar{codepoint = %#08x, name = "%s"},' % (x, name))
+    match codepoint:
+        case 0x00000085:
+            return "NEXT LINE (NEL)"
+        case 0x000000a0:
+            return "NO-BREAK SPACE"
+        case 0x00001680:
+            return "OGHAM SPACE MARK"
+        case 0x00002000:
+            return "EN QUAD"
+        case 0x00002001:
+            return "EM QUAD"
+        case 0x00002002:
+            return "EN SPACE"
+        case 0x00002003:
+            return "EM SPACE"
+        case 0x00002004:
+            return "THREE-PER-EM SPACE"
+        case 0x00002005:
+            return "FOUR-PER-EM SPACE"
+        case 0x00002006:
+            return "SIX-PER-EM SPACE"
+        case 0x00002007:
+            return "FIGURE SPACE"
+        case 0x00002008:
+            return "PUNCTUATION SPACE"
+        case 0x00002009:
+            return "THIN SPACE"
+        case 0x0000200a:
+            return "HAIR SPACE"
+        case 0x00002028:
+            return "LINE SEPARATOR"
+        case 0x00002029:
+            return "PARAGRAPH SEPARATOR"
+        case 0x0000202f:
+            return "NARROW NO-BREAK SPACE"
+        case 0x0000205f:
+            return "MEDIUM MATHEMATICAL SPACE"
+        case 0x00003000:
+            return "IDEOGRAPHIC SPACE"
+        case _:
+            return NULL
+
+
+def simple_file_content_checks(code: byte*) -> None:
+    lineno = 1
+
+    while *code != '\0':
+        if *code == '\r' and code[1] != '\n':
+            error("source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
+        if *code == '\t':
+            error("Jou files cannot contain tab characters (use 4 spaces for indentation)")
+
+        if *code == '\n':
+            lineno++
+
+        codepoint = utf8_decode_char(&code)
+
+        if codepoint == -1:
+            error("source file contains invalid UTF-8")
+            # Go to end of line for two reasons:
+            #   - avoids a spam of many error messages on the same line
+            #   - prevents getting stuck because utf8_decode_char() moves
+            #     the pointer only on success
+            while *code != '\0' and *code != '\n':
+                code++
+
+        bad_char_name = detect_banned_unicode_whitespace_character(codepoint)
+        if bad_char_name != NULL:
+            snprintf(big_buffer, sizeof(big_buffer), "source file contains Unicode whitespace character U+%08X %s", codepoint, bad_char_name)
+            error(big_buffer)
+
+
 def looks_like_identifier(b: byte) -> bool:
     return b >= 128 or is_ascii_letter(b) or is_ascii_digit(b) or b == '_'
 
-# This function mostly splits the code into tokens and does as little other
-# work as possible. A lot of checking is done after calling this.
-def tokenize(code: byte*) -> None:
-    while *code != '\0':
-        t = Token{start = code}
-        match *code:
+
+class State:
+    code: byte*
+    tokens: ListWithAllocator[Token]
+    next_token: Token
+
+
+def comment(state: State*) -> None:
+    while *state.code != '\0' and *state.code != '\n':
+        state.code++
+
+def newline(state: State*) -> bool:
+    assert *state.code == '\n'
+    state.code++
+
+    if state.tokens.len > 0 and state.tokens.end()[-1].kind == TokenKind.Newline:
+        # there is already a newline
+        printf("Newline says no\n")
+        return False
+
+    # TODO: ignore everything if in space only mode
+    state.next_token.kind = TokenKind.Newline
+    printf("Newline says yes %zd %d\n", state.tokens.len, -1 if state.tokens.len == 0 else (state.tokens.end()[-1].kind as int))
+    if state.tokens.len > 0:
+        state.tokens.end()[-1].print()
+    return True
+
+def decorator(state: State*) -> None:
+    state.next_token.kind = TokenKind.Decorator
+
+    assert *state.code == '@'
+    state.code++
+    while looks_like_identifier(*state.code):
+        state.code++
+
+# At this point we only figure out where strings end. For error messages when
+# someone tries to use single quotes for 'a string', it's easiest to treat
+# those as strings for now and interpret them later.
+def string_or_byte(state: State*) -> None:
+    quote = *state.code++
+    assert quote == '"' or quote == '\''
+    state.next_token.kind = TokenKind.String if quote == '"' else TokenKind.Byte
+
+    # TODO: test backslash at end of file without anything (not even newline) after it
+    while *state.code != '\0' and *state.code != '\n' and *state.code != quote:
+        c = *state.code++
+        if c == '\\' and *state.code != '\0':
+            state.code++  # ignore byte just after backslash
+
+    if *state.code == quote:
+        # TODO: complain if it's not that
+        state.code++
+
+def operator(state: State*) -> None:
+    state.next_token.kind = TokenKind.Operator
+
+    # Please update the syntax documentation if you add new operators.
+    # Longer operators are first, so that '==' does not tokenize as '=' '='
+    if (
+        starts_with(state.code, "<<=")
+        or starts_with(state.code, ">>=")
+        or starts_with(state.code, "//=")
+        or starts_with(state.code, "...")
+        or starts_with(state.code, "===")  # only for error messages
+        or starts_with(state.code, "!==")  # only for error messages
+    ):
+        state.code++
+        state.code++
+        state.code++
+    elif (
+        starts_with(state.code, "==")
+        or starts_with(state.code, "!=")
+        or starts_with(state.code, "->")
+        or starts_with(state.code, "<=")
+        or starts_with(state.code, ">=")
+        or starts_with(state.code, "++")
+        or starts_with(state.code, "--")
+        or starts_with(state.code, "+=")
+        or starts_with(state.code, "-=")
+        or starts_with(state.code, "*=")
+        or starts_with(state.code, "/=")
+        or starts_with(state.code, "%=")
+        or starts_with(state.code, "&=")
+        or starts_with(state.code, "|=")
+        or starts_with(state.code, "^=")
+        or starts_with(state.code, "<<")
+        or starts_with(state.code, ">>")
+        or starts_with(state.code, "//")
+        or starts_with(state.code, "&&")  # only for error messages
+        or starts_with(state.code, "||")  # only for error messages
+    ):
+        state.code++
+        state.code++
+    else:
+        state.code++
+
+# TODO: indentation tokens
+def space(state: State*) -> None:
+    state.code++
+
+def name_or_keyword(state: State*) -> None:
+    start = state.code
+
+    assert not is_ascii_digit(*state.code)
+    assert looks_like_identifier(*state.code)
+    while looks_like_identifier(*state.code):
+        state.code++
+
+    if is_keyword(start, state.code):
+        state.next_token.kind = TokenKind.Keyword
+    else:
+        state.next_token.kind = TokenKind.Name
+
+
+def hexdigit_value(c: byte) -> int:
+    if 'A' <= c and c <= 'F':
+        return 10 + (c - 'A')
+    if 'a' <= c and c <= 'f':
+        return 10 + (c - 'a')
+    if '0' <= c and c <= '9':
+        return c - '0'
+    return -1
+
+
+# This doesn't check if the value is too big to fit into whatever integer type.
+def is_valid_integer(start: byte*, end: byte*) -> bool:
+    base = 10
+    if (end as intnative) - (start as intnative) >= 2:
+        if starts_with(start, "0b"):
+            base = 2
+        if starts_with(start, "0o"):
+            base = 10
+        if starts_with(start, "0x"):
+            base = 16
+
+    if base != 10:
+        start = &start[2]
+
+    for p = start; p < end; p++:
+        v = hexdigit_value(*p)
+        if v == -1 or v >= base:
+            return False
+    return True
+
+def is_valid_double(start: byte*, end: byte*) -> bool:
+    # See doc/compiler_internals/syntax-spec.md
+    #
+    # I verified the correctness of this function by asking an LLM to convert
+    # it to a DFA and then visualizing the DFA.
+
+    digits_before_dot = False
+    dot = False
+    digits_after_dot = False
+    minus = False
+    e = False
+    digits_after_e = False
+
+    for p = start; p < end; p++:
+        match *p:
+            case '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
+                if e:
+                    digits_after_e = True
+                elif dot:
+                    digits_after_dot = True
+                else:
+                    digits_before_dot = True
+            case '.':
+                if dot or e or not digits_before_dot:
+                    return False
+                dot = True
+            case 'e':
+                if e or not digits_before_dot or (dot and not digits_after_dot):
+                    return False
+                e = True
+            case '-':
+                if minus or not e or digits_after_e:
+                    return False
+                minus = True
+            case _:
+                return False
+
+    return (
+        digits_before_dot
+        and (dot or e)
+        and not (dot and not digits_after_dot)
+        and not (e and not digits_after_e)
+    )
+
+def number(state: State*) -> None:
+    start = state.code
+
+    assert is_ascii_digit(*state.code)
+    state.code++
+
+    while (
+        looks_like_identifier(*state.code)
+        or *state.code == '.'
+        # Here we can safely look backwards because first digit was already skipped.
+        or (*state.code == '-' and state.code[-1] == 'e')
+    ):
+        state.code++
+
+    # This is fully validated here, because it's not clear whether "2bad" is
+    # intended to be a number (missing 0x in front?) or a variable name, and I
+    # want an error message that doesn't claim either.
+    if is_valid_integer(start, state.code):
+        state.next_token.kind = TokenKind.Integer
+    elif is_valid_double(start, state.code):
+        state.next_token.kind = TokenKind.Double
+    else:
+        len = (state.code as intnative) - (start as intnative)
+        snprintf(big_buffer, sizeof(big_buffer), "invalid number or variable name \"%.*s\"", llmin(len, INT32_MAX) as int, start)
+        error(big_buffer)
+        state.next_token.kind = TokenKind.Error
+
+
+def bad_byte(state: State*) -> None:
+    state.next_token.kind = TokenKind.Error
+    if is_ascii_printable(*state.code):
+        snprintf(big_buffer, sizeof(big_buffer), "unexpected byte '%c' (%#02x)", *state.code, *state.code)
+    else:
+        snprintf(big_buffer, sizeof(big_buffer), "unexpected byte %#02x", *state.code)
+    error(big_buffer)
+
+    # Don't get stuck when an error happens, move on to tokenize the rest.
+    # Skip everything on the same line so that we don't spam user with errors.
+    while *state.code != '\n' and *state.code != '\0':
+        state.code++
+
+
+def tokenize(code: byte*, allocator: Allocator*) -> Token*:
+    simple_file_content_checks(code)
+
+    state = State{code = code, tokens = ListWithAllocator[Token]{allocator = allocator}}
+
+    while *state.code != '\0':
+        state.next_token = Token{start = state.code}
+
+        match *state.code:
             case '#':
-                while *code != '\0' and *code != '\n':
-                    code++
+                comment(&state)
                 continue
-
             case '@':
-                t.kind = TokenKind.Decorator
-                code++
-                while looks_like_identifier(*code):
-                    code++
-
+                decorator(&state)
             case ' ':
-                code++
+                space(&state)
                 continue
-
             case '"' | '\'':
-                quote = *code++
-                t.kind = TokenKind.String if quote == '"' else TokenKind.Byte
-                # TODO: test backslash at end of file without anything (not even newline) after it
-                while *code != '\0' and *code != '\n' and *code != quote:
-                    c = *code++
-                    if c == '\\' and *code != '\0':
-                        code++  # ignore byte just after backslash
-                if *code == quote:
-                    code++
-
+                string_or_byte(&state)
+            case '\r':
+                state.code++
+                continue
             case '\n':
-                t.kind = TokenKind.Newline
-                # TODO: read indentation level
-                # TODO: ignore everything if in space only mode
-                code++
-
-            # TODO: numbers
-
+                if not newline(&state):
+                    continue
+            case '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
+                number(&state)
             case (
                 '=' | '<' | '>' | '!' | '.' | ',' | '(' | ')' | '[' | ']' | '{' | '}'
                 | ';' | ':' | '+' | '-' | '*' | '/' | '&' | '%' | '|' | '^' | '~'
             ):
-                t.kind = TokenKind.Operator
-                # Please update the syntax documentation if you add new operators.
-                # Longer operators are first, so that '==' does not tokenize as '=' '='
-                if (
-                    starts_with(code, "<<=")
-                    or starts_with(code, ">>=")
-                    or starts_with(code, "//=")
-                    or starts_with(code, "...")
-                    or starts_with(code, "===")  # only for error messages
-                    or starts_with(code, "!==")  # only for error messages
-                ):
-                    code = &code[3]
-                elif (
-                    starts_with(code, "==")
-                    or starts_with(code, "!=")
-                    or starts_with(code, "->")
-                    or starts_with(code, "<=")
-                    or starts_with(code, ">=")
-                    or starts_with(code, "++")
-                    or starts_with(code, "--")
-                    or starts_with(code, "+=")
-                    or starts_with(code, "-=")
-                    or starts_with(code, "*=")
-                    or starts_with(code, "/=")
-                    or starts_with(code, "%=")
-                    or starts_with(code, "&=")
-                    or starts_with(code, "|=")
-                    or starts_with(code, "^=")
-                    or starts_with(code, "<<")
-                    or starts_with(code, ">>")
-                    or starts_with(code, "//")
-                    or starts_with(code, "&&")  # only for error messages
-                    or starts_with(code, "||")  # only for error messages
-                ):
-                    code = &code[2]
-                else:
-                    code++
-
+                operator(&state)
             case _:
-                if looks_like_identifier(*code):
-                    # variable name or keyword, numbers were handled above
-                    while looks_like_identifier(*code):
-                        code++
-                    if is_keyword(t.start, code):
-                        t.kind = TokenKind.Keyword
-                    else:
-                        t.kind = TokenKind.Name
+                if looks_like_identifier(*state.code):
+                    name_or_keyword(&state)
                 else:
-                    if is_ascii_printable(*code):
-                        sprintf(big_buffer, "unexpected byte '%c' (%#02x)", *code, *code)
-                    else:
-                        sprintf(big_buffer, "unexpected byte %#02x", *code)
-                    error(big_buffer)
-                    # Don't get stuck when an error happens, move on to tokenize the rest
-                    code++
+                    bad_byte(&state)
                     continue
 
-        t.end = code
-        t.print()
+        state.next_token.end = state.code
+        printf("appending %s\n", state.next_token.debug_string())
+        state.tokens.append(state.next_token)
+
+    state.tokens.append(Token{kind = TokenKind.EndOfFile, start = code, end = code})
+    return state.tokens.ptr
+
+
+# TODO: figure out memory issue, triggered by feeding many newlines
 
 
 def main() -> int:
     memset(big_buffer, 0, sizeof(big_buffer))
     fread(big_buffer, 1, sizeof(big_buffer) - 1, get_stdin())
-    tokenize(strdup(big_buffer))
+
+    allocator = Allocator{}
+    tokens = tokenize(strdup(big_buffer), &allocator)
+    for t = tokens; t.kind != TokenKind.EndOfFile; t++:
+        t.print()
     return 0

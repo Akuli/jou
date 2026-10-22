@@ -88,6 +88,33 @@ class Allocator:
         assert block == NULL
 
 
+@public
+class ListWithAllocator[T]:
+    ptr: T*
+    len: intnative
+    capacity: intnative
+    allocator: Allocator*
+
+    @public
+    @inline
+    def append(self, item: T) -> None:
+        assert self.allocator != NULL
+        if self.capacity == self.len:
+            if self.capacity == 0:
+                self.capacity = 4
+            else:
+                self.capacity *= 2
+            new_mem: T* = self.allocator.alloc(sizeof(new_mem[0]) * self.capacity)
+            memcpy(new_mem, self.ptr, sizeof(new_mem[0]) * self.len)
+            self.ptr = new_mem
+        self.ptr[self.len++] = item
+
+    @public
+    @inline
+    def end(self) -> T*:
+        return &self.ptr[self.len - 1]
+
+
 def main() -> int:
     temp = Allocator{}
     a: Allocator* = temp.alloc(sizeof(*a))
