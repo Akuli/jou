@@ -2,25 +2,28 @@ import "stdlib/assert.jou"
 import "stdlib/io.jou"
 
 import "./state.jou"
+import "./allocator.jou"
+import "./tokenizer.jou"
 import "./query_engine.jou"
 
 
-def main() -> int:
+def main(argc: int, argv: byte**) -> int:
+    if argc != 2 or argv[1][0] == '-':
+        fprintf(get_stderr(), "Usage: %s FILE.jou\n", argv[0])
+        return 2
+
     state = State{}
 
     # Read the content of this file through the query system
-    params = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{path="../../examples/hello.jou"}}
+    params = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{path=argv[1]}}
 
     results = run_query(&state, &params)
     assert results != NULL  # not cyclic dependency
-    printf("File content: %s\n", results.read_file.content)
-    printf("File content hash: 0x%llx\n", results.read_file.content_hash)
-    printf("Error: %s\n", results.read_file.error)
+    if results.read_file.error[0] != '\0':
+        puts(results.read_file.error)
+        return 1
 
-    results = run_query(&state, &params)
-    assert results != NULL  # not cyclic dependency
-    printf("File content: %s\n", results.read_file.content)
-    printf("File content hash: 0x%llx\n", results.read_file.content_hash)
-    printf("Error: %s\n", results.read_file.error)
+    temp_allocator = Allocator{}
+    tokenize(results.read_file.content, &temp_allocator)
 
     return 0

@@ -119,7 +119,8 @@ def can_reuse_previous_result(q: Query*) -> bool:
 def run_query(state: State*, params: QueryParams*) -> QueryResults*:
     q: Query* = find_query_from_hash_table(state, params)
     if q == NULL:
-        printf("%s: new query\n", params.debug_string())
+        if QUERY_ENGINE_DEBUG_PRINTS:
+            printf("%s: new query\n", params.debug_string())
         q = allocate_query(params)
         add_query_to_hash_table(state, q)
         assert q.version == 0

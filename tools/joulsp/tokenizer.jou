@@ -281,9 +281,6 @@ def newline(state: State*) -> bool:
 
     # TODO: ignore everything if in space only mode
     state.next_token.kind = TokenKind.Newline
-    printf("Newline says yes %zd %d\n", state.tokens.len, -1 if state.tokens.len == 0 else (state.tokens.end()[-1].kind as int))
-    if state.tokens.len > 0:
-        state.tokens.end()[-1].print()
     return True
 
 def decorator(state: State*) -> None:
@@ -489,6 +486,7 @@ def bad_byte(state: State*) -> None:
         state.code++
 
 
+@public
 def tokenize(code: byte*, allocator: Allocator*) -> Token*:
     simple_file_content_checks(code)
 
@@ -529,7 +527,6 @@ def tokenize(code: byte*, allocator: Allocator*) -> Token*:
                     continue
 
         state.next_token.end = state.code
-        printf("appending %s\n", state.next_token.debug_string())
         state.tokens.append(state.next_token)
 
     state.tokens.append(Token{kind = TokenKind.EndOfFile, start = code, end = code})
