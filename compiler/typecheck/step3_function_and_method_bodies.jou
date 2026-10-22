@@ -351,6 +351,9 @@ def cast_type_of_number_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind)
     assert ltype.is_integer_type() or ltype == float_type() or ltype == double_type()
     assert rtype.is_integer_type() or rtype == float_type() or rtype == double_type()
 
+    if op == AstExpressionKind.Div and ltype.is_integer_type() and rtype.is_integer_type():
+        return double_type()
+
     if ltype == double_type() or rtype == double_type():
         return double_type()
     if ltype == float_type() or rtype == float_type():
@@ -526,12 +529,6 @@ def check_binop(
     ):
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
-
-    if (
-        op == AstExpressionKind.Div
-        and (got_integers or got_integer_array_and_integer)
-    ):
-        show_warning(location, "please use '//' for integer division, '/' will soon produce a double")
 
     if op == AstExpressionKind.BitShiftLeft or op == AstExpressionKind.BitShiftRight:
         # Special-cased, because right side type does not affect the type of result.

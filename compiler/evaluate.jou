@@ -257,6 +257,30 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                 return False
 
             lhs_rhs: Constant[2]
+            integer_operands = True
+            for i = 0; i < 2; i++:
+                if not evaluate_constant_expression(jou_file, &expr.operands[i], &lhs_rhs[i], NULL):
+                    return False
+                if lhs_rhs[i].kind != ConstantKind.Integer:
+                    integer_operands = False
+
+            if integer_operands:
+                if type_hint != double_type():
+                    return False
+
+                values: double[2]
+                for i = 0; i < 2; i++:
+                    if lhs_rhs[i].integer.is_signed:
+                        values[i] = lhs_rhs[i].integer.value as double
+                    else:
+                        values[i] = lhs_rhs[i].integer.value as uint64 as double
+
+                *result = Constant{
+                    kind = ConstantKind.Double,
+                    float_or_double_value = values[0] / values[1],
+                }
+                return True
+
             for i = 0; i < 2; i++:
                 if not evaluate_constant_expression(jou_file, &expr.operands[i], &lhs_rhs[i], type_hint):
                     return False

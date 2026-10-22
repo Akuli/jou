@@ -310,15 +310,8 @@ class AstToBuilder:
                 return self.builder.mul(lhs, rhs)
             case AstExpressionKind.Div:
                 assert lhs.type == rhs.type
-                match lhs.type.kind:
-                    case TypeKind.SignedInteger:  # TODO: legacy behavior, remove
-                        return self.builder.signed_floor_div(lhs, rhs)
-                    case TypeKind.UnsignedInteger:  # TODO: legacy behavior, remove
-                        return self.builder.unsigned_floor_div(lhs, rhs)
-                    case TypeKind.FloatingPoint:
-                        return self.builder.floating_div(lhs, rhs)
-                    case _:
-                        assert False
+                assert lhs.type.kind == TypeKind.FloatingPoint
+                return self.builder.floating_div(lhs, rhs)
             case AstExpressionKind.FloorDiv:
                 assert lhs.type == rhs.type
                 match lhs.type.kind:
