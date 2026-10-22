@@ -1,0 +1,7 @@
+import "stdlib/io.jou"
+import "./import_indirect_type_access/facade.jou"
+
+def main() -> int:
+    # The dependency type is not imported here, but its field is reachable through PublicHolder.
+    printf("%d\n", make_holder().hidden.value)
+    return 0

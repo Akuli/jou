@@ -1,0 +1,21 @@
+import "stdlib/io.jou"
+
+class Box[T]:
+    value: T
+
+    @inline
+    def set(self, new_value: T) -> None:
+        self.value = new_value
+
+class Wrapper[T]:
+    box: Box[T]
+
+    @inline
+    def set(self, new_value: T) -> None:
+        self.box.set(new_value)
+
+def main() -> int:
+    wrapper = Wrapper[int]{}
+    wrapper.set(123)
+    printf("%d\n", wrapper.box.value)  # Output: 123
+    return 0

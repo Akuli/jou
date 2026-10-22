@@ -1,0 +1,9 @@
+import "stdlib/io.jou"
+
+const N: int64 = 3
+
+def main() -> int:
+    # Array lengths must be compile-time constants, but an int64 constant is rejected.
+    values: int[N]  # Error: cannot evaluate array length at compile time
+    printf("%d\n", array_count(values))
+    return 0

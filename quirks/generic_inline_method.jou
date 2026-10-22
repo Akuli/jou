@@ -1,0 +1,13 @@
+import "stdlib/io.jou"
+
+class Box[T]:
+    value: T
+
+    @inline
+    def get(self) -> T:
+        return self.value
+
+def main() -> int:
+    box = Box[int]{value = 123}
+    printf("%d\n", box.get())  # Output: 123
+    return 0

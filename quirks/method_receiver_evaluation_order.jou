@@ -1,0 +1,17 @@
+import "stdlib/io.jou"
+
+class Counter:
+    value: int
+
+    def snapshot(self: Counter, ignored: int) -> int:
+        return self.value
+
+def mutate_and_return(counter: Counter*) -> int:
+    counter.value = 9
+    return 0
+
+def main() -> int:
+    counter = Counter{value = 3}
+    # The by-value receiver is copied before the argument mutates counter.
+    printf("%d %d\n", counter.snapshot(mutate_and_return(&counter)), counter.value)  # Output: 3 9
+    return 0

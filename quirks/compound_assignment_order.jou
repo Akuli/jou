@@ -1,0 +1,12 @@
+import "stdlib/io.jou"
+
+def overwrite_and_return(p: int*) -> int:
+    p[0] = 5
+    return 1
+
+def main() -> int:
+    values: int[1] = [10]
+    # The address is captured first, but the left value is read after the RHS runs.
+    values[0] += overwrite_and_return(&values[0])
+    printf("%d\n", values[0])  # Output: 6
+    return 0

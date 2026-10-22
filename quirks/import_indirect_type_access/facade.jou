@@ -1,0 +1,10 @@
+import "./private_data.jou"
+
+# The public holder exposes this imported type through its field.
+@public
+class PublicHolder:
+    hidden: PrivateData
+
+@public
+def make_holder() -> PublicHolder:
+    return PublicHolder{hidden = PrivateData{value = 123}}

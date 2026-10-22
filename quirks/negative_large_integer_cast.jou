@@ -1,0 +1,7 @@
+import "stdlib/io.jou"
+
+def main() -> int:
+    # The positive literal can be cast to int64, but unary minus happens only after
+    # the literal has already been inferred as int and rejected.
+    printf("%lld\n", -2147483649 as int64)  # Error: value does not fit into int
+    return 0

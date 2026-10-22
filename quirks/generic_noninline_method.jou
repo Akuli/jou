@@ -1,0 +1,12 @@
+import "stdlib/io.jou"
+
+class Box[T]:
+    value: T
+
+    def get(self) -> T:
+        return self.value
+
+def main() -> int:
+    box = Box[int]{value = 123}
+    printf("%d\n", box.get())  # Compiler assertion failure: generic T reaches LLVM lowering
+    return 0
