@@ -3,7 +3,9 @@ import "stdlib/io.jou"
 import "stdlib/process.jou"
 
 if WINDOWS:
+    import "stdlib/mem.jou"
     import "stdlib/str.jou"
+    import "stdlib/utf8.jou"
 
 
 @public
@@ -30,12 +32,12 @@ def fail_with_errno(message: byte*, errno_value: int) -> noreturn:
 
 
 if WINDOWS:
-    declare FormatMessageA(
+    declare FormatMessageW(
         dwFlags: uint32,
         lpSource: void*,
         dwMessageId: uint32,
         dwLanguageId: uint32,
-        lpBuffer: byte*,
+        lpBuffer: uint16*,
         nSize: uint32,
         Arguments: void*,  # actually va_list*
     ) -> uint32
@@ -48,10 +50,13 @@ if WINDOWS:
     @public
     def windows_error_to_string(error_code: uint32) -> byte[500]:
         result: byte[500] = ""
-        FormatMessageA(
+        wide_result: uint16[500]
+        memset(wide_result, 0, sizeof(wide_result))
+        FormatMessageW(
             FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, error_code, 0, result, sizeof(result) as uint32, NULL,
+            NULL, error_code, 0, wide_result, array_count(wide_result) as uint32, NULL,
         )
+        string_from_windows(wide_result, result, sizeof(result))
         while ends_with(result, "\r") or ends_with(result, "\n"):
             result[strlen(result) - 1] = '\0'
         return result
