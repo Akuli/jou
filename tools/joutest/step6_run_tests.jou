@@ -23,6 +23,7 @@ import "./print_test_info.jou"
 if WINDOWS:
     import "stdlib/math.jou"
     import "stdlib/limits.jou"
+    import "stdlib/utf8.jou"
 else:
     import "stdlib/errno.jou"
     import "stdlib/fs.jou"
@@ -31,11 +32,11 @@ else:
 
 
 if WINDOWS:
-    class STARTUPINFOA:
+    class STARTUPINFOW:
         cb: uint32
-        lpReserved: byte*
-        lpDesktop: byte*
-        lpTitle: byte*
+        lpReserved: uint16*
+        lpDesktop: uint16*
+        lpTitle: uint16*
         dwX: uint32
         dwY: uint32
         dwXSize: uint32
@@ -65,16 +66,16 @@ if WINDOWS:
             Pointer: void*
         hEvent: intnative
 
-    declare CreateProcessA(
-        lpApplicationName: byte*,
-        lpCommandLine: byte*,  # may be modified! at least in the W version. Windows is weird...
+    declare CreateProcessW(
+        lpApplicationName: uint16*,
+        lpCommandLine: uint16*,  # may be modified! Windows is weird...
         lpProcessAttributes: void*,  # actually SECURITY_ATTRIBUTES*
         lpThreadAttributes: void*,  # actually SECURITY_ATTRIBUTES*
         bInheritHandles: int,
         dwCreationFlags: uint32,
         lpEnvironment: void*,
-        lpCurrentDirectory: byte*,
-        lpStartupInfo: STARTUPINFOA*,
+        lpCurrentDirectory: uint16*,
+        lpStartupInfo: STARTUPINFOW*,
         lpProcessInformation: PROCESS_INFORMATION*,
     ) -> int
     declare WaitForSingleObject(handle: intnative, dwMilliseconds: uint32) -> uint32
@@ -292,7 +293,7 @@ if WINDOWS:
             create_overlapped_pipe(&run_state.output_pipe_read, True, &output_pipe_write, False)
             make_inheritable(output_pipe_write)
 
-        startup_info = STARTUPINFOA{}
+        startup_info = STARTUPINFOW{}
         startup_info.cb = sizeof(startup_info) as uint32
         if run_state.test.uses_output_capturing:
             startup_info.dwFlags = STARTF_USESTDHANDLES
@@ -316,22 +317,32 @@ if WINDOWS:
         # arguments.
         #
         # This does not pass the given string to a shell.
-        string = strdup(run_state.test.actual_command_string)  # Apparently windows may modify it, don't know why...
-        ret = CreateProcessA(
+        wide_command_line = string_to_windows(run_state.test.actual_command_string, NULL, 0)
+        if wide_command_line == NULL:
+            fail("test command is not valid UTF-8")
+
+        wide_working_directory: uint16* = NULL
+        if run_state.test.working_directory != NULL:
+            wide_working_directory = string_to_windows(run_state.test.working_directory, NULL, 0)
+            if wide_working_directory == NULL:
+                fail("test working directory is not valid UTF-8")
+
+        ret = CreateProcessW(
             NULL,  # Program name is a part of our arguments string
-            string,
+            wide_command_line,
             NULL,
             NULL,
             run_state.test.uses_output_capturing as int,
             0,
             NULL,
-            run_state.test.working_directory,
+            wide_working_directory,
             &startup_info,
             &run_state.process_info,
         )
         if ret == 0:
             run_state.test.start_error = GetLastError() as int
-        free(string)
+        free(wide_working_directory)
+        free(wide_command_line)
 
         # From now on, child is going to write and parent is going to read.
         #
