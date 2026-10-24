@@ -7,6 +7,7 @@ import "stdlib/str.jou"
 class CommandLineArgs:
     verbose: bool
     filter_strings: List[byte*]  # Only tests with one or more of these as substring are executed
+    last_failed: bool
 
 
 @public
@@ -150,6 +151,8 @@ class Test:
     expected_output: byte*
 
     # These are set in step 5 (configure tests)
+    succeeded_before: bool  # with --lf/--last-failed, remember success from several runs ago
+    skipped_with_last_failed_flag: bool
     skip: SkipMode
     actual_command_list: List[byte*]
     actual_command_string: byte*

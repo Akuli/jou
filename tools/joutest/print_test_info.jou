@@ -56,7 +56,12 @@ def print_ok(test: Test*, verbose: bool) -> None:
 @public
 def print_skip(test: Test*, verbose: bool) -> None:
     if verbose:
-        printf("%sskip%s ", YELLOW, RESET)
+        printf(
+            "%sskip%s%s ",
+            YELLOW,
+            " (--last-failed)" if test.skipped_with_last_failed_flag else "",
+            RESET,
+        )
         print_test_info_without_newlines(test)
         printf("\n")
     else:

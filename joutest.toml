@@ -2,13 +2,19 @@
 # Test joutest with itself #
 ############################
 [[tests]]
-files = "tests/tests_of_joutest/**/joutest.toml"
-command = ["joutest", "--no-colors"]
-cd_to_containing_directory = true
+files = [
+    "tests/tests_of_joutest/**/joutest.toml",
+    "tests/tests_of_joutest/*.jou",
+]
 output_comment_rules = {
     Output = '{comment}',
     Error = 'joutest error in file "{file}", line {line}: {comment}'
 }
+
+[[tests]]
+files = "tests/tests_of_joutest/**/joutest.toml"
+cd_to_containing_directory = true
+command = ["joutest", "--no-colors"]
 
 [[tests]]
 files = "tests/tests_of_joutest/**/*verbose*/joutest.toml"

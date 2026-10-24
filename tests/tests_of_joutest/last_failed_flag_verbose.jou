@@ -1,0 +1,89 @@
+# Tests --lf/--last-failed command-line flag (verbose version)
+
+import "stdlib/process.jou"
+import "stdlib/str.jou"
+import "stdlib/assert.jou"
+import "stdlib/fs.jou"
+import "stdlib/io.jou"
+
+
+def write_to_file(path: byte*, content: byte*) -> None:
+    f = fopen(path, "wb")
+    assert f != NULL
+    fprintf(f, "%s", content)
+    fclose(f)
+
+
+def joutest(flags: byte*) -> int:
+    printf("$ joutest %s\n", flags)
+    fflush(get_stdout())
+
+    command: byte[1000]
+    if WINDOWS:
+        snprintf(command, sizeof(command), "cd tmp\\joutest-lf && ..\\..\\joutest.exe %s", flags)
+    else:
+        snprintf(command, sizeof(command), "cd tmp/joutest-lf && ../../joutest %s", flags)
+    return system(command)
+
+
+def main() -> int:
+    if WINDOWS:
+        system("if exist tmp\\joutest-lf rmdir /s /q tmp\\joutest-lf")
+    else:
+        system("rm -rf tmp/joutest-lf")
+
+    mkdir("tmp", 0o777)
+    mkdir("tmp/joutest-lf", 0o777)
+
+    write_to_file("tmp/joutest-lf/joutest.toml", "[[tests]]\nfiles = \"*.jou\"\n[[tests]]\nfiles = \"skipped*.jou\"\nskip_mode = \"skip_normally\"")
+    write_to_file("tmp/joutest-lf/good.jou", "def main() -> int:\n    return 0")
+    write_to_file("tmp/joutest-lf/bad.jou", "lol")
+    write_to_file("tmp/joutest-lf/skipped.jou", "lol")
+
+    # Output: ===== (1) Initial run =====
+    # Output: $ joutest --no-colors
+    # Output: F.s
+    # Output:
+    # Output: *** Command: jou bad.jou
+    # Output: +compiler error in file "bad.jou", line 1: not a valid statement
+    # Output: Process exited with code 1. The correct exit code would be 0.
+    # Output:
+    # Output:
+    # Output: 1 succeeded, 1 failed, 1 skipped
+    printf("===== (1) Initial run =====\n")
+    fflush(get_stdout())
+    assert joutest("--no-colors") != 0
+
+    # Create new files to see how various things show up
+    write_to_file("tmp/joutest-lf/good2.jou", "def main() -> int:\n    return 0")
+    write_to_file("tmp/joutest-lf/bad2.jou", "lol")
+    write_to_file("tmp/joutest-lf/skipped2.jou", "lol")
+
+    # Output: ===== (2) Run with verbose and lf =====
+    # Output: $ joutest --no-colors --verbose --lf
+    # Output: run: jou bad.jou
+    # Output: FAIL jou bad.jou
+    # Output: run: jou bad2.jou
+    # Output: FAIL jou bad2.jou
+    # Output: skip (--last-failed) jou good.jou
+    # Output: run: jou good2.jou
+    # Output:  ok  jou good2.jou
+    # Output: skip jou skipped.jou
+    # Output: skip jou skipped2.jou
+    # Output:
+    # Output:
+    # Output: *** Command: jou bad.jou
+    # Output: +compiler error in file "bad.jou", line 1: not a valid statement
+    # Output: Process exited with code 1. The correct exit code would be 0.
+    # Output:
+    # Output: *** Command: jou bad2.jou
+    # Output: +compiler error in file "bad2.jou", line 1: not a valid statement
+    # Output: Process exited with code 1. The correct exit code would be 0.
+    # Output:
+    # Output:
+    # Output: 1 succeeded, 2 failed, 3 skipped
+    printf("===== (2) Run with verbose and lf =====\n")
+    fflush(get_stdout())
+    assert joutest("--no-colors --verbose --lf") != 0
+
+    return 0
