@@ -222,5 +222,5 @@ def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         configure_command(test)
         configure_uses_output_capturing(test)
 
-    if args.skip_success:
+    if args.last_failed:
         skip_tests_based_on_last_run(tests)

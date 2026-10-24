@@ -14,10 +14,11 @@ def print_help(program_name: byte*) -> None:
     printf("Options:\n")
     printf("  -v / --verbose        show more output than by default\n")
     printf("  --no-colors           do not print with colors\n")
-    printf("  -S / --skip-success   skip tests that succeeded last time joutest was invoked\n")
+    printf("  --lf / --last-failed  only run tests that failed or were not present on the\n")
+    printf("                        previous test run (useful in large projects)\n")
     printf("\n")
-    printf("If FILTER arguments are given, only run the tests whose path contains one or\n")
-    printf("more FILTERs as a substring.\n")
+    printf("If FILTER arguments are given, only run the tests whose file path contains one\n")
+    printf("or more FILTERs as a substring.\n")
 
 
 # Checks if s looks like e.g. -Sv
@@ -42,8 +43,8 @@ def parse_arg(program_name: byte*, args: CommandLineArgs*, arg: byte*) -> None:
         case "--no-colors":
             disable_colors()
 
-        case "-S" | "--skip-success":
-            args.skip_success = True
+        case "--lf" | "--last-failed":
+            args.last_failed = True
 
         case _:
             if arg[0] == '-':
