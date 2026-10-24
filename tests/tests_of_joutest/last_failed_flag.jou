@@ -82,17 +82,23 @@ def main() -> int:
     assert joutest("--no-colors --lf") != 0
     assert joutest("--no-colors --lf") != 0
 
-    # Fix the bad file
+    # Fix the bad file. Run twice to make sure the exit status is 0 even if all
+    # tests were skipped with --lf.
     #
     # Output: ===== (3) Fixed =====
     # Output: $ joutest --no-colors --lf
     # Output: .sss
     # Output:
     # Output: 1 succeeded, 3 skipped
+    # Output: $ joutest --no-colors --lf
+    # Output: ssss
+    # Output:
+    # Output: 0 succeeded, 4 skipped
     write_to_file("tmp/joutest-lf/bad.jou", "def main() -> int:\n    return 0")
     printf("===== (3) Fixed =====\n")
     fflush(get_stdout())
     assert joutest("--no-colors --lf") == 0
+    assert joutest("--no-colors --lf") == 0  # <-- This is the tricky exit status
 
     # Add new bad file
     #
