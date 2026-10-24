@@ -1,4 +1,3 @@
-import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/process.jou"
@@ -8,8 +7,8 @@ import "./ansi_colors.jou"
 import "./state.jou"
 
 
-def print_help(program_name: byte*) -> None:
-    printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", program_name)
+def print_help(argv0: byte*) -> None:
+    printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", argv0)
     printf("\n")
     printf("Options:\n")
     printf("  -v / --verbose        show more output than by default\n")
@@ -21,49 +20,33 @@ def print_help(program_name: byte*) -> None:
     printf("or more FILTERs as a substring.\n")
 
 
-# Checks if s looks like e.g. -Sv
-def is_combined_flag(s: byte*) -> bool:
-    if strlen(s) <3 or s[0] != '-':
-        return False
-    for i = 1; s[i] != '\0'; i++:
-        if not (is_ascii_letter(s[i]) or is_ascii_digit(s[i])):
-            return False
-    return True
-
-
-def parse_arg(program_name: byte*, args: CommandLineArgs*, arg: byte*) -> None:
-    match arg with strcmp:
-        case "--help":
-            print_help(program_name)
-            exit(0)
-
-        case "-v" | "--verbose":
-            args.verbose = True
-
-        case "--no-colors":
-            disable_colors()
-
-        case "--lf" | "--last-failed":
-            args.last_failed = True
-
-        case _:
-            if arg[0] == '-':
-                fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", program_name, arg, program_name)
-                exit(2)
-            args.filter_strings.append(arg)
-
-
 @public
 def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
     args = CommandLineArgs{}
 
-    for i = 1; i < argc; i++:
-        if is_combined_flag(argv[i]):
-            # turn "-Sv" into separate "-S" and "-v"
-            for flag = &argv[i][1]; *flag != '\0'; flag++:
-                arg = ['-', *flag, '\0']
-                parse_arg(argv[0], &args, arg)
-        else:
-            parse_arg(argv[0], &args, argv[i])
+    i = 1
+    while i < argc:
+        match argv[i] with strcmp:
+            case "--help":
+                print_help(argv[0])
+                exit(0)
+
+            case "-v" | "--verbose":
+                args.verbose = True
+                i++
+
+            case "--no-colors":
+                disable_colors()
+                i++
+
+            case "--lf" | "--last-failed":
+                args.last_failed = True
+                i++
+
+            case _:
+                if argv[i][0] == '-':
+                    fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
+                    exit(2)
+                args.filter_strings.append(argv[i++])
 
     return args
