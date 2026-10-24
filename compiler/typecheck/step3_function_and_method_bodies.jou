@@ -670,19 +670,13 @@ def typecheck_vararg(state: State*, expr: AstExpression*, what_we_calling: byte*
         do_implicit_cast(state.fom, expr, int_type(32), Location{}, NULL)
     elif t == float_type():
         do_implicit_cast(state.fom, expr, double_type(), Location{}, NULL)
-    elif t.kind == TypeKind.Enum:
+    elif t.kind == TypeKind.Enum or t.kind == TypeKind.Class:
         msg: byte[500]
         snprintf(
             msg, sizeof(msg),
-            "variadic arguments of %s cannot be enums",
+            "variadic arguments of %s cannot be %s",
             what_we_calling,
-        )
-        fail(expr.location, msg)
-    elif t.kind == TypeKind.Class:
-        snprintf(
-            msg, sizeof(msg),
-            "variadic arguments of %s cannot be classes",
-            what_we_calling,
+            "enums" if t.kind == TypeKind.Enum else "instances of classes",
         )
         fail(expr.location, msg)
 
