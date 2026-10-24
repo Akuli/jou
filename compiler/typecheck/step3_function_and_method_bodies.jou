@@ -363,6 +363,9 @@ def cast_type_of_number_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind)
     rhs_signed = rtype.kind == TypeKind.SignedInteger
 
     match op:
+        case AstExpressionKind.Div:
+            return double_type()
+
         # Result of bitwise and/or/xor is always one of the two types.
         # If types are of different sizes: AND uses smaller, OR/XOR uses bigger
         # If types are the same size: use unsigned if one of the two types is unsigned
@@ -526,12 +529,6 @@ def check_binop(
     ):
         snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
         fail(location, msg)
-
-    if (
-        op == AstExpressionKind.Div
-        and (got_integers or got_integer_array_and_integer)
-    ):
-        show_warning(location, "please use '//' for integer division, '/' will soon produce a double")
 
     if op == AstExpressionKind.BitShiftLeft or op == AstExpressionKind.BitShiftRight:
         # Special-cased, because right side type does not affect the type of result.
