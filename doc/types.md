@@ -103,9 +103,7 @@ def main() -> int:
     array -= [1, 1]
     printf("%d %d\n", array[0], array[1])  # Output: 3 5
 
-    # TODO: In a future version of Jou, "/ 2" will do the right thing here.
-    #       See https://github.com/Akuli/jou/issues/1379
-    midpoint = ([1, 1] + [2, 5]) / 2.0
+    midpoint = ([1, 1] + [2, 5]) / 2
     printf("%f %f\n", midpoint[0], midpoint[1])  # Output: 1.500000 3.000000
 
     approx_midpoint = ([1, 1] + [2, 5]) // 2
