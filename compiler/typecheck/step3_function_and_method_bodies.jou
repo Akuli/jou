@@ -351,9 +351,6 @@ def cast_type_of_number_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind)
     assert ltype.is_integer_type() or ltype == float_type() or ltype == double_type()
     assert rtype.is_integer_type() or rtype == float_type() or rtype == double_type()
 
-    if op == AstExpressionKind.Div and ltype.is_integer_type() and rtype.is_integer_type():
-        return double_type()
-
     if ltype == double_type() or rtype == double_type():
         return double_type()
     if ltype == float_type() or rtype == float_type():
@@ -366,6 +363,9 @@ def cast_type_of_number_binop(ltype: Type*, rtype: Type*, op: AstExpressionKind)
     rhs_signed = rtype.kind == TypeKind.SignedInteger
 
     match op:
+        case AstExpressionKind.Div:
+            return double_type()
+
         # Result of bitwise and/or/xor is always one of the two types.
         # If types are of different sizes: AND uses smaller, OR/XOR uses bigger
         # If types are the same size: use unsigned if one of the two types is unsigned
