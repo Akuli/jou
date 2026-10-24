@@ -151,6 +151,8 @@ class Test:
     expected_output: byte*
 
     # These are set in step 5 (configure tests)
+    succeeded_before: bool  # with --lf/--last-failed, remember success from several runs ago
+    skipped_with_last_failed_flag: bool
     skip: SkipMode
     actual_command_list: List[byte*]
     actual_command_string: byte*

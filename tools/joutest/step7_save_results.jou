@@ -34,7 +34,7 @@ def write_gitignore(p: byte*) -> None:
 
 
 @public
-def step7_save_results(tests: List[Test]) -> None:
+def step7_save_results(tests: List[Test], args: CommandLineArgs*) -> None:
     mkdir("jou_compiled", 0o777)
     write_gitignore("jou_compiled")
 
@@ -49,6 +49,7 @@ def step7_save_results(tests: List[Test]) -> None:
 
         jb.begin_object()
         jb.key("path").string(test.path)
+
         if test.stdin_input != NULL:
             string = test.stdin_input
             # For code blocks in markdown files, newlines are added to the
@@ -72,6 +73,9 @@ def step7_save_results(tests: List[Test]) -> None:
                 jb.string("skipped")
             case SkipMode.SkipSilently:
                 assert False
+
+        if args.last_failed:
+            jb.key("succeeded_before").boolean(test.succeeded_before)
 
         jb.end_object()
 
