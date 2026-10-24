@@ -1,0 +1,9 @@
+import "stdlib/io.jou"
+
+class Foo:
+    x: int
+
+def main() -> int:
+    foo = Foo{x = 1}
+    printf("%d %s %d\n", foo)  # Error: a variadic argument of function printf(pattern: byte*, ...) cannot be an instance of a class
+    return 0

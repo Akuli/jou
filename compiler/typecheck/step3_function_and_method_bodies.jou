@@ -662,6 +662,8 @@ def typecheck_and_or(
 
 # This handles e.g. the things to format in printf().
 def typecheck_vararg(state: State*, expr: AstExpression*, what_we_calling: byte*) -> None:
+    msg: byte[500]
+
     t = typecheck_expression_not_void(state, expr, NULL)
     if t.kind == TypeKind.Array:
         cast_array_to_pointer(state.fom, expr)
@@ -671,10 +673,16 @@ def typecheck_vararg(state: State*, expr: AstExpression*, what_we_calling: byte*
     elif t == float_type():
         do_implicit_cast(state.fom, expr, double_type(), Location{}, NULL)
     elif t.kind == TypeKind.Enum:
-        msg: byte[500]
         snprintf(
             msg, sizeof(msg),
             "variadic arguments of %s cannot be enums",
+            what_we_calling,
+        )
+        fail(expr.location, msg)
+    elif t.kind == TypeKind.Enum or t.kind == TypeKind.Class:
+        snprintf(
+            msg, sizeof(msg),
+            "a variadic argument of %s cannot be an instance of a class",
             what_we_calling,
         )
         fail(expr.location, msg)
