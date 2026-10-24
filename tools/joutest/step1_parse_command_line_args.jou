@@ -8,28 +8,73 @@ import "./state.jou"
 
 
 def print_help(argv0: byte*) -> None:
-    printf("Usage: %s [--verbose] [--no-colors] [FILTER FILTER2 FILTER3 ...]\n", argv0)
+    printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", argv0)
     printf("\n")
     printf("Options:\n")
-    printf("  -v / --verbose    show more output than by default\n")
-    printf("  --no-colors       do not print with colors\n")
+    printf("  -v / --verbose        show more output than by default\n")
+    printf("  --no-colors           do not print with colors\n")
+    printf("  -S / --skip-success   skip tests that succeeded last time joutest was invoked\n")
     printf("\n")
     printf("If FILTER arguments are given, only run the tests whose path contains one or\n")
     printf("more FILTERs as a substring.\n")
 
 
+# Checks if s looks like e.g. -Sv
+def is_combined_flag(s: byte*) -> bool:
+    if strlen(s) <3 or s[0] != '-':
+        return False
+    for i = 1; s[i] != '\0'; i++:
+        if not (is_ascii_letter(s[i]) or is_ascii_digit(s[i])):
+            return False
+    return True
+
+
+def parse_arg(args: ComamndLineArgs*, program_name: byte*, argv: byte***) -> int:
+    match **argv with strcmp:
+        case "--help":
+            print_help(argv[0])
+            exit(0)
+
+        case "-v" | "--verbose":
+            args.verbose = True
+            ++*argv
+
+        case "--no-colors":
+            disable_colors()
+            ++*argv
+
+        case "-S" | "--skip-success":
+            args.skip_success = True
+            ++*argv
+
+        case _:
+            if is_combined_flag(argv[i]):
+                
+            if argv[i][0] == '-':
+                fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
+                exit(2)
+            args.filter_strings.append(argv[i++])
+
+
 @public
 def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
-    # Set default optimize to O1, user sets optimize will overwrite the default flag
     args = CommandLineArgs{}
 
-    if argc == 2 and strcmp(argv[1], "--help") == 0:
-        print_help(argv[0])
-        exit(0)
-
-    optlevel_set = False
     i = 1
+    combined_flag = False  # are we handling something like '-Sv' being same as '-S -v'
+    arg_buf: byte[3]
+
     while i < argc:
+        if not combined_flag and is_combined_flag(argv[i]):
+            arg_buf = ['-', argv[i][1], '\0']   # the "-S" part of -Sv
+            argv[i] = &argv[i][2]               # the "-v" part of -Sv
+        elif combined_flag and argv[i][0] != '\0':
+            arg_buf = ['-', argv[i][0], '\0']
+            argv[i]++
+        else:
+            combined_flag = False
+            i++
+
         match argv[i] with strcmp:
             case "--help":
                 print_help(argv[0])
@@ -43,7 +88,11 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 disable_colors()
                 i++
 
+            case "-S" | "--skip-success":
+
             case _:
+                if is_combined_flag(argv[i]):
+                    
                 if argv[i][0] == '-':
                     fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
                     exit(2)

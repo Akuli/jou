@@ -1,9 +1,9 @@
-# TODO: This step is kinda dumb and could probably be deleted.
-
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/json.jou"
 
 import "./state.jou"
 import "./string_formatter.jou"
@@ -140,6 +140,71 @@ def configure_uses_output_capturing(test: Test*) -> None:
     )
 
 
+def skip_tests_based_on_last_run(tests: List[Test]) -> None:
+    f = fopen("jou_compiled/joutest_last_run.json", "rb")
+    if f == NULL:
+        return
+
+    file_content = List[byte]{}
+    buf: byte[4096]
+    while True:
+        n = fread(buf, 1, array_count(buf), f)
+        if n == 0:
+            break
+        file_content.extend_from_ptr(buf, n)
+    fclose(f)
+    file_content.append('\0')
+
+    if (
+        not json_is_valid(file_content.ptr)
+        or json_to_double(json_get(file_content.ptr, "file_format_version")) != 1
+    ):
+        free(file_content.ptr)
+        return
+
+    # For n tests this is O(n^2), but I don't think it will ever be noticeable
+    # as long as the inner loop is fast. That's why outer loop parses JSON.
+    for j = json_array_first(json_get(file_content.ptr, "tests")); j != NULL; j = json_array_next(j):
+        if not json_equals_string(json_get(j, "result"), "success"):
+            continue
+
+        path = json_to_string(json_get(j, "path"))
+        if path == NULL:
+            # weird...
+            continue
+
+        stdin_input = json_get(j, "stdin_input")
+
+        for test = tests.ptr; test < tests.end(); test++:
+            if strcmp(test.path, path) != 0:
+                continue
+
+            if stdin_input == NULL:
+                if test.stdin_input != NULL:
+                    continue
+            else:
+                if test.stdin_input == NULL:
+                    continue
+                string = test.stdin_input
+                # For code blocks in markdown files, newlines are added to the
+                # beginning to make line numbers match. Skip those here so that
+                # inserting or deleting a line in a markdown file doesn't
+                # invalidate all tests after it.
+                for i = 0; i < test.first_markdown_lineno - 1; i++:
+                    assert string[0] == '\n'
+                    string++
+                if strcmp(string, stdin_input) != 0:
+                    continue
+
+            # Consider it a match
+            if test.skip == SkipMode.DontSkip:
+                test.skip = SkipMode.SkipNormally
+
+        free(path)
+
+    free(file_content.ptr)
+
+
 @public
 def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     for test = tests.ptr; test < tests.end(); test++:
@@ -149,3 +214,6 @@ def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         configure_working_directory(test)
         configure_command(test)
         configure_uses_output_capturing(test)
+
+    if args.skip_successful:
+        skip_tests_based_on_last_run(tests)

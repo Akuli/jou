@@ -79,6 +79,8 @@ To understand why, consider what happens when you want to run one test
 in a project that has hundreds of tests (like Jou itself):
 you will see just the one test you asked for without hundreds of skips.
 
+See `joutest --help` for a list of all flags that can be given to joutest.
+
 
 ## Output Comments
 

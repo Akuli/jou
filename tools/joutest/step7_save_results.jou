@@ -1,0 +1,88 @@
+import "stdlib/list.jou"
+import "stdlib/assert.jou"
+import "stdlib/errno.jou"
+import "stdlib/fs.jou"
+import "stdlib/io.jou"
+import "stdlib/json.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+import "./state.jou"
+import "./fail.jou"
+
+
+def file_exists(path: byte*) -> bool:
+    f = fopen(path, "r")
+    if f == NULL:
+        return False
+    else:
+        fclose(f)
+        return True
+
+
+# Please keep this in sync with the Jou compiler. The same function is copied there.
+def write_gitignore(p: byte*) -> None:
+    filename: byte*
+    asprintf(&filename, "%s/.gitignore", p)
+    if not file_exists(filename):
+        # write '*' into gitignore, so that git won't track any compiled files
+        f = fopen(filename, "w")
+        if f != NULL:
+            fprintf(f, "*")
+            fclose(f)
+    free(filename)
+
+
+@public
+def step7_save_results(tests: List[Test]) -> None:
+    mkdir("jou_compiled", 0o777)
+    write_gitignore("jou_compiled")
+
+    jb = JSONBuilder{pretty_print = 2}
+    jb.begin_object()
+    jb.key("file_format_version").number(1)
+    jb.key("tests").begin_array()
+
+    for test = tests.ptr; test < tests.end(); test++:
+        if test.skip == SkipMode.SkipSilently:
+            continue
+
+        jb.begin_object()
+        jb.key("path").string(test.path)
+        if test.stdin_input != NULL:
+            string = test.stdin_input
+            # For code blocks in markdown files, newlines are added to the
+            # beginning to make line numbers match. Skip those here so that
+            # inserting or deleting a line in a markdown file doesn't
+            # invalidate all tests after it.
+            for i = 0; i < test.first_markdown_lineno - 1; i++:
+                assert string[0] == '\n'
+                string++
+            jb.key("stdin_input").string(string)
+
+        jb.key("result")
+        match test.skip:
+            case SkipMode.DontSkip:
+                match test.simple_result:
+                    case SimpleResult.Success:
+                        jb.string("success")
+                    case SimpleResult.Failed:
+                        jb.string("failed")
+            case SkipMode.SkipNormally:
+                jb.string("skipped")
+            case SkipMode.SkipSilently:
+                assert False
+
+        jb.end_object()
+
+    jb.end_array()
+    jb.end_object()
+    json_string = jb.finish()
+
+    f = fopen("jou_compiled/joutest_last_run.json", "wb")
+    if f == NULL:
+        fail_with_errno("writing jou_compiled/joutest_last_run.json failed", get_errno())
+    fprintf(f, "%s\n", json_string)
+    fclose(f)
+
+    free(json_string)
