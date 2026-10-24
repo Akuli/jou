@@ -19,6 +19,7 @@ import "stdlib/str.jou"
 import "./fail.jou"
 import "./state.jou"
 import "./print_test_info.jou"
+import "./skip_success.jou"
 
 if WINDOWS:
     import "stdlib/math.jou"
@@ -838,3 +839,5 @@ def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
                 print_skip(test, args.verbose)
             case SkipMode.SkipSilently:
                 pass
+
+    save_test_results(tests, args.previous_test_results)

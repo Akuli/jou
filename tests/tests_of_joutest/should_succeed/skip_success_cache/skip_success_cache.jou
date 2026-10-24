@@ -1,0 +1,114 @@
+import "stdlib/assert.jou"
+import "stdlib/fs.jou"
+import "stdlib/io.jou"
+import "stdlib/json.jou"
+import "stdlib/process.jou"
+import "stdlib/str.jou"
+
+
+const CACHE_FILE: byte* = "jou_compiled/joutest_last_results.json"
+
+
+def clear_file(path: byte*) -> None:
+    f = fopen(path, "w")
+    assert f != NULL
+    assert fclose(f) == 0
+
+
+def check_file(path: byte*, expected: byte*) -> None:
+    f = fopen(path, "r")
+    assert f != NULL
+
+    line: byte[100]
+    if *expected == '\0':
+        assert fgets(line, sizeof(line), f) == NULL
+    else:
+        assert fgets(line, sizeof(line), f) != NULL
+        assert strcmp(line, expected) == 0
+        assert fgets(line, sizeof(line), f) == NULL
+
+    assert ferror(f) == 0
+    assert fclose(f) == 0
+
+
+def create_new_test_file() -> None:
+    f = fopen("test_new.jou", "w")
+    assert f != NULL
+    fputs("import \"stdlib/io.jou\"\ndef main() -> int:\n    f = fopen(\"new.marker\", \"a\")\n    fputs(\"new\\n\", f)\n    fclose(f)\n    return 0\n", f)
+    assert fclose(f) == 0
+
+
+def cache_has_result(json: byte*, path: byte*, first_lineno: int, result: byte*) -> bool:
+    for item = json_array_first(json_get(json, "tests")); item != NULL; item = json_array_next(item):
+        if (
+            json_equals_string(json_get(item, "path"), path)
+            and json_to_double(json_get(item, "first_markdown_lineno")) == first_lineno as double
+            and json_equals_string(json_get(item, "result"), result)
+        ):
+            return True
+    return False
+
+
+def main() -> int:
+    f = fopen("test_new.jou", "r")
+    if f != NULL:
+        assert fclose(f) == 0
+        assert unlink("test_new.jou") == 0
+
+    f = fopen(CACHE_FILE, "r")
+    if f != NULL:
+        assert fclose(f) == 0
+        assert unlink(CACHE_FILE) == 0
+    f = fopen(CACHE_FILE, "w")
+    assert f != NULL
+    fputs("{\"schema_version\":2,\"custom\":{\"purpose\":\"integration test\"}}", f)
+    assert fclose(f) == 0
+
+    clear_file("pass.marker")
+    clear_file("fail.marker")
+    clear_file("block_pass.marker")
+    clear_file("block_fail.marker")
+    clear_file("new.marker")
+
+    assert system("../../../../joutest --no-colors > child_run.log 2>&1") != 0
+    check_file("pass.marker", "pass\n")
+    check_file("fail.marker", "fail\n")
+    check_file("block_pass.marker", "block pass\n")
+    check_file("block_fail.marker", "block fail\n")
+
+    create_new_test_file()
+    clear_file("pass.marker")
+    clear_file("fail.marker")
+    clear_file("block_pass.marker")
+    clear_file("block_fail.marker")
+    clear_file("new.marker")
+
+    assert system("../../../../joutest --no-colors -S > child_run.log 2>&1") != 0
+    check_file("pass.marker", "")
+    check_file("fail.marker", "fail\n")
+    check_file("block_pass.marker", "")
+    check_file("block_fail.marker", "block fail\n")
+    check_file("new.marker", "new\n")
+
+    f = fopen(CACHE_FILE, "rb")
+    assert f != NULL
+    cache_text: byte[100_000]
+    n = fread(cache_text, 1, sizeof(cache_text) - 1, f)
+    assert ferror(f) == 0
+    assert fclose(f) == 0
+    cache_text[n] = '\0'
+    assert json_is_valid(cache_text)
+    assert cache_has_result(cache_text, "blocks.md", 2, "success")
+    assert cache_has_result(cache_text, "blocks.md", 12, "failed")
+    assert cache_has_result(cache_text, "test_new.jou", 0, "success")
+
+    assert unlink("test_new.jou") == 0
+    assert unlink("pass.marker") == 0
+    assert unlink("fail.marker") == 0
+    assert unlink("block_pass.marker") == 0
+    assert unlink("block_fail.marker") == 0
+    assert unlink("new.marker") == 0
+    assert unlink("child_run.log") == 0
+    assert unlink(CACHE_FILE) == 0
+
+    return 0

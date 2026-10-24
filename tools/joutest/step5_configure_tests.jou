@@ -6,6 +6,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 
 import "./state.jou"
+import "./skip_success.jou"
 import "./string_formatter.jou"
 
 
@@ -142,8 +143,21 @@ def configure_uses_output_capturing(test: Test*) -> None:
 
 @public
 def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
+    load_test_results(&args.previous_test_results)
+
     for test = tests.ptr; test < tests.end(); test++:
         configure_skip(test, args.filter_strings)
+        if (
+            test.skip == SkipMode.DontSkip
+            and should_skip_success(
+                args.skip_success,
+                args.previous_test_results,
+                tests,
+                *test,
+            )
+        ):
+            test.skip = SkipMode.SkipNormally
+            test.skipped_because_previously_successful = True
         if test.skip == SkipMode.SkipSilently:
             continue
         configure_working_directory(test)

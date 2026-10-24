@@ -79,6 +79,13 @@ To understand why, consider what happens when you want to run one test
 in a project that has hundreds of tests (like Jou itself):
 you will see just the one test you asked for without hundreds of skips.
 
+For a quicker repeat run, use `joutest -S` (or `joutest --skip-success`).
+When the previous run had failures, it reruns those tests and any new tests,
+while skipping tests that passed. Markdown code blocks are tracked separately.
+If the previous run had no failures, it runs everything. The results are stored
+in `jou_compiled/joutest_last_results.json`, which is automatically ignored by
+Git.
+
 
 ## Output Comments
 

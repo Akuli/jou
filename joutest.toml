@@ -15,6 +15,16 @@ files = "tests/tests_of_joutest/**/*verbose*/joutest.toml"
 command = ["joutest", "--no-colors", "--verbose"]
 
 [[tests]]
+files = "tests/tests_of_joutest/should_succeed/skip_success_cache/skip_success_cache.jou"
+cd_to_containing_directory = true
+stdout = "do_not_capture"
+stderr = "do_not_capture"
+
+[[tests]]
+files = "tests/tests_of_joutest/should_succeed/skip_success_cache/joutest.toml"
+skip_mode = "skip_silently"
+
+[[tests]]
 files = [
     "tests/tests_of_joutest/bad_configs/**/joutest.toml",
     "tests/tests_of_joutest/test_failures/**/joutest.toml",

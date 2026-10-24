@@ -1,0 +1,255 @@
+import "stdlib/errno.jou"
+import "stdlib/fs.jou"
+import "stdlib/io.jou"
+import "stdlib/json.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+import "./fail.jou"
+import "./state.jou"
+
+
+const CACHE_DIR: byte* = "jou_compiled"
+const CACHE_FILE: byte* = "jou_compiled/joutest_last_results.json"
+const ENOENT: int = 2
+
+global cache_file_content: byte[1_000_000]
+
+
+def file_exists(path: byte*) -> bool:
+    f = fopen(path, "r")
+    if f == NULL:
+        return False
+    fclose(f)
+    return True
+
+
+def write_gitignore(p: byte*) -> None:
+    filename: byte*
+    asprintf(&filename, "%s/.gitignore", p)
+    if not file_exists(filename):
+        # Keep this in sync with compiler/paths.jou: generated data in jou_compiled must be ignored.
+        f = fopen(filename, "w")
+        if f != NULL:
+            fprintf(f, "*")
+            fclose(f)
+    free(filename)
+
+
+def ensure_cache_directory() -> None:
+    mkdir(CACHE_DIR, 0o777)
+    write_gitignore(CACHE_DIR)
+
+
+def cache_test_matches_test(cached: CachedTestResult, test: Test) -> bool:
+    return (
+        strcmp(cached.path, test.path) == 0
+        and cached.first_markdown_lineno == test.first_markdown_lineno
+        and cached.last_markdown_lineno == test.last_markdown_lineno
+    )
+
+
+def cache_results_contain_test(
+    results: List[CachedTestResult],
+    test: Test,
+    succeeded: bool,
+) -> bool:
+    for result = results.ptr; result < results.end(); result++:
+        if cache_test_matches_test(*result, test) and result.succeeded == succeeded:
+            return True
+    return False
+
+
+def results_have_discovered_failure(
+    results: List[CachedTestResult],
+    tests: List[Test],
+) -> bool:
+    for result = results.ptr; result < results.end(); result++:
+        if result.succeeded:
+            continue
+        for test = tests.ptr; test < tests.end(); test++:
+            if cache_test_matches_test(*result, *test):
+                return True
+    return False
+
+
+@public
+def should_skip_success(
+    skip_success: bool,
+    previous_results: List[CachedTestResult],
+    discovered_tests: List[Test],
+    test: Test,
+) -> bool:
+    if not skip_success or not results_have_discovered_failure(previous_results, discovered_tests):
+        return False
+
+    for result = previous_results.ptr; result < previous_results.end(); result++:
+        if cache_test_matches_test(*result, test) and result.succeeded:
+            return True
+    return False
+
+
+@public
+def parse_test_results_json(json: byte*, results: List[CachedTestResult]*) -> None:
+    version = json_to_double(json_get(json, "schema_version"))
+    if version == 1.0:
+        append_legacy_paths(json, "successful", True, results)
+        append_legacy_paths(json, "failed", False, results)
+        return
+    if version != 2.0:
+        fail("unsupported joutest cache schema version")
+
+    for item = json_array_first(json_get(json, "tests")); item != NULL; item = json_array_next(item):
+        path = json_to_string(json_get(item, "path"))
+        if path == NULL:
+            continue
+
+        first_lineno = json_to_double(json_get(item, "first_markdown_lineno"))
+        last_lineno = json_to_double(json_get(item, "last_markdown_lineno"))
+        result_json = json_get(item, "result")
+        if first_lineno != first_lineno or first_lineno < 0 or first_lineno > 2147483647:
+            first_lineno = 0
+        if last_lineno != last_lineno or last_lineno < 0 or last_lineno > 2147483647:
+            last_lineno = 0
+        succeeded = json_equals_string(result_json, "success")
+        results.append(CachedTestResult{
+            path = path,
+            first_markdown_lineno = first_lineno as int,
+            last_markdown_lineno = last_lineno as int,
+            succeeded = succeeded,
+        })
+
+
+def append_legacy_paths(
+    json: byte*,
+    key: byte*,
+    succeeded: bool,
+    results: List[CachedTestResult]*,
+) -> None:
+    paths = json_get(json, key)
+    for item = json_array_first(paths); item != NULL; item = json_array_next(item):
+        path = json_to_string(item)
+        if path == NULL:
+            continue
+        results.append(CachedTestResult{
+            path = path,
+            succeeded = succeeded,
+        })
+
+
+@public
+def read_test_results_file(filename: byte*, results: List[CachedTestResult]*) -> bool:
+    f = fopen(filename, "rb")
+    if f == NULL:
+        if get_errno() == ENOENT:
+            return False
+        fail_with_errno("cannot open joutest cache", get_errno())
+
+    n = fread(cache_file_content, 1, sizeof(cache_file_content) - 1, f)
+    if ferror(f) != 0:
+        fail_with_errno("cannot read joutest cache", get_errno())
+    if n == sizeof(cache_file_content) - 1:
+        fail("joutest cache is too large")
+    if fclose(f) != 0:
+        fail_with_errno("cannot close joutest cache", get_errno())
+    cache_file_content[n] = '\0'
+
+    parse_test_results_json(cache_file_content, results)
+    return True
+
+
+@public
+def load_test_results(results: List[CachedTestResult]*) -> None:
+    ensure_cache_directory()
+    read_test_results_file(CACHE_FILE, results)
+
+
+def test_was_run(tests: List[Test], cached: CachedTestResult) -> bool:
+    for test = tests.ptr; test < tests.end(); test++:
+        if (
+            strcmp(test.path, cached.path) == 0
+            and test.first_markdown_lineno == cached.first_markdown_lineno
+            and test.last_markdown_lineno == cached.last_markdown_lineno
+            and test.skip == SkipMode.DontSkip
+        ):
+            return True
+    return False
+
+
+def test_was_discovered(tests: List[Test], cached: CachedTestResult) -> bool:
+    for test = tests.ptr; test < tests.end(); test++:
+        if cache_test_matches_test(cached, *test):
+            return True
+    return False
+
+
+def add_test_result(
+    results: List[CachedTestResult]*,
+    test: Test,
+    succeeded: bool,
+) -> None:
+    if not cache_results_contain_test(*results, test, succeeded):
+        results.append(CachedTestResult{
+            path = test.path,
+            first_markdown_lineno = test.first_markdown_lineno,
+            last_markdown_lineno = test.last_markdown_lineno,
+            succeeded = succeeded,
+        })
+
+
+@public
+def update_test_results(
+    tests: List[Test],
+    previous_results: List[CachedTestResult],
+    new_results: List[CachedTestResult]*,
+) -> None:
+    for previous = previous_results.ptr; previous < previous_results.end(); previous++:
+        if test_was_discovered(tests, *previous) and not test_was_run(tests, *previous):
+            new_results.append(*previous)
+
+    for test = tests.ptr; test < tests.end(); test++:
+        if test.skip == SkipMode.DontSkip:
+            add_test_result(new_results, *test, test_run_succeeded(*test))
+
+
+def test_run_succeeded(test: Test) -> bool:
+    return test.simple_result == SimpleResult.Success
+
+
+@public
+def build_test_results_json(results: List[CachedTestResult]) -> byte*:
+    jb = JSONBuilder{pretty_print = 2}
+    jb.begin_object()
+    jb.key("schema_version").number(2)
+    jb.key("tests").begin_array()
+    for result = results.ptr; result < results.end(); result++:
+        jb.begin_object()
+        jb.key("path").string(result.path)
+        jb.key("first_markdown_lineno").number(result.first_markdown_lineno)
+        jb.key("last_markdown_lineno").number(result.last_markdown_lineno)
+        jb.key("result").string("failed" if not result.succeeded else "success")
+        jb.end_object()
+    jb.end_array()
+    jb.end_object()
+    return jb.finish()
+
+
+@public
+def save_test_results(tests: List[Test], previous_results: List[CachedTestResult]) -> None:
+    new_results = List[CachedTestResult]{}
+    update_test_results(tests, previous_results, &new_results)
+
+    json = build_test_results_json(new_results)
+    write_test_results_json_file(CACHE_FILE, json)
+
+
+@public
+def write_test_results_json_file(filename: byte*, json: byte*) -> None:
+    f = fopen(filename, "w")
+    if f == NULL:
+        fail_with_errno("cannot write joutest cache", get_errno())
+    if fputs(json, f) < 0 or fputc('\n', f) == -1:
+        fail_with_errno("cannot write joutest cache", get_errno())
+    if fclose(f) != 0:
+        fail_with_errno("cannot close joutest cache", get_errno())

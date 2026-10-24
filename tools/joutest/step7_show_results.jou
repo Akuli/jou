@@ -93,6 +93,7 @@ def step7_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
     succeeded = 0
     failed = 0
     skipped = 0
+    skipped_because_previously_successful = 0
     for test = tests.ptr; test < tests.end(); test++:
         match test.skip:
             case SkipMode.DontSkip:
@@ -103,6 +104,8 @@ def step7_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
                         failed++
             case SkipMode.SkipNormally:
                 skipped++
+                if test.skipped_because_previously_successful:
+                    skipped_because_previously_successful++
             case SkipMode.SkipSilently:
                 pass
 
@@ -125,7 +128,16 @@ def step7_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
         printf(", %s%d skipped", YELLOW, skipped)
     printf("%s\n", RESET)
 
-    if succeeded > 0 and failed == 0:
+    if (
+        failed == 0
+        and (
+            succeeded > 0
+            or (
+                args.skip_success
+                and skipped_because_previously_successful > 0
+            )
+        )
+    ):
         exit(0)
     else:
         exit(1)

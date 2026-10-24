@@ -8,11 +8,12 @@ import "./state.jou"
 
 
 def print_help(argv0: byte*) -> None:
-    printf("Usage: %s [--verbose] [--no-colors] [FILTER FILTER2 FILTER3 ...]\n", argv0)
+    printf("Usage: %s [--verbose] [--no-colors] [--skip-success] [FILTER FILTER2 FILTER3 ...]\n", argv0)
     printf("\n")
     printf("Options:\n")
     printf("  -v / --verbose    show more output than by default\n")
     printf("  --no-colors       do not print with colors\n")
+    printf("  -S / --skip-success  skip tests that succeeded on the previous run\n")
     printf("\n")
     printf("If FILTER arguments are given, only run the tests whose path contains one or\n")
     printf("more FILTERs as a substring.\n")
@@ -37,6 +38,10 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
 
             case "-v" | "--verbose":
                 args.verbose = True
+                i++
+
+            case "-S" | "--skip-success":
+                args.skip_success = True
                 i++
 
             case "--no-colors":

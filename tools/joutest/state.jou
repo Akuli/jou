@@ -4,9 +4,19 @@ import "stdlib/str.jou"
 
 
 @public
+class CachedTestResult:
+    path: byte*
+    first_markdown_lineno: int
+    last_markdown_lineno: int
+    succeeded: bool
+
+
+@public
 class CommandLineArgs:
     verbose: bool
+    skip_success: bool
     filter_strings: List[byte*]  # Only tests with one or more of these as substring are executed
+    previous_test_results: List[CachedTestResult]
 
 
 @public
@@ -151,6 +161,7 @@ class Test:
 
     # These are set in step 5 (configure tests)
     skip: SkipMode
+    skipped_because_previously_successful: bool
     actual_command_list: List[byte*]
     actual_command_string: byte*
     uses_output_capturing: bool
