@@ -1,0 +1,11 @@
+import "stdlib/io.jou"
+
+class Foo:
+    x: int
+    text: byte[100]
+    y: int
+
+def main() -> int:
+    foo = Foo{x = 1, text = "hello", y = 2}
+    printf("%d %s %d\n", foo)  # Error: variadic arguments of function printf(pattern: byte*, ...) cannot be classes
+    return 0

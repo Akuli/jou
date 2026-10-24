@@ -1,0 +1,10 @@
+import "stdlib/str.jou"
+
+class Foo:
+    x: int
+
+def main() -> int:
+    foo = Foo{x = 1}
+    buffer: byte[100]
+    snprintf(&buffer[0], sizeof(buffer), "%p", &foo)
+    return 0

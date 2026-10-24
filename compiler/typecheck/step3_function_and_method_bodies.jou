@@ -681,6 +681,13 @@ def typecheck_vararg(state: State*, expr: AstExpression*, what_we_calling: byte*
             what_we_calling,
         )
         fail(expr.location, msg)
+    elif t.kind == TypeKind.Class:
+        snprintf(
+            msg, sizeof(msg),
+            "variadic arguments of %s cannot be classes",
+            what_we_calling,
+        )
+        fail(expr.location, msg)
 
 
 def nth(n: int) -> byte[100]:
