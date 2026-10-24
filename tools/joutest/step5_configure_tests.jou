@@ -165,10 +165,7 @@ def skip_tests_based_on_last_run(tests: List[Test]) -> None:
     # For n tests this is O(n^2), but I don't think it will ever be noticeable
     # as long as the inner loop is fast. That's why outer loop parses JSON.
     for j = json_array_first(json_get(file_content.ptr, "tests")); j != NULL; j = json_array_next(j):
-        if not (
-            json_equals_string(json_get(j, "result"), "success")
-            or json_equals_string(json_get(j, "result"), "skipped")
-        ):
+        if json_equals_string(json_get(j, "result"), "failed"):
             continue
 
         path = json_to_string(json_get(j, "path"))
