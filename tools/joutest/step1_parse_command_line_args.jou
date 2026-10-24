@@ -1,3 +1,4 @@
+import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/process.jou"
@@ -7,8 +8,8 @@ import "./ansi_colors.jou"
 import "./state.jou"
 
 
-def print_help(argv0: byte*) -> None:
-    printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", argv0)
+def print_help(program_name: byte*) -> None:
+    printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", program_name)
     printf("\n")
     printf("Options:\n")
     printf("  -v / --verbose        show more output than by default\n")
@@ -29,73 +30,39 @@ def is_combined_flag(s: byte*) -> bool:
     return True
 
 
-def parse_arg(args: ComamndLineArgs*, program_name: byte*, argv: byte***) -> int:
-    match **argv with strcmp:
+def parse_arg(program_name: byte*, args: CommandLineArgs*, arg: byte*) -> None:
+    match arg with strcmp:
         case "--help":
-            print_help(argv[0])
+            print_help(program_name)
             exit(0)
 
         case "-v" | "--verbose":
             args.verbose = True
-            ++*argv
 
         case "--no-colors":
             disable_colors()
-            ++*argv
 
         case "-S" | "--skip-success":
             args.skip_success = True
-            ++*argv
 
         case _:
-            if is_combined_flag(argv[i]):
-                
-            if argv[i][0] == '-':
-                fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
+            if arg[0] == '-':
+                fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", program_name, arg, program_name)
                 exit(2)
-            args.filter_strings.append(argv[i++])
+            args.filter_strings.append(arg)
 
 
 @public
 def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
     args = CommandLineArgs{}
 
-    i = 1
-    combined_flag = False  # are we handling something like '-Sv' being same as '-S -v'
-    arg_buf: byte[3]
-
-    while i < argc:
-        if not combined_flag and is_combined_flag(argv[i]):
-            arg_buf = ['-', argv[i][1], '\0']   # the "-S" part of -Sv
-            argv[i] = &argv[i][2]               # the "-v" part of -Sv
-        elif combined_flag and argv[i][0] != '\0':
-            arg_buf = ['-', argv[i][0], '\0']
-            argv[i]++
+    for i = 1; i < argc; i++:
+        if is_combined_flag(argv[i]):
+            # turn "-Sv" into separate "-S" and "-v"
+            for flag = &argv[i][1]; *flag != '\0'; flag++:
+                arg = ['-', *flag, '\0']
+                parse_arg(argv[0], &args, arg)
         else:
-            combined_flag = False
-            i++
-
-        match argv[i] with strcmp:
-            case "--help":
-                print_help(argv[0])
-                exit(0)
-
-            case "-v" | "--verbose":
-                args.verbose = True
-                i++
-
-            case "--no-colors":
-                disable_colors()
-                i++
-
-            case "-S" | "--skip-success":
-
-            case _:
-                if is_combined_flag(argv[i]):
-                    
-                if argv[i][0] == '-':
-                    fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
-                    exit(2)
-                args.filter_strings.append(argv[i++])
+            parse_arg(argv[0], &args, argv[i])
 
     return args

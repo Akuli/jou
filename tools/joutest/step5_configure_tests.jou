@@ -165,7 +165,10 @@ def skip_tests_based_on_last_run(tests: List[Test]) -> None:
     # For n tests this is O(n^2), but I don't think it will ever be noticeable
     # as long as the inner loop is fast. That's why outer loop parses JSON.
     for j = json_array_first(json_get(file_content.ptr, "tests")); j != NULL; j = json_array_next(j):
-        if not json_equals_string(json_get(j, "result"), "success"):
+        if not (
+            json_equals_string(json_get(j, "result"), "success")
+            or json_equals_string(json_get(j, "result"), "skipped")
+        ):
             continue
 
         path = json_to_string(json_get(j, "path"))
@@ -173,9 +176,13 @@ def skip_tests_based_on_last_run(tests: List[Test]) -> None:
             # weird...
             continue
 
-        stdin_input = json_get(j, "stdin_input")
+        stdin_input = json_to_string(json_get(j, "stdin_input"))
 
         for test = tests.ptr; test < tests.end(); test++:
+            if test.skip != SkipMode.DontSkip:
+                # it's not going to run anyway, so we don't care
+                continue
+
             if strcmp(test.path, path) != 0:
                 continue
 
@@ -197,10 +204,10 @@ def skip_tests_based_on_last_run(tests: List[Test]) -> None:
                     continue
 
             # Consider it a match
-            if test.skip == SkipMode.DontSkip:
-                test.skip = SkipMode.SkipNormally
+            test.skip = SkipMode.SkipNormally
 
         free(path)
+        free(stdin_input)
 
     free(file_content.ptr)
 
@@ -215,5 +222,5 @@ def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         configure_command(test)
         configure_uses_output_capturing(test)
 
-    if args.skip_successful:
+    if args.skip_success:
         skip_tests_based_on_last_run(tests)
