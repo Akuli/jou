@@ -229,7 +229,7 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
             config.stdout = enum_from_toml(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
 
         case TestConfigOption.Stderr:
-            config.stdout = enum_from_toml(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
+            config.stderr = enum_from_toml(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
 
         case TestConfigOption.OutputCommentRules:
             free(config.output_comment_rules.ptr)
