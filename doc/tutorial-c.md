@@ -336,7 +336,7 @@ Differences from C:
 - `byte` (always unsigned) instead of `char` (signed or unsigned depending on platform)
 - Types like `int` and `byte` are guaranteed to always be the same size
 - No `_t` suffix in type names
-- One pointer-sized integer type `intnative` instead of three: `size_t`, `ssize_t`, `ptrdiff_t`
+- One pointer-sized integer type `intnative` instead of several: `size_t`, `ssize_t`, `ptrdiff_t`, `intptr_t`, `uintptr_t`
 
 | C                 | Jou               | How to print  | Notes                                                             |
 |-------------------|-------------------|---------------|-------------------------------------------------------------------|
@@ -349,6 +349,8 @@ Differences from C:
 | `size_t`          | -                 | `%zd`         | If you really need this, just define your own `uintnative` type   |
 | `ssize_t`         | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
 | `ptrdiff_t`       | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
+| `intptr_t`        | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
+| `uintptr_t`       | -                 | `%zd`         | If you really need this, just define your own `uintnative` type   |
 
 Jou intentionally doesn't support platforms where C `char` is not 8 bits, C `int` is not 32 bits, or C `long long` is not 64 bits.
 So in a project that uses a mix of Jou and C, Jou's guarantees about the sizes of `byte` and `int` also apply in C code.
