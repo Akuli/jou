@@ -329,15 +329,6 @@ def main() -> int:
 
 For more details, see [the types documentation](types.md).
 
-Similarities with C:
-- 8-bit, 16-bit, 32-bit and 64-bit signed and unsigned integers
-
-Differences from C:
-- `byte` (always unsigned) instead of `char` (signed or unsigned depending on platform)
-- Types like `int` and `byte` are guaranteed to always be the same size
-- No `_t` suffix in type names
-- One pointer-sized integer type `intnative` instead of `size_t`, `ssize_t`, `ptrdiff_t`, `intptr_t`, `uintptr_t`
-
 | C                                             | Jou               | How to print  | Notes                                                             |
 |-----------------------------------------------|-------------------|---------------|-------------------------------------------------------------------|
 | `char`                                        | -                 | `%d`, `%c`    | C's `char` can be signed or unsigned, Jou is explicit about this  |
