@@ -346,8 +346,7 @@ Differences from C:
 | `int`             | `int32`           | `%d`, `%c`    | Unlike in C, Jou `int` is always 32-bit                           |
 | `long`            | -                 | `%ld`         | C `long` is 32-bit or 64-bit depending on operating system        |
 | `long long`       | `int64`           | `%lld`        | Unlike in C, `long long` cannot be bigger than 64 bits            |
-| `size_t`          | -                 | `%zu`         | If you really need this, just define your own `uintnative` type   |
-| `uintptr_t`       | -                 | `%zu`         | If you really need this, just define your own `uintnative` type   |
+| `size_t` <br> `uintptr_t` | -                 | `%zu`         | If you really need this, just define your own `uintnative` type   |
 | `ssize_t`         | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
 | `ptrdiff_t`       | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
 | `intptr_t`        | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
