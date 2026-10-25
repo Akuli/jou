@@ -334,7 +334,7 @@ For more details, see [the types documentation](types.md).
 | `char`                                        | -                 | `%d`, `%c`    | C's `char` can be signed or unsigned, Jou is explicit about this  |
 | `unsigned char`                               | `byte` or `uint8` | `%d`, `%c`    | Unlike in C, Jou `byte` is always 8-bit unsigned                  |
 | `signed char`                                 | `int8`            | `%d`, `%c`    |                                                                   |
-| `int`                                         | `int32`           | `%d`, `%c`    | Unlike in C, Jou `int` is always 32-bit                           |
+| `int`                                         | `int32`           | `%d`          | Unlike in C, Jou `int` is always 32-bit                           |
 | `long`                                        | -                 | `%ld`         | C `long` is 32-bit or 64-bit depending on operating system        |
 | `long long`                                   | `int64`           | `%lld`        | Unlike in C, `long long` cannot be bigger than 64 bits            |
 | `size_t` <br> `uintptr_t`                     | -                 | `%zu`         | If you really need this, just define your own `uintnative` type   |
