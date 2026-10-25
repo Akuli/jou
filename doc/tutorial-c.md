@@ -336,26 +336,29 @@ Differences from C:
 - `byte` (always unsigned) instead of `char` (signed or unsigned depending on platform)
 - Types like `int` and `byte` are guaranteed to always be the same size
 - No `_t` suffix in type names
-- One pointer-sized integer type `intnative` instead of several: `size_t`, `ssize_t`, `ptrdiff_t`, `intptr_t`, `uintptr_t`
+- One pointer-sized integer type `intnative` instead of `size_t`, `ssize_t`, `ptrdiff_t`, `intptr_t`, `uintptr_t`
 
-| C                 | Jou               | How to print  | Notes                                                             |
-|-------------------|-------------------|---------------|-------------------------------------------------------------------|
-| `char`            | -                 | `%d`, `%c`    | C's `char` can be signed or unsigned, Jou is explicit about this  |
-| `unsigned char`   | `byte` or `uint8` | `%d`, `%c`    | Unlike in C, Jou `byte` is always 8-bit unsigned                  |
-| `signed char`     | `int8`            | `%d`, `%c`    |                                                                   |
-| `int`             | `int32`           | `%d`, `%c`    | Unlike in C, Jou `int` is always 32-bit                           |
-| `long`            | -                 | `%ld`         | C `long` is 32-bit or 64-bit depending on operating system        |
-| `long long`       | `int64`           | `%lld`        | Unlike in C, `long long` cannot be bigger than 64 bits            |
-| `size_t` <br> `uintptr_t` | -                 | `%zu`         | If you really need this, just define your own `uintnative` type   |
-| `ssize_t`         | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
-| `ptrdiff_t`       | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
-| `intptr_t`        | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
+| C                                             | Jou               | How to print  | Notes                                                             |
+|-----------------------------------------------|-------------------|---------------|-------------------------------------------------------------------|
+| `char`                                        | -                 | `%d`, `%c`    | C's `char` can be signed or unsigned, Jou is explicit about this  |
+| `unsigned char`                               | `byte` or `uint8` | `%d`, `%c`    | Unlike in C, Jou `byte` is always 8-bit unsigned                  |
+| `signed char`                                 | `int8`            | `%d`, `%c`    |                                                                   |
+| `int`                                         | `int32`           | `%d`, `%c`    | Unlike in C, Jou `int` is always 32-bit                           |
+| `long`                                        | -                 | `%ld`         | C `long` is 32-bit or 64-bit depending on operating system        |
+| `long long`                                   | `int64`           | `%lld`        | Unlike in C, `long long` cannot be bigger than 64 bits            |
+| `size_t` <br> `uintptr_t`                     | -                 | `%zu`         | If you really need this, just define your own `uintnative` type   |
+| `ssize_t` <br> `intptr_t` <br> `ptrdiff_t`    | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
 
-Jou intentionally doesn't support platforms where C `char` is not 8 bits, C `int` is not 32 bits, or C `long long` is not 64 bits.
-So in a project that uses a mix of Jou and C, Jou's guarantees about the sizes of `byte` and `int` also apply in C code.
+Jou intentionally doesn't support platforms where:
+- C `char` is not 8 bits
+- C `int` is not 32 bits
+- C `long long` is not 64 bits
+- C `ptrdiff_t` and `intptr_t` are different
+
+So in a project that uses a mix of Jou and C, some of Jou's guarantees also apply in C code.
 
 For some reason, C's `long` is 32 bits (yes, same as `int`) on Windows, but 64-bit on other systems that Jou supports.
-So, to interact with C code that uses `long`, you can use something like this:
+Use something like this to interact with C code that uses `long`:
 
 ```python
 if WINDOWS:
