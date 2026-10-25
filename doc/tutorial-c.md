@@ -169,7 +169,7 @@ def do_nothing() -> None:
 
 ## `def`, `declare`, `typedef`
 
-The `def` keyword **defines** a function, and `declare` **declares** an existing function.
+The `def` keyword defines a function, and `declare` declares an existing function.
 Return type goes after `->`.
 Use `-> None` if the function doesn't return anything.
 Just like C compilers, the Jou compiler links with C's standard library (libc),
