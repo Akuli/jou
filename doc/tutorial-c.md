@@ -7,6 +7,8 @@ you will find that Jou is very similar to C,
 and you can rely on your existing C knowledge a lot.
 As such, this tutorial focuses on the differences between C and Jou.
 
+I recommend [the other tutorial](tutorial.md) if you don't know C yet.
+
 
 ## Hello World!
 
