@@ -266,7 +266,7 @@ def main() -> int:
 
 Similarities with C:
 - An array is nothing more than several things next to each other in memory
-- `sizeof(array)/sizeof(array[0])` works (but Jou's [`array_count()` built-in](keywords.md#array-count) is less fragile)
+- `sizeof(array)/sizeof(array[0])` works (but Jou's [`array_count()` built-in](keywords.md#array_count) is less fragile)
 - Arrays convert to a pointer implicitly
 - `malloc()` and `free()` (declared in [stdlib/mem.jou](../stdlib/mem.jou)) can be used for arbitrarily long arrays, but it's easy to use them wrong
 
