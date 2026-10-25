@@ -222,16 +222,18 @@ def main(argc: int, argv: byte**) -> int:
 ## Pointers
 
 Similarities with C:
-- Dereferencing with `*` and taking address with `&` work like in C
+- No garbage collection or lifetime checks
+- Dereferencing with `*`
+- Taking address with `&`
 - `NULL` and `void*`
 
 Differences from C:
-- No `const` pointers
 - Simpler syntax: type `int*` means a pointer to int, and it's used like any other type
-- Comparing pointers to different memory regions with `<` or `>` is not undefined behavior
-- Comparing `NULL` to other pointers with `<` or `>` is not undefined behavior
 - `pointer + integer` is not supported, Jou needs `&pointer[integer]` instead
 - Subtracting two pointers is currently more complicated than it should be (see [issue #1397](https://github.com/Akuli/jou/issues/1397))
+- Comparing pointers to different memory regions with `<` or `>` is not undefined behavior
+- Comparing `NULL` to other pointers with `<` or `>` is not undefined behavior
+- No `const` pointers
 
 Example:
 
