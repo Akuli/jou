@@ -148,9 +148,9 @@ def main() -> int:
     return 0
 ```
 
-Condition must be booleans: `while i:` doesn't compile.
+Condition must be booleans: `while n:` doesn't compile.
 
-Here `i = 0` creates a local variable of type `int`, because the type of `0` is `int`.
+Above `n = 1` creates a local variable of type `int`, because the type of `1` is `int`.
 You can specify a type:
 
 ```python
