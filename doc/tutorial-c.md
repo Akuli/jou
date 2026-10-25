@@ -62,7 +62,7 @@ The closest thing to a macro is an [inline function](inline.md).
 
 [Jou's `import` statement](imports.md) is fancier than C's `#include`, but easier to use.
 
-Similiarities:
+Similarities:
 - There is no namespace or overloading magic to rename the functions. Jou libraries typically use a naming prefix, just like C libraries.
 - The string after `import` is a file name.
 - There are two kinds of imports.
@@ -336,7 +336,7 @@ For more details, see [the types documentation](types.md).
 | `signed char`                                 | `int8`            | `%d`, `%c`    |                                                                   |
 | `int`                                         | `int32`           | `%d`          | Unlike in C, Jou `int` is always 32-bit                           |
 | `long`                                        | -                 | `%ld`         | C `long` is 32-bit or 64-bit depending on operating system        |
-| `long long`                                   | `int64`           | `%lld`        | Unlike in C, `long long` cannot be bigger than 64 bits            |
+| `long long`                                   | `int64`           | `%lld`        |                                                                   |
 | `size_t` <br> `uintptr_t`                     | -                 | `%zu`         | If you really need this, just define your own `uintnative` type   |
 | `ssize_t` <br> `intptr_t` <br> `ptrdiff_t`    | `intnative`       | `%zd`         | Jou needs `import "stdlib/intnative.jou"`                         |
 
@@ -429,8 +429,8 @@ def main() -> int:
 ## Function pointers
 
 Similarities with C:
-- A function pointer is just a function, and holds no data to be passed as arguments
-- A function pointer can be `NULL`
+- A function pointer is just the location of a function in memory, and holds no data to be passed as arguments
+- A function pointer can be set to `NULL`
 
 Differences from C:
 - Different syntax: `funcptr(byte*) -> int` is a type
@@ -598,3 +598,7 @@ def main() -> int:
 
     return 0
 ```
+
+In C, `==` and `!=` have higher precedence than `&` for some reason,
+so `flags & MY_THING_FOO != 0` would get evaluated as `flags & (MY_THING_FOO != 0)`, which is wrong.
+In Jou, it means the intended `(flags & MY_THING_FOO) != 0`.
