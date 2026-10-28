@@ -292,13 +292,14 @@ def main() -> int:
 
 Similarities with C:
 - An array is nothing more than several things next to each other in memory
-- `sizeof(array)/sizeof(array[0])` works (but you would [`//` division](#division), and Jou's [`array_count()` built-in](keywords.md#array_count) is less fragile)
+- `sizeof(array)/sizeof(array[0])` works (but you would use [`//` division](#division), and Jou's [`array_count()` built-in](keywords.md#array_count) is less fragile)
 - Arrays convert to a pointer implicitly
 - `malloc()` and `free()` (declared in [stdlib/mem.jou](../stdlib/mem.jou)) can be used for arbitrarily long arrays, but it's easy to use them wrong
 
 Differences from C:
 - Simpler syntax: type `int[10]` means an array of 10 ints, and it's used like any other type
 - Array size always needed, `int[]` is invalid syntax in Jou
+- Array size must be known at compile time
 - Square brackets denote an array, e.g. `[1, 2, 3]`
 - [The `List` class, also known as a dynamic array](lists.md)
 - Built-in math operations like `[1, 2, 3] + [4, 5, 6]`
