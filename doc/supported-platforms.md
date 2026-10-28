@@ -7,7 +7,7 @@ This page documents which platforms Jou works on.
 
 |         | x86 (32‑bit) | x86_64 (64-bit) | arm (32-bit) | aarch64 (64-bit) |
 |---------|--------------|--------|------------|---------|
-| Windows 7 (see note below) | ❌ | ✅ | ❌ | ❌ |
+| Windows 7 (see note 1 below) | ❌ | ✅ | ❌ | ❌ |
 | Windows 8 or newer | ❌ | ✅ | ❌ | ❌ |
 | Linux (see note 2 below) | ✅ | ✅ | ✅ | ✅ |
 | MacOS   | ❌ | ✅ | ❌ | 🤷 |
