@@ -74,7 +74,7 @@ Differences from C:
 - Jou's `import` "just works" even with cyclic dependencies.
 - The order of `import` statements doesn't matter.
 - There's no `-I` compiler flag, so it's easier to figure out where the imported files are.
-- Everything in Jou is private by default unless `@public` is used.
+- Everything in Jou is private (like C's `static`) by default unless `@public` is used.
 
 See any [standard library](../stdlib) file for examples of `@public`.
 (Most of the standard library is surprisingly readable.)
