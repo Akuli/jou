@@ -93,14 +93,13 @@ To allow splitting long things on multiple lines, indentation and newlines insid
 import "stdlib/io.jou"
 
 def main() -> int:
-    # This is why whitespace is ignored inside parentheses
     # Output: Hello World
     printf(
         "Hello %s\n",
         "World",    # <--- In C you can't put a comma here. In Jou you can.
     )
 
-    # This works too
+    # This works too, the whitespace is ignored
     # Output: Hello World
     printf(
       "Hello %s\n",
@@ -113,7 +112,7 @@ def main() -> int:
 A comment starts with `#` instead of `//`.
 There's no special syntax for multi-line comments.
 Just put a `#` to the start of each line.
-The `# Output:` comments on this page are for [joutest](joutest.md).
+The `# Output:` comments on this page are for [joutest](joutest.md).
 
 You don't need parentheses around `if`, `while` and `for` conditions, and you need `elif` instead of `else if`:
 
