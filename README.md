@@ -95,6 +95,10 @@ I would recommend Jou for:
 - People who find C programming fun but like Python's syntax (if this is you, you may want to read [the Jou tutorial](./doc/tutorial.md))
 - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
 
+To get started with Jou, there are two introducion documents to choose from:
+- [Jou tutorial](./doc/tutorial.md) is aimed at people new to low-level languages.
+- [Jou tutorial for C programmers](./doc/tutorial-c.md) gives you a quick start to Jou if you already know C.
+
 
 ## Design goals and non-goals
 
