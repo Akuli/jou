@@ -497,7 +497,7 @@ Differences from C `struct`:
 - Classes can contain methods (they are just functions with slightly different syntax and a dot in their name)
 - Different initializing syntax: instead of `struct Thing foo = {x = 1};` you do `foo = Thing{x = 1}`
 - No arrow syntax like `pointer->member`, the same `.` operator works even with pointers
-- Bitfields are not supported, please create an issue if you need them
+- Bitfields are not supported, please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new) if you need them
 
 ```python
 import "stdlib/io.jou"
