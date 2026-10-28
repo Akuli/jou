@@ -55,24 +55,24 @@ Hello World
 ## No preprocessor
 
 There is no preprocessor in Jou.
-The closest thing to a macro is an [inline function](inline.md).
+The closest thing to a macro is an [inline function](inline.md) or a [`const` constant](keywords.md#const).
 
 
 ## `import` vs `#include`
 
 [Jou's `import` statement](imports.md) is fancier than C's `#include`, but easier to use.
 
-Similarities:
+Similarities with C:
 - There is no namespace or overloading magic to rename the functions. Jou libraries typically use a naming prefix, just like C libraries.
 - The string after `import` is a file name.
 - There are two kinds of imports.
     Imports starting with a dot are relative to the current file like C's `#include "..."`.
     Imports starting with `stdlib/` are relative to where the standard library is like C's `#include <...>`.
 
-Differences:
-- The idea is that `import` "just works" even with cyclic dependencies.
-- The order of `import` statements doesn't matter.
+Differences from C:
 - There are no separate header files.
+- Jou's `import` "just works" even with cyclic dependencies.
+- The order of `import` statements doesn't matter.
 - Everything in Jou is private by default unless `@public` is used.
 
 See any [standard library](../stdlib) file for examples of `@public`.
@@ -81,9 +81,10 @@ See any [standard library](../stdlib) file for examples of `@public`.
 
 ## Python-style syntax
 
-Jou relies on indentation to figure out where code blocks end.
-You don't need to write the braces.
-You also don't need semicolons, as a newline marks the end of a statement.
+Jou relies on indentation to figure out where code blocks end,
+and a newline marks the end of a statement.
+So instead of `{` you write `:` on the same line,
+and you don't write `}` or `;`.
 
 To allow splitting long things on multiple lines, indentation and newlines inside parentheses are ignored:
 
@@ -225,7 +226,9 @@ Similarities with C:
 - No garbage collection or lifetime checks
 - Dereferencing with `*`
 - Taking address with `&`
-- `NULL` and `void*`
+- `++` and `--`
+- `NULL`
+- `void*`
 
 Differences from C:
 - Simpler syntax: type `int*` means a pointer to int, and it's used like any other type
@@ -270,7 +273,7 @@ def main() -> int:
 
 Similarities with C:
 - An array is nothing more than several things next to each other in memory
-- `sizeof(array)/sizeof(array[0])` works (but Jou's [`array_count()` built-in](keywords.md#array_count) is less fragile)
+- `sizeof(array)/sizeof(array[0])` works (but you would [`//` division](#division), and Jou's [`array_count()` built-in](keywords.md#array_count) is less fragile)
 - Arrays convert to a pointer implicitly
 - `malloc()` and `free()` (declared in [stdlib/mem.jou](../stdlib/mem.jou)) can be used for arbitrarily long arrays, but it's easy to use them wrong
 
@@ -344,12 +347,12 @@ Jou intentionally doesn't support platforms where:
 - C `char` is not 8 bits
 - C `int` is not 32 bits
 - C `long long` is not 64 bits
-- C `ptrdiff_t` and `intptr_t` are different
+- C `size_t`, `ssize_t`, `intptr_t`, `uintptr_t` and `ptrdiff_t` are not the same size as pointers
 
 So in a project that uses a mix of Jou and C, some of Jou's guarantees also apply in C code.
 
 For some reason, C's `long` is 32 bits (yes, same as `int`) on Windows, but 64-bit on other systems that Jou supports.
-Use something like this to interact with C code that uses `long`:
+Use something like this if you need to interact with C code that uses `long`:
 
 ```python
 if WINDOWS:
@@ -364,6 +367,9 @@ In C, signed overflow is undefined. In Jou, integer overflow wraps around and ne
 
 
 ## Booleans
+
+Similarities with C:
+- The data type is named `bool`
 
 Differences from C:
 - `True` and `False` have uppercase `T` and `F`
