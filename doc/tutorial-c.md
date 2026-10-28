@@ -493,7 +493,7 @@ Similarities with C `struct`:
 - No hidden vtables or other compiler magic
 
 Differences from C `struct`:
-- No need for a `typedef`
+- Classes always behave as if `typedef` was used in C
 - Classes can contain methods (they are just functions with slightly different syntax and a dot in their name)
 - Different initializing syntax: instead of `struct Thing foo = {x = 1};` you do `foo = Thing{x = 1}`
 - No arrow syntax like `pointer->member`, the same `.` operator works even with pointers
