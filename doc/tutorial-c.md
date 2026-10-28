@@ -64,7 +64,7 @@ The closest thing to a macro is an [inline function](inline.md) or a [`const` co
 
 Similarities with C:
 - There is no namespace or overloading magic to rename the functions. Jou libraries typically use a naming prefix, just like C libraries.
-- The string after `import` is a file name.
+- The string after `import` is a file path.
 - There are two kinds of imports.
     Imports starting with a dot are relative to the current file like C's `#include "..."`.
     Imports starting with `stdlib/` are relative to where the standard library is like C's `#include <...>`.
@@ -73,6 +73,7 @@ Differences from C:
 - There are no separate header files.
 - Jou's `import` "just works" even with cyclic dependencies.
 - The order of `import` statements doesn't matter.
+- There's no `-I` compiler flag, so it's easier to figure out where the imported files are.
 - Everything in Jou is private by default unless `@public` is used.
 
 See any [standard library](../stdlib) file for examples of `@public`.
