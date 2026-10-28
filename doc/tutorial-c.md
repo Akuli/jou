@@ -151,7 +151,7 @@ def main() -> int:
 
 Conditions must be booleans: `while n:` doesn't compile.
 
-Above `n = 1` creates a local variable of type `int`, because the type of `1` is `int`.
+Above `n = 1` creates a stack variable of type `int`, because the type of `1` is `int`.
 You can specify a type:
 
 ```python
@@ -165,6 +165,25 @@ Use `pass` instead of `{}` to make an empty block:
 ```python
 def do_nothing() -> None:
     pass
+```
+
+
+## Scope
+
+In Jou, variables defined inside a loop or `if` statement
+remain accessible in the rest of the function.
+In other words, Jou doesn't have block scopes like C.
+For example:
+
+```python
+import "stdlib/io.jou"
+
+def main() -> int:
+    while True:
+        message = "hello"
+        break
+    puts(message)  # Output: hello
+    return 0
 ```
 
 
