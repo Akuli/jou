@@ -282,6 +282,7 @@ Differences from C:
 - Array size always needed, `int[]` is invalid syntax in Jou
 - Square brackets denote an array, e.g. `[1, 2, 3]`
 - [The `List` class, also known as a dynamic array](lists.md)
+- Built-in math operations like `[1, 2, 3] + [4, 5, 6]`
 
 ```python
 import "stdlib/mem.jou"
@@ -311,6 +312,11 @@ def main() -> int:
     # Output: thing 3
     for i = 0; i < array_count(things); i++:
         printf(format, things[i])
+
+    # Math with arrays
+    things *= 2
+    things += [100, 200, 300]
+    printf("%d %d %d\n", things[0], things[1], things[2])  # Output: 102 204 306
 
     # List is a dynamic array in heap memory (see doc/lists.md)
     list = List[int]{}
