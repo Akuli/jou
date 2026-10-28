@@ -34,8 +34,8 @@ please [create an issue on GitHub](https://github.com/Akuli/jou/issues/new).
 No microcontrollers are currently supported,
 although I would like to eventually support at least the Raspberry Pi Pico.
 
-Regular Raspberry Pi's (not Pico) are supported,
-because they run a Linux operating system much like a typical desktop/laptop PC.
+Regular Raspberry Pi's (not Pico) starting from RasPi 1 are supported,
+because they run a Linux operating system much like a typical desktop/laptop PC (except that it's arm, not x86).
 
 
 ## Built-in constants
