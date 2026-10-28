@@ -7,15 +7,22 @@ This page documents which platforms Jou works on.
 
 |         | x86 (32‑bit) | x86_64 (64-bit) | arm (32-bit) | aarch64 (64-bit) |
 |---------|--------------|--------|------------|---------|
-| Windows | ❌ | ✅ | ❌ | ❌ |
-| Linux   | ✅ | ✅ | ✅ | ✅ |
+| Windows 7 (see note below) | ❌ | ✅ | ❌ | ❌ |
+| Windows 8 or newer | ❌ | ✅ | ❌ | ❌ |
+| Linux (see note 2 below) | ✅ | ✅ | ✅ | ✅ |
 | MacOS   | ❌ | ✅ | ❌ | 🤷 |
-| NetBSD  | 🤷 | ✅ | 🤷 | 🤷 |
+| NetBSD 10 | 🤷 | ✅ | 🤷 | 🤷 |
+| NetBSD 11 | 🤷 | 🤷 | 🤷 | 🤷 |
 
 where:
 - ✅ = supported
-- 🤷 = probably works fine, but not guaranteed
+- 🤷 = probably works fine, but not tested regularly
 - ❌ = not supported
+
+Platform-specific notes:
+1. `jou --update` doesn't work on Windows 7.
+2. Other libc's than glibc and musl might not work.
+   For example, if I remember correctly, Jou doesn't work on Android phones.
 
 If you would like to use Jou on a 🤷 or ❌ platform,
 or the platform isn't even mentioned here,
