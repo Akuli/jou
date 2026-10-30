@@ -136,6 +136,7 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
                     "joutest warning in file \"joutest.toml\", line %d: condition tables are deprecated, use if/then/else tables instead\n",
                     toml.lineno,
                 )
+                fflush(get_stderr())
 
                 temp = *new_value
                 *new_value = TOML{type = TOMLType.Error}  # avoid freeing the value
