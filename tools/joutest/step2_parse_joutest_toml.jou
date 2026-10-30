@@ -40,6 +40,27 @@ def condition_is_true(c: Condition) -> bool:
         case Condition.Default:
             return True
 
+def if_condition_is_true(toml: TOML*) -> bool:
+    condition = toml_to_string(toml)
+    if condition == NULL:
+        fail_in_toml(toml.lineno, "'if' condition must be a string")
+
+    match condition with strcmp:
+        case "WINDOWS":
+            return WINDOWS
+        case "MACOS":
+            return MACOS
+        case "LINUX":
+            return LINUX
+        case "NETBSD":
+            return NETBSD
+        case "IS_32BIT":
+            return IS_32BIT
+        case _:
+            error: byte[200]
+            snprintf(error, sizeof(error), "unsupported 'if' condition: %s", condition)
+            fail_in_toml(toml.lineno, error)
+
 def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
     error: byte[300]
 
@@ -51,8 +72,33 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
             case TOMLType.Error:
                 assert False  # should never happen
             case TOMLType.Table:
-                # TODO: This is probably not the best way to detect condition tables.
-                #       Or is it? It's simple and easy to document.
+                condition = toml_get(toml, "if")
+                if condition != NULL:
+                    then_value = toml_get(toml, "then")
+                    else_value = toml_get(toml, "else")
+                    if then_value == NULL or else_value == NULL:
+                        fail_in_toml(toml.lineno, "if/then/else tables must contain 'if', 'then' and 'else'")
+
+                    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+                        if (
+                            strcmp(kv.key, "if") != 0
+                            and strcmp(kv.key, "then") != 0
+                            and strcmp(kv.key, "else") != 0
+                        ):
+                            snprintf(error, sizeof(error), "unknown setting '%s' in an if/then/else table", kv.key)
+                            fail_in_toml(kv.value.lineno, error)
+
+                    if if_condition_is_true(condition):
+                        new_value = then_value
+                    else:
+                        new_value = else_value
+
+                    temp = *new_value
+                    *new_value = TOML{type = TOMLType.Error}  # avoid freeing the value
+                    toml.free()
+                    *toml = temp
+                    continue  # Repeat to handle nested `if` tables
+
                 default = toml_get(toml, "default")
                 if default == NULL:
                     # Normal table
@@ -84,6 +130,13 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
                 else:
                     new_value = &chosen.value
                 assert new_value != NULL
+
+                fprintf(
+                    get_stderr(),
+                    "joutest warning in file \"joutest.toml\", line %d: condition tables are deprecated, use if/then/else tables instead\n",
+                    toml.lineno,
+                )
+                fflush(get_stderr())
 
                 temp = *new_value
                 *new_value = TOML{type = TOMLType.Error}  # avoid freeing the value
