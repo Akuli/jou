@@ -20,9 +20,10 @@ class CommandLineArgs:
 enum CaptureMode:
     CompareToComments   # (default) expected output comes from comments like "# Output: hello"
     DoNotCapture        # do nothing with the output, let it go to console
+    Discard             # send the output to the null device
 
 @public
-global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comments", "do_not_capture"]
+global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comments", "do_not_capture", "discard"]
 
 
 @public

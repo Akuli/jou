@@ -213,8 +213,8 @@ def configure_command(test: Test*) -> None:
 
 def configure_uses_output_capturing(test: Test*) -> None:
     test.uses_output_capturing = (
-        test.config.stdout != CaptureMode.DoNotCapture
-        or test.config.stderr != CaptureMode.DoNotCapture
+        test.config.stdout == CaptureMode.CompareToComments
+        or test.config.stderr == CaptureMode.CompareToComments
     )
 
 
