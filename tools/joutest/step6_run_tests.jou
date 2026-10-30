@@ -11,7 +11,6 @@
 # broken in some way, and you should use fail() to stop the test runner.
 
 import "stdlib/assert.jou"
-import "stdlib/intnative.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
@@ -28,7 +27,7 @@ else:
     import "stdlib/errno.jou"
     import "stdlib/fs.jou"
     import "stdlib/process.jou"
-    import "./poll.jou"
+    import "./posix.jou"
 
 
 if WINDOWS:
@@ -154,51 +153,6 @@ if WINDOWS:
     const FILE_SHARE_WRITE: uint32 = 0x00000002
     const OPEN_EXISTING: uint32 = 3
     const FILE_ATTRIBUTE_NORMAL: uint32 = 0x80
-
-else:
-    declare fork() -> int
-    declare execvp(file: byte*, argv: byte**) -> int
-    declare open(path: byte*, flags: int, ...) -> int
-    declare dup2(oldfd: int, newfd: int) -> int
-    declare waitpid(pid: int, wstatus: int*, options: int) -> int
-    declare pipe(pipefd: int[2]*) -> int
-    declare close(fd: int) -> int
-    declare read(fd: int, buf: void*, count: intnative) -> intnative
-    declare write(fd: int, buf: void*, count: intnative) -> intnative
-    declare _exit(status: int) -> noreturn
-    declare fcntl(fd: int, op: int, ...) -> int
-
-    const F_SETFD: int = 2
-    const F_GETFL: int = 3
-    const F_SETFL: int = 4
-
-    const FD_CLOEXEC: int = 1
-    const O_WRONLY: int = 1
-    const EPIPE: int = 32
-
-    if LINUX:
-        const O_NONBLOCK: int = 0o4000
-    elif MACOS or NETBSD:
-        const O_NONBLOCK: int = 0x00000004
-    else:
-        assert False
-
-    # Returns True if the process terminated with a signal
-    def WIFSIGNALED(s: int) -> bool:
-        # 127 means "stopped", see WIFSTOPPED(). We should never get that value.
-        return WTERMSIG(s) != 0 and WTERMSIG(s) != 127
-
-    # Returns True if the process exited normally.
-    def WIFEXITED(s: int) -> bool:
-        return WTERMSIG(s) == 0
-
-    # If the process terminated by exiting normally, returns the exit code.
-    def WEXITSTATUS(s: int) -> int:
-        return (s >> 8) & 0xff
-
-    # If the process terminated with a signal, returns the signal number.
-    def WTERMSIG(s: int) -> int:
-        return s & 0x7f
 
 
 # Holds all state needed to run one test.
@@ -855,10 +809,6 @@ def run_test(test: Test*, verbose: bool) -> None:
 if not WINDOWS:
     declare setenv(name: byte*, value: byte*, overwrite: int) -> int
     declare dirname(path: byte*) -> byte*
-
-    const SIGPIPE: int = 13       # same on MacOS, Linux, NetBSD
-    const SIG_IGN: intnative = 1  # same on MacOS, Linux, NetBSD
-    declare signal(signum: int, handler: intnative) -> intnative
 
     # Adds the directory containing joutest to PATH. It usually contains the
     # Jou compiler.

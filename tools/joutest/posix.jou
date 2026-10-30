@@ -1,0 +1,136 @@
+import "stdlib/intnative.jou"
+
+assert LINUX or MACOS or NETBSD
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~ The poll() function ~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@public
+class pollfd:
+    fd: int
+    events: int16
+    revents: int16
+
+if LINUX:
+    @public
+    declare poll(fds: pollfd*, nfds: intnative, timeout: int) -> int
+elif MACOS or NETBSD:
+    @public
+    declare poll(fds: pollfd*, nfds: int, timeout: int) -> int
+else:
+    assert False
+
+@public
+const POLLIN: int16 = 0x001
+@public
+const POLLOUT: int16 = 0x004
+@public
+const POLLERR: int16 = 0x008
+@public
+const POLLHUP: int16 = 0x010
+@public
+const POLLNVAL: int16 = 0x020
+
+
+# ~~~~~~~~~~~~~~~~
+# ~~~~ Errors ~~~~
+# ~~~~~~~~~~~~~~~~
+
+@public
+const EPIPE: int = 32
+
+
+# ~~~~~~~~~~~~~~~~~~~
+# ~~~~ Processes ~~~~
+# ~~~~~~~~~~~~~~~~~~~
+
+@public
+declare fork() -> int
+@public
+declare execvp(file: byte*, argv: byte**) -> int
+@public
+declare _exit(status: int) -> noreturn
+@public
+declare waitpid(pid: int, wstatus: int*, options: int) -> int
+
+# Returns True if the process terminated with a signal
+@public
+@inline
+def WIFSIGNALED(s: int) -> bool:
+    # 127 means "stopped", see WIFSTOPPED(). We should never get that value.
+    return WTERMSIG(s) != 0 and WTERMSIG(s) != 127
+
+# Returns True if the process exited normally.
+@public
+@inline
+def WIFEXITED(s: int) -> bool:
+    return WTERMSIG(s) == 0
+
+# If the process terminated by exiting normally, returns the exit code.
+@public
+@inline
+def WEXITSTATUS(s: int) -> int:
+    return (s >> 8) & 0xff
+
+# If the process terminated with a signal, returns the signal number.
+@public
+@inline
+def WTERMSIG(s: int) -> int:
+    return s & 0x7f
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~ File Descriptors ~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@public
+declare open(path: byte*, flags: int, ...) -> int
+@public
+declare close(fd: int) -> int
+@public
+declare dup2(oldfd: int, newfd: int) -> int
+@public
+declare pipe(pipefd: int[2]*) -> int
+@public
+declare read(fd: int, buf: void*, count: intnative) -> intnative
+@public
+declare write(fd: int, buf: void*, count: intnative) -> intnative
+@public
+declare fcntl(fd: int, op: int, ...) -> int
+
+@public
+const F_SETFD: int = 2
+@public
+const F_GETFL: int = 3
+@public
+const F_SETFL: int = 4
+@public
+const FD_CLOEXEC: int = 1
+@public
+const O_WRONLY: int = 1
+
+if LINUX:
+    @public
+    const O_NONBLOCK: int = 0o4000
+elif MACOS or NETBSD:
+    @public
+    const O_NONBLOCK: int = 0x00000004
+else:
+    assert False
+
+
+# ~~~~~~~~~~~~~~~~~
+# ~~~~ Signals ~~~~
+# ~~~~~~~~~~~~~~~~~
+
+@public
+const SIGPIPE: int = 13
+@public
+const SIG_IGN: intnative = 1
+
+@public
+declare signal(signum: int, handler: intnative) -> intnative
+@public
+declare strsignal(sig: int) -> byte*
