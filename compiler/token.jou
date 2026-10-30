@@ -99,46 +99,39 @@ class Token:
         return self.is_operator(")") or self.is_operator("]") or self.is_operator("}")
 
     @public
-    def fail_expected_got(self, expected: byte*) -> noreturn:
+    def fail_expected_got(self, what_was_expected_instead: byte*) -> noreturn:
+        # Can't use big_buffer here, because expected may already point into it
+        # and that would create overlapping sprintf() calls
+        got: byte[100]
         match self.kind:
             case TokenKind.Integer:
-                snprintf(big_buffer, sizeof(big_buffer), "expected %s, got an integer", expected)
+                got = "an integer"
             case TokenKind.Double:
-                snprintf(big_buffer, sizeof(big_buffer), "expected %s, got a double constant", expected)
+                got = "a double constant"
             case TokenKind.Byte:
-                snprintf(big_buffer, sizeof(big_buffer), "expected %s, got a byte literal", expected)
+                got = "a byte literal"
             case TokenKind.String:
-                snprintf(big_buffer, sizeof(big_buffer), "expected %s, got a string", expected)
+                got = "a string"
             case TokenKind.Decorator:
-                snprintf(big_buffer, sizeof(big_buffer), "expected %s, got a decorator", expected)
+                got = "a decorator"
             case TokenKind.Name:
-                snprintf(
-                    big_buffer, sizeof(big_buffer),
-                    "expected %s, got a variable name '%s'",
-                    expected, self.short_string,
-                )
+                snprintf(got, sizeof(got), "a variable name '%s'", self.short_string)
             case TokenKind.Keyword:
-                snprintf(
-                    big_buffer, sizeof(big_buffer),
-                    "expected %s, got the '%s' keyword",
-                    expected, self.short_string,
-                )
+                snprintf(got, sizeof(got), "the '%s' keyword", self.short_string)
             case TokenKind.Newline:
-                snprintf(big_buffer, sizeof(big_buffer), "expected %s, got end of line", expected)
+                got = "end of line"
             case TokenKind.Indent:
-                snprintf(big_buffer, sizeof(big_buffer), "expected %s, got more indentation", expected)
+                got = "more indentation"
             case TokenKind.Dedent:
-                snprintf(big_buffer, sizeof(big_buffer), "expected %s, got less indentation", expected)
+                got = "less indentation"
             case TokenKind.Operator:
-                snprintf(
-                    big_buffer, sizeof(big_buffer),
-                    "expected %s, got '%s'",
-                    expected, self.short_string,
-                )
+                snprintf(got, sizeof(got), "'%s'", self.short_string)
             case TokenKind.EndOfFile:
-                snprintf(big_buffer, sizeof(big_buffer), "expected %s, got end of file", expected)
+                got = "end of file"
 
-        fail(self.location, big_buffer)
+        message: byte*
+        asprintf(&message, "expected %s, got %s", what_was_expected_instead, got)
+        fail(self.location, message)
 
 
 @public
