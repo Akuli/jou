@@ -311,7 +311,10 @@ def do_explicit_cast(fom: AstFunctionOrMethod*, expr: AstExpression*, to: Type*,
     msg: byte[500]
 
     if not can_cast_explicitly(from, to):
-        snprintf(msg, sizeof(msg), "cannot cast from type %s to %s", from.name, to.name)
+        if from.is_integer_type() and to == bool_type():
+            snprintf(msg, sizeof(msg), "cannot cast from type %s to %s (try using '!= 0' instead)", from.name, to.name)
+        else:
+            snprintf(msg, sizeof(msg), "cannot cast from type %s to %s", from.name, to.name)
         fail(location, msg)
 
     if from.kind == TypeKind.Array and to.is_pointer_type():
