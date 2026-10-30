@@ -102,7 +102,6 @@ def handle_missing_return_statement(uvg: Uvg*, use_of_the_special_return_variabl
         sig = use_of_the_special_return_variable.inlining_signature
         prefix = "inlined "
 
-
     if n == 0:
         # There are no return statements. Tell user to add them and why they are needed.
         snprintf(
@@ -133,7 +132,6 @@ def show_undefined_variable_warning(ins: UvgInstruction*, varname: byte*, sure: 
         what_we_say = "is undefined"
     else:
         what_we_say = "may be undefined"
-
 
     if ins.inlining_signature == NULL:
         snprintf(big_buffer, sizeof(big_buffer), "the value of '%s' %s", varname, what_we_say)

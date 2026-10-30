@@ -31,7 +31,6 @@ def check_const(jou_file: JouFile*, const_stmt: AstConstStatement*, location: Lo
 
     # TODO: allow implicit casts?
     if value.get_type() != expected_type:
-
         snprintf(
             big_buffer, sizeof(big_buffer),
             "constant of type %s cannot have a value of type %s",
@@ -62,7 +61,6 @@ def check_global_var_def(jou_file: JouFile*, global_stmt: AstGlobalVarDef*, loca
         else:
             # TODO: allow implicit casts?
             if value.get_type() != expected_type:
-
                 snprintf(
                     big_buffer, sizeof(big_buffer),
                     "global variable of type %s cannot have an initial value of type %s",
@@ -77,8 +75,6 @@ def check_global_var_def(jou_file: JouFile*, global_stmt: AstGlobalVarDef*, loca
 # To support various cyclic things, this may also type-check other things than
 # the one statement we tell it to check.
 def typecheck_statement_with_symbol(stmt: AstStatement*) -> None:
-
-
     # Find the Jou file where the statement is defined
     finding = stmt.method.containing_class_def if stmt.kind == AstStatementKind.MethodDef else stmt
     jou_file: JouFile* = NULL
@@ -221,7 +217,6 @@ def check_compile_time_assert(jou_file: JouFile*, location: Location, condition:
     if not evaluate_constant_expression(jou_file, condition, &c, bool_type()):
         fail(location, "cannot evaluate assertion at compile time")
     if c.get_type() != bool_type():
-
         snprintf(big_buffer, sizeof(big_buffer), "assertion must be a bool, not %s", c.get_type().name)
         fail(location, big_buffer)
     if not c.boolean:

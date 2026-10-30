@@ -79,7 +79,6 @@ def fail_with_type_not_found(location: Location, name: byte*) -> noreturn:
         case _:
             suggest = NULL
 
-
     if suggest == NULL:
         snprintf(big_buffer, sizeof(big_buffer), "there is no type named '%s'", name)
     else:
@@ -98,7 +97,6 @@ def fail_with_type_not_found(location: Location, name: byte*) -> noreturn:
 def handle_bad_generic(jou_file: JouFile*, generic: AstGenericType*, location: Location) -> Type*:
     assert generic != NULL
     name: byte* = generic.class_name
-
 
     item_type = find_and_typecheck_type(jou_file, name)
     if item_type == NULL:
@@ -128,8 +126,6 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
         for p = containing_class.classdata.generic_params.ptr; p < containing_class.classdata.generic_params.end(); p++:
             # Should be e.g. List[T], where T is a typevar
             assert (*p).kind == TypeKind.TypeVar
-
-
 
     match asttype.kind:
         case AstTypeKind.BuiltIn:
@@ -248,8 +244,6 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
 
 @public
 def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
-
-
     astsig = &ast.ast_signature
     sig = Signature{name = astsig.name, takes_varargs = astsig.takes_varargs}
     if ast.inline:

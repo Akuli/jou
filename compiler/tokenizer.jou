@@ -340,9 +340,8 @@ class Tokenizer:
                         c = self.read_hex_escape_byte()
                     case _:
                         if is_ascii_printable(after_backslash):
-                            message: byte* = malloc(100)
-                            sprintf(message, "unknown escape: '\\%c'", after_backslash)
-                            fail(self.location, message)
+                            sprintf(big_buffer, "unknown escape: '\\%c'", after_backslash)
+                            fail(self.location, big_buffer)
                         else:
                             fail(self.location, "unknown '\\' escape")
 
@@ -364,7 +363,6 @@ class Tokenizer:
         self.file_content_ptr++
 
         result = List[byte]{}
-
 
         while True:
             c = *self.file_content_ptr++
@@ -472,8 +470,6 @@ class Tokenizer:
         return result
 
     def handle_parentheses(self, token: Token*) -> None:
-
-
         if token.kind == TokenKind.EndOfFile and self.open_parens_len > 0:
             open_token = self.open_parens[0]
             actual_open = open_token.short_string[0]
@@ -543,7 +539,6 @@ class Tokenizer:
                         token.short_string = self.read_identifier()
                         token.kind = TokenKind.Keyword if is_keyword(token.short_string) else TokenKind.Name
                     else:
-
                         if is_ascii_printable(*self.file_content_ptr):
                             sprintf(big_buffer, "unexpected byte '%c' (%#02x)", *self.file_content_ptr, *self.file_content_ptr)
                         else:
@@ -625,7 +620,6 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
         file = fopen(path, "rb")
         if file == NULL:
             e = get_errno()  # will be used later, can change when we check if files exist etc
-
             if import_statement == NULL:
                 # File is not imported
                 snprintf(big_buffer, sizeof(big_buffer), "cannot open file: %s", strerror(get_errno()))

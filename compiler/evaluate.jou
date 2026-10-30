@@ -46,7 +46,6 @@ def evaluate_boolean_and_or(jou_file: JouFile*, expr: AstExpression*, and_or: by
 
     if value.kind != ConstantKind.Bool:
         # Use the same error message as typecheck
-
         snprintf(big_buffer, sizeof(big_buffer), "'%s' only works with bools, not %s", and_or, value.get_type().name)
         fail(expr.location, big_buffer)
 
@@ -69,8 +68,6 @@ def read_embedded_file(
     location: Location,
     embed_as_text: bool,
 ) -> List[byte]:
-
-
     # If I remember correctly, dirname() may modify the given path
     joufile_path = strdup(jou_file.path)
     assert joufile_path != NULL
@@ -128,8 +125,6 @@ def read_embedded_file(
 @public
 def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, result: Constant*, type_hint: Type*) -> bool:
     assert jou_file != NULL
-
-
 
     match expr.kind:
         case AstExpressionKind.IntegerConstant:

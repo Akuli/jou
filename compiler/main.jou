@@ -44,8 +44,6 @@ def fail_if_missing_main() -> None:
 
 
 def warn_about_unused() -> None:
-
-
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
             if stmt.kind == AstStatementKind.Import and not stmt.import_statement.used:
@@ -112,8 +110,6 @@ def check_if_class_member_is_duplicate(
     description: byte*,
     location: Location,
 ) -> None:
-
-
     for info = seen.ptr; info < seen.end(); info++:
         if strcmp(info.member_name, member_name) == 0:
             snprintf(big_buffer, sizeof(big_buffer), "class %s already has %s named '%s'", class_name, info.description, member_name)
@@ -167,8 +163,6 @@ def check_classes(body: List[AstStatement]) -> None:
 
 # TODO: test what this does for methods
 def check_duplicate_defining(symbol_statements: List[AstStatement*]) -> None:
-
-
     for p1 = symbol_statements.ptr; p1 < symbol_statements.end(); p1++:
         for p2 = &p1[1]; p2 < symbol_statements.end(); p2++:
             if strcmp((*p1).symbol().name, (*p2).symbol().name) == 0:
@@ -271,7 +265,6 @@ def tokenize_and_parse_all_files() -> None:
 def make_imported_statements_available() -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Making imported statements available...\n")
-
 
     seen_before = List[JouFile*]{}
 

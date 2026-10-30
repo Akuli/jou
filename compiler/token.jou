@@ -101,9 +101,6 @@ class Token:
 
     @public
     def fail_expected_got(self, what_was_expected_instead: byte*) -> noreturn:
-        expected = strdup(what_was_expected_instead)
-        assert expected != NULL
-
         match self.kind:
             case TokenKind.Integer:
                 snprintf(big_buffer, sizeof(big_buffer), "expected %s, got an integer", expected)
@@ -141,7 +138,7 @@ class Token:
                 )
             case TokenKind.EndOfFile:
                 snprintf(big_buffer, sizeof(big_buffer), "expected %s, got end of file", expected)
-        free(expected)
+
         fail(self.location, big_buffer)
 
 

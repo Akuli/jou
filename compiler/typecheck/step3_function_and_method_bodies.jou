@@ -200,7 +200,6 @@ def ensure_can_take_address(fom: AstFunctionOrMethod*, expr: AstExpression*, err
     ):
         return
 
-
     desc = short_expression_description(expr)
     errmsg_template_copy = strdup(errmsg_template)
     assert errmsg_template_copy != NULL
@@ -312,8 +311,6 @@ def do_explicit_cast(fom: AstFunctionOrMethod*, expr: AstExpression*, to: Type*,
     assert expr.types.implicit_cast_type == expr.types.orig_type
     from = expr.types.orig_type
 
-
-
     if not can_cast_explicitly(from, to):
         if from.is_integer_type() and to == bool_type():
             snprintf(big_buffer, sizeof(big_buffer), "cannot cast from type %s to %s (try using '!= 0' instead)", from.name, to.name)
@@ -333,7 +330,6 @@ def typecheck_expression_not_void(state: State*, expr: AstExpression*, type_hint
 
     # Should be function/method call that returns None
     assert expr.kind == AstExpressionKind.Call
-
 
     if expr.call.signature_if_known == NULL:
         snprintf(big_buffer, sizeof(big_buffer), "%s does not return a value", expr.call.function_or_method())
@@ -441,8 +437,6 @@ def check_binop(
     lhs: AstExpression*,
     rhs: AstExpression*,
 ) -> Type*:
-
-
     assert lhs.types.orig_type != NULL
     assert rhs.types.orig_type != NULL
 
@@ -601,7 +595,6 @@ def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
 
     t = typecheck_expression_not_void(state, &expr.operands[0], NULL)
     if not t.is_number_type() and t.kind != TypeKind.Pointer:
-
         snprintf(big_buffer, sizeof(big_buffer), bad_type_fmt, t.name)
         fail(expr.location, big_buffer)
 
@@ -612,7 +605,6 @@ def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
 def typecheck_dereferenced_pointer(location: Location, t: Type*) -> None:
     # TODO: improved error message for dereferencing void*
     if t.kind != TypeKind.Pointer:
-
         snprintf(big_buffer, sizeof(big_buffer), "the dereference operator '*' is only for pointers, not for %s", t.name)
         fail(location, big_buffer)
 
@@ -623,8 +615,6 @@ def typecheck_indexing(
     ptrexpr: AstExpression*,
     indexexpr: AstExpression*,
 ) -> Type*:
-
-
     orig_type = typecheck_expression_not_void(state, ptrexpr, NULL)
     match orig_type.kind:
         case TypeKind.Pointer:
@@ -659,8 +649,6 @@ def typecheck_and_or(
     and_or: byte*,
 ) -> None:
     assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
-
-
     snprintf(big_buffer, sizeof(big_buffer), "'%s' only works with bools, not <from>", and_or)
 
     typecheck_expression_with_implicit_cast(state, lhsexpr, bool_type(), big_buffer)
@@ -669,8 +657,6 @@ def typecheck_and_or(
 
 # This handles e.g. the things to format in printf().
 def typecheck_vararg(state: State*, expr: AstExpression*, what_we_calling: byte*) -> None:
-
-
     t = typecheck_expression_not_void(state, expr, NULL)
     if t.kind == TypeKind.Array:
         cast_array_to_pointer(state.fom, expr)
@@ -719,8 +705,6 @@ def fail_with_method_not_found(
     assert class_ast != NULL
     assert class_ast.kind == AstStatementKind.Class
 
-
-
     # Is the method in the class definition?
     for stmt = class_ast.classdef.body.ptr; stmt < class_ast.classdef.body.end(); stmt++:
         if (
@@ -766,7 +750,6 @@ def fail_with_method_not_found(
 def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Type*:
     assert call.function != NULL
     func_location = call.function.location
-
 
     # Let's type-check `obj` and go from there.
     obj = call.function.class_field.instance
@@ -832,8 +815,6 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
 
 # returns NULL if the function doesn't return anything
 def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
-
-
     assert call.signature_if_known == NULL
 
     if call.function.kind == AstExpressionKind.DotOperator:
@@ -962,8 +943,6 @@ def typecheck_class_field(
     if f != NULL:
         return f
 
-
-
     # TODO: When trying to treat an unavailable private method as a field, this
     #       error message should say "is a method", not "has no field". One way
     #       to fix this could be to pass in the Jou file where the class has
@@ -978,8 +957,6 @@ def typecheck_class_field(
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
     t = type_from_ast(state.jou_file, state.fom.symbol.signature.get_self_class(), &inst.type)
-
-
 
     if t.kind != TypeKind.Class:
         snprintf(
@@ -1121,7 +1098,6 @@ def cast_ternary_values_to_a_common_type(
             t = NULL
 
     if t == NULL:
-
         snprintf(big_buffer, sizeof(big_buffer), "ternary values must be of the same type (got %s and %s)", t1.name, t2.name)
         fail(ternary_location, big_buffer)
 
@@ -1170,7 +1146,6 @@ def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
             # TODO: Currently this cannot happen. Built-in types like "int" are
             # keywords so that they cannot appear as expressions. A test should
             # be added if this becomes possible in the future.
-
             snprintf(
                 big_buffer, sizeof(big_buffer),
                 "type '%s' has no members because it is not a class or an enum",
@@ -1187,7 +1162,6 @@ def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
 
 
 def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) -> None:
-
     result: Type* = NULL
 
     detect_enum_member_syntax(state, expr)
@@ -1506,7 +1480,6 @@ def typecheck_if_statement(state: State*, ifstmt: AstIfStatement*) -> None:
 
 
 def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> None:
-
     sig_string: byte* = NULL
     remaining: byte** = NULL
     nremaining: intnative = -1
@@ -1619,8 +1592,6 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
 
 
 def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
-
-
     match stmt.kind:
         case AstStatementKind.If:
             typecheck_if_statement(state, &stmt.if_statement)
