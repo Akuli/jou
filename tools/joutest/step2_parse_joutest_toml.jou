@@ -43,7 +43,7 @@ def condition_is_true(c: Condition) -> bool:
 def if_condition_is_true(toml: TOML*) -> bool:
     condition = toml_to_string(toml)
     if condition == NULL:
-        # TODO: test this error
+        # TODO(AI): test this error
         fail_in_toml(toml.lineno, "'if' condition must be a string")
 
     match condition with strcmp:
@@ -58,7 +58,7 @@ def if_condition_is_true(toml: TOML*) -> bool:
         case "IS_32BIT":
             return IS_32BIT
         case _:
-            # TODO: test this error
+            # TODO(AI): test this error
             error: byte[200]
             snprintf(error, sizeof(error), "unsupported 'if' condition: %s", condition)
             fail_in_toml(toml.lineno, error)
@@ -79,7 +79,7 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
                     then_value = toml_get(toml, "then")
                     else_value = toml_get(toml, "else")
                     if then_value == NULL or else_value == NULL:
-                        # TODO: test this error
+                        # TODO(AI): test this error
                         fail_in_toml(toml.lineno, "if/then/else tables must contain 'if', 'then' and 'else'")
 
                     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
@@ -88,7 +88,7 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
                             and strcmp(kv.key, "then") != 0
                             and strcmp(kv.key, "else") != 0
                         ):
-                            # TODO: test this error
+                            # TODO(AI): test this error
                             snprintf(error, sizeof(error), "unknown setting '%s' in an if/then/else table", kv.key)
                             fail_in_toml(kv.value.lineno, error)
 
