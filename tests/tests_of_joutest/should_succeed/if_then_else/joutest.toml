@@ -2,6 +2,10 @@
 files = "hello.jou"
 command = {if = "WINDOWS", then = ["cmd", "/c", "echo hello"], else = ["echo", "hello"]}
 
-# Output: .
+[[tests]]
+files = {if = "NETBSD", then = "netbsd_condition.jou", else = "netbsd_condition.jou"}
+command = {if = "WINDOWS", then = ["cmd", "/c", "echo hello"], else = ["echo", "hello"]}
+
+# Output: ..
 # Output:
-# Output: 1 succeeded
+# Output: 2 succeeded
