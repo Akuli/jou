@@ -532,9 +532,11 @@ def check_binop(
     ):
         assert sizeof(msg) > 100
         snprintf(msg, sizeof(msg) - 100, "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
-        if ltype.is_pointer_type() and rtype.is_number_type() and op == AstExpressionKind.Add:
+        # These suggestions don't apply to 8-bit types, so that if someone tries to use +
+        # for concatenation like "jo" + 'u', that won't be misleading
+        if ltype.is_pointer_type() and rtype.is_number_type() and rtype.size_in_bits >= 16 and op == AstExpressionKind.Add:
             strcat(msg, " (try &pointer[index] instead of pointer + index)")
-        if ltype.is_pointer_type() and rtype.is_number_type() and op == AstExpressionKind.Sub:
+        if ltype.is_pointer_type() and rtype.is_number_type() and rtype.size_in_bits >= 16 and op == AstExpressionKind.Sub:
             strcat(msg, " (try &pointer[-index] instead of pointer - index)")
         fail(location, msg)
 
