@@ -98,7 +98,7 @@ I would recommend Jou for:
 
 ## Tutorials
 
-To get started with Jou, there are two introducion documents to choose from:
+There are two tutorials:
 - [Jou tutorial](./doc/tutorial.md) is aimed at people new to low-level languages.
 - [Jou tutorial for C programmers](./doc/tutorial-c.md) gives you a quick start to Jou if you already know C.
 
