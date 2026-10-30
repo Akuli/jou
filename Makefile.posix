@@ -54,9 +54,6 @@ config.jou: Makefile.posix
 	printf 'const JOU_TARGET: byte* = "%s"\n' "`$(LLVM_CONFIG) --host-target | { { uname -mp | grep -q armv6; } && sed -e 's/^arm-/armv6-/'; }`" >> config.jou
 
 
-jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou
-	./bootstrap.sh
-
 COMPILER_SOURCES != echo compiler/*.jou compiler/*/*.jou
 JOUTEST_SOURCES != echo tools/joutest/*.jou
 
