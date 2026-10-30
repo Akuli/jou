@@ -3,7 +3,7 @@ files = "markdown_file.md"
 
 [[tests]]
 files = "code_replaced_by_hello.md"
-command = {windows = ["cmd", "/c", "echo hello"], default = ["echo", "hello"]}
+command = {if = "WINDOWS", then = ["cmd", "/c", "echo hello"], else = ["echo", "hello"]}
 
 # Output: ...
 # Output:

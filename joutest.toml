@@ -30,8 +30,9 @@ expected_exit_code = 1
 [[tests]]
 files = "tests/tests_of_joutest/bad_configs/command_not_found/joutest.toml"
 command = {
-    windows = ['cmd', '/c', '..\..\..\..\joutest --no-colors | ..\..\..\..\jou windows_output_hack.jou'],
-    default = ['joutest', '--no-colors'],
+    if = "WINDOWS",
+    then = ['cmd', '/c', '..\..\..\..\joutest --no-colors | ..\..\..\..\jou windows_output_hack.jou'],
+    else = ['joutest', '--no-colors'],
 }
 
 ###############################
@@ -73,6 +74,7 @@ files = [
 command = {
     # Apparently ver>nul is the Windows cmd equivalent of "true".
     # https://stackoverflow.com/a/47318952
-    windows = ["cmd", "/c", 'jou --stdin-name {file} - || ver>nul'],
-    default = ["sh", "-c", "jou --stdin-name {file} - || true"],
+    if = "WINDOWS",
+    then = ["cmd", "/c", 'jou --stdin-name {file} - || ver>nul'],
+    else = ["sh", "-c", "jou --stdin-name {file} - || true"],
 }
