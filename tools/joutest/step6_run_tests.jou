@@ -382,7 +382,6 @@ if WINDOWS:
                     case _:
                         fail_with_windows_error("WriteFile() failed", GetLastError())
 
-        output_buf: byte[1024]
         if run_state.test.uses_output_capturing:
             output_overlapped.hEvent = CreateEventA(NULL, True as int, False as int, NULL)
             assert output_overlapped.hEvent != INVALID_HANDLE_VALUE
@@ -390,7 +389,7 @@ if WINDOWS:
                 fail_with_windows_error("CreateEventA() failed", GetLastError())
 
             # Start reading output
-            if ReadFile(run_state.output_pipe_read, output_buf, sizeof(output_buf) as uint32, &dummy, &output_overlapped) == 0:
+            if ReadFile(run_state.output_pipe_read, big_buffer, sizeof(big_buffer) as uint32, &dummy, &output_overlapped) == 0:
                 match GetLastError():
                     case ERROR_IO_PENDING:  # No more output yet, we get it later
                         pass
@@ -466,7 +465,7 @@ if WINDOWS:
                         case _:
                             fail_with_windows_error("GetOverlappedResult() failed when reading output of test", GetLastError())
 
-                assert bytes_read <= sizeof(output_buf)
+                assert bytes_read <= sizeof(big_buffer)
                 if bytes_read == 0:
                     CloseHandle(output_overlapped.hEvent)
                     output_overlapped.hEvent = INVALID_HANDLE_VALUE
@@ -474,7 +473,7 @@ if WINDOWS:
                     run_state.output_pipe_read = INVALID_HANDLE_VALUE
                 else:
                     for i = 0; i < bytes_read; i++:
-                        add_output_byte(run_state, output_buf[i])
+                        add_output_byte(run_state, big_buffer[i])
 
                     # Reset the event, zero out everything else
                     output_overlapped = OVERLAPPED{hEvent = output_overlapped.hEvent}
@@ -482,7 +481,7 @@ if WINDOWS:
                         fail_with_windows_error("ResetEvent() failed", GetLastError())
 
                     # Read more data
-                    if ReadFile(run_state.output_pipe_read, output_buf, sizeof(output_buf) as uint32, &dummy, &output_overlapped) == 0:
+                    if ReadFile(run_state.output_pipe_read, big_buffer, sizeof(big_buffer) as uint32, &dummy, &output_overlapped) == 0:
                         match GetLastError():
                             case ERROR_IO_PENDING:  # No more output yet, we get it later
                                 pass
@@ -688,9 +687,8 @@ else:
 
                 if p.revents & POLLIN != 0:
                     assert p.fd == run_state.output_pipe_read
-                    output_buf: byte[1024]
 
-                    n = read(p.fd, output_buf, sizeof(output_buf))
+                    n = read(p.fd, big_buffer, sizeof(big_buffer))
                     if n < 0:  # TODO: retry on EINTR
                         fail_with_errno("read() failed", get_errno())
                     elif n == 0:
@@ -699,7 +697,7 @@ else:
                         run_state.output_pipe_read = -1
                     else:
                         for i = 0; i < n; i++:
-                            add_output_byte(run_state, output_buf[i])
+                            add_output_byte(run_state, big_buffer[i])
 
                 elif p.revents & POLLOUT != 0:
                     assert p.fd == run_state.input_pipe_write

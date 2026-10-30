@@ -69,9 +69,6 @@ def parse_comment_from_line(test: Test*, lineno: int, line: byte*) -> Comment:
     return Comment{}
 
 
-global big_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
-
-
 def parse_comments(test: Test*) -> List[Comment]:
     comments = List[Comment]{}
     lineno = 1
@@ -80,9 +77,8 @@ def parse_comments(test: Test*) -> List[Comment]:
         f = fopen(test.path, "rb")
         if f == NULL:
             e = get_errno()
-            message: byte[300]
-            snprintf(message, sizeof(message), "reading expected output from '%s' failed", test.path)
-            fail_with_errno(message, e)
+            snprintf(big_buffer, sizeof(big_buffer), "reading expected output from '%s' failed", test.path)
+            fail_with_errno(big_buffer, e)
 
         while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
             big_buffer[strcspn(big_buffer, "\r\n")] = '\0'
