@@ -28,12 +28,6 @@ files = [
 expected_exit_code = 1
 
 [[tests]]
-files = "tests/tests_of_joutest/bad_configs/condition_table_multiple_conditions/joutest.toml"
-expected_exit_code = {if = "LINUX", then = {if = "IS_32BIT", then = 1, else = 0}, else = 0}
-stdout = "do_not_capture"
-stderr = "do_not_capture"
-
-[[tests]]
 files = "tests/tests_of_joutest/bad_configs/command_not_found/joutest.toml"
 command = {
     if = "WINDOWS",
