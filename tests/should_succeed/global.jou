@@ -7,9 +7,17 @@ global z = 200
 global int_array = [10, 20, 30]
 global int16_array: int16[3] = [40, 50, 60]
 global string_array = ["hello", "world"]
+global legacy_global: int = 123
 #global arraystring_array: byte[10][2] = ["hello", "world"]  # TODO: doesn't work
+global method_counter: int
 
 def increment_all() -> None:
+    global y
+    global z
+    global int16_array
+    global int_array
+    global string_array
+    global x
     x++
     y++
     z++
@@ -18,7 +26,26 @@ def increment_all() -> None:
     string_array[1]++
     #arraystring_array[1][2]++  # TODO
 
+def read_legacy_global() -> int:
+    return legacy_global + legacy_global  # Warning: please add a 'global legacy_global' statement inside the read_legacy_global() function, this will be required in a future version of the Jou compiler
+
+def unused_function_global() -> None:
+    global y  # Warning: 'global y' is unnecessary because this function doesn't use 'y'
+
+class GlobalAccess:
+    def increment(self) -> None:
+        global method_counter
+        method_counter++
+
+    def unused_global(self) -> None:
+        global legacy_global  # Warning: 'global legacy_global' is unnecessary because this method doesn't use 'legacy_global'
+
 def main() -> int:
+    global x, y, z
+    global int16_array
+    global int_array
+    global string_array
+    global method_counter
     printf("%d %d %d\n", x, y, z)  # Output: 0 100 200
     increment_all()
     printf("%d %d %d\n", x, y, z)  # Output: 1 101 201
@@ -28,6 +55,16 @@ def main() -> int:
     printf("%d %d %d\n", int_array[0], int_array[1], int_array[2])  # Output: 12 20 30
     printf("%d %d %d\n", int16_array[0], int16_array[1], int16_array[2])  # Output: 42 50 60
     printf("%s %s\n", string_array[0], string_array[1])  # Output: hello rld
+    printf("%d\n", read_legacy_global())  # Output: 246
     #printf("%s %s\n", arraystring_array[0], arraystring_array[1])  # TODO
+
+    access = GlobalAccess{}
+    access.increment()
+    access.increment()
+    printf("%d\n", method_counter)  # Output: 2
+
+    # Prevent compiler warning for function/method defined but not used
+    unused_function_global()
+    access.unused_global()
 
     return 0

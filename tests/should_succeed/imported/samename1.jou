@@ -4,11 +4,13 @@ declare global the_counter: int
 const internal_num: int = 1
 
 def internal() -> None:
+    global value, the_counter
     value *= 9 + internal_num
     the_counter++
 
 @public
 def public_func_1() -> int:
+    global value
     value = 1
     internal()
     return value

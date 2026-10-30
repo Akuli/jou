@@ -5,6 +5,8 @@ global hello3 = embed_binary_file("../data/hellohellohello.txt")
 global zeros = embed_binary_file("../data/zeros.bin")
 
 def main() -> int:
+    global hello3, zeros
+
     # Type of hello3 should be byte[15]
     assert array_count(hello3) == 15
     assert sizeof(hello3) == 15
