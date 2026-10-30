@@ -364,7 +364,6 @@ Everything else is optional.
     - `stdout` and `stderr` (default: `"compare_to_comments"`) define what happens to text printed by the test. The valid values are:
         - `"compare_to_comments"` means that
             `joutest` captures the output and compares it to [output comments](#output-comments).
-            Output comments are ignored entirely if neither `stdout` nor `stderr` is set to `"compare_to_comments"`.
         - `"do_not_capture"` passes the output (if any) to the terminal as is among all the things that `joutest` itself prints.
         - `"discard"` throws away the output entirely.
             This is similar to redirecting the output to [/dev/null or NUL](https://en.wikipedia.org/wiki/Null_device).
