@@ -242,7 +242,7 @@ Note that the file name and line number in the error message correctly point to 
 The command and input that `joutest` uses are set up to do exactly that.
 
 
-## Platform-Specific Settings
+## If/then/else tables
 
 Let's say that for whatever reason, you have separate test files
 for Windows and for other operating systems.
@@ -257,7 +257,7 @@ files = {
 }
 ```
 
-The `if` value can be any [built-in Jou boolean constant](supported-platforms.md#built-in-constants),
+The `if` value can be any [built-in Jou boolean constant](supported-platforms.md#built-in-constants) as a string,
 and `then` and `else` are the values to be used.
 So on Windows, the above is equivalent to:
 
@@ -266,11 +266,29 @@ So on Windows, the above is equivalent to:
 files = "windows_tests/test_*.jou"
 ```
 
+You can also nest multiple `if` tables:
+
+```toml
+[[tests]]
+files = {
+    if = "WINDOWS",
+    then = "windows_tests/test_*.jou",
+    else = {
+        if = "MACOS",
+        then = "macos_tests/test_*.jou",
+        else = "posix_tests/test_*.jou",
+    },
+}
+```
+
 
 ## Condition Tables
 
 > [!NOTE]
-> Condition tables are deprecated. They still work, but joutest shows a warning. Just use `{if = ..., then = ..., else = ...}` instead as shown above.
+> Condition tables are deprecated.
+> They still work, but joutest shows a warning if you use them,
+> and support for condition tables will be removed in the future.
+> Consider using if/then/tables instead as shown above.
 
 In `joutest.toml`, **any TOML table with a `default` key is a condition table.**
 Before `joutest` looks up any settings from `joutest.toml`,
@@ -290,7 +308,7 @@ On Windows, the above is equivalent to:
 files = "windows_tests/test_*.jou"
 ```
 
-The following keys can be used in legacy condition tables:
+The following keys can be used in condition tables:
 - `windows`
 - `macos`
 - `linux`
