@@ -3,6 +3,7 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "./fail.jou"
+import "./state.jou"
 
 
 @public
@@ -54,14 +55,14 @@ def validate_format_string_in_toml(
 ) -> None:
     assert format != NULL
     if not format_string_is_valid(format, allowed):
-        error: byte[1000] = "braces are allowed only for "
-        assert sizeof(error) >= 2*(100 + 15*enum_count(FormatParam))  # easily big enough
+        assert sizeof(big_buffer) >= 2*(100 + 15*enum_count(FormatParam))  # easily big enough
+        strcpy(big_buffer, "braces are allowed only for ")
         for i = 0; i < enum_count(FormatParam); i++:
             if allowed[i]:
-                strcat(error, PLACEHOLDERS[i])
-                strcat(error, ", ")
-        strcat(error, "{{ and }} (repeating the braces escapes them)")
-        fail_in_toml(error_lineno, error)
+                strcat(big_buffer, PLACEHOLDERS[i])
+                strcat(big_buffer, ", ")
+        strcat(big_buffer, "{{ and }} (repeating the braces escapes them)")
+        fail_in_toml(error_lineno, big_buffer)
 
 
 @public

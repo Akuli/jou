@@ -3,6 +3,12 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 
+# Advantage: easy to format error messages and other temporary things
+# Disadvantage: easy to get overlapping snprintf() if two functions use this and call each other
+@public
+global big_buffer: byte[1_000_000]
+
+
 @public
 class CommandLineArgs:
     verbose: bool

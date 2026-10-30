@@ -88,12 +88,11 @@ def figure_out_which_tests_succeeded_before(tests: List[Test]) -> None:
         return
 
     file_content = List[byte]{}
-    buf: byte[4096]
     while True:
-        n = fread(buf, 1, array_count(buf), f)
+        n = fread(big_buffer, 1, array_count(big_buffer), f)
         if n == 0:
             break
-        file_content.extend_from_ptr(buf, n)
+        file_content.extend_from_ptr(big_buffer, n)
     fclose(f)
     file_content.append('\0')
 

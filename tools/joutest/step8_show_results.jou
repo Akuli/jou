@@ -32,7 +32,7 @@ def show_failures(tests: List[Test]) -> None:
         if test.start_error != 0:
             printf("Process failed to start: ")
             if WINDOWS:
-                message: byte[500] = windows_error_to_string(test.start_error as uint32)
+                message = windows_error_to_string(test.start_error as uint32)
                 puts(message)
             else:
                 puts(strerror(test.start_error))
