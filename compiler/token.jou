@@ -1,4 +1,3 @@
-import "stdlib/assert.jou"
 import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
@@ -100,7 +99,7 @@ class Token:
         return self.is_operator(")") or self.is_operator("]") or self.is_operator("}")
 
     @public
-    def fail_expected_got(self, what_was_expected_instead: byte*) -> noreturn:
+    def fail_expected_got(self, expected: byte*) -> noreturn:
         match self.kind:
             case TokenKind.Integer:
                 snprintf(big_buffer, sizeof(big_buffer), "expected %s, got an integer", expected)
