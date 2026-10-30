@@ -246,7 +246,7 @@ The command and input that `joutest` uses are set up to do exactly that.
 
 Let's say that for whatever reason, you have separate test files
 for Windows and for other operating systems.
-Here's how you can specify that in `joutest.toml`:
+Here's how you would set that up in `joutest.toml`:
 
 ```toml
 [[tests]]
@@ -257,35 +257,45 @@ files = {
 }
 ```
 
-The `if` value names a platform condition, and `then` and `else` are the values
-to use when it is true or false. The supported conditions are `"WINDOWS"`,
-`"MACOS"`, `"LINUX"`, and `"IS_32BIT"`. For example, on Windows the above is
-equivalent to:
+The `if` value can be any [built-in Jou boolean constant](supported-platforms.md#built-in-constants),
+and `then` and `else` are the values to be used.
+So on Windows, the above is equivalent to:
 
 ```toml
 [[tests]]
 files = "windows_tests/test_*.jou"
 ```
 
-### Legacy condition tables
 
-The older syntax remains supported, but using it emits a deprecation warning.
-In this syntax, any TOML table with a `default` key is a condition table.
+## Condition Tables
+
+> [!NOTE]
+> Condition tables are deprecated. They still work, but joutest shows a warning. Just use `{if = ..., then = ..., else = ...}` instead as shown above.
+
+In `joutest.toml`, **any TOML table with a `default` key is a condition table.**
+Before `joutest` looks up any settings from `joutest.toml`,
+it replaces each condition table with one of its values.
+
+For example, consider this:
 
 ```toml
 [[tests]]
 files = {windows = "windows_tests/test_*.jou", default = "posix_tests/test_*.jou"}
 ```
 
-The following keys can be used in legacy condition tables:
+On Windows, the above is equivalent to:
 
-| Key       | When is the value used?                           |
-|-----------|---------------------------------------------------|
-| `windows` | `joutest` is running on Windows                   |
-| `macos`   | `joutest` is running on MacOS                     |
-| `linux`   | `joutest` is running on Linux                     |
-| `32bit`   | `joutest` is running on a 32-bit operating system |
-| `default` | nothing else matches                              |
+```toml
+[[tests]]
+files = "windows_tests/test_*.jou"
+```
+
+The following keys can be used in legacy condition tables:
+- `windows`
+- `macos`
+- `linux`
+- `32bit`
+- `default` (used when nothing else matches)
 
 If multiple different keys match,
 `joutest` will fail with an error and refuse to run any tests.
@@ -318,8 +328,6 @@ files = {
     },
 }
 ```
-
-These nested examples also use the legacy syntax and emit a warning.
 
 
 ## Content of `joutest.toml`
