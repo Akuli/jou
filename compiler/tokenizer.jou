@@ -12,6 +12,7 @@ import "stdlib/errno.jou"
 import "stdlib/ascii.jou"
 
 import "./ast.jou"
+import "./big_buffer.jou"
 import "./errors_and_warnings.jou"
 import "./state.jou"
 import "./token.jou"
@@ -246,8 +247,8 @@ class Tokenizer:
 
         result: byte[100]
         if len >= sizeof(result):
-            sprintf(result, "name is too long: %.20s...", self.file_content_ptr)
-            fail(self.location, result)
+            sprintf(big_buffer, "name is too long: %.20s...", self.file_content_ptr)
+            fail(self.location, big_buffer)
 
         memcpy(result, self.file_content_ptr, len)
         result[len] = '\0'
@@ -266,8 +267,8 @@ class Tokenizer:
 
         result: byte[100]
         if len >= sizeof(result):
-            sprintf(result, "number is too long: %.20s...", self.file_content_ptr)
-            fail(self.location, result)
+            sprintf(big_buffer, "number is too long: %.20s...", self.file_content_ptr)
+            fail(self.location, big_buffer)
 
         memcpy(result, self.file_content_ptr, len)
         result[len] = '\0'
@@ -363,7 +364,7 @@ class Tokenizer:
         self.file_content_ptr++
 
         result = List[byte]{}
-        msg: byte[100]
+
 
         while True:
             c = *self.file_content_ptr++
@@ -404,10 +405,10 @@ class Tokenizer:
                             self.location.lineno++
                         case _:
                             if is_ascii_printable(after_backslash):
-                                snprintf(msg, sizeof(msg), "unknown escape: '\\%c'", after_backslash)
+                                snprintf(big_buffer, sizeof(big_buffer), "unknown escape: '\\%c'", after_backslash)
                             else:
-                                msg = "unknown '\\' escape"
-                            fail(self.location, msg)
+                                strcpy(big_buffer, "unknown '\\' escape")
+                            fail(self.location, big_buffer)
                 case _:
                     result.append(c)
 
@@ -471,14 +472,14 @@ class Tokenizer:
         return result
 
     def handle_parentheses(self, token: Token*) -> None:
-        msg: byte[100]
+
 
         if token.kind == TokenKind.EndOfFile and self.open_parens_len > 0:
             open_token = self.open_parens[0]
             actual_open = open_token.short_string[0]
             expected_close = flip_paren(actual_open)
-            snprintf(msg, sizeof(msg), "'%c' without a matching '%c'", actual_open, expected_close)
-            fail(open_token.location, msg)
+            snprintf(big_buffer, sizeof(big_buffer), "'%c' without a matching '%c'", actual_open, expected_close)
+            fail(open_token.location, big_buffer)
 
         if token.is_open_paren():
             if self.open_parens_len == array_count(self.open_parens):
@@ -489,8 +490,8 @@ class Tokenizer:
             actual_close = token.short_string[0]
             expected_open = flip_paren(actual_close)
             if self.open_parens_len == 0 or self.open_parens[--self.open_parens_len].short_string[0] != expected_open:
-                snprintf(msg, sizeof(msg), "'%c' without a matching '%c'", actual_close, expected_open)
-                fail(token.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "'%c' without a matching '%c'", actual_close, expected_open)
+                fail(token.location, big_buffer)
 
     def read_token(self) -> Token:
         while True:
@@ -542,12 +543,12 @@ class Tokenizer:
                         token.short_string = self.read_identifier()
                         token.kind = TokenKind.Keyword if is_keyword(token.short_string) else TokenKind.Name
                     else:
-                        message: byte[100]
+
                         if is_ascii_printable(*self.file_content_ptr):
-                            sprintf(message, "unexpected byte '%c' (%#02x)", *self.file_content_ptr, *self.file_content_ptr)
+                            sprintf(big_buffer, "unexpected byte '%c' (%#02x)", *self.file_content_ptr, *self.file_content_ptr)
                         else:
-                            sprintf(message, "unexpected byte %#02x", *self.file_content_ptr)
-                        fail(self.location, message)
+                            sprintf(big_buffer, "unexpected byte %#02x", *self.file_content_ptr)
+                        fail(self.location, big_buffer)
 
             self.handle_parentheses(&token)
             return token
@@ -624,11 +625,11 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
         file = fopen(path, "rb")
         if file == NULL:
             e = get_errno()  # will be used later, can change when we check if files exist etc
-            message: byte[200]
+
             if import_statement == NULL:
                 # File is not imported
-                snprintf(message, sizeof(message), "cannot open file: %s", strerror(get_errno()))
-                fail(Location{path=path}, message)
+                snprintf(big_buffer, sizeof(big_buffer), "cannot open file: %s", strerror(get_errno()))
+                fail(Location{path=path}, big_buffer)
             if not ends_with(path, ".jou"):
                 # e.g. import "stdlib/io"
                 fixed_path: byte* = NULL
@@ -637,15 +638,15 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
                 file = fopen(fixed_path, "rb")
                 if file != NULL:
                     snprintf(
-                        message,
-                        sizeof(message),
+                        big_buffer,
+                        sizeof(big_buffer),
                         "use \"%s.jou\" instead of \"%s\"",
                         import_statement.import_statement.specified_path,
                         import_statement.import_statement.specified_path,
                     )
-                    fail(import_statement.location, message)
-            snprintf(message, sizeof(message), "cannot import from \"%s\": %s", path, strerror(e))
-            fail(import_statement.location, message)
+                    fail(import_statement.location, big_buffer)
+            snprintf(big_buffer, sizeof(big_buffer), "cannot import from \"%s\": %s", path, strerror(e))
+            fail(import_statement.location, big_buffer)
 
     bytes_list = List[byte]{}
 
@@ -746,9 +747,9 @@ def detect_bad_chars(path: byte*, file_content: byte*) -> None:
         for p = file_content; p < first_bad_ptr; p++:
             if *p == '\n':
                 lineno++
-        msg: byte[200]
-        snprintf(msg, sizeof(msg), "source file contains Unicode whitespace character U+%08X %s", first_bad.codepoint, first_bad.name)
-        fail(Location{path = path, lineno = lineno}, msg)
+
+        snprintf(big_buffer, sizeof(big_buffer), "source file contains Unicode whitespace character U+%08X %s", first_bad.codepoint, first_bad.name)
+        fail(Location{path = path, lineno = lineno}, big_buffer)
 
 
 @public

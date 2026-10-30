@@ -7,6 +7,7 @@ import "stdlib/mem.jou"
 
 import "./uvg.jou"
 import "./types.jou"
+import "./big_buffer.jou"
 import "./errors_and_warnings.jou"
 
 
@@ -101,30 +102,30 @@ def handle_missing_return_statement(uvg: Uvg*, use_of_the_special_return_variabl
         sig = use_of_the_special_return_variable.inlining_signature
         prefix = "inlined "
 
-    msg: byte[500]
+
     if n == 0:
         # There are no return statements. Tell user to add them and why they are needed.
         snprintf(
-            msg,
-            sizeof(msg),
+            big_buffer,
+            sizeof(big_buffer),
             "%s%s '%s' must return a value, because it is defined with '-> %s'",
             prefix,
             sig.function_or_method(),
             sig.name,
             sig.return_type.name,
         )
-        fail(use_of_the_special_return_variable.location, msg)
+        fail(use_of_the_special_return_variable.location, big_buffer)
     else:
         # There are some return statements but they don't cover all cases.
         snprintf(
-            msg,
-            sizeof(msg),
+            big_buffer,
+            sizeof(big_buffer),
             "%s%s '%s' doesn't seem to return a value in all cases",
             prefix,
             sig.function_or_method(),
             sig.name,
         )
-        show_warning(use_of_the_special_return_variable.location, msg)
+        show_warning(use_of_the_special_return_variable.location, big_buffer)
 
 
 def show_undefined_variable_warning(ins: UvgInstruction*, varname: byte*, sure: bool) -> None:
@@ -133,13 +134,13 @@ def show_undefined_variable_warning(ins: UvgInstruction*, varname: byte*, sure: 
     else:
         what_we_say = "may be undefined"
 
-    msg: byte[500]
+
     if ins.inlining_signature == NULL:
-        snprintf(msg, sizeof(msg), "the value of '%s' %s", varname, what_we_say)
+        snprintf(big_buffer, sizeof(big_buffer), "the value of '%s' %s", varname, what_we_say)
     else:
         snprintf(
-            msg,
-            sizeof(msg),
+            big_buffer,
+            sizeof(big_buffer),
             "the value of '%s' inside inlined %s '%s' %s",
             varname,
             ins.inlining_signature.function_or_method(),
@@ -147,7 +148,7 @@ def show_undefined_variable_warning(ins: UvgInstruction*, varname: byte*, sure: 
             what_we_say,
         )
 
-    show_warning(ins.location, msg)
+    show_warning(ins.location, big_buffer)
 
 
 def update_statuses_based_on_instructions(uvg: Uvg*, statuses: uint8*, block: UvgBlock*, warn: bool) -> None:

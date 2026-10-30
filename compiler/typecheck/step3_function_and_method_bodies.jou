@@ -18,6 +18,7 @@ import "stdlib/mem.jou"
 
 import "../ast.jou"
 import "../state.jou"
+import "../big_buffer.jou"
 import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../evaluate.jou"
@@ -199,10 +200,13 @@ def ensure_can_take_address(fom: AstFunctionOrMethod*, expr: AstExpression*, err
     ):
         return
 
-    msg: byte[500]
+
     desc = short_expression_description(expr)
-    snprintf(msg, sizeof(msg), errmsg_template, desc)
-    fail(expr.location, msg)
+    errmsg_template_copy = strdup(errmsg_template)
+    assert errmsg_template_copy != NULL
+    snprintf(big_buffer, sizeof(big_buffer), errmsg_template_copy, desc)
+    free(errmsg_template_copy)
+    fail(expr.location, big_buffer)
 
 
 # Implicit casts are used in many places, e.g. function arguments.
@@ -308,14 +312,14 @@ def do_explicit_cast(fom: AstFunctionOrMethod*, expr: AstExpression*, to: Type*,
     assert expr.types.implicit_cast_type == expr.types.orig_type
     from = expr.types.orig_type
 
-    msg: byte[500]
+
 
     if not can_cast_explicitly(from, to):
         if from.is_integer_type() and to == bool_type():
-            snprintf(msg, sizeof(msg), "cannot cast from type %s to %s (try using '!= 0' instead)", from.name, to.name)
+            snprintf(big_buffer, sizeof(big_buffer), "cannot cast from type %s to %s (try using '!= 0' instead)", from.name, to.name)
         else:
-            snprintf(msg, sizeof(msg), "cannot cast from type %s to %s", from.name, to.name)
-        fail(location, msg)
+            snprintf(big_buffer, sizeof(big_buffer), "cannot cast from type %s to %s", from.name, to.name)
+        fail(location, big_buffer)
 
     if from.kind == TypeKind.Array and to.is_pointer_type():
         cast_array_to_pointer(fom, expr)
@@ -330,13 +334,13 @@ def typecheck_expression_not_void(state: State*, expr: AstExpression*, type_hint
     # Should be function/method call that returns None
     assert expr.kind == AstExpressionKind.Call
 
-    msg: byte[500]
-    if expr.call.signature_if_known == NULL:
-        snprintf(msg, sizeof(msg), "%s does not return a value", expr.call.function_or_method())
-    else:
-        snprintf(msg, sizeof(msg), "%s '%s' does not return a value", expr.call.function_or_method(), expr.call.signature_if_known.name)
 
-    fail(expr.location, msg)
+    if expr.call.signature_if_known == NULL:
+        snprintf(big_buffer, sizeof(big_buffer), "%s does not return a value", expr.call.function_or_method())
+    else:
+        snprintf(big_buffer, sizeof(big_buffer), "%s '%s' does not return a value", expr.call.function_or_method(), expr.call.signature_if_known.name)
+
+    fail(expr.location, big_buffer)
 
 
 def typecheck_expression_with_implicit_cast(
@@ -437,7 +441,7 @@ def check_binop(
     lhs: AstExpression*,
     rhs: AstExpression*,
 ) -> Type*:
-    msg: byte[500]
+
 
     assert lhs.types.orig_type != NULL
     assert rhs.types.orig_type != NULL
@@ -530,8 +534,8 @@ def check_binop(
         or (got_number_array_and_number and not (op == AstExpressionKind.Mul or op == AstExpressionKind.Div or op == AstExpressionKind.FloorDiv))
         or (got_number_and_number_array and op != AstExpressionKind.Mul)
     ):
-        snprintf(msg, sizeof(msg), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
-        fail(location, msg)
+        snprintf(big_buffer, sizeof(big_buffer), "wrong types: cannot %s %s and %s", do_what, ltype.name, rtype.name)
+        fail(location, big_buffer)
 
     if op == AstExpressionKind.BitShiftLeft or op == AstExpressionKind.BitShiftRight:
         # Special-cased, because right side type does not affect the type of result.
@@ -597,9 +601,9 @@ def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
 
     t = typecheck_expression_not_void(state, &expr.operands[0], NULL)
     if not t.is_number_type() and t.kind != TypeKind.Pointer:
-        msg: byte[500]
-        snprintf(msg, sizeof(msg), bad_type_fmt, t.name)
-        fail(expr.location, msg)
+
+        snprintf(big_buffer, sizeof(big_buffer), bad_type_fmt, t.name)
+        fail(expr.location, big_buffer)
 
     ensure_can_take_address(state.fom, &expr.operands[0], bad_expr_fmt)
     return t
@@ -608,9 +612,9 @@ def check_increment_or_decrement(state: State*, expr: AstExpression*) -> Type*:
 def typecheck_dereferenced_pointer(location: Location, t: Type*) -> None:
     # TODO: improved error message for dereferencing void*
     if t.kind != TypeKind.Pointer:
-        msg: byte[500]
-        snprintf(msg, sizeof(msg), "the dereference operator '*' is only for pointers, not for %s", t.name)
-        fail(location, msg)
+
+        snprintf(big_buffer, sizeof(big_buffer), "the dereference operator '*' is only for pointers, not for %s", t.name)
+        fail(location, big_buffer)
 
 
 # ptr[index]
@@ -619,7 +623,7 @@ def typecheck_indexing(
     ptrexpr: AstExpression*,
     indexexpr: AstExpression*,
 ) -> Type*:
-    msg: byte[500]
+
 
     orig_type = typecheck_expression_not_void(state, ptrexpr, NULL)
     match orig_type.kind:
@@ -629,8 +633,8 @@ def typecheck_indexing(
             cast_array_to_pointer(state.fom, ptrexpr)
             ptrtype = ptrexpr.types.implicit_cast_type
         case _:
-            snprintf(msg, sizeof(msg), "value of type %s cannot be indexed", orig_type.name)
-            fail(ptrexpr.location, msg)
+            snprintf(big_buffer, sizeof(big_buffer), "value of type %s cannot be indexed", orig_type.name)
+            fail(ptrexpr.location, big_buffer)
 
     assert ptrtype != NULL
     assert ptrtype.kind == TypeKind.Pointer
@@ -638,8 +642,8 @@ def typecheck_indexing(
     indextype = typecheck_expression_not_void(state, indexexpr, NULL)
     assert indextype != NULL
     if not indextype.is_integer_type():
-        snprintf(msg, sizeof(msg), "the index inside [...] must be an integer, not %s", indextype.name)
-        fail(indexexpr.location, msg)
+        snprintf(big_buffer, sizeof(big_buffer), "the index inside [...] must be an integer, not %s", indextype.name)
+        fail(indexexpr.location, big_buffer)
 
     # LLVM assumes that indexes smaller than 64 bits are signed.
     # https://github.com/Akuli/jou/issues/48
@@ -656,16 +660,16 @@ def typecheck_and_or(
 ) -> None:
     assert strcmp(and_or, "and") == 0 or strcmp(and_or, "or") == 0
 
-    errormsg: byte[100]
-    snprintf(errormsg, sizeof(errormsg), "'%s' only works with bools, not <from>", and_or)
 
-    typecheck_expression_with_implicit_cast(state, lhsexpr, bool_type(), errormsg)
-    typecheck_expression_with_implicit_cast(state, rhsexpr, bool_type(), errormsg)
+    snprintf(big_buffer, sizeof(big_buffer), "'%s' only works with bools, not <from>", and_or)
+
+    typecheck_expression_with_implicit_cast(state, lhsexpr, bool_type(), big_buffer)
+    typecheck_expression_with_implicit_cast(state, rhsexpr, bool_type(), big_buffer)
 
 
 # This handles e.g. the things to format in printf().
 def typecheck_vararg(state: State*, expr: AstExpression*, what_we_calling: byte*) -> None:
-    msg: byte[500]
+
 
     t = typecheck_expression_not_void(state, expr, NULL)
     if t.kind == TypeKind.Array:
@@ -677,18 +681,18 @@ def typecheck_vararg(state: State*, expr: AstExpression*, what_we_calling: byte*
         do_implicit_cast(state.fom, expr, double_type(), Location{}, NULL)
     elif t.kind == TypeKind.Enum:
         snprintf(
-            msg, sizeof(msg),
+            big_buffer, sizeof(big_buffer),
             "variadic arguments of %s cannot be enums",
             what_we_calling,
         )
-        fail(expr.location, msg)
+        fail(expr.location, big_buffer)
     elif t.kind == TypeKind.Enum or t.kind == TypeKind.Class:
         snprintf(
-            msg, sizeof(msg),
+            big_buffer, sizeof(big_buffer),
             "a variadic argument of %s cannot be an instance of a class",
             what_we_calling,
         )
-        fail(expr.location, msg)
+        fail(expr.location, big_buffer)
 
 
 def nth(n: int) -> byte[100]:
@@ -715,7 +719,7 @@ def fail_with_method_not_found(
     assert class_ast != NULL
     assert class_ast.kind == AstStatementKind.Class
 
-    msg: byte[500]
+
 
     # Is the method in the class definition?
     for stmt = class_ast.classdef.body.ptr; stmt < class_ast.classdef.body.end(); stmt++:
@@ -728,7 +732,7 @@ def fail_with_method_not_found(
             if stmt.symbol().public:
                 # TODO: generate something that can be copy/pasted to write an import statement?
                 snprintf(
-                    msg, sizeof(msg),
+                    big_buffer, sizeof(big_buffer),
                     "to use the '%s' method of class %s, you need to import the file that defines it (%s)",
                     method_name,
                     self_class.name,
@@ -736,15 +740,15 @@ def fail_with_method_not_found(
                 )
             else:
                 snprintf(
-                    msg, sizeof(msg),
+                    big_buffer, sizeof(big_buffer),
                     "method '%s' of class %s is private (maybe add @public to it?)",
                     method_name,
                     self_class.name,
                 )
-            fail(location, msg)
+            fail(location, big_buffer)
 
-    snprintf(msg, sizeof(msg), "class %s has no method named '%s'", self_class.name, method_name)
-    fail(location, msg)
+    snprintf(big_buffer, sizeof(big_buffer), "class %s has no method named '%s'", self_class.name, method_name)
+    fail(location, big_buffer)
 
 
 # This is for code that looks like obj.member(). It could be a method call or a
@@ -762,7 +766,7 @@ def fail_with_method_not_found(
 def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Type*:
     assert call.function != NULL
     func_location = call.function.location
-    msg: byte[500]
+
 
     # Let's type-check `obj` and go from there.
     obj = call.function.class_field.instance
@@ -775,11 +779,11 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
         self_class = obj_type.value_type
     else:
         snprintf(
-            msg, sizeof(msg),
+            big_buffer, sizeof(big_buffer),
             "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
             obj_type.name,
         )
-        fail(func_location, msg)
+        fail(func_location, big_buffer)
     assert self_class.kind == TypeKind.Class
 
     assert call.signature_if_known == NULL
@@ -828,7 +832,7 @@ def typecheck_member_that_looks_like_method(state: State*, call: AstCall*) -> Ty
 
 # returns NULL if the function doesn't return anything
 def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
-    msg: byte[500]
+
 
     assert call.signature_if_known == NULL
 
@@ -842,13 +846,13 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
             and find_and_typecheck_function(state.jou_file, call.function.varname) == NULL
             and state.find_any_var(call.function.varname) == NULL
         ):
-            snprintf(msg, sizeof(msg), "function '%s' not found", call.function.varname)
+            snprintf(big_buffer, sizeof(big_buffer), "function '%s' not found", call.function.varname)
             match call.function.varname with strcmp:
                 case "print":
-                    strcat(msg, ", try printf() from \"stdlib/io.jou\"")
+                    strcat(big_buffer, ", try printf() from \"stdlib/io.jou\"")
                 case "input":
-                    strcat(msg, ", try fgets() from \"stdlib/io.jou\"")
-            fail(call.function.location, msg)
+                    strcat(big_buffer, ", try fgets() from \"stdlib/io.jou\"")
+            fail(call.function.location, big_buffer)
 
         funcptr_type = typecheck_expression_not_void(state, call.function, NULL)
         if call.function.kind == AstExpressionKind.GetFuncPtr:
@@ -876,15 +880,15 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
         ):
             assert strstr(method_name, "%") == NULL
             snprintf(
-                msg, sizeof(msg),
+                big_buffer, sizeof(big_buffer),
                 "cannot take address of %%s, needed for calling the %s() method",
                 method_name,
             )
-            ensure_can_take_address(state.fom, call.method_call_self, msg)
+            ensure_can_take_address(state.fom, call.method_call_self, big_buffer)
 
     if funcptr_type != NULL and funcptr_type.kind != TypeKind.FuncPtr:
-        snprintf(msg, sizeof(msg), "expected a function, got %s", funcptr_type.name)
-        fail(call.function.location, msg)
+        snprintf(big_buffer, sizeof(big_buffer), "expected a function, got %s", funcptr_type.name)
+        fail(call.function.location, big_buffer)
 
     what_we_calling: byte[500]
     if call.signature_if_known != NULL:
@@ -911,7 +915,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
 
     if call.args.len < nparams or (call.args.len > nparams and not takes_varargs):
         snprintf(
-            msg, sizeof(msg),
+            big_buffer, sizeof(big_buffer),
             "%s takes %zd argument%s, but it was called with %zd argument%s",
             what_we_calling,
             nparams,
@@ -919,7 +923,7 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
             call.args.len,
             plural_s(call.args.len),
         )
-        fail(location, msg)
+        fail(location, big_buffer)
 
     for i = 0; i < call.args.len; i++:
         if i >= nparams:
@@ -939,10 +943,10 @@ def typecheck_call(state: State*, call: AstCall*, location: Location) -> Type*:
         # This is a common error, so worth spending some effort to get a good error message.
         which_arg = nth(i+1)
         snprintf(
-            msg, sizeof(msg),
+            big_buffer, sizeof(big_buffer),
             "%s argument of %s should have type <to>, not <from>", which_arg, what_we_calling
         )
-        typecheck_expression_with_implicit_cast(state, &call.args.ptr[i], param_type, msg)
+        typecheck_expression_with_implicit_cast(state, &call.args.ptr[i], param_type, big_buffer)
 
     return return_type
 
@@ -958,49 +962,49 @@ def typecheck_class_field(
     if f != NULL:
         return f
 
-    msg: byte[500]
+
 
     # TODO: When trying to treat an unavailable private method as a field, this
     #       error message should say "is a method", not "has no field". One way
     #       to fix this could be to pass in the Jou file where the class has
     #       been defined.
     if find_and_typecheck_method(state.jou_file, classtype, fieldname) == NULL:
-        snprintf(msg, sizeof(msg), "class %s has no field named '%s'", classtype.name, fieldname)
+        snprintf(big_buffer, sizeof(big_buffer), "class %s has no field named '%s'", classtype.name, fieldname)
     else:
-        snprintf(msg, sizeof(msg), "%s.%s() is a method, it can be called but it cannot be used in any other way", classtype.name, fieldname)
+        snprintf(big_buffer, sizeof(big_buffer), "%s.%s() is a method, it can be called but it cannot be used in any other way", classtype.name, fieldname)
 
-    fail(location, msg)
+    fail(location, big_buffer)
 
 
 def typecheck_instantiation(state: State*, inst: AstInstantiation*, location: Location) -> Type*:
     t = type_from_ast(state.jou_file, state.fom.symbol.signature.get_self_class(), &inst.type)
 
-    msg: byte[500]
+
 
     if t.kind != TypeKind.Class:
         snprintf(
-            msg, sizeof(msg),
+            big_buffer, sizeof(big_buffer),
             "the %s{...} syntax is only for classes, but %s is %s",
             t.name, t.name, t.short_description())
-        fail(location, msg)
+        fail(location, big_buffer)
 
     specified_fields = List[ClassField*]{}
     for f = inst.fields.ptr; f < inst.fields.end(); f++:
         field = typecheck_class_field(state, t, f.name, f.value.location)
 
-        snprintf(msg, sizeof(msg),
+        snprintf(big_buffer, sizeof(big_buffer),
             "value for field '%s' of class %s must be of type <to>, not <from>",
             f.name, t.name)
-        typecheck_expression_with_implicit_cast(state, &f.value, field.type, msg)
+        typecheck_expression_with_implicit_cast(state, &f.value, field.type, big_buffer)
         specified_fields.append(field)
 
     for i1 = 0; i1 < inst.fields.len; i1++:
         for i2 = i1+1; i2 < inst.fields.len; i2++:
             if specified_fields.ptr[i1].union_id == specified_fields.ptr[i2].union_id:
-                snprintf(msg, sizeof(msg),
+                snprintf(big_buffer, sizeof(big_buffer),
                     "fields '%s' and '%s' cannot be set simultaneously because they belong to the same union",
                     specified_fields.ptr[i1].name, specified_fields.ptr[i2].name)
-                fail(inst.fields.ptr[i2].value.location,msg)
+                fail(inst.fields.ptr[i2].value.location,big_buffer)
 
     free(specified_fields.ptr)
     return t
@@ -1117,9 +1121,9 @@ def cast_ternary_values_to_a_common_type(
             t = NULL
 
     if t == NULL:
-        msg: byte[500]
-        snprintf(msg, sizeof(msg), "ternary values must be of the same type (got %s and %s)", t1.name, t2.name)
-        fail(ternary_location, msg)
+
+        snprintf(big_buffer, sizeof(big_buffer), "ternary values must be of the same type (got %s and %s)", t1.name, t2.name)
+        fail(ternary_location, big_buffer)
 
     do_implicit_cast(fom, then_expr, t, then_expr.location, "ternary values should be of type <to>, not <from>")
     do_implicit_cast(fom, otherwise_expr, t, otherwise_expr.location, "ternary values should be of type <to>, not <from>")
@@ -1166,13 +1170,13 @@ def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
             # TODO: Currently this cannot happen. Built-in types like "int" are
             # keywords so that they cannot appear as expressions. A test should
             # be added if this becomes possible in the future.
-            msg: byte[500]
+
             snprintf(
-                msg, sizeof(msg),
+                big_buffer, sizeof(big_buffer),
                 "type '%s' has no members because it is not a class or an enum",
                 enum_name,
             )
-            fail(expr.location, msg)
+            fail(expr.location, big_buffer)
 
     free(expr.class_field.instance)
     expr.kind = AstExpressionKind.GetEnumMember
@@ -1183,7 +1187,7 @@ def detect_enum_member_syntax(state: State*, expr: AstExpression*) -> None:
 
 
 def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) -> None:
-    msg: byte[500]
+
     result: Type* = NULL
 
     detect_enum_member_syntax(state, expr)
@@ -1214,8 +1218,8 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             ):
                 s = expr.constant.pointer_string
                 if strlen(s) >= type_hint.array.count:
-                    snprintf(msg, sizeof(msg), "a string of %zd bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint.name)
-                    fail(expr.location, msg)
+                    snprintf(big_buffer, sizeof(big_buffer), "a string of %zd bytes (including '\\0') does not fit into %s", strlen(s) + 1, type_hint.name)
+                    fail(expr.location, big_buffer)
                 expr.constant.kind = ConstantKind.ArrayOfBytes
                 expr.constant.array_of_bytes = List[byte]{}
                 while expr.constant.array_of_bytes.len < type_hint.array.count:
@@ -1234,10 +1238,10 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
             assert result.kind == TypeKind.Enum
             if result.find_enum_member(expr.enum_member.member_name) == -1:
                 snprintf(
-                    msg, sizeof(msg),
+                    big_buffer, sizeof(big_buffer),
                     "enum %s has no member named '%s'",
                     expr.enum_member.enum_name, expr.enum_member.member_name)
-                fail(expr.location, msg)
+                fail(expr.location, big_buffer)
 
         case AstExpressionKind.SizeOf:
             if (
@@ -1254,15 +1258,15 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
         case AstExpressionKind.ArrayCount:
             array_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)
             if array_type.kind != TypeKind.Array:
-                snprintf(msg, sizeof(msg), "array_count must be called on an array, not %s", array_type.name)
-                fail(expr.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "array_count must be called on an array, not %s", array_type.name)
+                fail(expr.location, big_buffer)
             result = int_type(32)
 
         case AstExpressionKind.ArrayEnd:
             array_type = typecheck_expression_not_void(state, &expr.operands[0], NULL)
             if array_type.kind != TypeKind.Array:
-                snprintf(msg, sizeof(msg), "array_end must be called on an array, not %s", array_type.name)
-                fail(expr.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "array_end must be called on an array, not %s", array_type.name)
+                fail(expr.location, big_buffer)
             result = array_type.array.item_type.pointer_type()
 
         case AstExpressionKind.Instantiate:
@@ -1290,10 +1294,10 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 result = typecheck_class_field(state, temptype.value_type, expr.class_field.field_name, expr.location).type
             else:
                 snprintf(
-                    msg, sizeof(msg),
+                    big_buffer, sizeof(big_buffer),
                     "left side of '.' operator must be an instance of a class or a pointer to an instance, not %s",
                     temptype.name)
-                fail(expr.location, msg)
+                fail(expr.location, big_buffer)
 
         case AstExpressionKind.GetClassField | AstExpressionKind.GetClassFieldPtr | AstExpressionKind.GetFuncPtr:
             # Constructed here, should not already be like this when we get here
@@ -1326,21 +1330,21 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                     # Is it a function?
                     sig = find_and_typecheck_function(state.jou_file, expr.varname)
                     if sig == NULL:
-                        snprintf(msg, sizeof(msg), "no variable named '%s'", expr.varname)
+                        snprintf(big_buffer, sizeof(big_buffer), "no variable named '%s'", expr.varname)
                         match expr.varname with strcmp:
                             case "stdin":
-                                strcat(msg, ", try get_stdin() from \"stdlib/io.jou\"")
+                                strcat(big_buffer, ", try get_stdin() from \"stdlib/io.jou\"")
                             case "stdout":
-                                strcat(msg, ", try get_stdout() from \"stdlib/io.jou\"")
+                                strcat(big_buffer, ", try get_stdout() from \"stdlib/io.jou\"")
                             case "stderr":
-                                strcat(msg, ", try get_stderr() from \"stdlib/io.jou\"")
+                                strcat(big_buffer, ", try get_stderr() from \"stdlib/io.jou\"")
                             case "Null" | "null":
-                                strcat(msg, ", try NULL")
+                                strcat(big_buffer, ", try NULL")
                             case "TRUE" | "true":
-                                strcat(msg, ", try True")
+                                strcat(big_buffer, ", try True")
                             case "FALSE" | "false":
-                                strcat(msg, ", try False")
-                        fail(expr.location, msg)
+                                strcat(big_buffer, ", try False")
+                        fail(expr.location, big_buffer)
                     name = expr.varname
                     expr.kind = AstExpressionKind.GetFuncPtr
                     expr.get_func_ptr.func_name = name
@@ -1381,16 +1385,16 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                     and result.array.item_type.is_signed_number_type()
                 )
             ):
-                snprintf(msg, sizeof(msg),
+                snprintf(big_buffer, sizeof(big_buffer),
                     "value after '-' must be a signed number or an array of signed numbers, not %s",
                     result.name)
-                fail(expr.location, msg)
+                fail(expr.location, big_buffer)
 
         case AstExpressionKind.BitNot:
             result = typecheck_expression_not_void(state, &expr.operands[0], type_hint)
             if not result.is_integer_type():
-                snprintf(msg, sizeof(msg), "cannot take bitwise NOT of %s", result.name)
-                fail(expr.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "cannot take bitwise NOT of %s", result.name)
+                fail(expr.location, big_buffer)
 
         case (
             AstExpressionKind.Add
@@ -1502,7 +1506,7 @@ def typecheck_if_statement(state: State*, ifstmt: AstIfStatement*) -> None:
 
 
 def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> None:
-    msg: byte[500]
+
     sig_string: byte* = NULL
     remaining: byte** = NULL
     nremaining: intnative = -1
@@ -1522,18 +1526,18 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                 for i = 0; i < nremaining; i++:
                     remaining[i] = case_type.enum_members.ptr[i]
             case _:
-                snprintf(msg, sizeof(msg), "cannot match a value of type %s", case_type.name)
-                if strlen(msg) + 100 < sizeof(msg):
+                snprintf(big_buffer, sizeof(big_buffer), "cannot match a value of type %s", case_type.name)
+                if strlen(big_buffer) + 100 < sizeof(big_buffer):
                     if case_type == uint_type(8).pointer_type():
-                        strcat(msg, " (try adding 'with strcmp')")
+                        strcat(big_buffer, " (try adding 'with strcmp')")
                     if case_type == bool_type():
-                        strcat(msg, " (use if/else instead)")
-                fail(match_stmt.match_obj.location, msg)
+                        strcat(big_buffer, " (use if/else instead)")
+                fail(match_stmt.match_obj.location, big_buffer)
     else:
         sig = find_and_typecheck_function(state.jou_file, match_stmt.func_name)
         if sig == NULL:
-            snprintf(msg, sizeof(msg), "function '%s' not found", match_stmt.func_name)
-            fail(match_stmt.match_obj.location, msg)
+            snprintf(big_buffer, sizeof(big_buffer), "function '%s' not found", match_stmt.func_name)
+            fail(match_stmt.match_obj.location, big_buffer)
         match_stmt.func_signature = sig.copy()
 
         # Most of the time, only argument types are relevant, so don't include the return type into sig_string.
@@ -1543,26 +1547,26 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
             if sig.return_type != int_type(32):
                 # show return type in error message
                 sig_string = sig.to_string(True, False)
-            snprintf(msg, sizeof(msg), "cannot match with function %s", sig_string)
-            fail(match_stmt.match_obj.location, msg)
+            snprintf(big_buffer, sizeof(big_buffer), "cannot match with function %s", sig_string)
+            fail(match_stmt.match_obj.location, big_buffer)
 
-        snprintf(msg, sizeof(msg), "cannot match <from> with %s", sig_string)
-        typecheck_expression_with_implicit_cast(state, &match_stmt.match_obj, sig.args.ptr[0].type, msg)
+        snprintf(big_buffer, sizeof(big_buffer), "cannot match <from> with %s", sig_string)
+        typecheck_expression_with_implicit_cast(state, &match_stmt.match_obj, sig.args.ptr[0].type, big_buffer)
         case_type = sig.args.ptr[1].type
 
     for c = match_stmt.cases.ptr; c < match_stmt.cases.end(); c++:
         for case_obj = c.case_objs.ptr; case_obj < c.case_objs.end(); case_obj++:
             if sig_string == NULL:
-                msg = "case value of type <from> cannot be matched against <to>"
+                strcpy(big_buffer, "case value of type <from> cannot be matched against <to>")
             else:
-                snprintf(msg, sizeof(msg), "case value cannot be <from> when matching with %s", sig_string)
-            typecheck_expression_with_implicit_cast(state, case_obj, case_type, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "case value cannot be <from> when matching with %s", sig_string)
+            typecheck_expression_with_implicit_cast(state, case_obj, case_type, big_buffer)
 
             if nremaining != -1:
                 if case_obj.kind != AstExpressionKind.GetEnumMember:
                     # Matching an enum but it's too dynamic, not simply TheEnum.Member
-                    snprintf(msg, sizeof(msg), "'case' value must be %s.something when matching a value of enum %s", case_type.name, case_type.name)
-                    fail(case_obj.location, msg)
+                    snprintf(big_buffer, sizeof(big_buffer), "'case' value must be %s.something when matching a value of enum %s", case_type.name, case_type.name)
+                    fail(case_obj.location, big_buffer)
                 # We are matching against TheEnum.member. Try to find and remove it from remaining members.
                 member = case_obj.enum_member.member_name
                 found = False
@@ -1573,8 +1577,8 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
                         break
 
                 if not found:
-                    snprintf(msg, sizeof(msg), "enum member %s is handled twice", member)
-                    fail(case_obj.location, msg)
+                    snprintf(big_buffer, sizeof(big_buffer), "enum member %s is handled twice", member)
+                    fail(case_obj.location, big_buffer)
 
         typecheck_body(state, c.body)
 
@@ -1584,28 +1588,28 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
     if nremaining > 0 and match_stmt.case_underscore == NULL:
         if nremaining == 1:
             snprintf(
-                msg, sizeof(msg),
+                big_buffer, sizeof(big_buffer),
                 "enum member %s.%s not handled in match statement",
                 case_type.name, remaining[0],
             )
         else:
             snprintf(
-                msg, sizeof(msg) - 20,
+                big_buffer, sizeof(big_buffer) - 20,
                 "the following %d members of enum %s are not handled in match statement: ",
                 nremaining, case_type.name,
             )
             for i = 0; i < nremaining; i++:
-                assert sizeof(msg) > 300
-                if strlen(msg) + strlen(remaining[i]) < 200:
-                    strcat(msg, remaining[i])
-                    strcat(msg, ", ")
+                assert sizeof(big_buffer) > 300
+                if strlen(big_buffer) + strlen(remaining[i]) < 200:
+                    strcat(big_buffer, remaining[i])
+                    strcat(big_buffer, ", ")
                 else:
-                    strcat(msg, "...")
+                    strcat(big_buffer, "...")
                     break
-            if ends_with(msg, ", "):
-                msg[strlen(msg) - 2] = '\0'
+            if ends_with(big_buffer, ", "):
+                big_buffer[strlen(big_buffer) - 2] = '\0'
 
-        fail(match_stmt.match_obj.location, msg)
+        fail(match_stmt.match_obj.location, big_buffer)
 
     free(sig_string)
     free(remaining)
@@ -1615,7 +1619,7 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
 
 
 def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
-    msg: byte[500]
+
 
     match stmt.kind:
         case AstStatementKind.If:
@@ -1661,11 +1665,11 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
                 ensure_can_take_address(state.fom, targetexpr, "cannot assign to %s")
 
                 if targetexpr.kind == AstExpressionKind.Dereference:
-                    msg = "cannot place a value of type <from> into a pointer of type <to>*"
+                    strcpy(big_buffer, "cannot place a value of type <from> into a pointer of type <to>*")
                 else:
                     desc = short_expression_description(targetexpr)
-                    snprintf(msg, sizeof(msg), "cannot assign a value of type <from> to %s of type <to>", desc)
-                typecheck_expression_with_implicit_cast(state, valueexpr, targettype, msg)
+                    snprintf(big_buffer, sizeof(big_buffer), "cannot assign a value of type <from> to %s of type <to>", desc)
+                typecheck_expression_with_implicit_cast(state, valueexpr, targettype, big_buffer)
 
         case (
             AstStatementKind.InPlaceAdd
@@ -1734,56 +1738,56 @@ def typecheck_statement(state: State*, stmt: AstStatement*) -> None:
             t = check_binop(state.fom, op, stmt.location, targetexpr, valueexpr)
             if t != targetexpr.types.orig_type:
                 snprintf(
-                    msg, sizeof(msg),
+                    big_buffer, sizeof(big_buffer),
                     "%s produced a value of type %s which cannot be assigned back to %s",
                     opname, t.name, targetexpr.types.orig_type.name
                 )
-                fail(stmt.location, msg)
+                fail(stmt.location, big_buffer)
 
         case AstStatementKind.Return:
             function_or_method = state.fom.symbol.signature.function_or_method()
 
             if state.fom.symbol.signature.is_noreturn:
                 snprintf(
-                    msg, sizeof(msg),
+                    big_buffer, sizeof(big_buffer),
                     "%s '%s' cannot return because it was defined with '-> noreturn'",
                     function_or_method, state.fom.symbol.signature.name,
                 )
-                fail(stmt.location, msg)
+                fail(stmt.location, big_buffer)
 
             return_type = state.fom.symbol.signature.return_type
 
             if stmt.return_value != NULL and return_type == NULL:
                 snprintf(
-                    msg, sizeof(msg), "%s '%s' cannot return a value because it was defined with '-> None'",
+                    big_buffer, sizeof(big_buffer), "%s '%s' cannot return a value because it was defined with '-> None'",
                     function_or_method, state.fom.symbol.signature.name,
                 )
-                fail(stmt.location, msg)
+                fail(stmt.location, big_buffer)
 
             if return_type != NULL and stmt.return_value == NULL:
-                snprintf(msg, sizeof(msg),
+                snprintf(big_buffer, sizeof(big_buffer),
                     "a return value is needed, because the return type of %s '%s' is %s",
                     function_or_method,
                     state.fom.symbol.signature.name,
                     state.fom.symbol.signature.return_type.name)
-                fail(stmt.location, msg)
+                fail(stmt.location, big_buffer)
 
             if stmt.return_value != NULL:
-                snprintf(msg, sizeof(msg),
+                snprintf(big_buffer, sizeof(big_buffer),
                     "attempting to return a value of type <from> from %s '%s' defined with '-> <to>'",
                     function_or_method, state.fom.symbol.signature.name)
-                typecheck_expression_with_implicit_cast(state, stmt.return_value, return_type, msg)
+                typecheck_expression_with_implicit_cast(state, stmt.return_value, return_type, big_buffer)
 
         case AstStatementKind.DeclareLocalVar:
             varname = stmt.local_var_declare.name
 
             if state.find_any_var(varname) != NULL:
-                snprintf(msg, sizeof(msg), "a variable named '%s' already exists", varname)
-                fail(stmt.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "a variable named '%s' already exists", varname)
+                fail(stmt.location, big_buffer)
 
             if find_and_typecheck_constant(state.jou_file, varname) != NULL:
-                snprintf(msg, sizeof(msg), "a constant named '%s' already exists", varname)
-                fail(stmt.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "a constant named '%s' already exists", varname)
+                fail(stmt.location, big_buffer)
 
             type = type_from_ast(state.jou_file, state.fom.symbol.signature.get_self_class(), &stmt.local_var_declare.type)
             state.fom.locals.append(LocalVariable{type=type, name=varname})

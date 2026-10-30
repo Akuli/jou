@@ -9,6 +9,7 @@ import "stdlib/list.jou"
 
 import "../ast.jou"
 import "../state.jou"
+import "../big_buffer.jou"
 import "../evaluate.jou"
 import "../errors_and_warnings.jou"
 import "../types.jou"
@@ -78,12 +79,12 @@ def fail_with_type_not_found(location: Location, name: byte*) -> noreturn:
         case _:
             suggest = NULL
 
-    msg: byte[300]
+
     if suggest == NULL:
-        snprintf(msg, sizeof(msg), "there is no type named '%s'", name)
+        snprintf(big_buffer, sizeof(big_buffer), "there is no type named '%s'", name)
     else:
-        snprintf(msg, sizeof(msg), "there is no type named '%s', use '%s' instead", name, suggest)
-    fail(location, msg)
+        snprintf(big_buffer, sizeof(big_buffer), "there is no type named '%s', use '%s' instead", name, suggest)
+    fail(location, big_buffer)
 
 
 # This is called when we cannot find a generic class Foo when doing Foo[Bar].
@@ -97,7 +98,7 @@ def fail_with_type_not_found(location: Location, name: byte*) -> noreturn:
 def handle_bad_generic(jou_file: JouFile*, generic: AstGenericType*, location: Location) -> Type*:
     assert generic != NULL
     name: byte* = generic.class_name
-    msg: byte[500]
+
 
     item_type = find_and_typecheck_type(jou_file, name)
     if item_type == NULL:
@@ -108,13 +109,13 @@ def handle_bad_generic(jou_file: JouFile*, generic: AstGenericType*, location: L
             # and generics.
             fail_with_type_not_found(location, name)
         else:
-            snprintf(msg, sizeof(msg), "there is no generic class named '%s'", name)
-            fail(location, msg)
+            snprintf(big_buffer, sizeof(big_buffer), "there is no generic class named '%s'", name)
+            fail(location, big_buffer)
 
     if generic.param_types.len != 1:
         # TODO: make sure this is still tested
-        snprintf(msg, sizeof(msg), "%s is not generic, use just %s instead of %s[something]", name, name, name)
-        fail(location, msg)
+        snprintf(big_buffer, sizeof(big_buffer), "%s is not generic, use just %s instead of %s[something]", name, name, name)
+        fail(location, big_buffer)
 
     length_expr = convert_array_length_given_as_type_to_an_expression(&generic.param_types.ptr[0])
     return array_type_from_ast(jou_file, item_type, &length_expr)
@@ -128,7 +129,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             # Should be e.g. List[T], where T is a typevar
             assert (*p).kind == TypeKind.TypeVar
 
-    msg: byte[500]
+
 
     match asttype.kind:
         case AstTypeKind.BuiltIn:
@@ -148,8 +149,8 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
                 case "double":
                     return double_type()
                 case "void" | "noreturn" | "None":
-                    snprintf(msg, sizeof(msg), "'%s' cannot be used here because it is not a type", asttype.name)
-                    fail(asttype.location, msg)
+                    snprintf(big_buffer, sizeof(big_buffer), "'%s' cannot be used here because it is not a type", asttype.name)
+                    fail(asttype.location, big_buffer)
                 case _:
                     puts(asttype.name)
                     assert False
@@ -180,11 +181,11 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
                 for i = 1; i < generic.classdata.generic_params.len; i++:
                     strcat(ints, ", int")
                 snprintf(
-                    msg, sizeof(msg),
+                    big_buffer, sizeof(big_buffer),
                     "%s is a generic class, use e.g. %s[%s] instead of just %s",
                     generic.name, asttype.name, ints, asttype.name,
                 )
-                fail(asttype.location, msg)
+                fail(asttype.location, big_buffer)
 
         case AstTypeKind.Pointer:
             if asttype.value_type.is_void():
@@ -209,10 +210,10 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
             got = asttype.generic.param_types.len
             if expected != got:
                 snprintf(
-                    msg, sizeof(msg), "generic class %s takes %zd type parameter%s, but it is used with %zd type parameter%s",
+                    big_buffer, sizeof(big_buffer), "generic class %s takes %zd type parameter%s, but it is used with %zd type parameter%s",
                     gclass.name, expected, plural_s(expected), got, plural_s(got),
                 )
-                fail(asttype.location, msg)
+                fail(asttype.location, big_buffer)
 
             assert expected == got
             n = got as int
@@ -247,7 +248,7 @@ def type_from_ast(jou_file: JouFile*, containing_class: Type*, asttype: AstType*
 
 @public
 def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_class: Type*) -> Signature:
-    msg: byte[500]
+
 
     astsig = &ast.ast_signature
     sig = Signature{name = astsig.name, takes_varargs = astsig.takes_varargs}
@@ -268,8 +269,8 @@ def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_clas
             arg.type = type_from_ast(jou_file, self_class, &astarg.type)
 
         if strcmp(arg.name, "self") == 0 and arg.type != self_class and arg.type != self_class.pointer_type():
-            snprintf(msg, sizeof(msg), "type of self must be %s* (default) or %s", self_class.name, self_class.name)
-            fail(astarg.type.location, msg)
+            snprintf(big_buffer, sizeof(big_buffer), "type of self must be %s* (default) or %s", self_class.name, self_class.name)
+            fail(astarg.type.location, big_buffer)
 
         sig.args.append(arg)
 
@@ -278,11 +279,11 @@ def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_clas
         sig.return_type = NULL
     elif astsig.return_type.is_void():
         snprintf(
-            msg, sizeof(msg),
+            big_buffer, sizeof(big_buffer),
             "void is not a valid return type, use '-> None' if the %s does not return a value",
             "function" if self_class == NULL else "method",
         )
-        fail(astsig.return_type.location, msg)
+        fail(astsig.return_type.location, big_buffer)
     else:
         sig.return_type = type_from_ast(jou_file, self_class, &astsig.return_type)
 

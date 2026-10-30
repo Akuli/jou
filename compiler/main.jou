@@ -7,6 +7,7 @@ import "stdlib/str.jou"
 import "./ast.jou"
 import "./builder.jou"
 import "./command_line_args.jou"
+import "./big_buffer.jou"
 import "./errors_and_warnings.jou"
 import "./evaluate.jou"
 import "./global_symbols.jou"
@@ -43,13 +44,13 @@ def fail_if_missing_main() -> None:
 
 
 def warn_about_unused() -> None:
-    msg: byte[500]
+
 
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
         for stmt = jou_file.ast.ptr; stmt < jou_file.ast.end(); stmt++:
             if stmt.kind == AstStatementKind.Import and not stmt.import_statement.used:
-                snprintf(msg, sizeof(msg), "\"%s\" imported but not used", stmt.import_statement.specified_path)
-                show_warning(stmt.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "\"%s\" imported but not used", stmt.import_statement.specified_path)
+                show_warning(stmt.location, big_buffer)
 
         for sym_stmt = jou_file.symbol_statements.ptr; sym_stmt < jou_file.symbol_statements.end(); sym_stmt++:
             stmt = *sym_stmt
@@ -81,11 +82,11 @@ def warn_about_unused() -> None:
 
             match stmt.kind:
                 case AstStatementKind.FunctionDeclare | AstStatementKind.GlobalVariableDeclare:
-                    snprintf(msg, sizeof(msg), "%s '%s' declared but not used", short_desc, symbol.name)
+                    snprintf(big_buffer, sizeof(big_buffer), "%s '%s' declared but not used", short_desc, symbol.name)
                 case _:
-                    snprintf(msg, sizeof(msg), "%s '%s' defined but not used", short_desc, symbol.name)
+                    snprintf(big_buffer, sizeof(big_buffer), "%s '%s' defined but not used", short_desc, symbol.name)
 
-            show_warning(stmt.location, msg)
+            show_warning(stmt.location, big_buffer)
 
 
 def check_imports_at_start_of_file(body: List[AstStatement]) -> None:
@@ -111,12 +112,12 @@ def check_if_class_member_is_duplicate(
     description: byte*,
     location: Location,
 ) -> None:
-    msg: byte[500]
+
 
     for info = seen.ptr; info < seen.end(); info++:
         if strcmp(info.member_name, member_name) == 0:
-            snprintf(msg, sizeof(msg), "class %s already has %s named '%s'", class_name, info.description, member_name)
-            fail(location, msg)
+            snprintf(big_buffer, sizeof(big_buffer), "class %s already has %s named '%s'", class_name, info.description, member_name)
+            fail(location, big_buffer)
 
     seen.append(ClassMemberDupInfo{member_name = member_name, description = description})
 
@@ -166,26 +167,26 @@ def check_classes(body: List[AstStatement]) -> None:
 
 # TODO: test what this does for methods
 def check_duplicate_defining(symbol_statements: List[AstStatement*]) -> None:
-    msg: byte[300]
+
 
     for p1 = symbol_statements.ptr; p1 < symbol_statements.end(); p1++:
         for p2 = &p1[1]; p2 < symbol_statements.end(); p2++:
             if strcmp((*p1).symbol().name, (*p2).symbol().name) == 0:
                 snprintf(
-                    msg,
-                    sizeof(msg),
+                    big_buffer,
+                    sizeof(big_buffer),
                     "a %s named '%s' already exists (defined on line %d)",
                     (*p1).symbol().short_description(),
                     (*p1).symbol().name,
                     (*p1).location.lineno,
                 )
-                fail((*p2).location, msg)
+                fail((*p2).location, big_buffer)
 
     # Special-casing for the special constants, because they don't come from anything in AST
     for p = symbol_statements.ptr; p < symbol_statements.end(); p++:
         if get_special_constant((*p).symbol().name) != NULL:
-            snprintf(msg, sizeof(msg), "a special constant named '%s' already exists", (*p).symbol().name)
-            fail((*p).location, msg)
+            snprintf(big_buffer, sizeof(big_buffer), "a special constant named '%s' already exists", (*p).symbol().name)
+            fail((*p).location, big_buffer)
 
 
 # AST must not move to new memory location after this runs
@@ -271,7 +272,7 @@ def make_imported_statements_available() -> None:
     if global_compiler_state.args.verbosity >= 1:
         printf("Making imported statements available...\n")
 
-    msg: byte[500]
+
     seen_before = List[JouFile*]{}
 
     for importer = global_compiler_state.jou_files.ptr; importer < global_compiler_state.jou_files.end(); importer++:
@@ -289,8 +290,8 @@ def make_imported_statements_available() -> None:
 
             for i = 0; i < seen_before.len; i++:
                 if seen_before.ptr[i] == imported:
-                    snprintf(msg, sizeof(msg), "file \"%s\" is imported twice", the_import.import_statement.specified_path)
-                    fail(the_import.location, msg)
+                    snprintf(big_buffer, sizeof(big_buffer), "file \"%s\" is imported twice", the_import.import_statement.specified_path)
+                    fail(the_import.location, big_buffer)
             seen_before.append(imported)
 
             for p = imported.symbol_statements.ptr; p < imported.symbol_statements.end(); p++:
@@ -302,14 +303,14 @@ def make_imported_statements_available() -> None:
                 for old_imported = importer.available_symbols.ptr; old_imported < importer.available_symbols.end(); old_imported++:
                     if strcmp(old_imported.statement.symbol().name, imported_stmt.symbol().name) == 0:
                         snprintf(
-                            msg,
-                            sizeof(msg),
+                            big_buffer,
+                            sizeof(big_buffer),
                             "files \"%s\" and \"%s\" cannot be imported into the same file, because they both define '%s'",
                             old_imported.the_import.specified_path,
                             the_import.import_statement.specified_path,
                             imported_stmt.symbol().name,
                         )
-                        fail(the_import.location, msg)
+                        fail(the_import.location, big_buffer)
 
                 importer.available_symbols.append(AvailableSymbol{
                     statement = imported_stmt,
@@ -324,15 +325,15 @@ def make_imported_statements_available() -> None:
                 assert old_imported.the_import != NULL  # non-imported symbols not added yet
                 if strcmp(old_imported.statement.symbol().name, stmt.symbol().name) == 0:
                     snprintf(
-                        msg,
-                        sizeof(msg),
+                        big_buffer,
+                        sizeof(big_buffer),
                         "a %s named '%s' already exists (imported from \"%s\" on line %d)",
                         old_imported.statement.symbol().short_description(),
                         stmt.symbol().name,
                         old_imported.the_import.specified_path,
                         old_imported.import_location.lineno,
                     )
-                    fail(stmt.location, msg)
+                    fail(stmt.location, big_buffer)
 
     # We have now listed all imported symbols that will be available.
     for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:

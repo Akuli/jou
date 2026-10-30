@@ -8,6 +8,7 @@ import "stdlib/mem.jou"
 
 import "./ast.jou"
 import "./paths.jou"
+import "./big_buffer.jou"
 import "./typecheck/common.jou"
 import "./typecheck/step1_global_symbols.jou"
 import "./state.jou"
@@ -45,9 +46,9 @@ def evaluate_boolean_and_or(jou_file: JouFile*, expr: AstExpression*, and_or: by
 
     if value.kind != ConstantKind.Bool:
         # Use the same error message as typecheck
-        msg: byte[500]
-        snprintf(msg, sizeof(msg), "'%s' only works with bools, not %s", and_or, value.get_type().name)
-        fail(expr.location, msg)
+
+        snprintf(big_buffer, sizeof(big_buffer), "'%s' only works with bools, not %s", and_or, value.get_type().name)
+        fail(expr.location, big_buffer)
 
     return value.boolean as int
 
@@ -68,7 +69,7 @@ def read_embedded_file(
     location: Location,
     embed_as_text: bool,
 ) -> List[byte]:
-    msg: byte[500]
+
 
     # If I remember correctly, dirname() may modify the given path
     joufile_path = strdup(jou_file.path)
@@ -82,8 +83,8 @@ def read_embedded_file(
     file = fopen(full_path, "rb")
     if file == NULL:
         simplify_path(full_path)
-        snprintf(msg, sizeof(msg), "cannot open file \"%s\": %s", full_path, strerror(get_errno()))
-        fail(location, msg)
+        snprintf(big_buffer, sizeof(big_buffer), "cannot open file \"%s\": %s", full_path, strerror(get_errno()))
+        fail(location, big_buffer)
 
     file_content = List[byte]{}
     buf: byte[4096]
@@ -103,15 +104,15 @@ def read_embedded_file(
     # Embedding empty text file creates an array of size 1 (for '\0' at end) which is fine.
     if file_content.len == 0 and not embed_as_text:
         simplify_path(full_path)
-        snprintf(msg, sizeof(msg), "file \"%s\" is empty", full_path)
-        fail(location, msg)
+        snprintf(big_buffer, sizeof(big_buffer), "file \"%s\" is empty", full_path)
+        fail(location, big_buffer)
 
     if embed_as_text:
         for p = file_content.ptr; p < file_content.end(); p++:
             if *p == '\0':
                 simplify_path(full_path)
-                snprintf(msg, sizeof(msg), "file \"%s\" contains a zero byte", full_path)
-                fail(location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "file \"%s\" contains a zero byte", full_path)
+                fail(location, big_buffer)
         file_content.append('\0')
         crlf_to_lf(file_content.ptr)
         file_content.len = strlen(file_content.ptr) + 1
@@ -128,7 +129,7 @@ def read_embedded_file(
 def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, result: Constant*, type_hint: Type*) -> bool:
     assert jou_file != NULL
 
-    msg: byte[500]
+
 
     match expr.kind:
         case AstExpressionKind.IntegerConstant:
@@ -138,8 +139,8 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
                 t = int_type(32)
 
             if expr.integer_value > t.max_value():
-                snprintf(msg, sizeof(msg), "value does not fit into %s", t.name)
-                fail(expr.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "value does not fit into %s", t.name)
+                fail(expr.location, big_buffer)
 
             *result = int_constant(t, expr.integer_value as int64)
             return True
@@ -153,8 +154,8 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
             if not evaluate_constant_expression(jou_file, expr.operands, &filename_constant, uint_type(8).pointer_type()):
                 fail(expr.location, "failed to evaluate file name at compile time")
             if filename_constant.kind != ConstantKind.PointerString:
-                snprintf(msg, sizeof(msg), "file name must be a string, not %s", filename_constant.get_type().name)
-                fail(expr.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "file name must be a string, not %s", filename_constant.get_type().name)
+                fail(expr.location, big_buffer)
 
             file_content = read_embedded_file(
                 jou_file,
@@ -173,8 +174,8 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
         case AstExpressionKind.EnumCount:
             enum_type = type_from_ast(jou_file, NULL, &expr.enumcount.enum_type_ast)
             if enum_type.kind != TypeKind.Enum:
-                snprintf(msg, sizeof(msg), "enum_count must be called on an enum type, not %s", enum_type.short_description())
-                fail(expr.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "enum_count must be called on an enum type, not %s", enum_type.short_description())
+                fail(expr.location, big_buffer)
             expr.enumcount.enum_type = enum_type
             *result = int_constant(int_type(32), enum_type.enum_members.len)
             return True
@@ -209,8 +210,8 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
 
             if result.kind != ConstantKind.Bool:
                 # Error message is same as during type checking
-                snprintf(msg, sizeof(msg), "value after 'not' must be a bool, not %s", result.get_type().name)
-                fail(expr.location, msg)
+                snprintf(big_buffer, sizeof(big_buffer), "value after 'not' must be a bool, not %s", result.get_type().name)
+                fail(expr.location, big_buffer)
 
             result.boolean = not result.boolean
             return True
@@ -289,13 +290,13 @@ def evaluate_constant_expression(jou_file: JouFile*, expr: AstExpression*, resul
 
                 if items.len > 0 and item.get_type() != items.ptr[0].get_type():
                     snprintf(
-                        msg,
-                        sizeof(msg),
+                        big_buffer,
+                        sizeof(big_buffer),
                         "array items have different types (%s, %s)",
                         items.ptr[0].get_type().name,
                         item.get_type().name
                     )
-                    fail(expr.location, msg)
+                    fail(expr.location, big_buffer)
 
                 items.append(item)
 

@@ -9,6 +9,7 @@ import "./token.jou"
 import "./global_symbols.jou"
 import "./state.jou"
 import "./ast.jou"
+import "./big_buffer.jou"
 import "./errors_and_warnings.jou"
 import "./paths.jou"
 import "./constants.jou"
@@ -225,9 +226,9 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
                 fail(location, "the @inline decorator cannot be used here")
 
     else:
-        msg: byte[200]
-        snprintf(msg, sizeof(msg), "there is no decorator named '%s'", decor)
-        fail(location, msg)
+
+        snprintf(big_buffer, sizeof(big_buffer), "there is no decorator named '%s'", decor)
+        fail(location, big_buffer)
 
 
 # Determines whether the next tokens are "Class{attribute = value}" syntax.
@@ -293,18 +294,18 @@ class Parser:
 
     def check_top_level(self, what_is_it: byte*) -> None:
         if self.what_are_we_parsing != WhatAreWeParsing.TopLevel:
-            msg: byte[500]
-            snprintf(msg, sizeof(msg), "%s must be on top level, not e.g. inside a function", what_is_it)
-            fail(self.tokens.location, msg)
+
+            snprintf(big_buffer, sizeof(big_buffer), "%s must be on top level, not e.g. inside a function", what_is_it)
+            fail(self.tokens.location, big_buffer)
 
     def check_function_or_method(self, what_is_it: byte*) -> None:
         match self.what_are_we_parsing:
             case WhatAreWeParsing.FunctionBody | WhatAreWeParsing.MethodBody:
                 pass
             case _:
-                msg: byte[500]
-                snprintf(msg, sizeof(msg), "%s must be inside a function or method", what_is_it)
-                fail(self.tokens.location, msg)
+
+                snprintf(big_buffer, sizeof(big_buffer), "%s must be inside a function or method", what_is_it)
+                fail(self.tokens.location, big_buffer)
 
     def eat_keyword(self, word: byte*, use_fail_expected_got: bool, error_msg: byte*) -> Token*:
         if not self.tokens.is_keyword(word):
@@ -566,7 +567,7 @@ class Parser:
         return AstNameTypeValue{name = name.short_string, name_location = name.location, type = type, value = value}
 
     def parse_function_or_method_signature(self, is_method: bool) -> AstSignature:
-        message: byte[300]
+
 
         name = self.eat_by_kind(TokenKind.Name, True, "a method name" if is_method else "a function name")
         result = AstSignature{
@@ -608,9 +609,9 @@ class Parser:
                 for p = result.args.ptr; p < result.args.end(); p++:
                     if strcmp(p.name, arg.name) == 0:
                         snprintf(
-                            message, sizeof(message),
+                            big_buffer, sizeof(big_buffer),
                             "there are multiple arguments named '%s'", arg.name)
-                        fail(arg.name_location, message)
+                        fail(arg.name_location, big_buffer)
 
                 if result.args.len == MAX_ARGS:
                     fail(self.tokens.location, "too many arguments")
@@ -631,8 +632,8 @@ class Parser:
         self.eat_operator("->", True, "a '->'")
 
         if not used_self and is_method:
-            snprintf(message, sizeof(message), "missing self, should be 'def %s(self, ...)'", result.name)
-            fail(self.tokens.location, message)
+            snprintf(big_buffer, sizeof(big_buffer), "missing self, should be 'def %s(self, ...)'", result.name)
+            fail(self.tokens.location, big_buffer)
 
         result.return_type = self.parse_type()
         return result
@@ -645,13 +646,13 @@ class Parser:
             fname = self.eat_by_kind(TokenKind.Name, True, "a field name")
             for f = result.fields.ptr; f < result.fields.end(); f++:
                 if strcmp(f.name, fname.short_string) == 0:
-                    error: byte[500]
-                    snprintf(error, sizeof(error), "multiple values were given for field '%s'", fname.short_string)
-                    fail(fname.location, error)
 
-            msg: byte[300]
-            snprintf(msg, sizeof(msg), "'=' followed by a value for field '%s'", fname.short_string)
-            self.eat_operator("=", True, msg)
+                    snprintf(big_buffer, sizeof(big_buffer), "multiple values were given for field '%s'", fname.short_string)
+                    fail(fname.location, big_buffer)
+
+
+            snprintf(big_buffer, sizeof(big_buffer), "'=' followed by a value for field '%s'", fname.short_string)
+            self.eat_operator("=", True, big_buffer)
 
             result.fields.append(AstInstantiationField{name = fname.short_string, value = self.parse_expression()})
 
@@ -685,27 +686,27 @@ class Parser:
         match (self.tokens++).short_string with strcmp:
             case "sizeof":
                 expr.kind = AstExpressionKind.SizeOf
-                error = "value after sizeof must be in parentheses, e.g. sizeof(foo)"
+                strcpy(big_buffer, "value after sizeof must be in parentheses, e.g. sizeof(foo)")
             case "array_count":
                 expr.kind = AstExpressionKind.ArrayCount
-                error = "value after array_count must be in parentheses, e.g. array_count(foo)"
+                strcpy(big_buffer, "value after array_count must be in parentheses, e.g. array_count(foo)")
             case "array_end":
                 expr.kind = AstExpressionKind.ArrayEnd
-                error = "value after array_end must be in parentheses, e.g. array_end(foo)"
+                strcpy(big_buffer, "value after array_end must be in parentheses, e.g. array_end(foo)")
             case "embed_binary_file":
                 expr.kind = AstExpressionKind.EmbedBinaryFile
-                error = "file name after embed_binary_file must be in parentheses, e.g. embed_binary_file(\"image.png\")"
+                strcpy(big_buffer, "file name after embed_binary_file must be in parentheses, e.g. embed_binary_file(\"image.png\")")
             case "embed_text_file":
                 expr.kind = AstExpressionKind.EmbedTextFile
-                error = "file name after embed_text_file must be in parentheses, e.g. embed_text_file(\"file.txt\")"
+                strcpy(big_buffer, "file name after embed_text_file must be in parentheses, e.g. embed_text_file(\"file.txt\")")
             case "enum_count":
                 expr.kind = AstExpressionKind.EnumCount
-                error = "enum type after enum_count must be in parentheses, e.g. enum_count(Foo)"
+                strcpy(big_buffer, "enum type after enum_count must be in parentheses, e.g. enum_count(Foo)")
             case _:
                 assert False
 
         if not self.tokens.is_operator("("):
-            fail(self.tokens.location, error)
+            fail(self.tokens.location, big_buffer)
         self.tokens++
 
         if expr.kind == AstExpressionKind.EnumCount:
@@ -779,28 +780,28 @@ class Parser:
                     expr = self.parse_special_function_like_expression()
                 else:
                     # Special error message for e.g. int(x)
-                    msg: byte[300]
+
                     if self.tokens.kind == TokenKind.Keyword and self.tokens[1].is_operator("("):
                         keyword = self.tokens.short_string
                         match keyword with strcmp:
                             case "byte" | "int" | "int8" | "uint8" | "int16" | "uint16" | "int32" | "uint32":
                                 snprintf(
-                                    msg,
-                                    sizeof(msg),
+                                    big_buffer,
+                                    sizeof(big_buffer),
                                     "%s is not a function, use 'as %s' to convert between numbers or e.g. atoi() from \"stdlib/str.jou\" to convert a string to int",
                                     keyword,
                                     keyword,
                                 )
-                                fail(self.tokens.location, msg)
+                                fail(self.tokens.location, big_buffer)
                             case "int64" | "uint64":
                                 snprintf(
-                                    msg,
-                                    sizeof(msg),
+                                    big_buffer,
+                                    sizeof(big_buffer),
                                     "%s is not a function, use 'as %s' to convert between numbers or e.g. atoll() from \"stdlib/str.jou\" to convert a string to int64",
                                     keyword,
                                     keyword,
                                 )
-                                fail(self.tokens.location, msg)
+                                fail(self.tokens.location, big_buffer)
 
                     self.tokens.fail_expected_got("an expression")
 
@@ -1068,9 +1069,9 @@ class Parser:
                         closed_early = True
                         break
             if not closed_early:
-                msg: byte[500]
-                snprintf(msg, sizeof(msg), "parentheses around %s are unnecessary", description_of_expr)
-                show_warning(start.location, msg)
+
+                snprintf(big_buffer, sizeof(big_buffer), "parentheses around %s are unnecessary", description_of_expr)
+                show_warning(start.location, big_buffer)
 
         return result
 
@@ -1146,9 +1147,9 @@ class Parser:
             )
             and self.tokens[1].kind == TokenKind.Name
         ):
-            msg: byte[200]
-            snprintf(msg, sizeof(msg), "there is no '%s' keyword in Jou", self.tokens.short_string)
-            fail(self.tokens.location, msg)
+
+            snprintf(big_buffer, sizeof(big_buffer), "there is no '%s' keyword in Jou", self.tokens.short_string)
+            fail(self.tokens.location, big_buffer)
         else:
             expr = self.parse_expression()
             result.kind = determine_the_kind_of_a_statement_that_starts_with_an_expression(self.tokens)
@@ -1198,9 +1199,9 @@ class Parser:
         if varname != NULL:
             for p = self.loop_vars.ptr; p < self.loop_vars.end(); p++:
                 if *p != NULL and strcmp(*p, varname) == 0:
-                    msg: byte[500]
-                    snprintf(msg, sizeof(msg), "this loop is inside another loop that also uses variable '%s'", varname)
-                    show_warning(location, msg)
+
+                    snprintf(big_buffer, sizeof(big_buffer), "this loop is inside another loop that also uses variable '%s'", varname)
+                    show_warning(location, big_buffer)
                     break
         self.loop_vars.append(varname)
 
@@ -1422,9 +1423,9 @@ class Parser:
             varname = self.eat_by_kind(TokenKind.Name, True, "a variable name").short_string
 
             if not self.tokens.is_operator(":") and not self.tokens.is_operator("="):
-                msg: byte[500]
-                snprintf(msg, sizeof(msg), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 123)", varname, varname)
-                self.tokens.fail_expected_got(msg)
+
+                snprintf(big_buffer, sizeof(big_buffer), "':' and a type after it (global %s: int) or '=' and a value after it (global %s = 123)", varname, varname)
+                self.tokens.fail_expected_got(big_buffer)
 
             type: AstType* = NULL
             if self.tokens.is_operator(":"):
@@ -1578,9 +1579,9 @@ class Parser:
 
             close_bracket = self.eat_operator("]", True, "a ']'")
             if generics.len == 0:
-                msg: byte[500]
-                snprintf(msg, sizeof(msg), "at least one generic type parameter is needed, e.g. 'class %s[T]:'", name, name)
-                fail(close_bracket.location, msg)
+
+                snprintf(big_buffer, sizeof(big_buffer), "at least one generic type parameter is needed, e.g. 'class %s[T]:'", name, name)
+                fail(close_bracket.location, big_buffer)
 
         assert self.containing_class_name[0] == '\0'
         self.containing_class_name = name
@@ -1638,9 +1639,9 @@ class Parser:
             for p = result.members.ptr; p < result.members.end(); p++:
                 if strcmp(*p, member_name.short_string) == 0:
                     assert sizeof(member_name.short_string) == 100
-                    error: byte[200]
-                    sprintf(error, "the enum has two members named '%s'", member_name.short_string)
-                    fail(member_name.location, error)
+
+                    sprintf(big_buffer, "the enum has two members named '%s'", member_name.short_string)
+                    fail(member_name.location, big_buffer)
 
             result.members.append(member_name.short_string)
             self.eat_newline()
