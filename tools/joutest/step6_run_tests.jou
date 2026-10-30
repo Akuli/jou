@@ -150,12 +150,15 @@ if WINDOWS:
     const PIPE_TYPE_BYTE: uint32 = 0x00000000
     const PIPE_WAIT: uint32 = 0x00000000
     const GENERIC_WRITE: uint32 = 0x40000000
+    const FILE_SHARE_READ: uint32 = 0x00000001
+    const FILE_SHARE_WRITE: uint32 = 0x00000002
     const OPEN_EXISTING: uint32 = 3
     const FILE_ATTRIBUTE_NORMAL: uint32 = 0x80
 
 else:
     declare fork() -> int
     declare execvp(file: byte*, argv: byte**) -> int
+    declare open(path: byte*, flags: int, ...) -> int
     declare dup2(oldfd: int, newfd: int) -> int
     declare waitpid(pid: int, wstatus: int*, options: int) -> int
     declare pipe(pipefd: int[2]*) -> int
@@ -170,6 +173,7 @@ else:
     const F_SETFL: int = 4
 
     const FD_CLOEXEC: int = 1
+    const O_WRONLY: int = 1
     const EPIPE: int = 32
 
     if LINUX:
@@ -284,6 +288,7 @@ if WINDOWS:
         # don't need to be in the state object.
         input_pipe_read = INVALID_HANDLE_VALUE
         output_pipe_write = INVALID_HANDLE_VALUE
+        devnull = INVALID_HANDLE_VALUE
 
         if run_state.test.stdin_input != NULL:
             create_overlapped_pipe(&input_pipe_read, False, &run_state.input_pipe_write, True)
@@ -293,22 +298,54 @@ if WINDOWS:
             create_overlapped_pipe(&run_state.output_pipe_read, True, &output_pipe_write, False)
             make_inheritable(output_pipe_write)
 
+        if (
+            run_state.test.config.stdout == CaptureMode.Discard
+            or run_state.test.config.stderr == CaptureMode.Discard
+        ):
+            devnull = CreateFileA(
+                "NUL",
+                GENERIC_WRITE,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                NULL,
+                OPEN_EXISTING,
+                FILE_ATTRIBUTE_NORMAL,
+                0,
+            )
+            if devnull == INVALID_HANDLE_VALUE:
+                fail_with_windows_error("CreateFileA() failed for NUL", GetLastError())
+            make_inheritable(devnull)
+
         startup_info = STARTUPINFOW{}
         startup_info.cb = sizeof(startup_info) as uint32
-        if run_state.test.uses_output_capturing:
+        if (
+            run_state.test.stdin_input != NULL
+            or run_state.test.config.stdout != CaptureMode.DoNotCapture
+            or run_state.test.config.stderr != CaptureMode.DoNotCapture
+        ):
             startup_info.dwFlags = STARTF_USESTDHANDLES
+
             if run_state.test.stdin_input == NULL:
                 startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE)
             else:
                 startup_info.hStdInput = input_pipe_read
-            if run_state.test.config.stdout == CaptureMode.DoNotCapture:
-                startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE)
-            else:
-                startup_info.hStdOutput = output_pipe_write
-            if run_state.test.config.stderr == CaptureMode.DoNotCapture:
-                startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE)
-            else:
-                startup_info.hStdError = output_pipe_write
+
+            match run_state.test.config.stdout:
+                case CaptureMode.CompareToComments:
+                    startup_info.hStdOutput = output_pipe_write
+                case CaptureMode.Discard:
+                    assert devnull != INVALID_HANDLE_VALUE
+                    startup_info.hStdOutput = devnull
+                case CaptureMode.DoNotCapture:
+                    startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE)
+
+            match run_state.test.config.stderr:
+                case CaptureMode.CompareToComments:
+                    startup_info.hStdError = output_pipe_write
+                case CaptureMode.Discard:
+                    assert devnull != INVALID_HANDLE_VALUE
+                    startup_info.hStdError = devnull
+                case CaptureMode.DoNotCapture:
+                    startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE)
 
         # This takes a string because that's how windows works. The command
         # line of a Windows process is a string at the lowest level. The
@@ -332,7 +369,7 @@ if WINDOWS:
             wide_command_line,
             NULL,
             NULL,
-            run_state.test.uses_output_capturing as int,
+            (startup_info.dwFlags & STARTF_USESTDHANDLES != 0) as int,
             0,
             NULL,
             wide_working_directory,
@@ -352,6 +389,8 @@ if WINDOWS:
             CloseHandle(input_pipe_read)
         if output_pipe_write != INVALID_HANDLE_VALUE:
             CloseHandle(output_pipe_write)
+        if devnull != INVALID_HANDLE_VALUE:
+            CloseHandle(devnull)
 
     # TODO: This function is huge! Clean up the copy/pasta.
     def write_input_and_read_output(run_state: TestRunState*) -> None:
@@ -573,6 +612,15 @@ else:
 
         e: int
 
+        devnull = -1
+        if (
+            run_state.test.config.stdout == CaptureMode.Discard
+            or run_state.test.config.stderr == CaptureMode.Discard
+        ):
+            devnull = open("/dev/null", O_WRONLY)
+            if devnull == -1:
+                fail_child_process_before_exec(error_pipe_write)
+
         if input_pipe_read != -1:
             if dup2(input_pipe_read, 0) == -1:
                 fail_child_process_before_exec(error_pipe_write)
@@ -583,6 +631,9 @@ else:
                     fail_child_process_before_exec(error_pipe_write)
             case CaptureMode.DoNotCapture:
                 pass
+            case CaptureMode.Discard:
+                if dup2(devnull, 1) == -1:
+                    fail_child_process_before_exec(error_pipe_write)
 
         match run_state.test.config.stderr:
             case CaptureMode.CompareToComments:
@@ -590,6 +641,12 @@ else:
                     fail_child_process_before_exec(error_pipe_write)
             case CaptureMode.DoNotCapture:
                 pass
+            case CaptureMode.Discard:
+                if dup2(devnull, 2) == -1:
+                    fail_child_process_before_exec(error_pipe_write)
+
+        if devnull != -1:
+            close(devnull)
 
         if run_state.test.working_directory != NULL:
             if chdir(run_state.test.working_directory) != 0:

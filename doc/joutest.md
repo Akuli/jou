@@ -365,7 +365,8 @@ Everything else is optional.
         - `"compare_to_comments"` means that
             `joutest` captures the output and compares it to [output comments](#output-comments).
         - `"do_not_capture"` passes the output (if any) to the terminal as is among all the things that `joutest` itself prints.
-            Output comments are ignored entirely if both `stdout` and `stderr` are set to `"do_not_capture"`.
+        - `"discard"` throws away the output entirely.
+            This is similar to redirecting the output to [/dev/null or NUL](https://en.wikipedia.org/wiki/Null_device).
     - `output_comment_rules` (default: `{Output = "{comment}"}`) is a TOML table that specifies
         which comments are recognized as [output comments](#output-comments)
         and how exactly they are transformed into expected output.
@@ -461,4 +462,3 @@ While `joutest` is usable, it is still relatively new. The following features ar
     - `--valgrind`
     - `--jou-flags`
 - pre-test commands like `make`, and some way to disable them
-- if configured, discard stdout/stderr
