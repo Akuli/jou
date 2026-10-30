@@ -336,7 +336,7 @@ if WINDOWS:
                     assert devnull != INVALID_HANDLE_VALUE
                     startup_info.hStdOutput = devnull
                 case CaptureMode.DoNotCapture:
-                    startup_info.hStdOutput = devnull
+                    startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE)
 
             match run_state.test.config.stderr:
                 case CaptureMode.CompareToComments:
@@ -345,7 +345,7 @@ if WINDOWS:
                     assert devnull != INVALID_HANDLE_VALUE
                     startup_info.hStdError = devnull
                 case CaptureMode.DoNotCapture:
-                    startup_info.hStdError = devnull
+                    startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE)
 
         # This takes a string because that's how windows works. The command
         # line of a Windows process is a string at the lowest level. The
