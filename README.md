@@ -92,8 +92,11 @@ Here are things I have written in Jou:
 - TOML parser: [stdlib/toml.jou](./stdlib/toml.jou) (documentation: [doc/toml.md](./doc/toml.md))
 
 I would recommend Jou for:
-- People who find C programming fun but like Python's syntax (if this is you, you may want to read [the Jou tutorial](./doc/tutorial.md))
+- People who find C programming fun but like Python's syntax
 - Python programmers who want to try programming at a lower level (maybe to eventually learn C or Rust)
+
+
+## Tutorials
 
 To get started with Jou, there are two introducion documents to choose from:
 - [Jou tutorial](./doc/tutorial.md) is aimed at people new to low-level languages.
