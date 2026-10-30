@@ -3,10 +3,6 @@ import "stdlib/intnative.jou"
 assert LINUX or MACOS or NETBSD
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ~~~~ The poll() function ~~~~
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 @public
 class pollfd:
     fd: int
@@ -33,18 +29,8 @@ const POLLHUP: int16 = 0x010
 @public
 const POLLNVAL: int16 = 0x020
 
-
-# ~~~~~~~~~~~~~~~~
-# ~~~~ Errors ~~~~
-# ~~~~~~~~~~~~~~~~
-
 @public
 const EPIPE: int = 32
-
-
-# ~~~~~~~~~~~~~~~~~~~
-# ~~~~ Processes ~~~~
-# ~~~~~~~~~~~~~~~~~~~
 
 @public
 declare fork() -> int
@@ -80,11 +66,6 @@ def WEXITSTATUS(s: int) -> int:
 def WTERMSIG(s: int) -> int:
     return s & 0x7f
 
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ~~~~ File Descriptors ~~~~
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 @public
 declare open(path: byte*, flags: int, ...) -> int
 @public
@@ -119,11 +100,6 @@ elif MACOS or NETBSD:
     const O_NONBLOCK: int = 0x00000004
 else:
     assert False
-
-
-# ~~~~~~~~~~~~~~~~~
-# ~~~~ Signals ~~~~
-# ~~~~~~~~~~~~~~~~~
 
 @public
 const SIGPIPE: int = 13
