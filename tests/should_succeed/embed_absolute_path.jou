@@ -1,0 +1,35 @@
+import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
+import "stdlib/process.jou"
+import "stdlib/io.jou"
+
+if WINDOWS:
+    declare _getcwd(buffer: byte*, size: intnative) -> byte*
+else:
+    declare getcwd(buffer: byte*, size: intnative) -> byte*
+
+
+def main() -> int:
+    cwd: byte[4096]
+    if WINDOWS:
+        assert _getcwd(cwd, sizeof(cwd)) != NULL
+    else:
+        assert getcwd(cwd, sizeof(cwd)) != NULL
+
+    f = fopen("tmp/embed_absolute.jou", "w")
+    assert f != NULL
+    fprintf(f, "import \"stdlib/io.jou\"\nglobal file = embed_text_file(\"")
+    for p = &cwd[0]; *p != '\0'; p++:
+        if *p == '\\' or *p == '"':  # good enough escaping
+            fputc('\\', f)
+        fputc(*p, f)
+    fprintf(f, "/tests/data/hellohellohello.txt\")\ndef main() -> int:\n    puts(file)\n    return 0\n")
+    fclose(f)
+
+    # Output: hellohellohello
+    if WINDOWS:
+        assert system("jou.exe tmp/embed_absolute.jou") == 0
+    else:
+        assert system("./jou tmp/embed_absolute.jou") == 0
+
+    return 0
