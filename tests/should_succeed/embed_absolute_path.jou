@@ -2,30 +2,50 @@ import "stdlib/assert.jou"
 import "stdlib/intnative.jou"
 import "stdlib/process.jou"
 import "stdlib/io.jou"
+import "stdlib/str.jou"
 
 if WINDOWS:
     declare _getcwd(buffer: byte*, size: intnative) -> byte*
 else:
     declare getcwd(buffer: byte*, size: intnative) -> byte*
 
+def escape_string(s: byte*, out: FILE*) -> None:
+    fputc('"', out)
+    while *s != '\0':
+        c = *s++
+        if c == '\\' or c == '"':  # good enough escaping
+            fputc('\\', out)
+        fputc(c, out)
+    fputc('"', out)
 
 def main() -> int:
-    cwd: byte[4096]
+    path: byte[4096]
     if WINDOWS:
-        assert _getcwd(cwd, sizeof(cwd)) != NULL
+        assert _getcwd(path, sizeof(path) - 100) != NULL
     else:
-        assert getcwd(cwd, sizeof(cwd)) != NULL
+        assert getcwd(path, sizeof(path) - 100) != NULL
+    strcat(path, "/tests/data/hellohellohello.txt")
 
     f = fopen("tmp/embed_absolute.jou", "w")
     assert f != NULL
-    fprintf(f, "import \"stdlib/io.jou\"\nglobal file = embed_text_file(\"")
-    for p = &cwd[0]; *p != '\0'; p++:
-        if *p == '\\' or *p == '"':  # good enough escaping
-            fputc('\\', f)
-        fputc(*p, f)
-    fprintf(f, "/tests/data/hellohellohello.txt\")\ndef main() -> int:\n    puts(file)\n    return 0\n")
+
+    fputs("import \"stdlib/io.jou\"\n", f)
+
+    fputs("global text_file = embed_text_file(", f)
+    escape_string(path, f)
+    fputs(")\n", f)
+
+    fputs("global binary_file = embed_binary_file(", f)
+    escape_string(path, f)
+    fputs(")\n", f)
+
+    fputs("def main() -> int:\n", f)
+    fputs("    puts(text_file)\n", f)
+    fputs("    printf(\"%.*s\\n\", array_count(binary_file) as int, binary_file)\n", f)
+    fputs("    return 0\n", f)
     fclose(f)
 
+    # Output: hellohellohello
     # Output: hellohellohello
     if WINDOWS:
         assert system("jou.exe tmp/embed_absolute.jou") == 0
