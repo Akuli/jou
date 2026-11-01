@@ -7,7 +7,7 @@ but fancy enough that typing a single character into a file doesn't redo everyth
 Design goals:
 - Simple design: no version numbers, timestamps, or full-blown query engine
 - Fast enough on large Jou projects
-- Memory usage does not grow surprisingly if the langserver is used for a long time
+- Memory usage does not grow significantly if the langserver is used for a long time
 - The langserver is easy to work on (for example, types can be compared with `==` operator)
 - Cache invalidation hell should be rare when developing the langserver
 
@@ -19,41 +19,55 @@ but I'm pretty happy with how the design turned out.
 ## High-level structure
 
 Let's focus on producing diagnostics (that is, mostly errors and warnings).
-Fundamentally, here's what needs to happen for each file:
+Here's what needs to happen for each file:
 
 ```
-             ,-----------------------------------------------------> Errors --------.
-             |          ,------------------------------------------> Errors --------+
-             |          |                                   ,------> Errors --------+
-             |          |                                   |                       |
-             |          |           ,-- File analyzing -------------------------.   |
-             |          |           |                                           |   |
-             |          |           |   Evaluating compile-time if statements   |   |
-             |          |           |                                           |   |
-Source code --> Tokens --> AST ---->|              Symbol lookups               |   |
-                            |       |                                           |   |
-                            |       |        Other files of the project         |   |
-                            |       |                                           |   |
-                            |       '-------------------------------------------'   |
-                            |               |  |                                    |
-                            |               |  `--> Symbol lookup results   ,-------'
-                            |               |                               |
-                            |               |                               |
-                            |               |                               |
-                            |               V                               V
-                            '--> Function analyzing results  -->  Diagnostics for file
+                                    ,-- File analyzing ---------------------.
+                                    |                                       |
+                                    | Evaluating compile-time if statements |
+                                    |            Symbol lookups             |
+Source code --> Tokens --> AST ---->|          Function signatures          |
+             |          |   |       |             Class fields              |
+             |          |   |       |      Other files of the project       |
+             |          |   |       |                                       |
+             |          |   |       '---------------------------------------'
+             |          |   |              /|\                  |       |
+             |          |   |               |                   |       |
+             |          |   |             Symbol          Symbol lookup |
+             |          |   |            lookups             results    |
+             |          |   |               |                   |       |
+           Errors       |   |               |                   V     Errors
+             |          |   |       ,-- Function analyzing ---------.   |
+             |          |   |       |                               |   |
+             |          |   '------>|    Everything that happens    |   |
+             |          |           |  inside a function or method  |   |
+             |        Errors        |                               |   |
+             |          |           '-------------------------------'   |
+             |          |                   |                           |
+             |          |                 Errors                        |
+             |          '---------------.   |   ,-----------------------'
+             '----------------------.   |   |   |
+                                    |   |   |   |
+                                    V   V   V   V
+                                Diagnostics for file
 ```
 
 Here a symbol lookup means finding a function, method, type (class or typedef), global variable,
-or other such thing.
+or other such thing inside a given `JouFile*`.
 Each symbol is either public or private.
 
 For now, function analyzing means determining diagnostics
 (e.g. undefined variable names, wrong argument types) for the function,
-but later it may be extended to be more than diagnostics, such as:
+but later it may be extended to more than diagnostics, such as:
 - Types of variables and other intermediate values inside the function
     (useful if joulsp is later turned into a Jou compiler)
 - Jump-to-definition information for local variables
+
+The langserver never forgets about a file entirely:
+if a file has been a part of the project at some point, a `JouFile` remains in memory.
+I don't think this will be a problem in practice.
+This also means that each `JouFile` doesn't need its own allocator.
+Just use `malloc()` for allocations tied to a `JouFile`.
 
 
 ## File analyzing
@@ -87,6 +101,20 @@ const B: int = C  # Error: constant C depends on itself
 const C: int = B  # Error: constant B depends on itself
 ```
 
+Analyzing results are stored in symbol tables.
+There's one symbol table for each file.
+Each symbol table is a hash table with symbol names as keys and analyzing results as values.
+For example, if the user's project only uses `printf()`,
+there's no need to analyze every symbol of `stdlib/io.jou` in full detail.
+
+Symbol tables are caches, not sources of truth.
+If a symbol table doesn't contain a symbol, the symbol might still exist in the file,
+but it hasn't been needed yet.
+
+For now, all symbol tables are cleared when the AST of any file changes.
+I think it would be possible to figure out which symbols can remain cached,
+but this seems like a rabbit hole, and I don't want to think about it yet.
+
 Cycles are handled with marking.
 For example, if we are trying to get the symbol for constant `C`,
 but `C` has already been marked as being currently analyzed,
@@ -94,20 +122,14 @@ then the result of analyzing `C` is a cyclic dependency error.
 In the above example, the result of analyzing `A` is a constant with unknown value.
 
 File analyzing is done with lazy evaluation.
-This helps with handling cycles, and should improve performance a lot.
-For example, if the user's project only uses `printf()`,
-there's no need to analyze every symbol of `stdlib/io.jou` in full detail.
+This helps with handling cycles, and should also improve performance.
 
-It also helps if we can quickly confirm that `stdlib/str.jou` does not define a `printf()`,
-so the parser produces a list of symbol names that could possibly be defined somewhere in the file.
+One of the possible analyzing results is "no such symbol exists".
+For example, it's useful to know that `stdlib/str.jou` doesn't define a `printf()`.
+To help with that, the parser produces a list of possible symbol names
+that could be defined somewhere in the file.
 The parser doesn't know how compile-time `if` statements end up being evaluated,
-so this list may contain names that are not actually defined anywhere in the file.
-
-For now, there is no cache for file analyzing.
-In other words, all file analyzing results are thrown away and recomputed
-every time the AST of any file changes.
-I think it would be possible to add caching,
-but it seems like a rabbit hole, and I don't want to do it unless it's really needed.
+so this list may contain symbol names that are not really defined in the file.
 
 
 ## Function analyzing
@@ -159,7 +181,10 @@ All this also applies to methods. A method is basically a function with a fancy 
 
 ## Caching the diagnostics
 
-
+The final diagnostics sent to the langserver depend on a lot of different things,
+so we just recompute them instead of trying to predict whether they will change.
+We keep around a hash of the previous diagnostics,
+so that diagnostics are sent to the editor only for files whose diagonstics changed.
 
 
 ## Types
@@ -199,20 +224,17 @@ To fix this, we use simple mark-and-sweep garbage collection:
 4. Clear the marks of remaining types.
 
 
-## Input and Output
-
-TODO: design the details, how to buffer the input etc
-
-
-## What gets cached
+## Summary of what gets cached
 
 In other words: where to look if you have one of those nasty cache invalidation bugs.
 
-- ASTs (one per file)
+- File size, mtime (modified time), and current time just before each `JouFile` was opened
+- ASTs (one per `JouFile`)
     - Depends only on the file's source code
 - Function analyzing results
     - Depends on:
         - the function's AST (128-bit hash with function-relative line numbers)
         - results of symbol lookups (hits and misses)
 - Diagnostics for each file
-    - Depends on 
+    - Depends on a lot of different things, recomputed every time
+    - One 128-bit hash per file
