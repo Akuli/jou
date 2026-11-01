@@ -70,7 +70,7 @@ declare ReadFile(
     lpOverlapped: OVERLAPPED*,
 ) -> int
 @public
-declare GetStdHandle(nStdHandle: uint32) -> intnative
+declare GetStdHandle(nStdHandle: int) -> intnative
 @public
 declare GetCurrentProcessId() -> uint32
 @public
@@ -150,11 +150,11 @@ const ERROR_IO_PENDING: uint32 = 997
 @public
 const ERROR_BROKEN_PIPE: uint32 = 109
 @public
-const STD_INPUT_HANDLE: uint32 = 0xfffffff6  # TODO(Jou): (-10) as uint32
+const STD_INPUT_HANDLE: int = -10
 @public
-const STD_OUTPUT_HANDLE: uint32 = 0xfffffff5  # TODO(Jou): (-11) as uint32
+const STD_OUTPUT_HANDLE: int = -11
 @public
-const STD_ERROR_HANDLE: uint32 = 0xfffffff4  # TODO(Jou): (-12) as uint32
+const STD_ERROR_HANDLE: int = -12
 @public
 const PIPE_ACCESS_INBOUND: uint32 = 0x00000001
 @public
