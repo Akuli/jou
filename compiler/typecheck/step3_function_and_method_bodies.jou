@@ -1546,8 +1546,12 @@ def typecheck_match_statement(state: State*, match_stmt: AstMatchStatement*) -> 
         # Most of the time, only argument types are relevant, so don't include the return type into sig_string.
         sig_string = sig.to_string(False, False)
 
-        if sig.args.len != 2 or sig.return_type != int_type(32) or sig.takes_varargs:  # TODO: could be more general
-            if sig.return_type != int_type(32):
+        if (
+            sig.args.len != 2
+            or (sig.return_type != int_type(32) and sig.return_type != bool_type())
+            or sig.takes_varargs
+        ):  # TODO: could be more general
+            if sig.return_type != int_type(32) and sig.return_type != bool_type():
                 # show return type in error message
                 sig_string = sig.to_string(True, False)
             snprintf(msg, sizeof(msg), "cannot match with function %s", sig_string)

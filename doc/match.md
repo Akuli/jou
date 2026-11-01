@@ -115,8 +115,9 @@ def main() -> int:
 ```
 
 Instead of `strcmp`, you can specify the name of any function
-that takes two arguments and returns an integer.
-Return value zero means "equal", and anything else means "not equal".
+that takes two arguments and returns either an integer or `bool`.
+If it returns an integer, zero means "equal", and anything else means "not equal".
+If it returns a `bool`, `True` means "match" and `False` means "no match".
 This way `match ... with` can be extended to compare **any** objects in any way you want,
 if you write an appropriate comparing function.
 
