@@ -1,5 +1,8 @@
 # Jou Tutorial
 
+If you already know C, you should probably save some time
+by reading [the other tutorial](tutorial-c.md) instead of this one.
+
 On surface level, Jou looks a lot like Python, but **it doesn't behave like Python**,
 so you will probably be disappointed if you know Python well and you expect all of your knowledge to work as is.
 The main differences are:

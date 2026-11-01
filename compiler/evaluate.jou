@@ -5,6 +5,8 @@ import "stdlib/errno.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/mem.jou"
+if WINDOWS:
+    import "stdlib/ascii.jou"
 
 import "./ast.jou"
 import "./paths.jou"
@@ -62,6 +64,21 @@ def crlf_to_lf(s: byte*) -> None:
     *out = '\0'
 
 
+def is_absolute_path(path: byte*) -> bool:
+    if WINDOWS:
+        return (
+            path[0] == '/'
+            or path[0] == '\\'
+            or (
+                is_ascii_letter(path[0])
+                and path[1] == ':'
+                and (path[2] == '/' or path[2] == '\\')
+            )
+        )
+    else:
+        return path[0] == '/'
+
+
 def read_embedded_file(
     jou_file: JouFile*,
     specified_path: byte*,
@@ -75,7 +92,10 @@ def read_embedded_file(
     assert joufile_path != NULL
 
     full_path: byte* = NULL
-    asprintf(&full_path, "%s/%s", dirname(joufile_path), specified_path)
+    if is_absolute_path(specified_path):
+        full_path = strdup(specified_path)
+    else:
+        asprintf(&full_path, "%s/%s", dirname(joufile_path), specified_path)
     assert full_path != NULL
     free(joufile_path)
 

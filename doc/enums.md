@@ -68,7 +68,7 @@ because then the `calculate()` function doesn't return a value in all cases.
 Now, suppose you need to add a division feature to the calculator.
 The most common ways to do division are:
 - "Normal" division: `7 / 3 = 2.33333...`
-- Floor division: `7 / 3 = 2` (result rounded down)
+- Floor division: `7 // 3 = 2` (result rounded down)
 
 It is tempting to use the `'/'` byte for normal division, but which byte to use for floor division?
 Maybe `'f'` for floor?
@@ -84,7 +84,7 @@ enum Operation:
     Subtract
     Multiply
     Divide          # 7 / 3 produces 2.3333...
-    FloorDivide     # 7 / 3 produces 2
+    FloorDivide     # 7 // 3 produces 2
 
 def calculate(a: double, b: double, op: Operation) -> double:
     match op:

@@ -8,26 +8,22 @@ import "./state.jou"
 
 
 def print_help(argv0: byte*) -> None:
-    printf("Usage: %s [--verbose] [--no-colors] [FILTER FILTER2 FILTER3 ...]\n", argv0)
+    printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", argv0)
     printf("\n")
     printf("Options:\n")
-    printf("  -v / --verbose    show more output than by default\n")
-    printf("  --no-colors       do not print with colors\n")
+    printf("  -v / --verbose        show more output than by default\n")
+    printf("  --no-colors           do not print with colors\n")
+    printf("  --lf / --last-failed  only run tests that failed or were not present in the\n")
+    printf("                        previous test run (useful in large projects)\n")
     printf("\n")
-    printf("If FILTER arguments are given, only run the tests whose path contains one or\n")
-    printf("more FILTERs as a substring.\n")
+    printf("If FILTER arguments are given, only run the tests whose file path contains one\n")
+    printf("or more FILTERs as a substring.\n")
 
 
 @public
 def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
-    # Set default optimize to O1, user sets optimize will overwrite the default flag
     args = CommandLineArgs{}
 
-    if argc == 2 and strcmp(argv[1], "--help") == 0:
-        print_help(argv[0])
-        exit(0)
-
-    optlevel_set = False
     i = 1
     while i < argc:
         match argv[i] with strcmp:
@@ -41,6 +37,10 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
 
             case "--no-colors":
                 disable_colors()
+                i++
+
+            case "--lf" | "--last-failed":
+                args.last_failed = True
                 i++
 
             case _:

@@ -1,8 +1,6 @@
 # The `joutest` test runner
 
 Jou comes with a test runner named `joutest`.
-It is currently very incomplete, and more features will be added soon,
-but it is already usable for some Jou projects.
 
 
 ## Getting started
@@ -80,6 +78,8 @@ Note that when you select the tests to run,
 To understand why, consider what happens when you want to run one test
 in a project that has hundreds of tests (like Jou itself):
 you will see just the one test you asked for without hundreds of skips.
+
+See `joutest --help` for a list of all flags that can be given to joutest.
 
 
 ## Output Comments
@@ -242,7 +242,7 @@ Note that the file name and line number in the error message correctly point to 
 The command and input that `joutest` uses are set up to do exactly that.
 
 
-## Condition Tables
+## If/then/else tables
 
 Let's say that for whatever reason, you have separate test files
 for Windows and for other operating systems.
@@ -250,12 +250,15 @@ Here's how you would set that up in `joutest.toml`:
 
 ```toml
 [[tests]]
-files = {windows = "windows_tests/test_*.jou", default = "posix_tests/test_*.jou"}
+files = {
+    if = "WINDOWS",
+    then = "windows_tests/test_*.jou",
+    else = "posix_tests/test_*.jou",
+}
 ```
 
-In `joutest.toml`, **any TOML table with a `default` key is a condition table.**
-Before `joutest` looks up any settings from `joutest.toml`,
-it replaces each condition table with one of its values.
+The `if` value can be any [built-in Jou boolean constant](supported-platforms.md#built-in-constants) as a string,
+and `then` and `else` are the values to be used.
 So on Windows, the above is equivalent to:
 
 ```toml
@@ -263,15 +266,54 @@ So on Windows, the above is equivalent to:
 files = "windows_tests/test_*.jou"
 ```
 
-The following keys can be used in condition tables:
+You can also nest multiple `if` tables:
 
-| Key           | When is the value used?                           |
-|---------------|---------------------------------------------------|
-| `windows`     | `joutest` is running on Windows                   |
-| `macos`       | `joutest` is running on MacOS                     |
-| `linux`       | `joutest` is running on Linux                     |
-| `32bit`       | `joutest` is running on a 32-bit operating system |
-| `default`     | nothing else matches                              |
+```toml
+[[tests]]
+files = {
+    if = "WINDOWS",
+    then = "windows_tests/test_*.jou",
+    else = {
+        if = "MACOS",
+        then = "macos_tests/test_*.jou",
+        else = "posix_tests/test_*.jou",
+    },
+}
+```
+
+
+## Condition Tables
+
+> [!NOTE]
+> Condition tables are deprecated.
+> They still work, but joutest shows a warning if you use them,
+> and support for condition tables will be removed in the future.
+> Consider using if/then/tables instead as shown above.
+
+In `joutest.toml`, **any TOML table with a `default` key is a condition table.**
+Before `joutest` looks up any settings from `joutest.toml`,
+it replaces each condition table with one of its values.
+
+For example, consider this:
+
+```toml
+[[tests]]
+files = {windows = "windows_tests/test_*.jou", default = "posix_tests/test_*.jou"}
+```
+
+On Windows, the above is equivalent to:
+
+```toml
+[[tests]]
+files = "windows_tests/test_*.jou"
+```
+
+The following keys can be used in condition tables:
+- `windows`
+- `macos`
+- `linux`
+- `32bit`
+- `default` (used when nothing else matches)
 
 If multiple different keys match,
 `joutest` will fail with an error and refuse to run any tests.
@@ -308,7 +350,7 @@ files = {
 
 ## Content of `joutest.toml`
 
-Note that any value can be specified as a [condition table](#condition-tables).
+Note that any value can be specified using [if/then/else tables](#ifthenelse-tables) or [condition tables](#condition-tables).
 
 The only required things are the `tests` array, and `files` inside each table of the `tests` array.
 Everything else is optional.
@@ -323,7 +365,8 @@ Everything else is optional.
         - `"compare_to_comments"` means that
             `joutest` captures the output and compares it to [output comments](#output-comments).
         - `"do_not_capture"` passes the output (if any) to the terminal as is among all the things that `joutest` itself prints.
-            Output comments are ignored entirely if both `stdout` and `stderr` are set to `"do_not_capture"`.
+        - `"discard"` throws away the output entirely.
+            This is similar to redirecting the output to [/dev/null or NUL](https://en.wikipedia.org/wiki/Null_device).
     - `output_comment_rules` (default: `{Output = "{comment}"}`) is a TOML table that specifies
         which comments are recognized as [output comments](#output-comments)
         and how exactly they are transformed into expected output.
@@ -409,69 +452,13 @@ stdout = "do_not_capture"
 
 ## Unimplemented features
 
-These will be documented better as they are implemented.
-This section is here mostly to give people looking at `joutest`
-an idea of what I intend it to become in the future.
-
-Some ideas that might be supported in a `joutest.toml` in the future, but are not right now:
-
-```toml
-verbose = false
-parallel = true
-
-[defaults_for_all_tests]
-run_compiler_under_valgrind = false
-timeout_seconds = 60
-```
-
-The Jou project has [`runtests.sh`](../runtests.sh) that will eventually be replaced by `joutest`
-
-Plan and status:
-1. parse arguments
-    - [DONE] `-v` / `--verbose`
-    - `-O0` / `-O1` / `-O2` / `-O3` (jou opt level)
+While `joutest` is usable, it is still relatively new. The following features are planned, but not implemented:
+- running multiple tests in parallel
+- passing flags to the Jou compiler: `-O0`, `-O1`, `-O2`, `-O3`, `--valgrind`
+- some way to say "if `--valgrind` was given to Jou compiler then do this"
+- some way to run the Jou compiler under valgrind (needed for testing the compiler)
+- timeout, so that an infinite loop doesn't freeze the test runner
+- maximum output size, so that an infinite loop with a print doesn't freeze the test runner
     - `--valgrind`
     - `--jou-flags`
-    - [DONE] `--no-colors`
-    - [DONE] test name filter
-2. [DONE] parse joutest.toml
-    - [DONE] eliminate condition tables
-    - [DONE] don't validate everything or place into nice data structures here
-3. [DONE] discover tests
-    - [DONE] do the globs
-    - [DONE] markdown files: find code blocks
-    - [DONE] figure out which configurations apply to each test
-    - [DONE] do not apply the configurations yet!!!
-    - [DONE] sort tests by:
-        - [DONE] file name
-        - [DONE] start offset (needed for markdown, `qsort()` is not a stable sort)
-    - [DONE] in TOML, use:
-        - [DONE] `files`
-        - [DONE] `markdown_code_block_languages`
-4. [DONE] configure tests
-    - [DONE] walk through and apply each relevant TOML section
-    - [DONE] this is where most of the validation should happen
-5. [DONE] gather expected outputs
-    - [DONE] read files and parse for comments
-    - [DONE] markdown special-casing
-6. run tests
-    - pre-test command like `make`
-        - TODO: how about `./runtests.sh --dont-run-make`?
-    - [DONE] Windows:
-        - [DONE] use `CreateProcessA` (maybe later `CreateProcessW`)
-        - [DONE] set `lpApplicationName` to NULL and `lpCommandLine` like `"jou file.jou"`,
-            so that `joutest.exe` will always prefer a `jou.exe`
-            in the same directory with `joutest.exe` over anything that might be in `%PATH%`
-        - [DONE] implement the notorious CRT quoting rules
-            to construct the string of arguments that no shell will ever see
-    - [DONE] POSIX:
-        - [DONE] use `posix_spawnp()`
-        - [DONE] prepend dirname of joutest executable to `$PATH`,
-            so that `joutest.exe` will always prefer a `jou` in the same directory with `joutest`
-    - [DONE] if configured, capture stdout/stderr
-    - if configured, discard stdout/stderr
-    - run in parallel
-7. [DONE] show results
-    - [DONE] show diffs (need that algorithm.......)
-    - [DONE] show how many succeeded and failed
-    - [DONE] exit 0 or 1
+- pre-test commands like `make`, and some way to disable them
