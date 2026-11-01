@@ -16,48 +16,112 @@ design a simple but reasonably efficient langserver,
 but I'm pretty happy with how the design turned out.
 
 
-## High-level pipeline
+## High-level structure
 
+Let's focus on producing diagnostics (that is, mostly errors and warnings).
 Fundamentally, here's what needs to happen for each file:
 
 ```
-Source code --> Tokens --> AST -->  Symbol Table
-                            |           |
-                            |           V
-                            |`--->  Function analyzing results
-                            |           |
-                            |           V
-                            `---->  Diagnostics for file
+             ,-----------------------------------------------------> Errors --------.
+             |          ,------------------------------------------> Errors --------+
+             |          |                                   ,------> Errors --------+
+             |          |                                   |                       |
+             |          |           ,-- File analyzing -------------------------.   |
+             |          |           |                                           |   |
+             |          |           |   Evaluating compile-time if statements   |   |
+             |          |           |                                           |   |
+Source code --> Tokens --> AST ---->|              Symbol lookups               |   |
+                            |       |                                           |   |
+                            |       |        Other files of the project         |   |
+                            |       |                                           |   |
+                            |       '-------------------------------------------'   |
+                            |               |  |                                    |
+                            |               |  `--> Symbol lookup results   ,-------'
+                            |               |                               |
+                            |               |                               |
+                            |               |                               |
+                            |               V                               V
+                            '--> Function analyzing results  -->  Diagnostics for file
 ```
 
-The symbol table contains the names and types of
-functions, methods, types (classes and typedefs), global variables,
-and other such things defined in the same file.
-Each symbol is either public or private,
-and the public symbols of other files are looked up on-demand, not copied here.
-The symbol table and everything before it is rebuilt from scratch
-every time the file content changes.
+Here a symbol lookup means finding a function, method, type (class or typedef), global variable,
+or other such thing.
+Each symbol is either public or private.
 
 For now, function analyzing means determining diagnostics
 (e.g. undefined variable names, wrong argument types) for the function,
-but later it may be extended with more than diagnostics, such as:
+but later it may be extended to be more than diagnostics, such as:
 - Types of variables and other intermediate values inside the function
     (useful if joulsp is later turned into a Jou compiler)
 - Jump-to-definition information for local variables
 
 
-## Caching for function analyzing
+## File analyzing
 
-The whole function is always analyzed even if only a small part of it changes,
+Symbol lookups and evaluating compile-time `if` statements
+are combined into a single "file analyzing" step,
+because they can depend on each other in both directions.
+These dependencies can also be cyclic or spread across multiple files.
+**This is the only step that deals with multiple files at once.**
+
+```
+# Symbol lookup depends on evaluating a compile-time if statement
+if True:
+    def this_is_a_symbol() -> None:
+        pass
+
+# Evaluating a compile-time if statement depends on a symbol lookup
+const MY_CONSTANT: bool = True  # MY_CONSTANT is a symbol
+if MY_CONSTANT:
+    ...
+
+# Example of a cyclic dependency with types (allowed because a pointer is used)
+class Foo:
+    bar: Bar
+class Bar:
+    foo_ptr: Foo*
+
+# Example of a cyclic dependency with const (error)
+const A: int = B
+const B: int = C  # Error: constant C depends on itself
+const C: int = B  # Error: constant B depends on itself
+```
+
+Cycles are handled with marking.
+For example, if we are trying to get the symbol for constant `C`,
+but `C` has already been marked as being currently analyzed,
+then the result of analyzing `C` is a cyclic dependency error.
+In the above example, the result of analyzing `A` is a constant with unknown value.
+
+File analyzing is done with lazy evaluation.
+This helps with handling cycles, and should improve performance a lot.
+For example, if the user's project only uses `printf()`,
+there's no need to analyze every symbol of `stdlib/io.jou` in full detail.
+
+It also helps if we can quickly confirm that `stdlib/str.jou` does not define a `printf()`,
+so the parser produces a list of symbol names that could possibly be defined somewhere in the file.
+The parser doesn't know how compile-time `if` statements end up being evaluated,
+so this list may contain names that are not actually defined anywhere in the file.
+
+For now, there is no cache for file analyzing.
+In other words, all file analyzing results are thrown away and recomputed
+every time the AST of any file changes.
+I think it would be possible to add caching,
+but it seems like a rabbit hole, and I don't want to do it unless it's really needed.
+
+
+## Function analyzing
+
+The whole function is always analyzed when anything inside it changes,
 and the results of function analyzing are cached.
 The idea is that analyzing one function is fast enough,
 but analyzing every function in a large file could be too slow to be done on every keystroke.
 
 Function analyzing depends only on:
 - AST of the function
-- Global symbol lookups and their results (each lookup first searches from the current file, then imported files)
+- Results of symbol lookups (each lookup searches the current file and public symbols of imported files)
 
-Because this is **only 2 things**, it's easy enough to check
+Because there is **only 2 things**, it's easy enough to check
 whether a function needs to be reanalyzed.
 
 Caveats with the AST:
@@ -93,6 +157,11 @@ Caveats with symbol lookups:
 All this also applies to methods. A method is basically a function with a fancy name.
 
 
+## Caching the diagnostics
+
+
+
+
 ## Types
 
 For both convenience and performance, I wanted to compare types with a simple `==` operator.
@@ -117,7 +186,8 @@ A field on the `Type*` representing `int` would work for pointers and arrays,
 but not `funcptr`'s or generics with 2 or more parameters.
 To make these lookups efficient, all `Type*` pointers are stored in a hash table.
 
-The next problem is that the big hash table of types wants to grow forever and consume a large amount of memory.
+The next problem is that the big hash table of types
+wants to grow forever and consume a large amount of memory.
 To fix this, we use simple mark-and-sweep garbage collection:
 
 1. Mark all the types that are still being used by some cached results.
@@ -134,8 +204,15 @@ To fix this, we use simple mark-and-sweep garbage collection:
 TODO: design the details, how to buffer the input etc
 
 
-## Summary of what gets cached
+## What gets cached
 
 In other words: where to look if you have one of those nasty cache invalidation bugs.
 
-TODO
+- ASTs (one per file)
+    - Depends only on the file's source code
+- Function analyzing results
+    - Depends on:
+        - the function's AST (128-bit hash with function-relative line numbers)
+        - results of symbol lookups (hits and misses)
+- Diagnostics for each file
+    - Depends on 
