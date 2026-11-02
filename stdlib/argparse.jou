@@ -1,133 +1,93 @@
 import "stdlib/assert.jou"
-import "stdlib/process.jou"
-import "stdlib/io.jou"
 import "stdlib/str.jou"
+import "stdlib/utf8.jou"
 
 
-@inline
-def looks_like_short_option(s: byte*) -> bool:
-    # Does not assume much about length of s, so that unicodes will work
-    # e.g. "-ö" for a special örkki mode
-    return s[0] == '-' and s[1] != '-' and s[1] != '\0'
-
-@inline
-def looks_like_long_option(s: byte*) -> bool:
-    return s[0] == '-' and s[1] == '-' and s[2] != '-' and s[2] != '\0'
-
-
-# TODO: handle "--"
 @public
 class ArgumentParser:
-    argv: byte**            # NULL terminated array of strings, argv[0] is program flag
-    index: int              # which argv item we are currently looking at
-    error_suffix: byte*     # added to end of each error message, usually mentions --help
-    value: byte*            # usable after param() or arg() returns True
-    combined_flags: byte*   # used to step through e.g. "-vvo" meaning "-v -v -o"
+    argv: byte**            # the only required field when making an ArgumentParser
+    flag: byte[100]         # e.g. "-v" or "--verbose"
+    pending_value: byte*    # when "=" was used, this is the "bar" part of "--foo=bar" or "-f=bar"
 
-    # Short options like "-v" or "-o file" are always handled like combined
-    # flags, even if there is no combining. Hopefully this consistency
-    # prevents bugs.
-    def prepare_combined_flags(self) -> None:
-        if self.combined_flags == NULL and looks_like_short_option(self.argv[self.index]):
-            self.combined_flags = &self.argv[self.index][1]  # "-vv" --> "vv"
+    # Internal stuff, not meant to be accessed outside this file
+    argv_index: int         # which argument are we looking at
+    combined_flags: byte*   # used to break apart -abc into separate -a -b -c
 
     @public
-    def flag(self, option: byte*) -> bool:
-        assert self.argv != NULL
-        assert self.argv[self.index] != NULL
-        assert looks_like_short_option(option) or looks_like_long_option(option)
-        self.value = NULL
+    def next(self) -> bool:
+        # If the programmer using this thing checks pending_value correctly,
+        # there is never a pending value when we get here. But we can't really
+        # assert it, because when a programmer inevitably forgets to check
+        # pending_value, we would rather ignore the "=yes" of "--verbose=yes"
+        # than trip an assertion in production.
+        self.pending_value = NULL
 
-        if looks_like_short_option(option):
-            self.prepare_combined_flags()
-            if self.combined_flags != NULL and starts_with(self.combined_flags, &option[1]):
-                # Found the flag, perhaps as combined with others
-                self.combined_flags = &self.combined_flags[strlen(option) - 1]
-                if *self.combined_flags == '\0':
-                    # It was the last one in the combined flags
-                    self.combined_flags = NULL
-                    self.index++
+        if self.combined_flags == NULL:
+            if self.argv[self.argv_index] != NULL:
+                self.argv_index++
+            arg = self.argv[self.argv_index]
+            if arg == NULL:
+                # End of arguments
+                self.flag[0] = '\0'
+                return False
+
+            if arg[0] == '-' and arg[1] == '-' and arg[2] != '\0':
+                # Assume it's a --long-option, perhaps --long-option=value
+                option_len = strcspn(arg, "=")
+                snprintf(self.flag, sizeof(self.flag), "%.*s", option_len as int, arg)
+                arg = &arg[option_len]
+                assert *arg == '\0' or *arg == '='
+                if *arg == '=':
+                    self.pending_value = &arg[1]
                 return True
-        elif self.combined_flags == NULL:
-            # We have a long option and we are not in the middle of stepping
-            # through short, combined flags like "-vvo".
-            if strcmp(self.argv[self.index], option) == 0:
-                # Found the entire option (e.g. -v or --verbose)
-                self.index++
-                return True
-
-        return False
-
-    @public
-    def param(self, option: byte*, missing_value_error: byte*) -> bool:
-        assert self.argv != NULL
-        assert self.argv[self.index] != NULL
-        assert looks_like_short_option(option) or looks_like_long_option(option)
-        assert missing_value_error != NULL
-        self.value = NULL
-
-        if looks_like_short_option(option):
-            self.prepare_combined_flags()
-            if self.combined_flags != NULL and starts_with(self.combined_flags, &option[1]):
-                # The option was given, but does it have a value anywhere?
-                if strcmp(self.combined_flags, &option[1]) != 0:
-                    # Found value within the same argument: "-o=out.txt" or "-oout.txt"
-                    self.value = &self.combined_flags[strlen(option) - 1]
-                    if *self.value == '=':
-                        self.value++
-                    self.index++
-                    self.combined_flags = NULL
-                    return True
-                if self.argv[self.index + 1] != NULL:
-                    # Found value within separate argument: "-o out.txt"
-                    self.value = self.argv[self.index + 1]
-                    self.index += 2
-                    self.combined_flags = NULL
-                    return True
-                self.error(missing_value_error)
-
-        elif self.combined_flags == NULL:
-            # We have a long option and we are not in the middle of stepping
-            # through short, combined flags like "-vvo".
-            if strcmp(self.argv[self.index], option) == 0:
-                # Found "--outfile" as an argument
-                self.value = self.argv[self.index + 1]
-                if self.value == NULL:
-                    self.error(missing_value_error)
-                self.index += 2
+            elif arg[0] == '-' and arg[1] != '-' and arg[1] != '\0':
+                # Looks like e.g. -v or -p or -p=1234 or -abc
+                #
+                # For consistency, process it like combined flags even if it's
+                # just one short flag.
+                self.combined_flags = &arg[1]
+            else:
+                # Plain old argument
+                self.flag[0] = '\0'
+                self.pending_value = arg
                 return True
 
-            if starts_with(self.argv[self.index], option) and self.argv[self.index][strlen(option)] == '=':
-                # Found "--outfile=out.txt"
-                self.value = &self.argv[self.index][strlen(option)]
-                self.index++
-                return True
+        # Step through multiple combined flags like -vvp=1234
+        assert self.combined_flags != NULL
+        assert self.combined_flags[0] != '\0'
 
-        return False
+        nbytes: int = 1
+        # Allow non-ASCII flags like -ö why not
+        while is_utf8_continuation(self.combined_flags[nbytes]):
+            nbytes++
+        snprintf(self.flag, sizeof(self.flag), "-%.*s", nbytes, self.combined_flags)
+
+        if self.combined_flags[nbytes] == '=':
+            # e.g. -p=1234, or -vp=1234 being same as -v -p=1234
+            self.pending_value = &self.combined_flags[nbytes + 1]
+            self.combined_flags = NULL
+        else:
+            self.combined_flags = &self.combined_flags[nbytes]
+            if self.combined_flags[0] == '\0':
+                self.combined_flags = NULL
+
+        return True
 
     @public
-    def arg(self) -> bool:
-        if not looks_like_short_option(self.argv[self.index]) and not looks_like_long_option(self.argv[self.index]):
-            self.value = self.argv[self.index++]
-            return True
-        return False
+    def take_value(self) -> byte*:
+        if self.pending_value != NULL:
+            # "-o foo.txt" means same as "-o=foo.txt"
+            result = self.pending_value
+            self.pending_value = NULL
+            return result
 
-    @public
-    def error(self, message: byte*) -> noreturn:
-        self.error_s("%s", message)
+        if self.combined_flags != NULL:
+            # "-ofoo.txt" means same as "-o=foo.txt"
+            result = self.combined_flags
+            self.combined_flags = NULL
+            return result
 
-    # TODO: this sucks
-    @public
-    def error_s(self, fmt: byte*, param: byte*) -> noreturn:
-        program_name = self.argv[0]
-        if WINDOWS and strrchr(program_name, '\\') != NULL:
-            # Don't spam full path, windows likes to use it as argv[0] for some reason
-            program_name = &strrchr(program_name, '\\')[1]
+        if self.argv[self.argv_index] != NULL and self.argv[self.argv_index + 1] != NULL:
+            return self.argv[++self.argv_index]
 
-        fprintf(get_stderr(), "%s: ", program_name)
-        fprintf(get_stderr(), fmt, param)
-        if self.error_suffix != NULL:
-            fprintf(get_stderr(), "%s", self.error_suffix)
-        fprintf(get_stderr(), "\n")
-
-        exit(2)
+        return NULL
