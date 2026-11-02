@@ -34,7 +34,7 @@ def parse_and_dump(command_line: byte*) -> None:
                     printf("='%s'", value)
 
         if parser.pending_value != NULL:
-            printf(" [pending:%s]", parser.pending_value)
+            printf(" [pending '%s']", parser.pending_value)
 
     printf("\n")
     free(argv_list.ptr)
@@ -51,42 +51,42 @@ def main() -> int:
     parse_and_dump("program --help --lol")
     # Output: program --help --lol -x
     parse_and_dump("program --help --lol -x")
-    # Output: program --help --lol -x [pending:]
+    # Output: program --help --lol -x [pending '']
     parse_and_dump("program --help --lol -x=")
-    # Output: program --help --lol -x [pending:y]
+    # Output: program --help --lol -x [pending 'y']
     parse_and_dump("program --help --lol -x=y")
-    # Output: program --help --lol -x [pending:y] -o='x'
+    # Output: program --help --lol -x [pending 'y'] -o='x'
     parse_and_dump("program --help --lol -x=y -o x")
-    # Output: program --help --lol -x [pending:y] -o='x'
+    # Output: program --help --lol -x [pending 'y'] -o='x'
     parse_and_dump("program --help --lol -x=y -ox")
-    # Output: program --help --lol -x [pending:y] -o='' [arg 'x']
+    # Output: program --help --lol -x [pending 'y'] -o='' [arg 'x']
     parse_and_dump("program --help --lol -x=y -o= x")
-    # Output: program --help --lol -x [pending:y] -o='x'
+    # Output: program --help --lol -x [pending 'y'] -o='x'
     parse_and_dump("program --help --lol -x=y -o=x")
-    # Output: program --help --lol -x [pending:y] -o='x' -o='x'
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x'
     parse_and_dump("program --help --lol -x=y -o=x -o x")
-    # Output: program --help --lol -x [pending:y] -o='x' -o='x'
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x'
     parse_and_dump("program --help --lol -x=y -o=x -ox")
-    # Output: program --help --lol -x [pending:y] -o='x' -o='x' [arg 'bla']
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' [arg 'bla']
     parse_and_dump("program --help --lol -x=y -o=x -ox bla")
-    # Output: program --help --lol -x [pending:y] -o='x' -o='x' [arg 'y']
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' [arg 'y']
     parse_and_dump("program --help --lol -x=y -o=x -ox y")
-    # Output: program --help --lol -x [pending:y] -o='x' -o='x' -o='x'
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x'
     parse_and_dump("program --help --lol -x=y -o=x -ox -o x")
-    # Output: program --help --lol -x [pending:y] -o='x' -o='x' -o='x' --output='x'
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x' --output='x'
     parse_and_dump("program --help --lol -x=y -o=x -ox -o x --output x")
-    # Output: program --help --lol -x [pending:y] -o='x' -o='x' -o='x' --output='x' --output='x'
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x' --output='x' --output='x'
     parse_and_dump("program --help --lol -x=y -o=x -ox -o x --output x --output=x")
-    # Output: program --help --lol -x [pending:y] -o='x' -o='x' -o='x' --output='x' --output='x' --outputx
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x' --output='x' --output='x' --outputx
     parse_and_dump("program --help --lol -x=y -o=x -ox -o x --output x --output=x --outputx")
-    # Output: program --help --lol -x [pending:y] -o='x' -o='x' -o='x' --output='x' --output='x' --outputx --output=[NULL]
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x' --output='x' --output='x' --outputx --output=[NULL]
     parse_and_dump("program --help --lol -x=y -o=x -ox -o x --output x --output=x --outputx --output")
 
     # More tests added afterwards
 
-    # Output: program -ä -ö [pending:moi]
-    parse_and_dump("program -äö=moi")
-    # Output: program --örkki --mörkki [pending:hirviö] [arg 'örvelö']
+    # Output: program -ä -ö [pending 'mörkö']
+    parse_and_dump("program -äö=mörkö")
+    # Output: program --örkki --mörkki [pending 'hirviö'] [arg 'örvelö']
     parse_and_dump("program --örkki --mörkki=hirviö örvelö")
 
     # Python does this, and I think it makes sense:
