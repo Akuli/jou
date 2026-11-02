@@ -122,9 +122,10 @@ global ENABLE_PRINTS: bool = True
 def simple_cli_program(args: byte*) -> None:
     args = strdup(args)
     args_list = split_by_ascii_whitespace(args)
+    args_list.append(NULL)
 
     iter = ArgIter{arg_ptr = args_list.ptr}
-    while iter.arg_ptr < args_list.end():
+    while *iter.arg_ptr != NULL:
         match &iter with next_arg:
             case "--help":
                 if ENABLE_PRINTS:
