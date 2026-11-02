@@ -81,9 +81,11 @@ class ArgumentParser:
             return result
 
         if self.argv[self.argv_index] != NULL and self.argv[self.argv_index + 1] != NULL:
-            arg = self.argv[self.argv_index + 1]
+            # Handle two separate arguments: -o foo.txt
+            #
             # Don't eat --foo or -f as a value, but eat -1 because negative
             # numbers are common. This is what Python's argparse does.
+            arg = self.argv[self.argv_index + 1]
             if arg[0] != '-' or strcmp(arg, "-") == 0 or strcmp(arg, "--") == 0 or is_ascii_digit(arg[1]):
                 self.argv_index++
                 return arg
