@@ -23,14 +23,12 @@ class ArgumentParser:
         self.pending_value = NULL
 
         if self.combined_flags == NULL or self.combined_flags[0] == '\0':
-            if self.argv[self.argv_index] != NULL:
-                self.argv_index++
-            arg = self.argv[self.argv_index]
-            if arg == NULL:
+            if self.argv[self.argv_index] == NULL or self.argv[self.argv_index + 1] == NULL:
                 # End of arguments
                 self.flag[0] = '\0'
                 return False
 
+            arg = self.argv[++self.argv_index]
             if arg[0] == '-' and arg[1] == '-' and arg[2] != '\0':
                 # Assume it's a --long-option, perhaps --long-option=value
                 snprintf(self.flag, sizeof(self.flag), "%.*s", strcspn(arg, "=") as int, arg)
@@ -75,7 +73,7 @@ class ArgumentParser:
             return result
 
         if self.combined_flags != NULL and self.combined_flags[0] != '\0':
-            # -ofoo.txt means same as -o=foo.txt
+            # Handle -ofoo.txt, it means same as -o=foo.txt
             result = self.combined_flags
             self.combined_flags = NULL
             return result
