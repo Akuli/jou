@@ -1,0 +1,111 @@
+import "stdlib/assert.jou"
+import "stdlib/str.jou"
+import "stdlib/intnative.jou"
+
+
+# This was in stdlib/str.jou, but I removed it because I used it so rarely
+declare strncmp(s1: byte*, s2: byte*, n: intnative) -> int
+
+
+@public
+class ArgvIter:
+    argv_ptr: byte**
+    value: byte*     # Entire command-line argument (--foo bar) or a part of one (--foo=bar)
+    combined_flags: byte*  # Used to step through combined flags, e.g. "-abc" may mean "-a -b -c"
+
+
+@public
+def argv_iter_next(iter: ArgvIter*, spec: byte*) -> int:
+    assert iter.argv_ptr != NULL
+    assert *iter.argv_ptr != NULL
+
+    assert spec != NULL
+    assert spec[0] == '-'
+    assert spec[1] != '\0'
+
+    iter.value = NULL
+
+    if (*iter.argv_ptr)[0] != '-' or strcmp(*iter.argv_ptr, "-") == 0 or strcmp(*iter.argv_ptr, "--") == 0:
+        # Doesn't look at all like an argument
+        return 1
+
+    if iter.combined_flags != NULL:
+        # combined_flags should point into some part of the next argument
+        assert iter.combined_flags >= *iter.argv_ptr
+        assert iter.combined_flags < &(*iter.argv_ptr)[strlen(*iter.argv_ptr)]
+
+    speclen = strlen(spec)
+    assert speclen >= 2
+
+    if spec[1] == '-':
+        # Looking for long argument like --foo or --foo=...
+        if iter.combined_flags != NULL:
+            # We are currently stepping through something like -abc
+            return 1
+        if spec[speclen - 1] == '=':
+            # Spec looks like "--foo="
+            if starts_with(*iter.argv_ptr, spec):
+                # Found: --foo=bar
+                iter.value = &(*iter.argv_ptr++)[speclen]
+                return 0
+            if (
+                strncmp(spec, *iter.argv_ptr, speclen - 1) == 0
+                and (*iter.argv_ptr)[speclen - 1] == '\0'
+                and iter.argv_ptr[1] != NULL
+            ):
+                # Found: --foo bar
+                iter.value = iter.argv_ptr[1]
+                iter.argv_ptr = &iter.argv_ptr[2]
+                return 0
+            return 1
+        else:
+            if strcmp(*iter.argv_ptr, spec) == 0:
+                # Found: --foo
+                iter.argv_ptr++
+                return 0
+            return 1
+    else:
+        # Looking for short argument like -f
+        if (*iter.argv_ptr)[1] == '-':
+            # ...but we got a long argument like --foo
+            return 1
+        # We need to handle combined flags anyway, so to avoid special-casing,
+        # let's funnel everything through combined flags.
+        if iter.combined_flags == NULL:
+            iter.combined_flags = *iter.argv_ptr
+            assert iter.combined_flags[0] == '-'
+            iter.combined_flags++
+        if spec[speclen - 1] == '=':
+            # Spec looks like "-f="
+            if starts_with(iter.combined_flags, &spec[1]):
+                # Found: -f=bar
+                iter.value = &iter.combined_flags[speclen - 1]
+                iter.argv_ptr++
+                iter.combined_flags = NULL
+                return 0
+            if strncmp(iter.combined_flags, &spec[1], speclen - 2) == 0:
+                # Found: -f
+                if iter.combined_flags[speclen - 2] == '\0' and iter.argv_ptr[1] != NULL:
+                    # Found: -f bar
+                    iter.value = iter.argv_ptr[1]
+                    iter.argv_ptr = &iter.argv_ptr[2]
+                    iter.combined_flags = NULL
+                    return 0
+                if iter.combined_flags[speclen - 2] != '\0':
+                    # Found: -fbar
+                    iter.value = &iter.combined_flags[speclen - 2]
+                    iter.argv_ptr++
+                    iter.combined_flags = NULL
+                    return 0
+            return 1
+        else:
+            # Spec looks like "-f"
+            if starts_with(iter.combined_flags, &spec[1]):
+                # Found: -f
+                iter.combined_flags = &iter.combined_flags[speclen - 1]
+                if *iter.combined_flags == '\0':
+                    # No more combined flags coming up after this one
+                    iter.argv_ptr++
+                    iter.combined_flags = NULL
+                return 0
+            return 1
