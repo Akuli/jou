@@ -1,0 +1,29 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+import "./state.jou"
+import "./allocator.jou"
+import "./tokenizer.jou"
+import "./query_engine.jou"
+
+
+def main(argc: int, argv: byte**) -> int:
+    if argc != 2 or argv[1][0] == '-':
+        fprintf(get_stderr(), "Usage: %s FILE.jou\n", argv[0])
+        return 2
+
+    state = State{}
+
+    # Read the content of this file through the query system
+    params = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{path=argv[1]}}
+
+    results = run_query(&state, &params)
+    assert results != NULL  # not cyclic dependency
+    if results.read_file.error[0] != '\0':
+        puts(results.read_file.error)
+        return 1
+
+    temp_allocator = Allocator{}
+    tokenize(results.read_file.content, &temp_allocator)
+
+    return 0

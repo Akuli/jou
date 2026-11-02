@@ -1,0 +1,137 @@
+import "stdlib/intnative.jou"
+import "stdlib/str.jou"
+
+import "./allocator.jou"
+import "./debug_str.jou"
+
+
+@public
+class SymbolContext:
+    path: byte*
+
+    # funcname and classname    --> we are in a method
+    # funcname only             --> we are in a function
+    # classname only            --> we are in a class
+    # neither                   --> we are looking at global-level stuff in a file
+    funcname: byte*
+    classname: byte*
+
+
+@public
+enum QueryKind:
+    ReadFile
+    FindPublicDefinition
+    FindAccessibleDefinition
+
+global QUERY_KIND_NAMES: byte*[enum_count(QueryKind)] = ["ReadFile", "FindPublicDefinition", "FindAccessibleDefinition"]
+
+
+class ReadFileResult:
+    content: byte*  # always set to some valid string, even if there is an error
+    content_hash: uint64
+    error: byte[500]  # empty string means success
+
+    @public
+    @inline
+    def equals(self, other: ReadFileResult*) -> bool:
+        # Check hash first because that detects almost all changes very quickly
+        return (
+            self.content_hash == other.content_hash
+            and strcmp(self.content, other.content) == 0
+            and strcmp(self.error, other.error) == 0
+        )
+
+
+# Please increment this when you add a field to QueryParams. This should help
+# find places that must be updated to use the new field.
+@public
+const NUMBER_OF_THINGS_IN_QUERY_PARAMS: int = 3
+
+@public
+class QueryParams:
+    kind: QueryKind
+    context: SymbolContext
+    name: byte*     # FindDefinition
+
+    @public
+    def debug_string(self) -> byte*:
+        debug_str_add(QUERY_KIND_NAMES[self.kind as int])
+        debug_str_add(" \"")
+        debug_str_add(self.context.path)
+        debug_str_add("\"")
+        if self.name != NULL:
+            debug_str_add(" ")
+            debug_str_add(self.name)
+        return debug_str_finish()
+
+@public
+class QueryResults:
+    # All memory allocated with this is freed when version number increments
+    allocator: Allocator
+
+    union:
+        read_file: ReadFileResult
+        dummy: int  # TODO: more queries
+
+@public
+class QueryAndVersion:
+    query: Query*
+    version: int64
+
+@public
+class Query:
+    # Stuff used to identify what the query is supposed to do. Never changes
+    # after creating the query. Allocated using query_allocator.
+    params: QueryParams
+
+    # Cached to find queries faster
+    params_hash: uint64
+
+    # If another query that is a dependency has changed, we may need to re-run
+    # this query.
+    #
+    # Dependencies are figured out automatically while the query runs, and
+    # hence, allocated with result_allocator.
+    deps: QueryAndVersion*
+    ndeps: int
+
+    # If the version number of a dependency has changed, this query needs to
+    # re-run before its results can be used again. For example, if we need the
+    # AST and the file content has changed, we need tokenize and parse again.
+    version: int64
+
+    # WARNING:  Check the version numbers of the dependencies before you access
+    #           the results!
+    #
+    # If a dependency has changed and bumped its version, these results may
+    # point into memory that was owned by the old version of the dependency and
+    # is now freed.
+    results: QueryResults
+
+    # Timestamp from time(), used to delete queries that haven't been
+    # used in a long time
+    last_used_time: int64
+
+    # This allocator is freed when the whole query goes away due to not being
+    # used in a long time.
+    #
+    # There's another allocator in QueryResults. That one is useful if you want
+    # the allocated memory to be freed when the query reruns.
+    query_allocator: Allocator
+
+    # This is used to check for cyclic dependencies
+    running: bool
+
+
+@public
+class State:
+    # Each query is allocated with its own allocator, and those Query* pointers
+    # are stored in a hash table
+    queries_table: Query**
+    queries_count: intnative        # number of slots that contain a Query*
+    queries_capacity: intnative     # includes empty slots
+
+    # This is used to figure out the dependencies. If running query foo
+    # triggers running another query bar, then bar is added to foo's list of
+    # dependencies. To do that, this is set to foo.
+    innermost_running_query: Query*  # can be NULL
