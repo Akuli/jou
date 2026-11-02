@@ -1,29 +1,104 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/process.jou"
+import "stdlib/str.jou"
 
-import "./state.jou"
-import "./allocator.jou"
-import "./tokenizer.jou"
-import "./query_engine.jou"
+# TODO: move this stuff to stdlib
+if WINDOWS:
+    import "../joutest/windows_api.jou"
+else:
+    import "../joutest/posix.jou"
 
 
-def main(argc: int, argv: byte**) -> int:
-    if argc != 2 or argv[1][0] == '-':
-        fprintf(get_stderr(), "Usage: %s FILE.jou\n", argv[0])
-        return 2
+global stdin_buf: byte[65536]
 
-    state = State{}
+# Reads from stdin to stdin_buf.
+# Stops reading when there is no more data available in stdin or stdin_buf is full.
+# Returns number of bytes read.
+#
+# Example usage:
+#
+#    declare sleep(seconds: uint32) -> uint32
+#
+#    def main() -> int:
+#        while True:
+#            nbytes = read_from_stdin()
+#            if nbytes < 0:
+#                fprintf(get_stderr(), "joulsp: error reading from stdin\n")
+#                return 1
+#
+#            fwrite(stdin_buf, 1, nbytes, get_stdout())
+#            fflush(get_stdout())
+#            sleep(1)
+#
+# Run with:
+#
+#   $ yes hello | (while IFS= read -n1 c; do echo -n $c; sleep 0.1; done) | jou example.jou
+#
+# This should produce hellohellohellohello... so that it appears one chunk at a time.
+def read_from_stdin() -> int:
+    if WINDOWS:
+        nbytes: uint32 = 0
+        ret = ReadFile(GetStdHandle((-10) as uint32), stdin_buf, sizeof(stdin_buf) as uint32, &nbytes, NULL)
+        if ret == 0:
+            return -1
+        return nbytes as int
+    else:
+        return read(0, stdin_buf, sizeof(stdin_buf)) as int
 
-    # Read the content of this file through the query system
-    params = QueryParams{kind = QueryKind.ReadFile, context = SymbolContext{path=argv[1]}}
 
-    results = run_query(&state, &params)
-    assert results != NULL  # not cyclic dependency
-    if results.read_file.error[0] != '\0':
-        puts(results.read_file.error)
-        return 1
-
-    temp_allocator = Allocator{}
-    tokenize(results.read_file.content, &temp_allocator)
-
-    return 0
+#def main(argc: int, argv: byte**) -> int:
+#
+#    args = CommandLineArgs{}
+#
+#    i = 1
+#    while i < argc:
+#        filename = take_arg(argv, &i, "--record")
+#        if filename != NULL:
+#            if args.replay_mode != ReplayMode.Normal:
+#                # TODO: test this
+#                fprintf(stderr, "%s: --record or --playback can only be specified once (try --help)\n", argv[0])
+#                return 2
+#            args.replay_mode = ReplayMode.Record
+#            args.replay_file = fopen(filename, "wb")
+#            if args.replay_file == NULL:
+#                # TODO: test this
+#                fprintf(stderr, "%s: cannot open \"%s\": %s\n", strerror(get_errno()))
+#                return 1
+#            continue
+#
+#        filename = take_arg(argv, &i, "--playback")
+#        if filename != NULL:
+#            if args.replay_mode != ReplayMode.Normal:
+#                # TODO: test this
+#                fprintf(stderr, "%s: --record or --playback can only be specified once (try --help)\n", argv[0])
+#                return 2
+#            args.replay_mode = ReplayMode.Playback
+#            playback_file = fopen(filename, "rb")
+#            if playback_file == NULL:
+#                # TODO: test this
+#                fprintf(stderr, "%s: cannot open \"%s\": %s\n", strerror(get_errno()))
+#                return 1
+#            continue
+#
+#        match argv[i]:
+#            case "--help":
+#                printf("Usage: %s [options]\n", argv[0])
+#                printf("\n")
+#                printf("Options:\n")
+#                printf("  --record FILE.bin     write inputs needed to reproduce bugs to FILE.bin\n")
+#                printf("  --playback FILE.bin   instead of reading stdin and project files, take all\n")
+#                printf("                        input from a file produced by --record and try to\n")
+#                printf("                        reproduce what the langserver did\n")
+#                return 2
+#
+#            case _:
+#
+#                fprintf(
+#
+#                
+#            
+#        match argv[i]:
+#            case "--record":
+#                if i == argc-1:
+#                    fprintf(stderr, "%s: --record needs a file name (try --help)\n")
