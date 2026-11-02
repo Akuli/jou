@@ -83,9 +83,53 @@ def main() -> int:
     parse_and_dump("program --help --lol -x=y -o=x -ox -o x --output x --output=x --outputx --output")
 
     # More tests added afterwards
+
     # Output: program -ä -ö [pending:moi]
     parse_and_dump("program -äö=moi")
     # Output: program --örkki --mörkki [pending:hirviö] [arg 'örvelö']
     parse_and_dump("program --örkki --mörkki=hirviö örvelö")
+
+    # Python does this, and I think it makes sense:
+    #
+    #    $ cat a.py
+    #    import argparse
+    #    p = argparse.ArgumentParser()
+    #    p.add_argument("--foo")
+    #    print(p.parse_args())
+    #
+    #    $ python3 a.py --foo=--bar
+    #    Namespace(foo='--bar')
+    #
+    #    $ python3 a.py --foo --bar
+    #    usage: a.py [-h] [--foo FOO]
+    #    a.py: error: argument --foo: expected one argument
+    #
+    #    $ python3 a.py --foo -x
+    #    usage: a.py [-h] [--foo FOO]
+    #    a.py: error: argument --foo: expected one argument
+    #
+    #    $ python3 a.py --foo -1
+    #    Namespace(foo='-1')
+    #
+    # Output: program -o='--lol' --output='--lol'
+    # Output: program -o='-x' --output='-x'
+    # Output: program -o='-1' --output='-1'
+    # Output: program -o='-' --output='-'
+    # Output: program -o='--' --output='--'
+    parse_and_dump("program -o=--lol --output=--lol")
+    parse_and_dump("program -o=-x --output=-x")
+    parse_and_dump("program -o=-1 --output=-1")
+    parse_and_dump("program -o=- --output=-")
+    parse_and_dump("program -o=-- --output=--")
+    # Output: program -o=[NULL] --lol --output=[NULL] --lol
+    # Output: program -o=[NULL] -x --output=[NULL] -x
+    # Output: program -o='-1' --output='-1'
+    # Output: program -o='-' --output='-'
+    # Output: program -o='--' --output='--'
+    parse_and_dump("program -o --lol --output --lol")
+    parse_and_dump("program -o -x --output -x")
+    parse_and_dump("program -o -1 --output -1")
+    parse_and_dump("program -o - --output -")
+    parse_and_dump("program -o -- --output --")  # TODO: "--" should be more special
 
     return 0

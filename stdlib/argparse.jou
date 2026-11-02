@@ -1,4 +1,4 @@
-import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
 import "stdlib/str.jou"
 import "stdlib/utf8.jou"
 
@@ -22,7 +22,7 @@ class ArgumentParser:
         # than trip an assertion in production.
         self.pending_value = NULL
 
-        if self.combined_flags == NULL:
+        if self.combined_flags == NULL or self.combined_flags[0] == '\0':
             if self.argv[self.argv_index] != NULL:
                 self.argv_index++
             arg = self.argv[self.argv_index]
@@ -33,12 +33,10 @@ class ArgumentParser:
 
             if arg[0] == '-' and arg[1] == '-' and arg[2] != '\0':
                 # Assume it's a --long-option, perhaps --long-option=value
-                option_len = strcspn(arg, "=")
-                snprintf(self.flag, sizeof(self.flag), "%.*s", option_len as int, arg)
-                arg = &arg[option_len]
-                assert *arg == '\0' or *arg == '='
-                if *arg == '=':
-                    self.pending_value = &arg[1]
+                snprintf(self.flag, sizeof(self.flag), "%.*s", strcspn(arg, "=") as int, arg)
+                self.pending_value = strchr(arg, '=')
+                if self.pending_value != NULL:
+                    self.pending_value++
                 return True
             elif arg[0] == '-' and arg[1] != '-' and arg[1] != '\0':
                 # Looks like e.g. -v or -p or -p=1234 or -abc
@@ -53,9 +51,6 @@ class ArgumentParser:
                 return True
 
         # Step through multiple combined flags like -vvp=1234
-        assert self.combined_flags != NULL
-        assert self.combined_flags[0] != '\0'
-
         nbytes: int = 1
         # Allow non-ASCII flags like -ö why not
         while is_utf8_continuation(self.combined_flags[nbytes]):
@@ -68,26 +63,29 @@ class ArgumentParser:
             self.combined_flags = NULL
         else:
             self.combined_flags = &self.combined_flags[nbytes]
-            if self.combined_flags[0] == '\0':
-                self.combined_flags = NULL
 
         return True
 
     @public
     def take_value(self) -> byte*:
         if self.pending_value != NULL:
-            # "-o foo.txt" means same as "-o=foo.txt"
+            # Handle -o=foo.txt
             result = self.pending_value
             self.pending_value = NULL
             return result
 
-        if self.combined_flags != NULL:
-            # "-ofoo.txt" means same as "-o=foo.txt"
+        if self.combined_flags != NULL and self.combined_flags[0] != '\0':
+            # -ofoo.txt means same as -o=foo.txt
             result = self.combined_flags
             self.combined_flags = NULL
             return result
 
         if self.argv[self.argv_index] != NULL and self.argv[self.argv_index + 1] != NULL:
-            return self.argv[++self.argv_index]
+            arg = self.argv[self.argv_index + 1]
+            # Don't eat --foo or -f as a value, but eat -1 because negative
+            # numbers are common. This is what Python's argparse does.
+            if arg[0] != '-' or strcmp(arg, "-") == 0 or strcmp(arg, "--") == 0 or is_ascii_digit(arg[1]):
+                self.argv_index++
+                return arg
 
         return NULL
