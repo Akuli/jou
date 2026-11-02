@@ -1,0 +1,48 @@
+import "stdlib/argparse.jou"
+import "stdlib/io.jou"
+
+
+def main(argc: int, argv: byte**) -> int:
+    verbosity = 0
+    infile: byte* = NULL
+    outfile: byte* = NULL
+
+    parser = ArgumentParser{argv = argv, index = 1, error_suffix = " (try --help)"}
+    while parser.index < argc:
+        if parser.flag("--help"):
+            printf("Usage: %s [options] FILE.jou\n", argv[0])
+            printf("\n")
+            printf("Options:\n")
+            printf("  -v/--verbose      print more information (can be repeated)\n")
+            printf("  -o OUTFILE        output file\n")
+            return 0
+
+        elif parser.flag("-v") or parser.flag("--verbose"):
+            verbosity++
+
+        elif parser.param("-o", "there must be a file name after -o"):
+            if outfile != NULL:
+                parser.error("-o/--outfile cannot be specified multiple times")
+            outfile = parser.value
+
+        elif parser.arg():
+            if infile != NULL:
+                parser.error("only one input file can be given")
+            infile = parser.value
+
+        else:
+            parser.error_s("unknown argument \"%s\"", parser.argv[parser.index])
+
+    printf("verbosity = %d\n", verbosity)
+
+    if infile == NULL:
+        printf("infile = NULL\n")
+    else:
+        printf("infile = \"%s\"\n", infile)
+
+    if outfile == NULL:
+        printf("outfile = NULL\n")
+    else:
+        printf("outfile = \"%s\"\n", outfile)
+
+    return 0
