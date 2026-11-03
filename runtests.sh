@@ -227,6 +227,10 @@ function should_skip()
     if [ $joufile = examples/memory_leak.jou ]; then
         return 0
     fi
+    # These are run by joutest, which skips them on Windows because argv[0] differs there.
+    if [[ $joufile =~ ^examples/(argc_argv|cli_manual|cli_argparse)\.jou$ ]]; then
+        return 0
+    fi
 
     # If liblzma is not readily available, skip tests that use it.
     if [[ $joufile =~ link_with_liblzma_dynamic ]]; then
