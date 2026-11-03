@@ -1,3 +1,4 @@
+import "stdlib/argparse.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/process.jou"
@@ -7,46 +8,39 @@ import "./ansi_colors.jou"
 import "./state.jou"
 
 
-def print_help(argv0: byte*) -> None:
-    printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", argv0)
-    printf("\n")
-    printf("Options:\n")
-    printf("  -v / --verbose        show more output than by default\n")
-    printf("  --no-colors           do not print with colors\n")
-    printf("  --lf / --last-failed  only run tests that failed or were not present in the\n")
-    printf("                        previous test run (useful in large projects)\n")
-    printf("\n")
-    printf("If FILTER arguments are given, only run the tests whose file path contains one\n")
-    printf("or more FILTERs as a substring.\n")
-
-
 @public
 def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
     args = CommandLineArgs{}
 
-    i = 1
-    while i < argc:
-        match argv[i] with strcmp:
+    parser = ArgumentParser{argv = argv}
+    while parser.next():
+        match parser.flag with strcmp:
             case "--help":
-                print_help(argv[0])
+                printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", argv[0])
+                printf("\n")
+                printf("Options:\n")
+                printf("  -v / --verbose        show more output than by default\n")
+                printf("  --no-colors           do not print with colors\n")
+                printf("  --lf / --last-failed  only run tests that failed or were not present in the\n")
+                printf("                        previous test run (useful in large projects)\n")
+                printf("\n")
+                printf("If FILTER arguments are given, only run the tests whose file path contains one\n")
+                printf("or more FILTERs as a substring.\n")
                 exit(0)
-
             case "-v" | "--verbose":
                 args.verbose = True
-                i++
-
             case "--no-colors":
                 disable_colors()
-                i++
-
             case "--lf" | "--last-failed":
                 args.last_failed = True
-                i++
-
+            case "":
+                args.filter_strings.append(parser.take_value())
             case _:
-                if argv[i][0] == '-':
-                    fprintf(get_stderr(), "%s: unknown argument \"%s\" (try \"%s --help\")\n", argv[0], argv[i], argv[0])
-                    exit(2)
-                args.filter_strings.append(argv[i++])
+                fprintf(get_stderr(), "%s: unknown argument \"%s\" (try --help)\n", argv[0], parser.flag)
+                exit(2)
+
+        if parser.pending_value != NULL:
+            fprintf(get_stderr(), "%s: flag \"%s\" does not take a value (try --help)\n", argv[0], parser.flag)
+            exit(2)
 
     return args
