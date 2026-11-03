@@ -33,20 +33,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Cache state file of link checker
-        uses: actions/cache@v4
-        with:
-          path: links.json
-          key: links-${{ hashFiles('check-markdown-links.py') }}-${{ github.run_id }}
-          restore-keys: |
-            links-${{ hashFiles('check-markdown-links.py') }}-
       - run: pip install requests==2.32.3
       - name: Check links
         id: checker
         shell: bash
         run: |
           set +e
-          python check-markdown-links.py --verbose > link-check-output.txt
+          python check-markdown-links.py --verbose &> link-check-output.txt
           status=$?
           set -e
           cat link-check-output.txt
@@ -59,7 +52,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          grep -v ': ok$' link-check-output.txt > issue-body.txt || [ "$?" -eq 1 ]
+          grep -v ': ok$' link-check-output.txt > issue-body.txt || true
           issue_title="Markdown link checker failures"
           issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state all \
             --search "in:title \"$issue_title\"" --limit 100 --json number,title,state |
@@ -68,12 +61,12 @@ jobs:
           if [ -n "$issue" ]; then
             issue_number=$(jq -r .number <<< "$issue")
             issue_state=$(jq -r .state <<< "$issue")
-            gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --body-file issue-body.txt
             if [ "${{ steps.checker.outputs.has_errors }}" = "true" ]; then
               if [ "$issue_state" = "closed" ]; then
                 gh issue reopen "$issue_number" --repo "$GITHUB_REPOSITORY"
               fi
             elif [ "$issue_state" = "open" ]; then
+              gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --body-file issue-body.txt
               gh issue close "$issue_number" --repo "$GITHUB_REPOSITORY"
             fi
           elif [ "${{ steps.checker.outputs.has_errors }}" = "true" ]; then
