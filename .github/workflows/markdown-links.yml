@@ -16,8 +16,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - run: pip install requests==2.32.3
-      - run: python check-markdown-links.py --offline --verbose
+      - run: python check-markdown-links.py --offline
 
   nightly:
     if: github.event_name != 'pull_request'
@@ -29,7 +28,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install requests==2.32.3
-      - run: python check-markdown-links.py --verbose
+      - run: python check-markdown-links.py
 
   # Please keep in sync with other .yml files
   create-issue-on-failure:
