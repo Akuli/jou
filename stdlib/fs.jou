@@ -271,8 +271,8 @@ class DirIter:
                     # instead we call the old-fashioned readdir() and hack
                     # around the wrong layout of the struct.
                     #
-                    # TODO: This is a mess. Just add a way to check for ARM at
-                    #       compile time.
+                    # TODO: Use ARM_CPU here once this file can use the new
+                    #       built-in constant during bootstrapping.
                     u = utsname{}
                     uname(&u)
                     if starts_with(u.machine, "arm"):
