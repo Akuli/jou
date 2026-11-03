@@ -96,12 +96,12 @@ def main(argc: int, argv: byte**) -> int:
                     fprintf(get_stderr(), "%s: unknown argument \"%s\" (try --help)\n", argv[0], argv[i])
                     return 2
                 if filename != NULL:
-                    fprintf(get_stderr(), "%s: only one file name can be given (try --help)\n", argv[0], argv[i])
+                    fprintf(get_stderr(), "%s: only one file name can be given (try --help)\n", argv[0])
                     return 2
                 filename = argv[i]
 
     if filename == NULL:
-        fprintf(get_stderr(), "%s: missing file name (try --help)\n", argv[0], argv[i])
+        fprintf(get_stderr(), "%s: missing file name (try --help)\n", argv[0])
         return 2
 
     printf("File name: %s\n", filename)
@@ -182,6 +182,56 @@ with `-o` and `-v/--verbose` options, similarly to the Jou compiler.
 
 ```python
 # This program comes with Jou: examples/cli_argparse.jou
+import "stdlib/argparse.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def main(argc: int, argv: byte**) -> int:
+    input_filename: byte* = NULL
+    output_filename: byte* = NULL
+    verbosity = 0
+
+    parser = ArgumentParser{argv = argv}
+    while parser.next():
+        match parser.flag with strcmp:
+            case "--help":
+                printf("Usage: %s [-v/--verbose] [-o FILE] FILE\n", argv[0])
+                printf("\n")
+                printf("  -v/--verbose    print more information, can be repeated to print even more\n")
+                printf("  -o FILE         output an executable file, don't run the code\n")
+                return 0
+            case "-v" | "--verbose":
+                verbosity++
+            case "-o":
+                if output_filename != NULL:
+                    fprintf(get_stderr(), "%s: -o cannot be specified multiple times (try --help)\n", argv[0])
+                    return 2
+                output_filename = parser.take_value()
+                if output_filename == NULL:
+                    fprintf(get_stderr(), "%s: a file name must be specified after -o (try --help)\n", argv[0])
+                    return 2
+            case "":
+                if input_filename != NULL:
+                    fprintf(get_stderr(), "%s: only one input file can be given (try --help)\n", argv[0])
+                    return 2
+                input_filename = parser.take_value()
+            case _:
+                fprintf(get_stderr(), "%s: unknown argument \"%s\" (try --help)\n", argv[0], parser.flag)
+                return 2
+
+        if parser.pending_value != NULL:
+            fprintf(get_stderr(), "%s: flag \"%s\" does not take a value (try --help)\n", argv[0], parser.flag)
+            return 2
+
+    if input_filename == NULL:
+        fprintf(get_stderr(), "%s: missing input file name (try --help)\n", argv[0])
+        return 2
+
+    printf("Input file: %s\n", input_filename)
+    printf("Output file: %s\n", "NULL" if output_filename == NULL else output_filename)
+    printf("Verbosity: %d\n", verbosity)
+    return 0
 ```
 
 Example usage:
