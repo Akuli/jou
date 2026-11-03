@@ -47,20 +47,20 @@ def print_reusing_compiled_file_lines(path: byte*) -> None:
 
 
 def main() -> int:
-    run_jou("")  # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
-    run_jou("--update -O3")  # Output: <jouexe>: "--update" cannot be used with other arguments (try "<jouexe> --help")
-    run_jou("--verbose")  # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
-    run_jou("x.jou y.jou")  # Output: <jouexe>: you can only pass one Jou file (try "<jouexe> --help")
+    run_jou("")  # Output: <jouexe>: missing Jou file name (try --help)
+    run_jou("--update -O3")  # Output: <jouexe>: "--update" cannot be used with other arguments (try --help)
+    run_jou("--verbose")  # Output: <jouexe>: missing Jou file name (try --help)
+    run_jou("x.jou y.jou")  # Output: <jouexe>: you can only pass one Jou file (try --help)
     run_jou("examples/hello.jou")  # Output: Hello World
     run_jou("-j4 examples/hello.jou")  # Output: Hello World
-    run_jou("-o")  # Output: <jouexe>: there must be a file name after -o (try "<jouexe> --help")
-    run_jou("-o examples/hello.jou")  # Output: <jouexe>: the filename after -o should be an executable, not a Jou file (try "<jouexe> --help")
-    run_jou("-O8 examples/hello.jou")  # Output: <jouexe>: unknown argument "-O8" (try "<jouexe> --help")
-    run_jou("--lolwat")  # Output: <jouexe>: unknown argument "--lolwat" (try "<jouexe> --help")
+    run_jou("-o")  # Output: <jouexe>: there must be a file name after -o (try --help)
+    run_jou("-o examples/hello.jou")  # Output: <jouexe>: the filename after -o should be an executable, not a Jou file (try --help)
+    run_jou("-O8 examples/hello.jou")  # Output: <jouexe>: invalid optimization level "8" (try --help)
+    run_jou("--lolwat")  # Output: <jouexe>: unknown argument "--lolwat" (try --help)
     run_jou("lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
-    run_jou("--linker-flags")  # Output: <jouexe>: there must be a string of flags after --linker-flags (try "<jouexe> --help")
-    run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try "<jouexe> --help")
-    run_jou("--check --check")  # Output: <jouexe>: --check cannot be given multiple times (try "<jouexe> --help")
+    run_jou("--linker-flags")  # Output: <jouexe>: there must be a string of flags after --linker-flags (try --help)
+    run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try --help)
+    run_jou("--check --check")  # Output: <jouexe>: --check cannot be given multiple times (try --help)
 
     # Output: <jouexe>: warning: -O1 does nothing when used together with --check (see "<jouexe> --help")
     # Output: Checked 3 files.
@@ -165,7 +165,7 @@ def main() -> int:
     run_jou("--stdin-name custom_name.lol - < tests/data/hellohellohello.txt")
     # Output: <jouexe>: there must be an argument after --stdin-name
     run_jou("--stdin-name")
-    # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
+    # Output: <jouexe>: missing Jou file name (try --help)
     run_jou("--stdin-name custom_name.lol")
     # Output: <jouexe>: input file must be "-" (stdin) when --stdin-name is used
     run_jou("--stdin-name custom_name.lol examples/hello.jou")
