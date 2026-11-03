@@ -23,7 +23,7 @@ jobs:
       - run: python check-markdown-links.py --offline --verbose
 
   nightly:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -40,7 +40,7 @@ jobs:
     name: Create an issue if failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [check-if-needed, test]
+    needs: [nightly]
     if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
     permissions:
       issues: write
