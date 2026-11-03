@@ -57,3 +57,4 @@ Operating system:
 
 CPU architecture:
 - `ARM_CPU: bool` (true for ARM and AArch64 processors)
+- `X86_CPU: bool` (true for 32-bit and 64-bit x86 processors)
