@@ -54,3 +54,6 @@ Operating system:
 
 32-bit vs 64-bit (others are not supported):
 - `IS_32BIT: bool` (`False` means 64-bit. See also the `intnative` type in [the integer types documentation](types.md#integers).)
+
+CPU architecture:
+- `ARM_CPU: bool` (true for ARM and AArch64 processors)

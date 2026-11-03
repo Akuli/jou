@@ -257,8 +257,8 @@ files = {
 }
 ```
 
-The `if` value can be any [built-in Jou boolean constant](supported-platforms.md#built-in-constants) as a string,
-and `then` and `else` are the values to be used.
+The `if` value can be any supported [built-in Jou boolean constant](supported-platforms.md#built-in-constants) as a string,
+and `then` and `else` are the values to be used. `ARM_CPU` is not currently supported as a `joutest` condition.
 So on Windows, the above is equivalent to:
 
 ```toml
