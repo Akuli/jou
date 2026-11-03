@@ -2,70 +2,60 @@
 # This test ensures that these two places stay in sync.
 
 import "stdlib/assert.jou"
-import "stdlib/ascii.jou"
+import "stdlib/errno.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 
 
-def normalize_newline(line: byte*) -> None:
-    len = strlen(line)
-    if len >= 2 and line[len - 2] == '\r' and line[len - 1] == '\n':
-        line[len - 2] = '\n'
-        line[len - 1] = '\0'
+global argparse_doc = embed_text_file("../../doc/argparse.md")
+
+global file_content: byte[100_000]
+global search_string: byte[100_000]
+
+
+# Replaces \r\n with \n in-place
+def crlf_to_lf(s: byte*) -> None:
+    out = s
+    while *s != '\0':
+        if starts_with(s, "\r\n"):
+            s++
+        *out++ = *s++
+    *out = '\0'
 
 
 def main() -> int:
-    crlf_line: byte[10] = "line\r\n"
-    normalize_newline(crlf_line)
-    assert strcmp(crlf_line, "line\n") == 0
+    nfiles = 0
 
-    doc = fopen("doc/argparse.md", "rb")
-    assert doc != NULL
+    p = &argparse_doc[0]
+    while True:
+        p = strstr(&p[1], "# This program comes with Jou: ")
+        if p == NULL:
+            break
+        nfiles++
 
-    doc_line: byte[4096]
-    source_line: byte[4096]
-    path: byte[256]
-    example_count = 0
+        path: byte[100]
+        snprintf(path, sizeof(path), "%s", &strstr(p, ": ")[2])
+        assert strstr(path, "\n") != NULL
+        *strstr(path, "\n") = '\0'
 
-    while fgets(doc_line, sizeof(doc_line), doc) != NULL:
-        normalize_newline(doc_line)
-        if not starts_with(doc_line, "# This program comes with Jou: "):
+        f = fopen(path, "rb")
+        if f == NULL:
+            printf("ERROR: cannot open %s: %s\n", path, strerror(get_errno()))
             continue
 
-        p = strstr(doc_line, ":")
-        p++
-        assert strlen(p) < sizeof(path)
-        strcpy(path, p)
-        trim_ascii_whitespace(path)
-        if not starts_with(path, "examples/"):
-            puts(path)
-        assert starts_with(path, "examples/")
+        file_content[fread(file_content, 1, array_count(file_content) - 1, f)] = '\0'
+        fclose(f)
+        crlf_to_lf(file_content)
 
-        source = fopen(path, "rb")
-        if source == NULL:
-            printf("failed to open %s\n", path)
-        assert source != NULL
-        assert fgets(source_line, sizeof(source_line), source) != NULL
-        normalize_newline(source_line)
-        if strcmp(source_line, "# See also: doc/argparse.md\n") != 0:
-            printf("Unexpected first line in %s: %s\n", path, source_line)
+        if not starts_with(file_content, "# See also: doc/argparse.md\n"):
+            printf("ERROR: unexpected file content in %s: %.100s...\n", path, file_content)
+            continue
 
-        while True:
-            assert fgets(doc_line, sizeof(doc_line), doc) != NULL
-            normalize_newline(doc_line)
-            if starts_with(doc_line, "```"):
-                break
+        snprintf(search_string, sizeof(search_string), "```python\n# This program comes with Jou: %s%s```", path, strstr(file_content, "\n"))
+        if strstr(argparse_doc, search_string) == NULL:
+            printf("ERROR: %s does not seem to be in sync with doc/argparse.md\n", path)
 
-            assert fgets(source_line, sizeof(source_line), source) != NULL
-            normalize_newline(source_line)
-            if strcmp(doc_line, source_line) != 0:
-                fprintf(get_stderr(), "%s differs:\nDocumentation: %sSource: %s", path, doc_line, source_line)
-                assert False
+    # Output: Found 3 examples
+    printf("Found %d examples\n", nfiles)
 
-        assert fgets(source_line, sizeof(source_line), source) == NULL
-        fclose(source)
-        example_count++
-
-    fclose(doc)
-    assert example_count == 3
     return 0
