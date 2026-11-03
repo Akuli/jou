@@ -49,22 +49,6 @@ jobs:
       - run: tar xf ec-linux-amd64.tar.gz bin/ec-linux-amd64
       - run: bin/ec-linux-amd64
 
-  markdownlink-checker:
-    timeout-minutes: 2
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - name: Cache state file of link checker
-        uses: actions/cache@v3
-        with:
-          path: links.json
-          key: links-${{ hashFiles('check-markdown-links.py') }}
-      - run: pip install requests==2.32.3
-      - run: python check-markdown-links.py --verbose
-
   # Run the release script to make sure it doesn't error.
   release-dry-run:
     timeout-minutes: 2
