@@ -167,7 +167,7 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
             case "-O":
                 optlevel_string = parser.take_value()
                 if optlevel_string == NULL:
-                    fprintf(get_stderr(), "%s: use -O0, -O1, -O2 or -O3 to specify an optimization level, not -O by itself (try --help)\n", argv[0], optlevel_string)
+                    fprintf(get_stderr(), "%s: use -O0, -O1, -O2 or -O3 to specify an optimization level, not -O by itself (try --help)\n", argv[0])
                     exit(2)
                 match optlevel_string with strcmp:
                     case "0" | "1" | "2" | "3":
