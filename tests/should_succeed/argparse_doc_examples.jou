@@ -1,0 +1,61 @@
+# The example programs in doc/argparse.md are also in examples/ folder.
+# This test ensures that these two places stay in sync.
+
+import "stdlib/assert.jou"
+import "stdlib/errno.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+global argparse_doc = embed_text_file("../../doc/argparse.md")
+
+global file_content: byte[100_000]
+global search_string: byte[100_000]
+
+
+# Replaces \r\n with \n in-place
+def crlf_to_lf(s: byte*) -> None:
+    out = s
+    while *s != '\0':
+        if starts_with(s, "\r\n"):
+            s++
+        *out++ = *s++
+    *out = '\0'
+
+
+def main() -> int:
+    nfiles = 0
+
+    p = &argparse_doc[0]
+    while True:
+        p = strstr(&p[1], "# This program comes with Jou: ")
+        if p == NULL:
+            break
+        nfiles++
+
+        path: byte[100]
+        snprintf(path, sizeof(path), "%s", &strstr(p, ": ")[2])
+        assert strstr(path, "\n") != NULL
+        *strstr(path, "\n") = '\0'
+
+        f = fopen(path, "rb")
+        if f == NULL:
+            printf("ERROR: cannot open %s: %s\n", path, strerror(get_errno()))
+            continue
+
+        file_content[fread(file_content, 1, array_count(file_content) - 1, f)] = '\0'
+        fclose(f)
+        crlf_to_lf(file_content)
+
+        if not starts_with(file_content, "# See also: doc/argparse.md\n"):
+            printf("ERROR: unexpected file content in %s: %.100s...\n", path, file_content)
+            continue
+
+        snprintf(search_string, sizeof(search_string), "```python\n# This program comes with Jou: %s%s```", path, strstr(file_content, "\n"))
+        if strstr(argparse_doc, search_string) == NULL:
+            printf("ERROR: %s does not seem to be in sync with doc/argparse.md\n", path)
+
+    # Output: Found 3 examples
+    printf("Found %d examples\n", nfiles)
+
+    return 0
