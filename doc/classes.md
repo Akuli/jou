@@ -47,7 +47,22 @@ p: Point
 
 Because the memory is [uninitialized](tutorial.md#undefined-behavior-ub),
 we still need to assign values to the fields, which we can access as `p.x` and `p.y`.
-Like this:
+
+```python
+p: Point
+p.x = 12
+p.y = 34
+```
+
+However, it's usually better to do this instead:
+
+```python
+p = Point{x = 12, y = 34}
+```
+
+This syntax is explained in detail [below](#instantiating-syntax),
+but the most important thing is that this zero-initializes fields that are not specified.
+So with this syntax, you don't need to worry about uninitialized memory.
 
 ```python
 import "stdlib/io.jou"
@@ -57,18 +72,17 @@ class Point:
     y: int
 
 def main() -> int:
-    p: Point
-    p.x = 12
-    p.y = 34
-    printf("%d, %d\n", p.x, p.y)  # Output: 12, 34
+    p1 = Point{x = 12}  # p1.y is zero-initialized
+    printf("%d, %d\n", p1.x, p1.y)  # Output: 12, 0
 
-    p.y++
-    printf("%d, %d\n", p.x, p.y)  # Output: 12, 35
+    p2: Point
+    # p2.x and p2.y are uninitialized, you must set them to avoid UB
+    p2.x = 12
+    p2.y = 34
+    printf("%d, %d\n", p2.x, p2.y)  # Output: 12, 34
+
     return 0
 ```
-
-Alternatively, we could create the instance in one line with `p = Point{x = 12, y = 34}`.
-This syntax is explained in detail [below](#instantiating-syntax).
 
 
 ## Pointers
