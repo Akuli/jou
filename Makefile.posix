@@ -52,9 +52,10 @@ config.jou: Makefile.posix
 	echo '' >> config.jou
 	echo '@public' >> config.jou
 	printf 'const JOU_TARGET: byte* = "%s"\n' "`$(LLVM_CONFIG) --host-target | { { uname -mp | grep -q armv6; } && sed -e 's/^arm-/armv6-/'; }`" >> config.jou
+# TODO: Delete JOU_CONFIG_ARM_CPU once bootstrapping process starts from new enough Jou compiler
 	echo '' >> config.jou
 	echo '@public' >> config.jou
-	printf 'const JOU_CONFIG_ARM_CPU: bool = %s\n' `$(LLVM_CONFIG) --host-target | grep -qiE '^(arm|aarch64|arm64)' && echo True || echo False` >> config.jou
+	printf 'const JOU_CONFIG_ARM_CPU: bool = %s\n' `uname -mp | grep -qE 'arm|aarch64' && echo True || echo False` >> config.jou
 
 
 jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou

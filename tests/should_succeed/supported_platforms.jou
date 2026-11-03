@@ -4,6 +4,8 @@ def main() -> int:
     # Exactly one of the following should be true.
     number = (WINDOWS as int) + (LINUX as int) + (MACOS as int) + (NETBSD as int)
     printf("%d\n", number)  # Output: 1
-    if ARM_CPU:
-        assert ARM_CPU
+
+    number = (ARM_CPU as int) + (X86_CPU as int)
+    printf("%d\n", number)
+
     return 0
