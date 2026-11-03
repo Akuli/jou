@@ -286,7 +286,7 @@ files = {
 
 ## Content of `joutest.toml`
 
-Note that any value can be specified using [if/then/else tables](#ifthenelse-tables) or [condition tables](#condition-tables).
+Note that any value can be specified using [if/then/else tables](#ifthenelse-tables).
 
 The only required things are the `tests` array, and `files` inside each table of the `tests` array.
 Everything else is optional.
