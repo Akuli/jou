@@ -1,0 +1,65 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+
+def normalize_newline(line: byte*) -> None:
+    len = strlen(line)
+    if len >= 2 and line[len - 2] == '\r' and line[len - 1] == '\n':
+        line[len - 2] = '\n'
+        line[len - 1] = '\0'
+
+
+def main() -> int:
+    crlf_line: byte[10] = "line\r\n"
+    normalize_newline(crlf_line)
+    assert strcmp(crlf_line, "line\n") == 0
+
+    doc = fopen("doc/argparse.md", "rb")
+    assert doc != NULL
+
+    doc_line: byte[4096]
+    source_line: byte[4096]
+    path_copy: byte[256]
+    marker = "# This program comes with Jou: "
+    example_comment = "# See also: doc/argparse.md\n"
+    example_count = 0
+
+    while fgets(doc_line, sizeof(doc_line), doc) != NULL:
+        normalize_newline(doc_line)
+        if not starts_with(doc_line, marker):
+            continue
+
+        path = &doc_line[strlen(marker)]
+        if path[strlen(path) - 1] == '\n':
+            path[strlen(path) - 1] = '\0'
+        assert starts_with(path, "examples/")
+        assert strlen(path) < sizeof(path_copy)
+        strcpy(path_copy, path)
+
+        source = fopen(path_copy, "rb")
+        assert source != NULL
+        assert fgets(source_line, sizeof(source_line), source) != NULL
+        normalize_newline(source_line)
+        assert strcmp(source_line, example_comment) == 0
+
+        assert fgets(doc_line, sizeof(doc_line), doc) != NULL
+        while True:
+            normalize_newline(doc_line)
+            if starts_with(doc_line, "```"):
+                break
+
+            assert fgets(source_line, sizeof(source_line), source) != NULL
+            normalize_newline(source_line)
+            if strcmp(doc_line, source_line) != 0:
+                fprintf(get_stderr(), "%s differs:\nDocumentation: %sSource: %s", path_copy, doc_line, source_line)
+                assert False
+            assert fgets(doc_line, sizeof(doc_line), doc) != NULL
+
+        assert fgets(source_line, sizeof(source_line), source) == NULL
+        fclose(source)
+        example_count++
+
+    fclose(doc)
+    assert example_count == 3
+    return 0
