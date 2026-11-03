@@ -1,0 +1,14 @@
+# See https://github.com/Akuli/jou/issues/1453
+
+import "stdlib/list.jou"
+
+class Thingy[T]:
+    @inline
+    def do_the_thing(self, list: List[T]*) -> None:
+        pass
+
+def main() -> int:
+    list = List[int]{}
+    handler = Thingy[int]{}
+    handler.do_the_thing(&list)
+    return 0
