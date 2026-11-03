@@ -12,35 +12,7 @@ import "./string_formatter.jou"
 import "./state.jou"
 
 
-enum Condition:
-    Windows
-    MacOS
-    Linux
-    Is32Bit
-    Default
-
-global CONDITION_STRINGS: byte*[enum_count(Condition)] = [
-    "windows",
-    "macos",
-    "linux",
-    "32bit",
-    "default",
-]
-
-def condition_is_true(c: Condition) -> bool:
-    match c:
-        case Condition.Windows:
-            return WINDOWS
-        case Condition.MacOS:
-            return MACOS
-        case Condition.Linux:
-            return LINUX
-        case Condition.Is32Bit:
-            return IS_32BIT
-        case Condition.Default:
-            return True
-
-def if_condition_is_true(toml: TOML*) -> bool:
+def condition_is_true(toml: TOML*) -> bool:
     condition = toml_to_string(toml)
     if condition == NULL:
         fail_in_toml(toml.lineno, "'if' condition must be a string")
@@ -60,7 +32,7 @@ def if_condition_is_true(toml: TOML*) -> bool:
             snprintf(big_buffer, sizeof(big_buffer), "unsupported 'if' condition: %s", condition)
             fail_in_toml(toml.lineno, big_buffer)
 
-def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
+def eliminate_if_then_else_tables(toml: TOML*, depth: int) -> None:
     while True:
         assert toml.depth >= depth  # may become more shallow when doing this
         toml.depth = depth
@@ -85,7 +57,7 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
                             snprintf(big_buffer, sizeof(big_buffer), "unknown setting '%s' in an if/then/else table", kv.key)
                             fail_in_toml(kv.value.lineno, big_buffer)
 
-                    if if_condition_is_true(condition):
+                    if condition_is_true(condition):
                         new_value = then_value
                     else:
                         new_value = else_value
@@ -96,54 +68,14 @@ def eliminate_condition_tables(toml: TOML*, depth: int) -> None:
                     *toml = temp
                     continue  # Repeat to handle nested `if` tables
 
-                default = toml_get(toml, "default")
-                if default == NULL:
-                    # Normal table
-                    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-                        eliminate_condition_tables(&kv.value, depth + 1)
-                    return
-
-                # Condition table, pick the correct value
-                chosen: TOMLKeyVal* = NULL
+                # Normal table
                 for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-                    cond_index = -1
-                    for i = 0; i < enum_count(Condition); i++:
-                        if strcmp(CONDITION_STRINGS[i], kv.key) == 0:
-                            cond_index = i
-                            break
-                    if cond_index == -1:
-                        snprintf(big_buffer, sizeof(big_buffer), "unknown condition '%s'", kv.key)
-                        fail_in_toml(kv.value.lineno, big_buffer)
-                    cond = cond_index as Condition
-                    if cond != Condition.Default and condition_is_true(cond):
-                        if chosen != NULL:
-                            # TODO: test this?
-                            snprintf(big_buffer, sizeof(big_buffer), "conditions '%s' and '%s' are both true", chosen.key, kv.key)
-                            fail_in_toml(kv.value.lineno, big_buffer)
-                        chosen = kv
-
-                if chosen == NULL:
-                    new_value = default
-                else:
-                    new_value = &chosen.value
-                assert new_value != NULL
-
-                fprintf(
-                    get_stderr(),
-                    "joutest warning in file \"joutest.toml\", line %d: condition tables are deprecated, use if/then/else tables instead\n",
-                    toml.lineno,
-                )
-                fflush(get_stderr())
-
-                temp = *new_value
-                *new_value = TOML{type = TOMLType.Error}  # avoid freeing the value
-                toml.free()
-                *toml = temp
-                continue  # Repeat in case it's a nested condition table
+                    eliminate_if_then_else_tables(&kv.value, depth + 1)
+                return
 
             case TOMLType.Array:
                 for p = toml.array.ptr; p < toml.array.end(); p++:
-                    eliminate_condition_tables(p, depth + 1)
+                    eliminate_if_then_else_tables(p, depth + 1)
                 return
             case TOMLType.String | TOMLType.Boolean | TOMLType.Integer | TOMLType.Floating:
                 return
@@ -388,7 +320,7 @@ def parse_tests_array(defaults_for_all_tests: TestConfig*, toml: TOML*) -> List[
 @public
 def step2_parse_joutest_toml() -> ParsedJoutestToml:
     toml = read_joutest_toml_and_parse_to_toml_object()
-    eliminate_condition_tables(&toml, 0)
+    eliminate_if_then_else_tables(&toml, 0)
 
     tests_toml: TOML* = NULL
     defaults_for_all_tests = TestConfig{}

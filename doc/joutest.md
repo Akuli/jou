@@ -284,75 +284,9 @@ files = {
 ```
 
 
-## Condition Tables
-
-> [!NOTE]
-> Condition tables are deprecated.
-> They still work, but joutest shows a warning if you use them,
-> and support for condition tables will be removed in the future.
-> Consider using if/then/tables instead as shown above.
-
-In `joutest.toml`, **any TOML table with a `default` key is a condition table.**
-Before `joutest` looks up any settings from `joutest.toml`,
-it replaces each condition table with one of its values.
-
-For example, consider this:
-
-```toml
-[[tests]]
-files = {windows = "windows_tests/test_*.jou", default = "posix_tests/test_*.jou"}
-```
-
-On Windows, the above is equivalent to:
-
-```toml
-[[tests]]
-files = "windows_tests/test_*.jou"
-```
-
-The following keys can be used in condition tables:
-- `windows`
-- `macos`
-- `linux`
-- `32bit`
-- `default` (used when nothing else matches)
-
-If multiple different keys match,
-`joutest` will fail with an error and refuse to run any tests.
-For example, the following is probably a bad idea,
-because it does not work at all on 32-bit Linux systems:
-
-```toml
-files = {linux = "linux_tests.jou", 32bit = "32bit_tests.jou", default = "fallback_tests.jou"}
-```
-
-You can instead use nested condition tables to explicitly define
-which value is considered more important:
-
-```toml
-# This uses linux_tests.jou on 32-bit linux
-files = {
-    linux = "linux_tests.jou",
-    default = {
-        32bit = "32bit_tests.jou",
-        default = "fallback_tests.jou",
-    },
-}
-
-# This uses 32bit_tests.jou on 32-bit linux
-files = {
-    32bit = "32bit_tests.jou",
-    default = {
-        linux = "linux_tests.jou",
-        default = "fallback_tests.jou",
-    },
-}
-```
-
-
 ## Content of `joutest.toml`
 
-Note that any value can be specified using [if/then/else tables](#ifthenelse-tables) or [condition tables](#condition-tables).
+Note that any value can be specified using [if/then/else tables](#ifthenelse-tables).
 
 The only required things are the `tests` array, and `files` inside each table of the `tests` array.
 Everything else is optional.
