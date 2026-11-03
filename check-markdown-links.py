@@ -11,8 +11,6 @@ from http.client import responses as status_code_names
 from pathlib import Path
 from datetime import datetime, timedelta
 
-import requests
-
 PROJECT_ROOT = Path(__file__).absolute().parent
 assert (PROJECT_ROOT / "README.md").is_file()
 os.chdir(PROJECT_ROOT)
@@ -41,6 +39,9 @@ def find_links_in_file(markdown_file_path):
 
 
 def check_https_link(url):
+    # This import is here so that offline mode can work with no dependencies
+    import requests
+
     # Give website owners some sort of idea why we are doing these requests.
     headers = {
         "User-Agent": "check-markdown-links.py/1.0 (+https://github.com/Akuli/jou)"
