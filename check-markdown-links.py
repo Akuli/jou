@@ -176,7 +176,7 @@ def main():
         help="don't do HTTP requests, just assume that https:// links are fine",
     )
     parser.add_argument(
-        "--verbose",
+        "-v", "--verbose",
         action="store_true",
         help="also print links that are ok",
     )
@@ -187,19 +187,30 @@ def main():
 
     for path in find_markdown_files():
         for lineno, target in find_links_in_file(path):
+            if args.verbose:
+                # Print this before we do the check, so you can see immediately
+                # what we are checking
+                print(f"{path}:{lineno}: ", end="", flush=True)
+
             result = check_link(path, target, offline_mode=args.offline)
             if result == "ok" or result.startswith("assume ok"):
                 if args.verbose:
-                    print(f"{path}:{lineno}: {result}")
+                    print(result)
+                else:
+                    print(".", end="", flush=True)
                 good_links += 1
             else:
-                print(f"{path}:{lineno}: {result}")
+                if not verbose:
+                    # Initial \n avoids showing this on the same line with dots.
+                    print(f"\n{path}:{lineno}: ")
+                print(result)
                 bad_links += 1
 
     if good_links + bad_links == 0:
         print("Error: no links found")
         sys.exit(1)
 
+    print()
     print()
     print(f"checked {good_links + bad_links} links: {good_links} good, {bad_links} bad")
     if bad_links > 0:
