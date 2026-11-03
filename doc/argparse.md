@@ -29,10 +29,10 @@ so that it places the compiled program to an executable file instead of running 
 and then run the executable separately.
 
 ```
-akuli@Akuli-Desktop ~/jou $ jou examples/argc_argv.jou 
+akuli@Akuli-Desktop ~/jou $ jou examples/argc_argv.jou
 Argument 0: examples/jou_compiled/argc_argv/argc_argv
 
-akuli@Akuli-Desktop ~/jou $ jou -o program examples/argc_argv.jou 
+akuli@Akuli-Desktop ~/jou $ jou -o program examples/argc_argv.jou
 
 akuli@Akuli-Desktop ~/jou $ ./program
 Argument 0: ./program
@@ -112,9 +112,9 @@ def main(argc: int, argv: byte**) -> int:
 Example usage:
 
 ```
-akuli@Akuli-Desktop ~/jou $ jou -o program2 examples/cli_manual.jou 
+akuli@Akuli-Desktop ~/jou $ jou -o program2 examples/cli_manual.jou
 
-akuli@Akuli-Desktop ~/jou $ ./program2 
+akuli@Akuli-Desktop ~/jou $ ./program2
 ./program2: missing file name (try --help)
 
 akuli@Akuli-Desktop ~/jou $ ./program2 --help
@@ -237,9 +237,9 @@ def main(argc: int, argv: byte**) -> int:
 Example usage:
 
 ```
-akuli@Akuli-Desktop ~/jou $ jou -o program3 examples/cli_argparse.jou 
+akuli@Akuli-Desktop ~/jou $ jou -o program3 examples/cli_argparse.jou
 
-akuli@Akuli-Desktop ~/jou $ ./program3 
+akuli@Akuli-Desktop ~/jou $ ./program3
 ./program3: missing input file name (try --help)
 
 akuli@Akuli-Desktop ~/jou $ ./program3 --help
