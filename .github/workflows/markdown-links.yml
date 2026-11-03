@@ -6,9 +6,6 @@ on:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   pull-request:
     if: github.event_name == 'pull_request'
@@ -41,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [nightly]
-    if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.test.result == 'failure' }}
+    if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.nightly.result == 'failure' }}
     permissions:
       issues: write
     steps:
