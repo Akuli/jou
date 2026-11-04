@@ -12,7 +12,7 @@ class ArgumentParser:
     # Internal stuff, not meant to be accessed outside this file
     argv_index: int         # which argument are we looking at
     combined_flags: byte*   # used to break apart -abc into separate -a -b -c
-    dashdash: bool      # everything after "--" is treated as plain old arguments, not flags
+    dashdash: bool          # everything after "--" is treated as plain old arguments, not flags
 
     @public
     def next(self) -> bool:
