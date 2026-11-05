@@ -97,6 +97,9 @@ if WINDOWS:
     # TODO(Jou): add to stdlib
     declare TerminateProcess(hProcess: intnative, uExitCode: uint32) -> int
 
+if LINUX:
+    declare sleep(seconds: uint32) -> uint32
+
 
 # Compiler relies on fopen(running_program, "wb") == NULL to detect whether it
 # can use jou_compiled/foo or does it have to try jou_compiled/foo2 etc
@@ -156,8 +159,15 @@ def test_writing_to_running_program() -> None:
         kill(pid, 9)
         waitpid(pid, NULL, 0)
 
-    # Output: looks like we can write
     f = fopen(exe, "wb")
+    if LINUX:
+        if f == NULL:
+            # On alpine linux, it may take some time for the file system to
+            # figure out that the file can be accessed again
+            sleep(1)
+            f = fopen(exe, "wb")
+
+    # Output: looks like we can write
     if f == NULL:
         printf("can't write\n")
     else:

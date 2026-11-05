@@ -187,6 +187,7 @@ def main() -> int:
     if WINDOWS or system("which valgrind >/dev/null 2>/dev/null") != 0:
         # valgrind not available --> produce some fake output to pass the test
         puts("100 bytes in 1 blocks are definitely lost in loss record 1 of 1")
+        fflush(get_stdout())
     else:
         ret = system("./jou --valgrind examples/memory_leak.jou 2>&1 | grep 'definitely lost' | cut -d' ' -f2-")
         assert ret == 0
