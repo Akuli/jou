@@ -1,0 +1,85 @@
+import "stdlib/assert.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+
+
+@public
+def is_command_whitespace(c: byte) -> bool:
+    return c == ' ' or c == '\t' or c == '\r' or c == '\n'
+
+
+@public
+def split_command_line_posix(command: byte*, result: List[byte*]*) -> bool:
+    assert result.len == 0
+
+    word = List[byte]{}
+    quote: byte = '\0'
+    started_word = False
+    escaped = False
+
+    for p = command; ; p++:
+        c = *p
+
+        if escaped:
+            if c == '\0':
+                free(word.ptr)
+                for arg = result.ptr; arg < result.end(); arg++:
+                    free(*arg)
+                free(result.ptr)
+                *result = List[byte*]{}
+                return False
+            word.append(c)
+            started_word = True
+            escaped = False
+            continue
+
+        if quote == '\'':
+            if c == '\0':
+                free(word.ptr)
+                for arg = result.ptr; arg < result.end(); arg++:
+                    free(*arg)
+                free(result.ptr)
+                *result = List[byte*]{}
+                return False
+            if c == '\'':
+                quote = '\0'
+            else:
+                word.append(c)
+            continue
+
+        if quote == '"':
+            if c == '\0':
+                free(word.ptr)
+                for arg = result.ptr; arg < result.end(); arg++:
+                    free(*arg)
+                free(result.ptr)
+                *result = List[byte*]{}
+                return False
+            if c == '"':
+                quote = '\0'
+            elif c == '\\' and (p[1] == '"' or p[1] == '\\'):
+                escaped = True
+            else:
+                word.append(c)
+            continue
+
+        if c == '\0' or is_command_whitespace(c):
+            if started_word:
+                word.append('\0')
+                result.append(word.ptr)
+                word = List[byte]{}
+                started_word = False
+            if c == '\0':
+                break
+        elif c == '\'' or c == '"':
+            quote = c
+            started_word = True
+        elif c == '\\':
+            escaped = True
+            started_word = True
+        else:
+            word.append(c)
+            started_word = True
+
+    free(word.ptr)
+    return True

@@ -1,0 +1,37 @@
+import "stdlib/io.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "../../compiler/command_line.jou"
+
+
+def free_arguments(args: List[byte*]*) -> None:
+    for arg = args.ptr; arg < args.end(); arg++:
+        free(*arg)
+    free(args.ptr)
+    *args = List[byte*]{}
+
+
+def main() -> int:
+    args = List[byte*]{}
+    printf("valid: %d\n", split_command_line_posix("a 'b c' \"d e\" f\\ g '' \"\" x'y'z", &args))  # Output: valid: 1
+    for arg = args.ptr; arg < args.end(); arg++:
+        printf("[%s]\n", *arg)  # Output: [a]
+                              # Output: [b c]
+                              # Output: [d e]
+                              # Output: [f g]
+                              # Output: []
+                              # Output: []
+                              # Output: [xyz]
+    free_arguments(&args)
+
+    printf("valid: %d\n", split_command_line_posix("\"a\\\"b\" \"c\\\\d\" # literal", &args))  # Output: valid: 1
+    for arg = args.ptr; arg < args.end(); arg++:
+        printf("[%s]\n", *arg)  # Output: [a"b]
+                              # Output: [c\d]
+                              # Output: [#]
+                              # Output: [literal]
+    free_arguments(&args)
+
+    printf("valid: %d\n", split_command_line_posix("'unterminated", &args))  # Output: valid: 0
+    printf("valid: %d\n", split_command_line_posix("trailing\\", &args))  # Output: valid: 0
+    return 0

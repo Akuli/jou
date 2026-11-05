@@ -243,12 +243,6 @@ function should_skip()
             return 0
         fi
     fi
-    if [[ $joufile =~ link_with_liblzma_system_path ]]; then
-        if ! [[ -e "$(pkg-config --variable=libdir liblzma 2>/dev/null)/liblzma.a" ]]; then
-            return 0
-        fi
-    fi
-
     if (
         ([ $joufile = tests/wrong_type/pointer_to_integer_32bit.jou ] && [ $intnative == int64 ]) ||
         ([ $joufile = tests/wrong_type/pointer_to_integer_64bit.jou ] && [ $intnative == int ])

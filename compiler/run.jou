@@ -11,9 +11,27 @@ import "./ast.jou"
 import "./state.jou"
 
 if WINDOWS:
+    import "stdlib/utf8.jou"
+    import "stdlib/windows_api/process.jou"
+    import "stdlib/windows_api/sync.jou"
+    import "stdlib/windows_api/handle.jou"
+    import "stdlib/windows_api/errors.jou"
     import "./paths.jou"
 else:
+    import "stdlib/errno.jou"
+    import "./command_line.jou"
     import "../config.jou"
+    declare global environ: byte**
+    declare posix_spawnp(
+        pid: int*,
+        file: byte*,
+        file_actions: void*,
+        attrp: void*,
+        argv: byte**,
+        envp: byte**,
+    ) -> int
+    declare waitpid(pid: int, status: int*, options: int) -> int
+    const EINTR: int = 4
 
 
 # TODO: move to stdlib?
@@ -27,19 +45,6 @@ def set_env_var(name: byte*, value: byte*) -> bool:
         return SetEnvironmentVariableA(name, value) != 0
     else:
         return setenv(name, value, 1) == 0
-
-
-def get_quoted_object_file_paths() -> byte*:
-    result = List[byte]{}
-    for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
-        assert jou_file.object_file_path != NULL
-        # TODO: quote better?
-        result.append(' ')
-        result.append('"')
-        result.extend_from_ptr(jou_file.object_file_path, strlen(jou_file.object_file_path))
-        result.append('"')
-    result.append('\0')
-    return result.ptr
 
 
 # Linker flags come from:
@@ -72,12 +77,95 @@ def collect_linker_flags() -> byte*:
     return result
 
 
+if WINDOWS:
+    def append_windows_argument(command_line: List[byte]*, argument: byte*) -> None:
+        command_line.append('"')
+        backslash_count = 0
+        for p = argument; *p != '\0'; p++:
+            if *p == '\\':
+                backslash_count++
+            elif *p == '"':
+                for i = 0; i < backslash_count * 2 + 1; i++:
+                    command_line.append('\\')
+                command_line.append('"')
+                backslash_count = 0
+            else:
+                for i = 0; i < backslash_count; i++:
+                    command_line.append('\\')
+                command_line.append(*p)
+                backslash_count = 0
+        for i = 0; i < backslash_count * 2; i++:
+            command_line.append('\\')
+        command_line.append('"')
+
+    def run_process(command_line: byte*) -> int:
+        wide_command_line = string_to_windows(command_line, NULL, 0)
+        if wide_command_line == NULL:
+            fprintf(get_stderr(), "error: process command line is not valid UTF-8\n")
+            return 1
+
+        startup_info = STARTUPINFOW{}
+        startup_info.cb = sizeof(startup_info) as uint32
+        process_info = PROCESS_INFORMATION{}
+        ret = CreateProcessW(
+            NULL,
+            wide_command_line,
+            NULL,
+            NULL,
+            False as int,
+            0,
+            NULL,
+            NULL,
+            &startup_info,
+            &process_info,
+        )
+        free(wide_command_line)
+        if ret == 0:
+            fprintf(get_stderr(), "error: CreateProcessW() failed (Windows error %u)\n", GetLastError())
+            return 1
+
+        if WaitForSingleObject(process_info.hProcess, INFINITE) != 0:
+            fprintf(get_stderr(), "error: WaitForSingleObject() failed (Windows error %u)\n", GetLastError())
+            CloseHandle(process_info.hThread)
+            CloseHandle(process_info.hProcess)
+            return 1
+
+        exit_code: uint32
+        if GetExitCodeProcess(process_info.hProcess, &exit_code) == 0:
+            fprintf(get_stderr(), "error: GetExitCodeProcess() failed (Windows error %u)\n", GetLastError())
+            CloseHandle(process_info.hThread)
+            CloseHandle(process_info.hProcess)
+            return 1
+
+        CloseHandle(process_info.hThread)
+        CloseHandle(process_info.hProcess)
+        return 0 if exit_code == 0 else 1
+else:
+    def run_process(args: List[byte*]*) -> int:
+        assert args.len > 0
+        args.append(NULL)
+
+        child_pid: int
+        ret = posix_spawnp(&child_pid, args.ptr[0], NULL, NULL, args.ptr, environ)
+        if ret != 0:
+            fprintf(get_stderr(), "error: posix_spawnp() failed: %s\n", strerror(ret))
+            return 1
+
+        status: int
+        while True:
+            if waitpid(child_pid, &status, 0) >= 0:
+                break
+            if get_errno() != EINTR:
+                fprintf(get_stderr(), "error: waitpid() failed: %s\n", strerror(get_errno()))
+                return 1
+
+        return 0 if (status & 0x7f) == 0 and ((status >> 8) & 0xff) == 0 else 1
+
+
 @public
 def run_linker(exepath: byte*) -> None:
     linker_flags = collect_linker_flags()
-    quoted_object_files = get_quoted_object_file_paths()
 
-    command: byte*
     if WINDOWS:
         # Assume mingw with clang has been downloaded with windows_setup.sh.
         #
@@ -98,22 +186,61 @@ def run_linker(exepath: byte*) -> None:
             free(jou_exe)
 
         # Could also use clang, but gcc has less dependencies so we can make the Windows zips smaller.
-        # Windows quoting is weird. The outermost quotes get stripped here.
-        asprintf(&command, "\"\"%s\\bin\\gcc.exe\" %s -o \"%s\" %s\"", mingw_dir, quoted_object_files, exepath, linker_flags)
+        linker_path: byte*
+        asprintf(&linker_path, "%s\\bin\\gcc.exe", mingw_dir)
         free(mingw_dir)
+
+        command_line = List[byte]{}
+        append_windows_argument(&command_line, linker_path)
+        for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+            assert jou_file.object_file_path != NULL
+            command_line.append(' ')
+            append_windows_argument(&command_line, jou_file.object_file_path)
+        command_line.append(' ')
+        append_windows_argument(&command_line, "-o")
+        command_line.append(' ')
+        append_windows_argument(&command_line, exepath)
+        if *linker_flags != '\0':
+            command_line.append(' ')
+            command_line.extend_from_ptr(linker_flags, strlen(linker_flags))
+        command_line.append('\0')
+        free(linker_path)
+
+        if global_compiler_state.args.verbosity >= 1:
+            printf("Running linker: %s\n", command_line.ptr)
+
+        ret = run_process(command_line.ptr)
+        free(command_line.ptr)
     else:
-        # Assume clang is installed and use it to link. Could use ld, but clang is needed anyway.
-        asprintf(&command, "'%s' %s -o '%s' %s", JOU_CLANG_PATH, quoted_object_files, exepath, linker_flags)
+        args = List[byte*]{}
+        args.append(strdup(JOU_CLANG_PATH))
+        for jou_file = global_compiler_state.jou_files.ptr; jou_file < global_compiler_state.jou_files.end(); jou_file++:
+            assert jou_file.object_file_path != NULL
+            args.append(strdup(jou_file.object_file_path))
+        args.append(strdup("-o"))
+        args.append(strdup(exepath))
+
+        parsed_linker_flags = List[byte*]{}
+        if not split_command_line_posix(linker_flags, &parsed_linker_flags):
+            fprintf(get_stderr(), "error: linker flags contain invalid quoting\n")
+            exit(1)
+        args.extend(parsed_linker_flags)
+        free(parsed_linker_flags.ptr)
+
+        if global_compiler_state.args.verbosity >= 1:
+            printf("Running linker:")
+            for arg = args.ptr; arg < args.end(); arg++:
+                printf(" [%s]", *arg)
+            printf("\n")
+
+        ret = run_process(&args)
+        for arg = args.ptr; arg < args.end(); arg++:
+            free(*arg)
+        free(args.ptr)
 
     free(linker_flags)
-    free(quoted_object_files)
-
-    if global_compiler_state.args.verbosity >= 1:
-        printf("Running linker: %s\n", command)
-
-    if system(command) != 0:
+    if ret != 0:
         exit(1)
-    free(command)
 
 
 @public
@@ -121,16 +248,22 @@ def run_exe(exepath: byte*) -> int:
     if global_compiler_state.args.verbosity >= 1:
         printf("Run: %s\n", exepath)
 
-    command: byte*
     if WINDOWS:
-        asprintf(&command, "\"%s\"", exepath)
-        while strstr(command, "/") != NULL:
-            *strstr(command, "/") = '\\'
+        command_line = List[byte]{}
+        append_windows_argument(&command_line, exepath)
+        for i = 0; i < command_line.len; i++:
+            if command_line.ptr[i] == '/':
+                command_line.ptr[i] = '\\'
+        command_line.append('\0')
     else:
+        args = List[byte*]{}
         if global_compiler_state.args.valgrind:
-            asprintf(&command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath)
-        else:
-            asprintf(&command, "'%s'", exepath)
+            args.append("valgrind")
+            args.append("-q")
+            args.append("--leak-check=full")
+            args.append("--show-leak-kinds=all")
+            args.append("--error-exitcode=1")
+        args.append(exepath)
 
     # Jou programs can use JOU_COMPILER_PATH environment variable to detect
     # whether they are being ran from the Jou compiler or invoke the compiler
@@ -148,10 +281,14 @@ def run_exe(exepath: byte*) -> int:
     fflush(get_stdout())
     fflush(get_stderr())
 
-    ret = system(command)
-    free(command)
+    if WINDOWS:
+        ret = run_process(command_line.ptr)
+        free(command_line.ptr)
+    else:
+        ret = run_process(&args)
+        free(args.ptr)
 
     # Do not exit immediately, so that the compiler can clean up the memory it
     # uses. This makes error messages much shorter when running tests with
     # valgrind fails.
-    return 0 if ret == 0 else 1  # TODO: extract actual error code / return value
+    return ret
