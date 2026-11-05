@@ -267,6 +267,13 @@ def lock_exe_path() -> byte[100]:
         # allow writing to a running executable, so we can use that to check if
         # the executable is running.
         #
+        # Note 2026-11-06: This may also fail with "is a directory" error,
+        # because older versions of the Jou compiler placed the executable to
+        # jou_compiled/foo/foo instead of jou_compiled/foo.
+        #
+        # TODO: if I remember correctly, netbsd allows you to open a directory
+        #       as if it was a file... that's a problem, see note above
+        #
         # TODO: add a test ensuring that this behavior is the same across
         #       all supported platforms
         f = fopen(exe_path, "wb")
