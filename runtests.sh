@@ -227,8 +227,8 @@ function should_skip()
     if [ $joufile = examples/memory_leak.jou ]; then
         return 0
     fi
-    # These are run by joutest, which skips them on Windows because argv[0] differs there.
-    if [[ $joufile =~ ^examples/(argc_argv|cli_manual|cli_argparse)\.jou$ ]]; then
+    # These have been migrated to joutest already, everything else should eventually go as well
+    if [[ $joufile =~ ^examples/(argc_argv|cli_manual|cli_argparse|replace)\.jou$ ]]; then
         return 0
     fi
 

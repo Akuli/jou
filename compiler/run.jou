@@ -211,6 +211,7 @@ def run_exe(exe: byte*) -> int:
                 "--leak-check=full",
                 "--show-leak-kinds=all",
                 "--error-exitcode=1",
+                exe,
                 NULL,
             ]
             # We use posix_spawnp() to find valgrind from PATH

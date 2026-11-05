@@ -30,7 +30,7 @@ On most other systems, executable files typically don't have a file extension at
 By default, Jou places executables into a folder named `jou_compiled/`.
 
 For example, if you run `hello.jou`, you get a file named
-`jou_compiled\hello\hello.exe` (Windows) or `jou_compiled/hello/hello` (other platforms).
+`jou_compiled\hello.exe` (Windows) or `jou_compiled/hello` (other platforms).
 You can run this file without Jou, or even move it to a different computer that doesn't have Jou, and run it there.
 
 When the operating system runs an executable,
