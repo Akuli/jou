@@ -180,7 +180,7 @@ def write_llvm_ir_to_file(state: ThreadLocalCompilerState*, mod: LLVMModule*, o_
             # somewhat debuggable because it mentions the error number.
             #
             # TODO: call FormatMessage()? it is messy though.
-            fprintf(get_stderr(), "renaming object file \"%s\" --> \"%s\" failed: error %u\n", o_path_2, o_path, move_error)
+            fprintf(get_stderr(), "renaming object file \"%s\" --> \"%s\" failed (Windows error %u)\n", o_path_2, o_path, move_error)
         else:
             fprintf(get_stderr(), "renaming object file \"%s\" --> \"%s\" failed: %s\n", o_path_2, o_path, strerror(move_error))
         exit(1)
