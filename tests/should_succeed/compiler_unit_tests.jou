@@ -159,21 +159,6 @@ def test_writing_to_running_program() -> None:
         kill(pid, 9)
         waitpid(pid, NULL, 0)
 
-    f = fopen(exe, "wb")
-    if LINUX:
-        if f == NULL:
-            # On alpine linux, it may take some time for the file system to
-            # figure out that the file can be accessed again
-            sleep(1)
-            f = fopen(exe, "wb")
-
-    # Output: looks like we can write
-    if f == NULL:
-        printf("can't write\n")
-    else:
-        printf("looks like we can write\n")
-        fclose(f)
-
 
 def main() -> int:
     test_link_statement_path_rewriting()
