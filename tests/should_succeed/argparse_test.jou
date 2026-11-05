@@ -125,11 +125,18 @@ def main() -> int:
     # Output: program -o=[NULL] -x --output=[NULL] -x
     # Output: program -o='-1' --output='-1'
     # Output: program -o='-' --output='-'
-    # Output: program -o='--' --output='--'
     parse_and_dump("program -o --lol --output --lol")
     parse_and_dump("program -o -x --output -x")
     parse_and_dump("program -o -1 --output -1")
     parse_and_dump("program -o - --output -")
-    parse_and_dump("program -o -- --output --")  # TODO: "--" should be more special
+
+    # Output: program [arg '--help'] [arg '-x'] [arg 'plain']
+    # Output: program [arg '--']
+    # Output: program -o=[NULL] [arg '--output'] [arg '--']
+    # Output: program --output=[NULL] [arg '-o'] [arg '--']
+    parse_and_dump("program -- --help -x plain")
+    parse_and_dump("program -- --")
+    parse_and_dump("program -o -- --output --")
+    parse_and_dump("program --output -- -o --")
 
     return 0

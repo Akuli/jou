@@ -12,9 +12,16 @@ class ArgumentParser:
     # Internal stuff, not meant to be accessed outside this file
     argv_index: int         # which argument are we looking at
     combined_flags: byte*   # used to break apart -abc into separate -a -b -c
+    dashdash: bool          # everything after "--" is treated as plain old arguments, not flags
 
     @public
     def next(self) -> bool:
+        self.flag[0] = '\0'
+
+        if self.argv[self.argv_index] == NULL:
+            # argv[0] is NULL, or calling next() after it already returned False
+            return False
+
         # If the programmer using this thing checks pending_value correctly,
         # there is never a pending value when we get here. But we can't really
         # assert it, because when a programmer inevitably forgets to check
@@ -23,20 +30,23 @@ class ArgumentParser:
         self.pending_value = NULL
 
         if self.combined_flags == NULL or self.combined_flags[0] == '\0':
-            if self.argv[self.argv_index] == NULL or self.argv[self.argv_index + 1] == NULL:
-                # End of arguments
-                self.flag[0] = '\0'
-                return False
-
             arg = self.argv[++self.argv_index]
-            if arg[0] == '-' and arg[1] == '-' and arg[2] != '\0':
+
+            if (not self.dashdash) and arg != NULL and strcmp(arg, "--") == 0:
+                self.dashdash = True
+                arg = self.argv[++self.argv_index]
+
+            if arg == NULL:
+                # End of arguments
+                return False
+            elif arg[0] == '-' and arg[1] == '-' and arg[2] != '\0' and not self.dashdash:
                 # Assume it's a --long-option, perhaps --long-option=value
                 snprintf(self.flag, sizeof(self.flag), "%.*s", strcspn(arg, "=") as int, arg)
                 self.pending_value = strchr(arg, '=')
                 if self.pending_value != NULL:
                     self.pending_value++
                 return True
-            elif arg[0] == '-' and arg[1] != '-' and arg[1] != '\0':
+            elif arg[0] == '-' and arg[1] != '-' and arg[1] != '\0' and not self.dashdash:
                 # Looks like e.g. -v or -p or -p=1234 or -abc
                 #
                 # For consistency, process it like combined flags even if it's
@@ -44,7 +54,6 @@ class ArgumentParser:
                 self.combined_flags = &arg[1]
             else:
                 # Plain old argument
-                self.flag[0] = '\0'
                 self.pending_value = arg
                 return True
 
@@ -84,7 +93,7 @@ class ArgumentParser:
             # Don't eat --foo or -f as a value, but eat -1 because negative
             # numbers are common. This is what Python's argparse does.
             arg = self.argv[self.argv_index + 1]
-            if arg[0] != '-' or strcmp(arg, "-") == 0 or strcmp(arg, "--") == 0 or is_ascii_digit(arg[1]):
+            if arg[0] != '-' or strcmp(arg, "-") == 0 or is_ascii_digit(arg[1]):
                 self.argv_index++
                 return arg
 
