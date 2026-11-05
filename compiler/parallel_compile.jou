@@ -29,6 +29,10 @@ import "./pthreads.jou"
 import "./state.jou"
 import "./paths.jou"
 
+if WINDOWS:
+    import "stdlib/windows_api/system.jou"
+    import "stdlib/windows_api/errors.jou"
+
 
 if WINDOWS:
     declare MoveFileExA(lpExistingFileName: byte*, lpNewFileName: byte*, dwFlags: uint32) -> int
@@ -48,13 +52,8 @@ else:
         return linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0)
 
 
-# TODO: stdlib?
-declare getpid() -> int
-
 # Number of CPUs determining stuff
-if WINDOWS:
-    import "stdlib/windows_api/system.jou"
-else:
+if not WINDOWS:
     declare sysconf(n: int) -> intnative
     if MACOS:
         const _SC_NPROCESSORS_ONLN: int = 58
@@ -63,6 +62,10 @@ else:
     else:
         # linux
         const _SC_NPROCESSORS_ONLN: int = 84
+
+# TODO: stdlib?
+declare getpid() -> int
+
 
 def get_number_of_cpus() -> int:
     if WINDOWS:

@@ -6,13 +6,19 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
-import "stdlib/errno.jou"
 
 import "./ast.jou"
 import "./state.jou"
 import "./paths.jou"
 
-if not WINDOWS:
+if WINDOWS:
+    import "stdlib/utf8.jou"
+    import "stdlib/windows_api/errors.jou"
+    import "stdlib/windows_api/handle.jou"
+    import "stdlib/windows_api/process.jou"
+    import "stdlib/windows_api/sync.jou"
+else:
+    import "stdlib/errno.jou"
     import "../config.jou"
 
 
@@ -38,6 +44,7 @@ else:
         argv: byte**,
         envp: byte**,
     ) -> int
+    declare strsignal(signal: int) -> byte*
 
 def set_env_var(name: byte*, value: byte*) -> bool:
     if WINDOWS:
@@ -137,6 +144,12 @@ if not WINDOWS:
     declare global environ: byte**
 
     # TODO(Jou): put these to stdlib, copy/pasta from joutest
+
+    # Returns True if the process terminated with a signal
+    @inline
+    def WIFSIGNALED(s: int) -> bool:
+        # 127 means "stopped", see WIFSTOPPED(). We should never get that value.
+        return WTERMSIG(s) != 0 and WTERMSIG(s) != 127
 
     # Returns True if the process exited normally.
     @inline
@@ -242,8 +255,9 @@ def run_exe(exe: byte*) -> int:
             exit(1)
 
         exit_code: uint32 = 0
-        if GetExitCodeProcess(run_state.process_info.hProcess, &exit_code) == 0:
-            fail_with_windows_error("GetExitCodeProcess() failed", GetLastError())
+        if GetExitCodeProcess(process_info.hProcess, &exit_code) == 0:
+            fprintf(get_stderr(), "error: GetExitCodeProcess() failed (Windows error %u)\n", GetLastError())
+            exit(1)
 
         CloseHandle(process_info.hThread)
         CloseHandle(process_info.hProcess)
@@ -258,6 +272,8 @@ def run_exe(exe: byte*) -> int:
         # uses. This makes error messages much shorter when running tests with
         # valgrind fails.
         if not WIFEXITED(status):
+            if WIFSIGNALED(status):
+                fprintf(get_stderr(), "%s\n", strsignal(WTERMSIG(status)))
             # TODO: other return code for killing with signal?
             return 1
         return WEXITSTATUS(status)

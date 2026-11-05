@@ -1,13 +1,21 @@
 # I don't like unit tests for various reasons, but they're great when some part
 # of the code is really hard to get right.
 
+import "stdlib/assert.jou"
+import "stdlib/process.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/fs.jou"
 import "../../compiler/hash.jou"
 import "../../compiler/paths.jou"
 
-if not WINDOWS:
+if WINDOWS:
+    import "stdlib/utf8.jou"
+    import "stdlib/intnative.jou"
+    import "stdlib/windows_api/process.jou"
+    import "stdlib/windows_api/handle.jou"
+else:
     # Make sure we link with LLVM
     import "../../config.jou"
 
@@ -17,6 +25,19 @@ if not WINDOWS:
     @public
     def dummy_function() -> None:
         puts(JOU_CLANG_PATH)
+
+    # TODO(Jou): add to stdlib?
+    declare waitpid(pid: int, wstatus: int*, options: int) -> int
+    declare kill(pid: int, signal: int) -> int
+    declare global environ: byte**
+    declare posix_spawn(
+        pid: int*,
+        path: byte*,
+        file_actions: void*,  # actually posix_spawn_file_actions_t*
+        attrp: void*,         # actually posix_spawnattr_t*
+        argv: byte**,
+        envp: byte**,
+    ) -> int
 
 
 if WINDOWS:
@@ -72,7 +93,80 @@ def test_fnv1a_hash() -> None:
         printf("%llX\n", h.hash)
 
 
+if WINDOWS:
+    # TODO(Jou): add to stdlib
+    declare TerminateProcess(hProcess: intnative, uExitCode: uint32) -> int
+
+
+# Compiler relies on fopen(running_program, "wb") == NULL to detect whether it
+# can use jou_compiled/foo or does it have to try jou_compiled/foo2 etc
+def test_writing_to_running_program() -> None:
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
+
+    f = fopen("tmp/tests/spinner.jou", "w")
+    assert f != NULL
+    fputs("def main() -> int:\n    while True:\n        pass", f)
+    fclose(f)
+    assert system("jou -o tmp/tests/spinner tmp/tests/spinner.jou") == 0
+
+    if WINDOWS:
+        exe = "tmp/tests/spinner.exe"
+
+        wide_exe: uint16[100]
+        string_to_windows(exe, wide_exe, array_count(wide_exe))
+        startup_info = STARTUPINFOW{}
+        startup_info.cb = sizeof(startup_info) as uint32
+        process_info = PROCESS_INFORMATION{}
+        ret = CreateProcessW(
+            wide_exe,
+            NULL,
+            NULL,
+            NULL,
+            False as int,
+            0,
+            NULL,
+            NULL,
+            &startup_info,
+            &process_info,
+        )
+        assert ret != 0
+
+    else:
+        exe = "tmp/tests/spinner"
+
+        exe_argv = [exe, NULL]
+        pid: int
+        ret = posix_spawn(&pid, exe, NULL, NULL, exe_argv, environ)
+        assert ret == 0
+
+    # Output: can't write
+    f = fopen(exe, "wb")
+    if f == NULL:
+        printf("can't write\n")
+    else:
+        printf("looks like we can write\n")
+        fclose(f)
+
+    if WINDOWS:
+        TerminateProcess(process_info.hProcess, 1)
+        CloseHandle(process_info.hThread)
+        CloseHandle(process_info.hProcess)
+    else:
+        kill(pid, 9)
+        waitpid(pid, NULL, 0)
+
+    # Output: looks like we can write
+    f = fopen(exe, "wb")
+    if f == NULL:
+        printf("can't write\n")
+    else:
+        printf("looks like we can write\n")
+        fclose(f)
+
+
 def main() -> int:
     test_link_statement_path_rewriting()
     test_fnv1a_hash()
+    test_writing_to_running_program()
     return 0
