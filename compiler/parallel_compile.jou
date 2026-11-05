@@ -28,13 +28,9 @@ import "./pthreads.jou"
 import "./state.jou"
 
 
-# TODO: stdlib?
-declare rename(oldpath: byte*, newpath: byte*) -> int
-
 # Number of CPUs determining stuff
 if WINDOWS:
-    declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
-    const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
+    import "stdlib/windows_api/system.jou"
 else:
     declare sysconf(n: int) -> intnative
     if MACOS:
@@ -44,6 +40,9 @@ else:
     else:
         # linux
         const _SC_NPROCESSORS_ONLN: int = 84
+
+# TODO: stdlib?
+declare rename(oldpath: byte*, newpath: byte*) -> int
 
 def get_number_of_cpus() -> int:
     if WINDOWS:

@@ -1,7 +1,6 @@
 import "stdlib/intnative.jou"
 assert WINDOWS
 
-
 @public
 class STARTUPINFOW:
     cb: uint32
@@ -44,9 +43,11 @@ declare CreateProcessW(
     lpProcessInformation: PROCESS_INFORMATION*,
 ) -> int
 @public
+declare GetCurrentProcessId() -> uint32
+@public
 declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
 @public
-declare GetCurrentProcessId() -> uint32
+declare GetModuleFileNameW(hModule: void*, lpFilename: uint16*, nSize: uint32) -> uint32
 
 @public
 const STARTF_USESTDHANDLES: uint32 = 0x00000100

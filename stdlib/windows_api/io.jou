@@ -1,7 +1,6 @@
 import "stdlib/intnative.jou"
 assert WINDOWS
 
-
 @public
 class OVERLAPPED:
     Internal: intnative
@@ -10,6 +9,19 @@ class OVERLAPPED:
         Offset: uint64  # In C this is a pair (Offset, OffsetHigh)
         Pointer: void*
     hEvent: intnative
+
+@public
+class WIN32_FIND_DATAW:
+    dwFileAttributes: uint32
+    ftCreationTime: uint32[2]  # TODO: actually FILETIME
+    ftLastAccessTime: uint32[2]  # TODO: actually FILETIME
+    ftLastWriteTime: uint32[2]  # TODO: actually FILETIME
+    nFileSizeHigh: uint32
+    nFileSizeLow: uint32
+    dwReserved0: uint32
+    dwReserved1: uint32
+    cFileName: uint16[260]  # TODO: this can be quite limiting
+    cAlternateFileName: uint16[14]
 
 @public
 declare CreateFileA(
@@ -31,6 +43,12 @@ declare CreateNamedPipeA(
     nDefaultTimeOut: uint32,
     lpSecurityAttributes: void*,  # actually SECURITY_ATTRIBUTES*
 ) -> intnative
+@public
+declare FindClose(hFindFile: intnative) -> int
+@public
+declare FindFirstFileW(FileName: uint16*, FindFileData: WIN32_FIND_DATAW*) -> intnative
+@public
+declare FindNextFileW(hFindFile: intnative, FindFileData: WIN32_FIND_DATAW*) -> int
 @public
 declare GetOverlappedResult(
     hFile: intnative,
