@@ -95,7 +95,19 @@ else:
     else:
         assert False  # unsupported system
 
-    if NETBSD:
+    # For whatever reason, readdir() seems to use 32-bit integers on linux
+    # running on 32-bit ARM, but not linux 32-bit on x86.
+    #
+    # This might not be completely correct, because ARM_CPU is quite vague,
+    # but this seems to work on every platform that Jou currently supports.
+    if LINUX and IS_32BIT and ARM_CPU:
+        declare opendir64(dirp: DIR*) -> dirent*
+        declare readdir64(dirp: DIR*) -> dirent*
+        def opendir(dirp: DIR*) -> dirent*:
+            return opendir64(dirp)
+        def readdir(dirp: DIR*) -> dirent*:
+            return readdir64(dirp)
+    elif NETBSD:
         # On NetBSD, "opendir" and "readdir" are legacy functions.
         # We can't use them because they generate a linker warning.
         # The dirent.h header magically renames them at compile time to the following names.
@@ -110,17 +122,6 @@ else:
         declare readdir(dirp: DIR*) -> dirent*
 
     declare closedir(dirp: DIR*) -> int
-
-    if LINUX and IS_32BIT:
-        class utsname:
-            sysname: byte[65]
-            nodename: byte[65]
-            release: byte[65]
-            version: byte[65]
-            machine: byte[65]
-            the_rest: byte[512]  # if something is the wrong size, at least doesn't overflow stack
-
-        declare uname(buf: utsname*) -> int
 
 
 # Iterating directory contents
@@ -257,28 +258,7 @@ class DirIter:
                         strerror_r(e, self.error_message, sizeof(self.error_message))
                     return False
 
-                name: byte* = entry.d_name
-
-                if LINUX and IS_32BIT:
-                    # On 32-bit ARM, readdir() is a legacy function that uses
-                    # 32-bit values in some fields of struct dirent. If you
-                    # call readdir() in C, you actually call readddir64() due
-                    # to magic in header files.
-                    #
-                    # Ideally we would just use readdir64(). But then we would
-                    # need a compile-time way to check for ARM, because a call
-                    # to readdir64() on 32-bit x86 causes a linker error. So
-                    # instead we call the old-fashioned readdir() and hack
-                    # around the wrong layout of the struct.
-                    #
-                    # TODO: Use ARM_CPU here once this file can use the new
-                    #       built-in constant during bootstrapping.
-                    u = utsname{}
-                    uname(&u)
-                    if starts_with(u.machine, "arm"):
-                        name = &name[-8]
-
-                if self.set_name(name):
+                if self.set_name(entry.d_name):
                     return True
 
 
