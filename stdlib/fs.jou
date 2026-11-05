@@ -8,39 +8,10 @@ import "stdlib/errno.jou"
 if WINDOWS:
     import "stdlib/ascii.jou"
     import "stdlib/utf8.jou"
-
-    class WIN32_FIND_DATAW:
-        dwFileAttributes: uint32
-        ftCreationTime: uint32[2]  # actually FILETIME
-        ftLastAccessTime: uint32[2]  # actually FILETIME
-        ftLastWriteTime: uint32[2]  # actually FILETIME
-        nFileSizeHigh: uint32
-        nFileSizeLow: uint32
-        dwReserved0: uint32
-        dwReserved1: uint32
-        cFileName: uint16[260]  # TODO: this can be quite limiting
-        cAlternateFileName: uint16[14]
-
-    declare FindFirstFileW(FileName: uint16*, FindFileData: WIN32_FIND_DATAW*) -> intnative
-    declare FindNextFileW(hFindFile: intnative, FindFileData: WIN32_FIND_DATAW*) -> int
-    declare FindClose(hFindFile: intnative) -> int
-    const INVALID_HANDLE_VALUE: intnative = -1
-
-    declare GetLastError() -> uint32
-    const ERROR_PATH_NOT_FOUND: uint32 = 3
-    const ERROR_NO_MORE_FILES: uint32 = 18
-
-    declare FormatMessageW(
-        dwFlags: uint32,
-        lpSource: void*,
-        dwMessageId: uint32,
-        dwLanguageId: uint32,
-        lpBuffer: uint16*,
-        nSize: uint32,
-        Arguments: void*,  # actually va_list*
-    ) -> uint32
-    const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
-    const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
+    import "stdlib/windows_api/errors.jou"
+    import "stdlib/windows_api/handle.jou"
+    import "stdlib/windows_api/io.jou"
+    import "stdlib/windows_api/process.jou"
 
     def windows_error_to_string(e: uint32, message: byte*, message_size: int) -> None:
         temp_buffer: uint16[1024]  # more than big enough for typical errors
@@ -95,7 +66,19 @@ else:
     else:
         assert False  # unsupported system
 
-    if NETBSD:
+    # For whatever reason, readdir() seems to use 32-bit integers on linux
+    # running on 32-bit ARM, but not linux 32-bit on x86.
+    #
+    # This might not be completely correct, because ARM_CPU is quite vague,
+    # but this seems to work on every platform that Jou currently supports.
+    if LINUX and IS_32BIT and ARM_CPU:
+        declare opendir64(dirp: DIR*) -> dirent*
+        declare readdir64(dirp: DIR*) -> dirent*
+        def opendir(dirp: DIR*) -> dirent*:
+            return opendir64(dirp)
+        def readdir(dirp: DIR*) -> dirent*:
+            return readdir64(dirp)
+    elif NETBSD:
         # On NetBSD, "opendir" and "readdir" are legacy functions.
         # We can't use them because they generate a linker warning.
         # The dirent.h header magically renames them at compile time to the following names.
@@ -110,17 +93,6 @@ else:
         declare readdir(dirp: DIR*) -> dirent*
 
     declare closedir(dirp: DIR*) -> int
-
-    if LINUX and IS_32BIT:
-        class utsname:
-            sysname: byte[65]
-            nodename: byte[65]
-            release: byte[65]
-            version: byte[65]
-            machine: byte[65]
-            the_rest: byte[512]  # if something is the wrong size, at least doesn't overflow stack
-
-        declare uname(buf: utsname*) -> int
 
 
 # Iterating directory contents
@@ -257,34 +229,11 @@ class DirIter:
                         strerror_r(e, self.error_message, sizeof(self.error_message))
                     return False
 
-                name: byte* = entry.d_name
-
-                if LINUX and IS_32BIT:
-                    # On 32-bit ARM, readdir() is a legacy function that uses
-                    # 32-bit values in some fields of struct dirent. If you
-                    # call readdir() in C, you actually call readddir64() due
-                    # to magic in header files.
-                    #
-                    # Ideally we would just use readdir64(). But then we would
-                    # need a compile-time way to check for ARM, because a call
-                    # to readdir64() on 32-bit x86 causes a linker error. So
-                    # instead we call the old-fashioned readdir() and hack
-                    # around the wrong layout of the struct.
-                    #
-                    # TODO: Use ARM_CPU here once this file can use the new
-                    #       built-in constant during bootstrapping.
-                    u = utsname{}
-                    uname(&u)
-                    if starts_with(u.machine, "arm"):
-                        name = &name[-8]
-
-                if self.set_name(name):
+                if self.set_name(entry.d_name):
                     return True
 
 
-if WINDOWS:
-    declare GetModuleFileNameW(hModule: void*, lpFilename: uint16*, nSize: uint32) -> uint32
-elif MACOS:
+if MACOS:
     declare _NSGetExecutablePath(buf: byte*, bufsize: uint32*) -> int
 elif NETBSD:
     declare sysctl(
@@ -299,7 +248,7 @@ elif NETBSD:
     const KERN_PROC_ARGS: int = 48
     const KERN_PROC_PATHNAME: int = 5
     const ENOSPC: int = 28  # No space left on this device
-else:
+elif not WINDOWS:
     declare readlink(linkpath: byte*, result: byte*, result_size: intnative) -> intnative
 
 

@@ -53,8 +53,7 @@ declare getpid() -> int
 
 # Number of CPUs determining stuff
 if WINDOWS:
-    declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
-    const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
+    import "stdlib/windows_api/system.jou"
 else:
     declare sysconf(n: int) -> intnative
     if MACOS:

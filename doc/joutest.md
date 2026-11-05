@@ -259,8 +259,6 @@ files = {
 
 The `if` value can be any [built-in Jou boolean constant](supported-platforms.md#built-in-constants) as a string,
 and `then` and `else` are the values to be used.
-(Currently `ARM_CPU` and `X86_CPU` are not supported in `joutest`,
-but these will be added in a future release of Jou.)
 So on Windows, the above is equivalent to:
 
 ```toml
