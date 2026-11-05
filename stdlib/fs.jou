@@ -72,10 +72,10 @@ else:
     # This might not be completely correct, because ARM_CPU is quite vague,
     # but this seems to work on every platform that Jou currently supports.
     if LINUX and IS_32BIT and ARM_CPU:
-        declare opendir64(dirp: DIR*) -> dirent*
+        declare opendir64(name: byte*) -> DIR*
         declare readdir64(dirp: DIR*) -> dirent*
-        def opendir(dirp: DIR*) -> dirent*:
-            return opendir64(dirp)
+        def opendir(name: byte*) -> DIR*:
+            return opendir64(name)
         def readdir(dirp: DIR*) -> dirent*:
             return readdir64(dirp)
     elif NETBSD:
