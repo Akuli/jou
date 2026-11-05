@@ -3,6 +3,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/io.jou"
+import "stdlib/fs.jou"
 
 
 def run_jou(command: byte*) -> None:
@@ -189,5 +190,24 @@ def main() -> int:
     else:
         ret = system("./jou --valgrind examples/memory_leak.jou 2>&1 | grep 'definitely lost' | cut -d' ' -f2-")
         assert ret == 0
+
+    # Old compiler versions used to compile to jou_compiled/foo/foo instead of
+    # jou_compiled/foo. Let's set up the same situation and see what happens.
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
+    mkdir("tmp/tests/old_jou_compiled_structure", 0o777)
+    mkdir("tmp/tests/old_jou_compiled_structure/jou_compiled", 0o777)
+    mkdir("tmp/tests/old_jou_compiled_structure/jou_compiled/foo", 0o777)
+
+    f = fopen("tmp/tests/old_jou_compiled_structure/foo.jou", "wb")
+    assert f != NULL
+    fputs("import \"stdlib/io.jou\"\ndef main() -> int:\n    puts(\"Fooooo!\")\n    return 0", f)
+    fclose(f)
+
+    # Output: Fooooo!
+    if WINDOWS:
+        system("cd tmp\\tests\\old_jou_compiled_structure && ..\\..\\..\\jou.exe foo.jou")
+    else:
+        system("cd tmp/tests/old_jou_compiled_structure && ../../../jou foo.jou")
 
     return 0
