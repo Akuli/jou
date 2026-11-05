@@ -130,38 +130,12 @@ def skip_slashes(name: byte*) -> byte*:
     return name
 
 
-# When compiling file foo.jou, we use jou_compiled/foo/ subdirectory.
-#
-# This is currently needed to avoid race conditions when running multiple files
-# at the same time. Feel free to clean this up if you implement locking.
-# See also: https://github.com/Akuli/jou/issues/743
 def get_path_to_jou_compiled_subfolder() -> byte*:
-    # Place jou_compiled into the same directory with the main file we are compiling.
-    # No strong reason for doing this. Feel free to change this if it causes problems.
-    infile = strdup(global_compiler_state.args.infile)
-    jou_compiled: byte*
-    asprintf(&jou_compiled, "%s/jou_compiled", dirname(infile))
-    free(infile)
-
-    mkdir(jou_compiled, 0o777)
-    write_gitignore(jou_compiled)
-
-    if global_compiler_state.args.infile_is_stdin:
-        # TODO: This might cause issues if multiple stdin's are compiled at the same time.
-        name = "stdin"
-    else:
-        name = skip_slashes(global_compiler_state.args.infile)
-
-    name_len = strlen(name)
-    if name_len > 4 and ends_with(name, ".jou"):
-        name_len -= 4
-
-    subfolder: byte*
-    asprintf(&subfolder, "%s/%.*s", jou_compiled, name_len as int, name)
-    mkdir(subfolder, 0o777)
-
-    free(jou_compiled)
-    return subfolder
+    # TODO: these only need to be done once, clean up?
+    mkdir("jou_compiled", 0o777)
+    write_gitignore("jou_compiled")
+    mkdir("jou_compiled/object_files", 0o777)
+    return strdup("jou_compiled/object_files")
 
 
 # Deletes files in a directory whose name ends with the given suffix.
