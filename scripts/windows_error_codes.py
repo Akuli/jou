@@ -1,4 +1,4 @@
-# This file was used to auto-generate most of stdlib/windows/errors.jou.
+# This file was used to auto-generate most of stdlib/windows_api/errors.jou.
 
 import json
 import sys
