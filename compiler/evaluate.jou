@@ -7,8 +7,6 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 if WINDOWS:
     import "stdlib/ascii.jou"
-else:
-    import "../config.jou"
 
 import "./ast.jou"
 import "./paths.jou"
@@ -18,12 +16,6 @@ import "./state.jou"
 import "./errors_and_warnings.jou"
 import "./constants.jou"
 import "./types.jou"
-
-if WINDOWS:
-    const JOU_ARM_CPU: bool = False
-else:
-    const JOU_ARM_CPU: bool = JOU_CONFIG_ARM_CPU
-
 
 @public
 def get_special_constant(name: byte*) -> Constant*:
@@ -35,9 +27,8 @@ def get_special_constant(name: byte*) -> Constant*:
             SpecialConstant{name = "MACOS", constant = Constant{kind = ConstantKind.Bool, boolean = MACOS}},
             SpecialConstant{name = "NETBSD", constant = Constant{kind = ConstantKind.Bool, boolean = NETBSD}},
             SpecialConstant{name = "IS_32BIT", constant = Constant{kind = ConstantKind.Bool, boolean = IS_32BIT}},
-            # TODO: set values of ARM_CPU and X86_CPU properly
-            SpecialConstant{name = "ARM_CPU", constant = Constant{kind = ConstantKind.Bool, boolean = JOU_ARM_CPU}},
-            SpecialConstant{name = "X86_CPU", constant = Constant{kind = ConstantKind.Bool, boolean = not JOU_ARM_CPU}},
+            SpecialConstant{name = "ARM_CPU", constant = Constant{kind = ConstantKind.Bool, boolean = ARM_CPU}},
+            SpecialConstant{name = "X86_CPU", constant = Constant{kind = ConstantKind.Bool, boolean = X86_CPU}},
         ]
 
     for i = 0; i < array_count(global_compiler_state.special_constants); i++:

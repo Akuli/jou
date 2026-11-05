@@ -1,6 +1,14 @@
 [[tests]]
 files = "hello.jou"
-command = {if = "WINDOWS", then = ["cmd", "/c", "echo hello"], else = ["echo", "hello"]}
+command = {
+    if = "ARM_CPU",
+    then = {if = "WINDOWS", then = ["cmd", "/c", "echo hello"], else = ["echo", "hello"]},
+    else = {
+        if = "X86_CPU",
+        then = {if = "WINDOWS", then = ["cmd", "/c", "echo hello"], else = ["echo", "hello"]},
+        else = ["echo", "wrong"],
+    },
+}
 
 # Output: .
 # Output:
