@@ -139,7 +139,7 @@ def write_llvm_ir_to_file(state: ThreadLocalCompilerState*, mod: LLVMModule*, o_
     # If we want to create foo.o, first write to foo_temp_12345.o, where 12345
     # is the PID. This way:
     #   - We don't end up with a corrupted foo.o if the compiler is interrupted
-    #     or another thread crashes.
+    #     or the compiler crashes.
     #   - If two compiler processes create the same .o file, the first attempt
     #     to create it will succeed, and other compiler processes will use the
     #     same file.
