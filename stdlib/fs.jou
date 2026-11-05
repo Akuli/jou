@@ -95,8 +95,16 @@ else:
     else:
         assert False  # unsupported system
 
+    # For whatever reason, readdir() seems to use 32-bit integers on linux
+    # running on 32-bit ARM, but not linux 32-bit on x86.
+    #
+    # This might not be completely correct, because ARM_CPU is quite vague,
+    # but this seems to work on every platform that Jou currently supports.
     if LINUX and IS_32BIT and ARM_CPU:
+        declare opendir64(dirp: DIR*) -> dirent*
         declare readdir64(dirp: DIR*) -> dirent*
+        def opendir(dirp: DIR*) -> dirent*:
+            return opendir64(dirp)
         def readdir(dirp: DIR*) -> dirent*:
             return readdir64(dirp)
     elif NETBSD:
@@ -114,6 +122,7 @@ else:
         declare readdir(dirp: DIR*) -> dirent*
 
     declare closedir(dirp: DIR*) -> int
+
 
 # Iterating directory contents
 @public

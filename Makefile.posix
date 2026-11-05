@@ -52,7 +52,8 @@ config.jou: Makefile.posix
 	echo '' >> config.jou
 	echo '@public' >> config.jou
 	printf 'const JOU_TARGET: byte* = "%s"\n' "`$(LLVM_CONFIG) --host-target | { { uname -mp | grep -q armv6; } && sed -e 's/^arm-/armv6-/'; }`" >> config.jou
-# The 2026-11-04-1100 bootstrap compiler still needs this configuration value.
+# TODO: Delete JOU_CONFIG_ARM_CPU once bootstrapping process starts from new enough Jou compiler
+# The 2026-11-04-1100 bootstrap compiler still needs it.
 	echo '' >> config.jou
 	echo '@public' >> config.jou
 	printf 'const JOU_CONFIG_ARM_CPU: bool = %s\n' `uname -mp | grep -qE 'arm|aarch64' && echo True || echo False` >> config.jou
