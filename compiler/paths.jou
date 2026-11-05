@@ -218,9 +218,6 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Ha
     return strdup(path)
 
 
-global exe_lock_path: byte[100]
-
-
 # Returns the path of compiled `.exe` when the Jou compiler runs it directly.
 #
 # Specifically, when compiling foo.jou:
@@ -233,7 +230,7 @@ global exe_lock_path: byte[100]
 # more consistently across supported operating systems.
 @public
 def lock_exe_path() -> byte[100]:
-    assert exe_lock_path[0] == '\0'
+    assert global_compiler_state.exe_lock_path[0] == '\0'
 
     if global_compiler_state.args.infile_is_stdin:
         simple_name = get_simple_name("stdin")
@@ -242,22 +239,22 @@ def lock_exe_path() -> byte[100]:
 
     assert sizeof(simple_name) == 50
     exe_path: byte[100]
-    assert sizeof(exe_lock_path) == 100
+    assert sizeof(global_compiler_state.exe_lock_path) == 100
 
     for i = 1; i < 100; i++:
         if i == 1:
             sprintf(exe_path, "jou_compiled/%s", simple_name)
-            sprintf(exe_lock_path, "jou_compiled/%s.lock", simple_name)
+            sprintf(global_compiler_state.exe_lock_path, "jou_compiled/%s.lock", simple_name)
         else:
             sprintf(exe_path, "jou_compiled/%s%d", simple_name, i)
-            sprintf(exe_lock_path, "jou_compiled/%s%d.lock", simple_name, i)
+            sprintf(global_compiler_state.exe_lock_path, "jou_compiled/%s%d.lock", simple_name, i)
 
         if WINDOWS:
-            strcat(path, ".exe")
+            strcat(exe_path, ".exe")
 
-        if mkdir(exe_lock_path, 0o777) == -1:
+        if mkdir(global_compiler_state.exe_lock_path, 0o777) == -1:
             if get_errno() != EEXIST:
-                fprintf(get_stderr(), "error: failed to create directory \"%s\": %s\n", exe_lock_path, strerror(get_errno()))
+                fprintf(get_stderr(), "error: failed to create directory \"%s\": %s\n", global_compiler_state.exe_lock_path, strerror(get_errno()))
                 exit(1)
             # already locked by another Jou compiler process
             continue
@@ -274,7 +271,7 @@ def lock_exe_path() -> byte[100]:
         #       all supported platforms
         f = fopen(exe_path, "wb")
         if f == NULL:
-            rmdir(exe_lock_path)
+            rmdir(global_compiler_state.exe_lock_path)
             continue
         fclose(f)
 
@@ -292,16 +289,33 @@ def lock_exe_path() -> byte[100]:
 # This can be called when the exe has started running, because the exe itself
 # will act as a lock (OS doesn't allow writing to it anymore).
 @public
-def unlock_exe_path() -> None:
-    if exe_lock_path[0] != '\0' and rmdir(exe_lock_path) == -1:
-        fprintf(get_stderr(), "error: failed to delete directory \"%s\": %s\n", exe_lock_path, strerror(get_errno()))
-        exe_lock_path[0] = '\0'  # no need to retry in atexit() handler
+def unlock_exe_path(exe_path: byte*) -> None:
+    if global_compiler_state.exe_lock_path[0] == '\0':
+        return
+
+    assert starts_with(exe_path, "jou_compiled")
+    if WINDOWS:
+        assert ends_with(exe_path, ".exe")
+    else:
+        # On Windows, exe_path has ".exe" at the end which messes up this check
+        assert starts_with(global_compiler_state.exe_lock_path, exe_path)
+
+    if rmdir(global_compiler_state.exe_lock_path) == -1:
+        fprintf(
+            get_stderr(),
+            "error: failed to delete directory \"%s\": %s\n",
+            global_compiler_state.exe_lock_path,
+            strerror(get_errno()),
+        )
+        global_compiler_state.exe_lock_path[0] = '\0'  # no need to retry in atexit() handler
         exit(1)
+
+    global_compiler_state.exe_lock_path[0] = '\0'
 
 
 def atexit_handler() -> None:
-    if exe_lock_path[0] != '\0' and rmdir(exe_lock_path) == -1:
-        fprintf(get_stderr(), "error: failed to delete directory \"%s\": %s\n", exe_lock_path, strerror(get_errno()))
+    if global_compiler_state.exe_lock_path[0] != '\0' and rmdir(global_compiler_state.exe_lock_path) == -1:
+        fprintf(get_stderr(), "error: failed to delete directory \"%s\": %s\n", global_compiler_state.exe_lock_path, strerror(get_errno()))
         # don't exit, we are already exiting
 
 
