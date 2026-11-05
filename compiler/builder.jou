@@ -148,7 +148,7 @@ def declare_in_llvm(sig: Signature*, mod: LLVMModule*) -> LLVMValue*:
     self_class = sig.get_self_class()
     if self_class == NULL:
         # function
-        snprintf(fullname, sizeof(fullname), "%s", sig.name)
+        snprintf(fullname, sizeof(fullname), "%s", sig.external_name if sig.external_name != NULL else sig.name)
     else:
         # method bark() in class Dog becomes Dog.bark()
         # method append() in generic class List[int] becomes List.append(), not List[int].append()
@@ -383,6 +383,10 @@ def hash_type(hash: Hash*, type: Type*) -> None:
 def hash_signature(hash: Hash*, sig: Signature*) -> None:
     hash.add_string("signature")
     hash.add_string(sig.name)
+    if sig.external_name == NULL:
+        hash.add_string("no external name")
+    else:
+        hash.add_string(sig.external_name)
 
     if sig.get_self_class() != NULL:
         # Name of self class is included in function names
@@ -738,6 +742,8 @@ class Builder:
             self.hash.add_string("funcptr")
             assert sig.get_self_class() == NULL  # sig.name goes to LLVM as is
             self.hash.add_string(sig.name)
+            if sig.external_name != NULL:
+                self.hash.add_string(sig.external_name)
             result.hvalue = self.hash_new_id()
 
             # TODO(refactor): does this ever actually declare? or can it just look up instead?

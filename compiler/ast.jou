@@ -1362,6 +1362,7 @@ class AstFunctionOrMethod:
     body: List[AstStatement]
     locals: List[LocalVariable]  # populated in typecheck, empty before typecheck
     inline: bool  # is it decorated with @inline
+    renamed_name: byte*  # C function name from @rename, only for function declarations
     containing_class_def: AstStatement*  # only for methods, the class definition where it is
 
     @public
@@ -1377,6 +1378,7 @@ class AstFunctionOrMethod:
         self.ast_signature.free()
         free_body(self.body)
         free(self.locals.ptr)
+        free(self.renamed_name)
 
 
 # class Foo:

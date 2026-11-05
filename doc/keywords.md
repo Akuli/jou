@@ -234,6 +234,19 @@ This is how `printf()` is declared in [stdlib/io.jou](../stdlib/io.jou).
 
 A `declare` statement can be decorated with `@public` so that it can be [imported](imports.md) into other files.
 
+Use `@rename("c_function_name")` to give the declared Jou function a different C function name:
+
+```python
+@rename("puts")
+declare print_line(string: byte*) -> int
+
+def main() -> int:
+    print_line("Hello")  # Output: Hello
+    return 0
+```
+
+The argument to `@rename` must be a string literal, and the decorator can only be used on a function declaration.
+
 For many more examples of declaring functions, look at [stdlib/io.jou](../stdlib/io.jou) or other stdlib files.
 
 **The second, rarely needed** way to use `declare` is `declare global`.

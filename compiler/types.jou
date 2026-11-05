@@ -666,6 +666,7 @@ class NameAndType:
 @public
 class Signature:
     name: byte[100]  # Function or method name. For methods it does not include the name of the class.
+    external_name: byte*  # C function name from @rename, or NULL
     args: List[NameAndType]
     takes_varargs: bool  # true for functions like printf()
     return_type: Type*    # NULL, if does not return a value

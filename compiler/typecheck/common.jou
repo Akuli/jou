@@ -251,6 +251,7 @@ def typecheck_signature(jou_file: JouFile*, ast: AstFunctionOrMethod*, self_clas
 
     astsig = &ast.ast_signature
     sig = Signature{name = astsig.name, takes_varargs = astsig.takes_varargs}
+    sig.external_name = ast.renamed_name
     if ast.inline:
         sig.ast_to_inline = ast
 

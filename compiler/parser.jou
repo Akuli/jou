@@ -230,6 +230,13 @@ def decorate(stmt: AstStatement*, decor: byte*, location: Location) -> None:
         fail(location, msg)
 
 
+def decorate_rename(stmt: AstStatement*, name: byte*, location: Location) -> None:
+    if stmt.kind != AstStatementKind.FunctionDeclare:
+        fail(location, "the @rename decorator can only be used on a function declaration")
+    stmt.function.renamed_name = strdup(name)
+    assert stmt.function.renamed_name != NULL
+
+
 # Determines whether the next tokens are "Class{attribute = value}" syntax.
 # Not as simple as you might expect, because the class can be generic.
 # Example: Foo[int, byte*]{x = 1, y="hello"}
@@ -1338,8 +1345,17 @@ class Parser:
 
     def parse_statement(self) -> AstStatement:
         decors_start = self.tokens
+        rename_token: Token* = NULL
+        rename_location = self.tokens.location
         while self.tokens.kind == TokenKind.Decorator:
-            self.tokens++
+            decorator = self.tokens++
+            if strcmp(decorator.short_string, "@rename") == 0:
+                if rename_token != NULL:
+                    fail(decorator.location, "the @rename decorator cannot be used more than once")
+                rename_location = decorator.location
+                self.eat_operator("(", True, "'(' after @rename")
+                rename_token = self.eat_by_kind(TokenKind.String, True, "a string with the C function name")
+                self.eat_operator(")", True, "')' after the C function name")
             self.eat_newline()
         decors_end = self.tokens
 
@@ -1508,7 +1524,11 @@ class Parser:
 
         for t = decors_start; t < decors_end; t++:
             if t.kind == TokenKind.Decorator:
-                decorate(&result, t.short_string, t.location)
+                if strcmp(t.short_string, "@rename") != 0:
+                    decorate(&result, t.short_string, t.location)
+
+        if rename_token != NULL:
+            decorate_rename(&result, rename_token.long_string, rename_location)
 
         return result
 
