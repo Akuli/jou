@@ -1,0 +1,207 @@
+import "stdlib/intnative.jou"
+assert WINDOWS
+
+
+# Order of file:
+#   1. Data types in alphabetical order
+#   2. Functions in alphabetical order (except that corresponding A function
+#      and W function are always together)
+#   3. Constants
+
+
+@public
+class OVERLAPPED:
+    Internal: intnative
+    InternalHigh: intnative
+    union:
+        Offset: uint64  # In C this is a pair (Offset, OffsetHigh)
+        Pointer: void*
+    hEvent: intnative
+
+@public
+class PROCESS_INFORMATION:
+    hProcess: intnative
+    hThread: intnative
+    dwProcessId: uint32
+    dwThreadId: uint32
+
+@public
+class STARTUPINFOW:
+    cb: uint32
+    lpReserved: uint16*
+    lpDesktop: uint16*
+    lpTitle: uint16*
+    dwX: uint32
+    dwY: uint32
+    dwXSize: uint32
+    dwYSize: uint32
+    dwXCountChars: uint32
+    dwYCountChars: uint32
+    dwFillAttribute: uint32
+    dwFlags: uint32
+    wShowWindow: uint16
+    cbReserved2: uint16
+    lpReserved2: byte*
+    hStdInput: intnative
+    hStdOutput: intnative
+    hStdError: intnative
+
+@public
+class WIN32_FIND_DATAW:
+    dwFileAttributes: uint32
+    ftCreationTime: uint32[2]  # TODO: actually FILETIME
+    ftLastAccessTime: uint32[2]  # TODO: actually FILETIME
+    ftLastWriteTime: uint32[2]  # TODO: actually FILETIME
+    nFileSizeHigh: uint32
+    nFileSizeLow: uint32
+    dwReserved0: uint32
+    dwReserved1: uint32
+    cFileName: uint16[260]  # TODO: this can be quite limiting
+    cAlternateFileName: uint16[14]
+
+
+@public
+declare CloseHandle(hObject: intnative) -> int
+@public
+declare CreateEventA(
+    lpSecurityAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+    bManualReset: int,
+    bInitialState: int,
+    lpName: byte*,
+) -> intnative  # On failure, return value is 0, not INVALID_HANDLE_VALUE!!!
+@public
+declare CreateFileA(
+    lpFileName: byte*,
+    dwDesiredAccess: uint32,
+    dwShareMode: uint32,
+    lpSecurityAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+    dwCreationDisposition: uint32,dwFlagsAndAttributes: uint32,
+    hTemplateFile: intnative,
+) -> intnative
+@public
+declare CreateNamedPipeA(
+    lpName: byte*,
+    dwOpenMode: uint32,
+    dwPipeMode: uint32,
+    nMaxInstances: uint32,
+    nOutBufferSize: uint32,
+    nInBufferSize: uint32,
+    nDefaultTimeOut: uint32,
+    lpSecurityAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+) -> intnative
+@public
+declare CreateProcessW(
+    lpApplicationName: uint16*,
+    lpCommandLine: uint16*,  # may be modified! Windows is weird...
+    lpProcessAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+    lpThreadAttributes: void*,  # actually SECURITY_ATTRIBUTES*
+    bInheritHandles: int,
+    dwCreationFlags: uint32,
+    lpEnvironment: void*,
+    lpCurrentDirectory: uint16*,
+    lpStartupInfo: STARTUPINFOW*,
+    lpProcessInformation: PROCESS_INFORMATION*,
+) -> int
+@public
+declare FindClose(hFindFile: intnative) -> int
+@public
+declare FindFirstFileW(FileName: uint16*, FindFileData: WIN32_FIND_DATAW*) -> intnative
+@public
+declare FindNextFileW(hFindFile: intnative, FindFileData: WIN32_FIND_DATAW*) -> int
+@public
+declare FormatMessageW(
+    dwFlags: uint32,
+    lpSource: void*,
+    dwMessageId: uint32,
+    dwLanguageId: uint32,
+    lpBuffer: uint16*,
+    nSize: uint32,
+    Arguments: void*,  # actually va_list*
+) -> uint32
+@public
+declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
+@public
+declare GetCurrentProcessId() -> uint32
+@public
+declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
+@public
+declare GetLastError() -> uint32
+@public
+declare GetModuleFileNameW(hModule: void*, lpFilename: uint16*, nSize: uint32) -> uint32
+@public
+declare GetOverlappedResult(
+    hFile: intnative,
+    lpOverlapped: OVERLAPPED*,
+    lpNumberOfBytesTransferred: uint32*,
+    bWait: int,
+) -> int
+@public
+declare GetStdHandle(nStdHandle: int) -> intnative
+@public
+declare ReadFile(
+    hFile: intnative,
+    lpBuffer: void*,
+    nNumberOfBytesToRead: uint32,
+    lpNumberOfBytesRead: uint32*,
+    lpOverlapped: OVERLAPPED*,
+) -> int
+@public
+declare ResetEvent(hEvent: intnative) -> int
+@public
+declare SetHandleInformation(hObject: intnative, dwMask: uint32, dwFlags: uint32) -> int
+@public
+declare WaitForMultipleObjects(
+    nCount: uint32,
+    lpHandles: intnative*,
+    bWaitAll: int,
+    dwMilliseconds: uint32,
+) -> uint32
+@public
+declare WaitForSingleObject(handle: intnative, dwMilliseconds: uint32) -> uint32
+@public
+declare WriteFile(
+    hFile: intnative,
+    lpBuffer: void*,
+    nNumberOfBytesToWrite: uint32,
+    lpNumberOfBytesWritten: uint32*,
+    lpOverlapped: OVERLAPPED*,
+) -> int
+
+@public
+const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
+@public
+const FILE_ATTRIBUTE_NORMAL: uint32 = 0x80
+@public
+const FILE_FLAG_OVERLAPPED: uint32 = 0x40000000
+@public
+const FILE_SHARE_READ: uint32 = 0x00000001
+@public
+const FILE_SHARE_WRITE: uint32 = 0x00000002
+@public
+const FORMAT_MESSAGE_FROM_SYSTEM: uint32 = 0x00001000
+@public
+const FORMAT_MESSAGE_IGNORE_INSERTS: uint32 = 0x00000200
+@public
+const GENERIC_WRITE: uint32 = 0x40000000
+@public
+const HANDLE_FLAG_INHERIT: uint32 = 0x00000001
+@public
+const INFINITE: uint32 = 0xffff_ffff
+@public
+const INVALID_HANDLE_VALUE: intnative = -1
+@public
+const OPEN_EXISTING: uint32 = 3
+@public
+const PIPE_ACCESS_INBOUND: uint32 = 0x00000001
+@public
+const PIPE_TYPE_BYTE: uint32 = 0x00000000
+@public
+const PIPE_WAIT: uint32 = 0x00000000
+@public
+const STARTF_USESTDHANDLES: uint32 = 0x00000100
+@public
+const STD_ERROR_HANDLE: int = -12
+@public
+const STD_INPUT_HANDLE: int = -10
+@public
+const STD_OUTPUT_HANDLE: int = -11
