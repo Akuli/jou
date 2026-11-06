@@ -248,7 +248,7 @@ def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
         and global_compiler_state.args.line_number_range[1] != 0
     ):
         # Give different hashes to non-overlapping --lines=123-456 slices, but
-        # avoid changing the hash if code example only moves slightly
+        # avoid changing the hash if code example only moves or resizes slightly
         h.add_int(disjoint_interval_id(
             global_compiler_state.args.line_number_range[0],
             global_compiler_state.args.line_number_range[1],
