@@ -123,6 +123,10 @@ declare GetActiveProcessorCount(GroupNumber: uint16) -> uint32
 @public
 declare GetCurrentProcessId() -> uint32
 @public
+declare GetEnvironmentVariableA(lpName: byte*, lpBuffer: byte*, nSize: uint32) -> uint32
+@public
+declare GetEnvironmentVariableW(lpName: uint16*, lpBuffer: uint16*, nSize: uint32) -> uint32
+@public
 declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
 @public
 declare GetLastError() -> uint32
@@ -138,6 +142,14 @@ declare GetOverlappedResult(
 @public
 declare GetStdHandle(nStdHandle: int) -> intnative
 @public
+declare MoveFileA(lpExistingFileName: byte*, lpNewFileName: byte*) -> int
+@public
+declare MoveFileW(lpExistingFileName: uint16*, lpNewFileName: uint16*) -> int
+@public
+declare MoveFileExA(lpExistingFileName: byte*, lpNewFileName: byte*, dwFlags: uint32) -> int
+@public
+declare MoveFileExW(lpExistingFileName: uint16*, lpNewFileName: uint16*, dwFlags: uint32) -> int
+@public
 declare ReadFile(
     hFile: intnative,
     lpBuffer: void*,
@@ -148,7 +160,13 @@ declare ReadFile(
 @public
 declare ResetEvent(hEvent: intnative) -> int
 @public
+declare SetEnvironmentVariableA(lpName: byte*, lpValue: byte*) -> int
+@public
+declare SetEnvironmentVariableW(lpName: uint16*, lpValue: uint16*) -> int
+@public
 declare SetHandleInformation(hObject: intnative, dwMask: uint32, dwFlags: uint32) -> int
+@public
+declare TerminateProcess(hProcess: intnative, uExitCode: uint32) -> int
 @public
 declare WaitForMultipleObjects(
     nCount: uint32,
@@ -166,6 +184,7 @@ declare WriteFile(
     lpNumberOfBytesWritten: uint32*,
     lpOverlapped: OVERLAPPED*,
 ) -> int
+
 
 @public
 const ALL_PROCESSOR_GROUPS: uint16 = 0xFFFF
