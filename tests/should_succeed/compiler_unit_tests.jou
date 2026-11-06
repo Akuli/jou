@@ -158,9 +158,9 @@ def test_disjoint_interval_id() -> None:
 
     for i = 0; i < iterations; i++:
         a1 = rand() % 200
-        b1 = a1 + (rand() % 20)      # average code example length becomes 10 lines
-        a2 = b1 + 1 + (rand() % 20)  # code examples in markdown file do not overlap
-        b2 = a2 + (rand() % 20)      # average code example length becomes 10 lines
+        b1 = a1 + (rand() % 20)      # let's assume code blocks are 1 to 20 lines long
+        a2 = b1 + 1 + (rand() % 20)  # code blocks in markdown file do not overlap
+        b2 = a2 + (rand() % 20)      # let's assume code blocks are 1 to 20 lines long
 
         if disjoint_interval_id(a1, b1) == disjoint_interval_id(a2, b2):
             printf("FAIL: [%d,%d] and [%d,%d]\n", a1,b1, a2,b2)
