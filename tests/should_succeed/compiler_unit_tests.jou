@@ -152,6 +152,7 @@ def test_writing_to_running_program() -> None:
 
 
 def test_disjoint_interval_id() -> None:
+    printf("some rand() values: %d %d %d %d %d\n", rand(), rand(), rand(), rand(), rand())
     iterations = 1000
     changed_with_add = 0
     changed_with_move = 0
@@ -179,10 +180,10 @@ def test_disjoint_interval_id() -> None:
     move_ratio = changed_with_move / iterations
 
     # These are about 0.2, would be better with longer code blocks
-    printf("%f %f\n", add_ratio, move_ratio)
-    assert 0.1 < add_ratio and add_ratio < 0.3
-    assert 0.1 < move_ratio and move_ratio < 0.3
-    printf("ratios good\n")  # Output: ratios good
+    if (0.1 < add_ratio and add_ratio < 0.3) and (0.1 < move_ratio and move_ratio < 0.3):
+        printf("ratios good\n")  # Output: ratios good
+    else:
+        printf("got bad ratios: %f %f\n", add_ratio, move_ratio)
 
 
 def main() -> int:
