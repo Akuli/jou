@@ -45,31 +45,17 @@ declare CreateProcessW(
 @public
 declare GetCurrentProcessId() -> uint32
 @public
-declare GetEnvironmentVariableA(
-    lpName: byte*,
-    lpBuffer: byte*,
-    nSize: uint32
-) -> uint32
+declare GetEnvironmentVariableA(lpName: byte*, lpBuffer: byte*, nSize: uint32) -> uint32
 @public
-declare GetEnvironmentVariableW(
-    lpName: uint16*,
-    lpBuffer: uint16*,
-    nSize: uint32   
-) -> uint32
+declare GetEnvironmentVariableW(lpName: uint16*, lpBuffer: uint16*, nSize: uint32) -> uint32
 @public
 declare GetExitCodeProcess(hProcess: intnative, lpExitCode: uint32*) -> int
 @public
 declare GetModuleFileNameW(hModule: void*, lpFilename: uint16*, nSize: uint32) -> uint32
 @public
-declare SetEnvironmentVariableA(
-    lpName: byte*,
-    lpValue: byte* 
-) -> int
+declare SetEnvironmentVariableA(lpName: byte*, lpValue: byte*) -> int
 @public
-declare SetEnvironmentVariableW(
-    lpName: uint16*,
-    lpValue: uint16* 
-) -> int
+declare SetEnvironmentVariableW(lpName: uint16*, lpValue: uint16*) -> int
 @public
 declare TerminateProcess(hProcess: intnative, uExitCode: uint32) -> int
 
