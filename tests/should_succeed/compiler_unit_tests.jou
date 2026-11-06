@@ -93,11 +93,6 @@ def test_fnv1a_hash() -> None:
         printf("%llX\n", h.hash)
 
 
-if WINDOWS:
-    # TODO(Jou): add to stdlib
-    declare TerminateProcess(hProcess: intnative, uExitCode: uint32) -> int
-
-
 # Compiler relies on fopen(running_program, "wb") == NULL to detect whether it
 # can use jou_compiled/foo or does it have to try jou_compiled/foo2 etc
 def test_writing_to_running_program() -> None:
