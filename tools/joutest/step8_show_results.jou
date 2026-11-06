@@ -23,10 +23,10 @@ def show_failures(tests: List[Test]) -> None:
         printf("%s*** Command: %s\n", YELLOW, test.actual_command_string)
         if test.working_directory != NULL:
             printf("    Working directory: %s\n", test.working_directory)
-        if test.stdin_input != NULL:
+        if test.first_markdown_lineno != 0 and test.last_markdown_lineno != 0:
             # Please keep this in 'file "foo", line 123' form. Output like that
             # becomes clickable in some editors, at least porcupine.
-            printf("    Input: file \"%s\", line %d to line %d\n", test.path, test.first_markdown_lineno, test.last_markdown_lineno)
+            printf("    Test came from file \"%s\", line %d to line %d\n", test.path, test.first_markdown_lineno, test.last_markdown_lineno)
         printf("%s", RESET)
 
         if test.start_error != 0:

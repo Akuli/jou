@@ -121,19 +121,19 @@ def figure_out_which_tests_succeeded_before(tests: List[Test]) -> None:
             # weird...
             continue
 
-        stdin_input = json_to_string(json_get(j, "stdin_input"))
+        code_in_markdown = json_to_string(json_get(j, "code_in_markdown"))
 
         for test = tests.ptr; test < tests.end(); test++:
             if strcmp(test.path, path) != 0:
                 continue
 
-            if stdin_input == NULL:
-                if test.stdin_input != NULL:
+            if code_in_markdown == NULL:
+                if test.code_in_markdown != NULL:
                     continue
             else:
-                if test.stdin_input == NULL:
+                if test.code_in_markdown == NULL:
                     continue
-                string = test.stdin_input
+                string = test.code_in_markdown
                 # For code blocks in markdown files, newlines are added to the
                 # beginning to make line numbers match. Skip those here so that
                 # inserting or deleting a line in a markdown file doesn't
@@ -141,14 +141,14 @@ def figure_out_which_tests_succeeded_before(tests: List[Test]) -> None:
                 for i = 0; i < test.first_markdown_lineno - 1; i++:
                     assert string[0] == '\n'
                     string++
-                if strcmp(string, stdin_input) != 0:
+                if strcmp(string, code_in_markdown) != 0:
                     continue
 
             # Consider it a match
             test.succeeded_before = True
 
         free(path)
-        free(stdin_input)
+        free(code_in_markdown)
 
     free(file_content.ptr)
 
@@ -198,6 +198,11 @@ def configure_command(test: Test*) -> None:
     params: byte*[enum_count(FormatParam)]
     memset(params, 0, sizeof(params))
     params[FormatParam.File as int] = test.get_relative_path()
+
+    lines_string: byte[100] = ""
+    if test.first_markdown_lineno != 0 and test.last_markdown_lineno != 0:
+        sprintf(lines_string, "%d-%d", test.first_markdown_lineno, test.last_markdown_lineno)
+    params[FormatParam.Lines as int] = lines_string
 
     assert test.config.value_present[TestConfigOption.Command as int]
     assert test.actual_command_list.len == 0

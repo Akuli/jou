@@ -50,11 +50,8 @@ skip_mode_if_no_expected_output = "skip_silently"
 
 [[tests]]
 files = "doc/assert.md"
-# Change the file name shown in error messages
-command = ["jou", "--stdin-name", "test.jou", "-"]
-# TODO: This setting doesn't exist. Ideally joutest would show line numbers
-#       relative to the code block in markdown file, not the whole markdown file.
-#       Usually the joutest default is good, but not for showing assertion errors.
+# TODO: Ideally we could somehow show line numbers relative to the code block in
+#       markdown file, not the whole markdown file.
 #add_newlines_to_fix_markdown_line_number = false
 skip_mode = "skip_normally"
 
@@ -75,8 +72,8 @@ command = {
     # Apparently ver>nul is the Windows cmd equivalent of "true".
     # https://stackoverflow.com/a/47318952
     if = "WINDOWS",
-    then = ["cmd", "/c", 'jou --stdin-name {file} - || ver>nul'],
-    else = ["sh", "-c", "jou --stdin-name {file} - || true"],
+    then = ["cmd", "/c", 'jou --lines={lines} {file} || ver>nul'],
+    else = ["sh", "-c", "jou --lines={lines} {file} || true"],
 }
 
 ##########################################################

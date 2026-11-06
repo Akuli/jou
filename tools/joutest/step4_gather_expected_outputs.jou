@@ -73,7 +73,7 @@ def parse_comments(test: Test*) -> List[Comment]:
     comments = List[Comment]{}
     lineno = 1
 
-    if test.stdin_input == NULL:
+    if test.code_in_markdown == NULL:
         f = fopen(test.path, "rb")
         if f == NULL:
             e = get_errno()
@@ -90,7 +90,7 @@ def parse_comments(test: Test*) -> List[Comment]:
         fclose(f)
 
     else:
-        p = test.stdin_input
+        p = test.code_in_markdown
         while *p != '\0':
             line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1) as intnative
             memcpy(big_buffer, p, line_len)
