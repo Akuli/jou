@@ -336,15 +336,16 @@ Everything else is optional.
         but it only applies if the expected output specified with [output comments](#output-comments) is empty.
         In other words, this determines whether tests with no output comments are skipped.
         By default, having or not having output comments does not affect skipping.
-    - `command` (default: `["jou", "{file}"]` or `["jou", "--stdin-name", "{file}", "-"]`)
+    - `command` (default: `["jou", "{file}"]` or `["jou", "--lines={lines}", "{file}"]`)
         is the command that `joutest` invokes to run the test.
-        For [tests in markdown files](#markdown-files),
-        `joutest` writes a part of the markdown file to the stdin of the test process,
-        and the default command tells the Jou compiler to run code from its stdin.
-        For other files, the default command is `["jou", "{file}"]`.
+        For a [test in a markdown file](#markdown-files), the default command uses `--lines`
+        to tell the Jou compiler that it should ignore the rest of the markdown file.
+        For other files, the default command is simply `["jou", "{file}"]`.
         Inside each string, the following replacements are done:
         - `{file}` is replaced with a relative path to the test file.
             Backslashes are used on Windows, and forward slashes are used on other operating systems.
+        - `{lines}` is e.g. `"12-34"` when testing code in a markdown file between lines 12 and 34,
+            or empty string when the test does not come from a markdown file.
         - `{{` is replaced with a `{` character.
         - `}}` is replaced with a `}` character.
     - `cd_to_containing_directory` (default: `false`) is a boolean that determines the current working directory

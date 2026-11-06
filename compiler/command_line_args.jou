@@ -25,6 +25,7 @@ class CommandLineArgs:
     argv0: byte*            # Program name
     infile: byte*           # The main Jou file given on command line, can be "<stdin>" or similar
     infile_is_stdin: bool   # True if file "-" on command line, then infile is not really a file path
+    line_number_range: int[2]  # --lines
     outfile: byte*          # -o
     optlevel: int           # -O0, -O1, -O2, -O3
     parallelism: int        # -j1, -j2, ...
@@ -52,6 +53,8 @@ def print_help(argv0: byte*) -> None:
     printf("                       statements in code\n")
     printf("  -j1/-j2/-j3/...      how many threads to use for compiling object files\n")
     printf("                       (default = number of CPU cores)\n")
+    printf("  --lines N-M          ignore everything before line number N and after line M\n")
+    printf("                       (used by joutest to test code in markdown files)\n")
     printf("\n")
     printf("Options for debugging the compiler:\n")
     printf("  -v / --verbose    show briefly what the compiler is doing\n")
@@ -199,6 +202,21 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 if stdin_name == NULL:
                     fprintf(get_stderr(), "%s: there must be an argument after --stdin-name\n", argv[0])
                     exit(2)
+            case "--lines":
+                arg = parser.take_value()
+                if arg == NULL:
+                    fprintf(get_stderr(), "%s: there must be a line number range after --lines (try --help)\n", argv[0])
+                    exit(2)
+                start, end, n: int
+                if (
+                    sscanf(arg, "%d-%d%n", &start, &end, &n) != 2
+                    or n != strlen(arg)
+                    # Let's stay well within int's limits
+                    or not (1 <= start and start <= end and end <= 999_999_999)
+                ):
+                    fprintf(get_stderr(), "%s: invalid line number range '%s' (try --help)\n", argv[0], arg)
+                    exit(2)
+                args.line_number_range = [start, end]
 
             # Options for debugging the compiler
             case "-v" | "--verbose":
