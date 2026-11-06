@@ -8,10 +8,8 @@ import "stdlib/errno.jou"
 if WINDOWS:
     import "stdlib/ascii.jou"
     import "stdlib/utf8.jou"
+    import "stdlib/windows_api/kernel32.jou"
     import "stdlib/windows_api/errors.jou"
-    import "stdlib/windows_api/handle.jou"
-    import "stdlib/windows_api/io.jou"
-    import "stdlib/windows_api/process.jou"
 
     def windows_error_to_string(e: uint32, message: byte*, message_size: int) -> None:
         temp_buffer: uint16[1024]  # more than big enough for typical errors
