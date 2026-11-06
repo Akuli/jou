@@ -707,8 +707,9 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
                 # TODO: test this, if possible?
                 fail(location, "source file contains a CR byte ('\\r') that isn't a part of a CRLF line ending")
             case '\n':
-                location.lineno++  # Result always starts with \n even when excluding lines at start
-        if first_lineno <= location.lineno and location.lineno <= last_lineno:
+                location.lineno++
+        # Never remove newlines at start of file, that would mess up line numbers
+        if (location.lineno >= first_lineno or *src == '\n') and location.lineno <= last_lineno:
             *dest++ = *src
 
     *dest = '\0'
