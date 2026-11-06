@@ -79,15 +79,22 @@ command = {
     else = ["sh", "-c", "jou --stdin-name {file} - || true"],
 }
 
-#################################
-# Command-line parsing examples #
-#################################
+##########################################################
+# Examples that do something runtests.sh doesn't support #
+##########################################################
+#
+# Eventually all examples (and other tests) should be migrated from the legacy
+# runtests.sh script to joutest. For now I have migrated any examples that have
+# needed special-casing, so that I don't need to redo the same special-casing
+# again during a migration.
 [[tests]]
-files = "examples/argc_argv.jou"
-stdout = "discard"  # TODO: capture and compare
+files = "examples/replace.jou"
 
 [[tests]]
-files = ["examples/cli_manual.jou", "examples/cli_argparse.jou"]
-stderr = "discard"  # TODO: capture and compare
-# Jou compiler exits with 1 even though the compiled program exits with 2.
-expected_exit_code = 1
+files = "examples/argc_argv.jou"
+stdout = "discard"  # TODO: capture and compare?
+
+[[tests]]
+files = ["examples/cli_manual.jou", "examples/cli_argparse.jou", "examples/replace.jou"]
+stderr = "discard"  # TODO: capture and compare?
+expected_exit_code = 2

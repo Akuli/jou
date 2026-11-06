@@ -3,6 +3,7 @@ import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/io.jou"
+import "stdlib/fs.jou"
 
 
 def run_jou(command: byte*) -> None:
@@ -19,7 +20,7 @@ def run_jou(command: byte*) -> None:
 
 # Find and print things like the following...
 #
-#   Reusing previously compiled file: examples/jou_compiled/hello/hello_36494a390f444fbd_c836422383205631.o
+#   Reusing previously compiled file: jou_compiled/object_files/hello_36494a390f444fbd_c836422383205631.o
 #
 # ...but replace things like 36494a390f444fbd with "<hash>" as they are platform-specific.
 def print_reusing_compiled_file_lines(path: byte*) -> None:
@@ -80,9 +81,9 @@ def main() -> int:
 
     # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
     #
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/hello_<hash>_<hash>.o
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/io_<hash>_<hash>.o
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/intnative_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: jou_compiled/object_files/hello_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: jou_compiled/object_files/io_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: jou_compiled/object_files/intnative_<hash>_<hash>.o
     run_jou("-v examples/hello.jou > tmp/hello_out_v.txt")
     print_reusing_compiled_file_lines("tmp/hello_out_v.txt")
 
@@ -186,8 +187,28 @@ def main() -> int:
     if WINDOWS or system("which valgrind >/dev/null 2>/dev/null") != 0:
         # valgrind not available --> produce some fake output to pass the test
         puts("100 bytes in 1 blocks are definitely lost in loss record 1 of 1")
+        fflush(get_stdout())
     else:
         ret = system("./jou --valgrind examples/memory_leak.jou 2>&1 | grep 'definitely lost' | cut -d' ' -f2-")
         assert ret == 0
+
+    # Old compiler versions used to compile to jou_compiled/foo/foo instead of
+    # jou_compiled/foo. Let's set up the same situation and see what happens.
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
+    mkdir("tmp/tests/old_jou_compiled_structure", 0o777)
+    mkdir("tmp/tests/old_jou_compiled_structure/jou_compiled", 0o777)
+    mkdir("tmp/tests/old_jou_compiled_structure/jou_compiled/foo", 0o777)
+
+    f = fopen("tmp/tests/old_jou_compiled_structure/foo.jou", "wb")
+    assert f != NULL
+    fputs("import \"stdlib/io.jou\"\ndef main() -> int:\n    puts(\"Fooooo!\")\n    return 0", f)
+    fclose(f)
+
+    # Output: Fooooo!
+    if WINDOWS:
+        system("cd tmp\\tests\\old_jou_compiled_structure && ..\\..\\..\\jou.exe foo.jou")
+    else:
+        system("cd tmp/tests/old_jou_compiled_structure && ../../../jou foo.jou")
 
     return 0
