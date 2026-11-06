@@ -22,10 +22,8 @@ else:
     import "../config.jou"
 
 
-# TODO: move to stdlib?
-if WINDOWS:
-    declare SetEnvironmentVariableA(name: byte*, value: byte*) -> int
-else:
+if not WINDOWS:
+    # TODO: move to stdlib?
     declare setenv(name: byte*, value: byte*, overwrite: int) -> int
     declare waitpid(pid: int, wstatus: int*, options: int) -> int
     declare posix_spawn(

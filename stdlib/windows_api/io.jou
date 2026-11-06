@@ -59,6 +59,14 @@ declare GetOverlappedResult(
 @public
 declare GetStdHandle(nStdHandle: int) -> intnative
 @public
+declare MoveFileA(lpExistingFileName: byte*, lpNewFileName: byte*) -> int
+@public
+declare MoveFileW(lpExistingFileName: uint16*, lpNewFileName: uint16*) -> int
+@public
+declare MoveFileExA(lpExistingFileName: byte*, lpNewFileName: byte*, dwFlags: uint32) -> int
+@public
+declare MoveFileExW(lpExistingFileName: uint16*, lpNewFileName: uint16*, dwFlags: uint32) -> int
+@public
 declare ReadFile(
     hFile: intnative,
     lpBuffer: void*,
