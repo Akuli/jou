@@ -148,10 +148,10 @@ def setup_jou_compiled_directory() -> None:
 #
 # This may occasionally miss some files because they are being deleted while
 # looping through the directory.
-def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
+def delete_by_suffix(dir: byte*, suffix: byte*, never_delete_this_name: byte*) -> None:
     iter = DirIter{dir = dir}
     while iter.next():
-        if ends_with(iter.name, suffix):
+        if ends_with(iter.name, suffix) and strcmp(iter.name, never_delete_this_name) != 0:
             ret = unlink(iter.path)
             if ret == 0 and global_compiler_state.args.verbosity >= 1:
                 printf("Deleted %s\n", iter.path)
@@ -208,12 +208,20 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Ha
     path: byte[300]
     sprintf(path, "jou_compiled/object_files/%s_%016llx_%016llx.o", simple_name, content_hash.hash, identifier_hash.hash)
 
+    # This should be treated so that False means it may exist anyway. Another
+    # compiler process could produce the same object file after this check.
     *exists = file_exists(path)
+
+    # Delete any previously compiled versions of the same source file
+    #
+    # We could always delete old versions, but let's do that only if we will
+    # produce a new object file, just in case going through the directory
+    # contents is slow for some reason.
     if not *exists:
-        # We will create the file. Delete any previously compiled version of the same source file.
         suffix_len = strlen("_8899aabbccddeeff.o")
         suffix = &path[strlen(path) - suffix_len]
-        delete_by_suffix("jou_compiled/object_files", suffix)
+        name = &path[strlen("jou_compiled/object_files/")]
+        delete_by_suffix("jou_compiled/object_files", suffix, name)
 
     return strdup(path)
 
