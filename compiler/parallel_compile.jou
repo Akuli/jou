@@ -32,11 +32,10 @@ import "./paths.jou"
 if WINDOWS:
     import "stdlib/windows_api/system.jou"
     import "stdlib/windows_api/errors.jou"
+    import "stdlib/windows_api/io.jou"
 
 
-if WINDOWS:
-    declare MoveFileExA(lpExistingFileName: byte*, lpNewFileName: byte*, dwFlags: uint32) -> int
-else:
+if not WINDOWS:
     # TODO(Jou): invalid syntax!!! link is a keyword!
     #declare link(source: byte*, dest: byte*) -> int
 
@@ -51,9 +50,7 @@ else:
     def link_(oldpath: byte*, newpath: byte*) -> int:
         return linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0)
 
-
-# Number of CPUs determining stuff
-if not WINDOWS:
+    # Number of CPUs determining stuff
     declare sysconf(n: int) -> intnative
     if MACOS:
         const _SC_NPROCESSORS_ONLN: int = 58
