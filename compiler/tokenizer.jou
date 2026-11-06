@@ -3,7 +3,6 @@
 #       of `jou --check compiler/main.jou` with and without your changes.
 
 import "stdlib/assert.jou"
-import "stdlib/intnative.jou"
 import "stdlib/limits.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
@@ -682,8 +681,6 @@ def read_file_to_string(path: byte*, import_statement: AstStatement*) -> byte*:
         # Reading the main file (not imported), and we must read only a slice of it
         first_lineno = global_compiler_state.args.line_number_range[0]
         last_lineno = global_compiler_state.args.line_number_range[1]
-        # Convert to 0-based line numbers, they will shift to 1-based later
-        # once we add an extra newline to beginning
     else:
         # Read the entire thing
         first_lineno = 1

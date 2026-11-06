@@ -124,28 +124,19 @@ def figure_out_which_tests_succeeded_before(tests: List[Test]) -> None:
         code_in_markdown = json_to_string(json_get(j, "code_in_markdown"))
 
         for test = tests.ptr; test < tests.end(); test++:
-            if strcmp(test.path, path) != 0:
-                continue
-
-            if code_in_markdown == NULL:
-                if test.code_in_markdown != NULL:
-                    continue
-            else:
-                if test.code_in_markdown == NULL:
-                    continue
-                string = test.code_in_markdown
-                # For code blocks in markdown files, newlines are added to the
-                # beginning to make line numbers match. Skip those here so that
-                # inserting or deleting a line in a markdown file doesn't
-                # invalidate all tests after it.
-                for i = 0; i < test.first_markdown_lineno - 1; i++:
-                    assert string[0] == '\n'
-                    string++
-                if strcmp(string, code_in_markdown) != 0:
-                    continue
-
-            # Consider it a match
-            test.succeeded_before = True
+            if (
+                strcmp(test.path, path) == 0
+                and (
+                    (test.code_in_markdown == NULL and code_in_markdown == NULL)
+                    or (
+                        test.code_in_markdown != NULL
+                        and code_in_markdown != NULL
+                        and strcmp(test.code_in_markdown, code_in_markdown) == 0
+                    )
+                )
+            ):
+                # Consider it a match
+                test.succeeded_before = True
 
         free(path)
         free(code_in_markdown)

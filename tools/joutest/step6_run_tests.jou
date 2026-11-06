@@ -293,7 +293,7 @@ if WINDOWS:
             else:
                 assert False
 
-    def close_input_and_output_pipes(run_state: TestRunState*) -> None:
+    def close_output_pipes(run_state: TestRunState*) -> None:
         if run_state.output_pipe_read != INVALID_HANDLE_VALUE:
             CloseHandle(run_state.output_pipe_read)
 
@@ -498,7 +498,7 @@ else:
                     assert p.fd == run_state.output_pipe_read
                     run_state.output_pipe_read = -1
 
-    def close_input_and_output_pipes(run_state: TestRunState*) -> None:
+    def close_output_pipes(run_state: TestRunState*) -> None:
         if run_state.output_pipe_read != -1:
             close(run_state.output_pipe_read)
 
@@ -527,7 +527,7 @@ def run_command(test: Test*) -> None:
 
     create_pipes_and_spawn_child_process(&run_state)
     if test.start_error != 0:
-        close_input_and_output_pipes(&run_state)
+        close_output_pipes(&run_state)
         return
 
     if test.uses_output_capturing:
