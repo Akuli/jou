@@ -12,7 +12,6 @@ import "../../compiler/paths.jou"
 
 if WINDOWS:
     import "stdlib/utf8.jou"
-    import "stdlib/intnative.jou"
     import "stdlib/windows_api/process.jou"
     import "stdlib/windows_api/handle.jou"
 else:
@@ -91,11 +90,6 @@ def test_fnv1a_hash() -> None:
         h = new_hash()
         h.add_bytes(tests[i], strlen(tests[i]))
         printf("%llX\n", h.hash)
-
-
-if WINDOWS:
-    # TODO(Jou): add to stdlib
-    declare TerminateProcess(hProcess: intnative, uExitCode: uint32) -> int
 
 
 # Compiler relies on fopen(running_program, "wb") == NULL to detect whether it
