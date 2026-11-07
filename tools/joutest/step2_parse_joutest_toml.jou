@@ -265,9 +265,14 @@ def option_to_config(opt: TestConfigOption, kv: TOMLKeyVal*, config: TestConfig*
                 fail_in_toml(kv.value.lineno, "'cd_to_containing_directory' must be a boolean")
 
         case TestConfigOption.ExpectedExitCode:
-            config.expected_exit_code = toml_to_int(&kv.value, -1)
-            if config.expected_exit_code < 0 or config.expected_exit_code > 255:
-                fail_in_toml(kv.value.lineno, "'expected_exit_code' must be an integer between 0 and 255")
+            s = toml_to_string(&kv.value)
+            if s != NULL and strcmp(s, "any") == 0:
+                config.expected_exit_code = -1
+            else:
+                config.expected_exit_code = toml_to_int(&kv.value, -1)
+                if config.expected_exit_code < 0 or config.expected_exit_code > 255:
+                    # TODO: windows allows exit codes beyond 0-255
+                    fail_in_toml(kv.value.lineno, "'expected_exit_code' must be an integer between 0 and 255")
 
         case TestConfigOption.MarkdownCodeBlockLanguages:
             free(config.markdown_code_block_languages.ptr)
