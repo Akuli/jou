@@ -301,12 +301,7 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Ha
 def lock_exe_path() -> byte[100]:
     assert global_compiler_state.exe_lock_path[0] == '\0'
 
-    if global_compiler_state.args.infile_is_stdin:
-        simple_name = get_simple_name("stdin")
-    else:
-        simple_name = get_simple_name(global_compiler_state.args.infile)
-
-    assert sizeof(simple_name) == 50
+    simple_name: byte[50] = get_simple_name(global_compiler_state.args.infile)
     exe_path: byte[100]
     assert sizeof(global_compiler_state.exe_lock_path) == 100
 

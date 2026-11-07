@@ -23,8 +23,7 @@ class CommandLineArgs:
 
     # Please keep the help printing up to date!
     argv0: byte*            # Program name
-    infile: byte*           # The main Jou file given on command line, can be "<stdin>" or similar
-    infile_is_stdin: bool   # True if file "-" on command line, then infile is not really a file path
+    infile: byte*           # The main Jou file given on command line
     line_number_range: int[2]  # --lines
     outfile: byte*          # -o
     optlevel: int           # -O0, -O1, -O2, -O3
@@ -140,7 +139,6 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
     args = CommandLineArgs{argv0 = argv[0], optlevel = 1}
 
     optlevel_set = False
-    stdin_name: byte* = NULL
 
     parser = ArgumentParser{argv = argv}
     while parser.next():
@@ -193,15 +191,6 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 if args.linker_flags == NULL:
                     fprintf(get_stderr(), "%s: there must be a string of flags after --linker-flags (try --help)\n", argv[0])
                     exit(2)
-            case "--stdin-name":
-                # TODO: document this, or intentionally leave undocumented?
-                if stdin_name != NULL:
-                    fprintf(get_stderr(), "%s: --stdin-name cannot be given multiple times\n", argv[0])
-                    exit(2)
-                stdin_name = parser.take_value()
-                if stdin_name == NULL:
-                    fprintf(get_stderr(), "%s: there must be an argument after --stdin-name\n", argv[0])
-                    exit(2)
             case "--lines":
                 arg = parser.take_value()
                 if arg == NULL:
@@ -251,13 +240,6 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
 
     if args.infile == NULL:
         fprintf(get_stderr(), "%s: missing Jou file name (try --help)\n", argv[0])
-        exit(2)
-
-    if strcmp(args.infile, "-") == 0:
-        args.infile_is_stdin = True
-        args.infile = "<stdin>" if stdin_name == NULL else stdin_name
-    elif stdin_name != NULL:
-        fprintf(get_stderr(), "%s: input file must be \"-\" (stdin) when --stdin-name is used\n", argv[0])
         exit(2)
 
     check_args(&args, optlevel_set)
