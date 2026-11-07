@@ -160,6 +160,7 @@ see [the looping documentation of lists.md](lists.md#looping-through-a-list).
 ```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
+import "stdlib/mem.jou"
 
 def main() -> int:
     numbers = List[int]{}
@@ -181,6 +182,7 @@ def main() -> int:
     for p = numbers.ptr; p < numbers.end(); p++:
         printf("%d\n", *p)
 
+    free(numbers.ptr)
     return 0
 ```
 
@@ -192,6 +194,7 @@ Use a `for` loop with indexes and `i--`:
 ```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
+import "stdlib/mem.jou"
 
 def main() -> int:
     numbers = List[int]{}
@@ -205,6 +208,7 @@ def main() -> int:
     for i = numbers.len - 1; i >= 0; i--:
         printf("%d\n", numbers.ptr[i])
 
+    free(numbers.ptr)
     return 0
 ```
 
@@ -214,6 +218,7 @@ Alternatively, if you want to clear the list as you go, you can use
 ```python
 import "stdlib/io.jou"
 import "stdlib/list.jou"
+import "stdlib/mem.jou"
 
 def main() -> int:
     numbers = List[int]{}
@@ -227,6 +232,7 @@ def main() -> int:
     while numbers.len > 0:
         printf("%d\n", numbers.pop())
 
+    free(numbers.ptr)
     return 0
 ```
 
