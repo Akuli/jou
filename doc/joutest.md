@@ -356,7 +356,8 @@ Everything else is optional.
         if `cd_to_containing_directory` is `true`, then `{file}` is
         only the file name rather than a path, e.g. `test_foo.jou` instead of `tests/test_foo.jou`.
     - `expected_exit_code` (default: `0`) is the correct
-        [exit code](tutorial.md#main-function-and-binaries) for the test as an integer.
+        [exit code](tutorial.md#main-function-and-binaries) for the test as an integer,
+        or the string `"any"` to accept any exit code.
         If errors are expected, you probably want to set this to `1`.
     - `markdown_code_block_languages` (default: `["jou"]`) is an array of strings
         to determine what to [test in markdown files](#markdown-files).
