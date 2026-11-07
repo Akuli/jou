@@ -20,7 +20,7 @@ def run_jou(command: byte*) -> None:
 
 # Find and print things like the following...
 #
-#   Reusing previously compiled file: examples/jou_compiled/hello/hello_36494a390f444fbd_c836422383205631.o
+#   Reusing previously compiled file: jou_compiled/object_files/hello_36494a390f444fbd_c836422383205631.o
 #
 # ...but replace things like 36494a390f444fbd with "<hash>" as they are platform-specific.
 def print_reusing_compiled_file_lines(path: byte*) -> None:
@@ -48,20 +48,20 @@ def print_reusing_compiled_file_lines(path: byte*) -> None:
 
 
 def main() -> int:
-    run_jou("")  # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
-    run_jou("--update -O3")  # Output: <jouexe>: "--update" cannot be used with other arguments (try "<jouexe> --help")
-    run_jou("--verbose")  # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
-    run_jou("x.jou y.jou")  # Output: <jouexe>: you can only pass one Jou file (try "<jouexe> --help")
+    run_jou("")  # Output: <jouexe>: missing Jou file name (try --help)
+    run_jou("--update -O3")  # Output: <jouexe>: "--update" cannot be used with other arguments (try --help)
+    run_jou("--verbose")  # Output: <jouexe>: missing Jou file name (try --help)
+    run_jou("x.jou y.jou")  # Output: <jouexe>: you can only pass one Jou file (try --help)
     run_jou("examples/hello.jou")  # Output: Hello World
     run_jou("-j4 examples/hello.jou")  # Output: Hello World
-    run_jou("-o")  # Output: <jouexe>: there must be a file name after -o (try "<jouexe> --help")
-    run_jou("-o examples/hello.jou")  # Output: <jouexe>: the filename after -o should be an executable, not a Jou file (try "<jouexe> --help")
-    run_jou("-O8 examples/hello.jou")  # Output: <jouexe>: unknown argument "-O8" (try "<jouexe> --help")
-    run_jou("--lolwat")  # Output: <jouexe>: unknown argument "--lolwat" (try "<jouexe> --help")
+    run_jou("-o")  # Output: <jouexe>: there must be a file name after -o (try --help)
+    run_jou("-o examples/hello.jou")  # Output: <jouexe>: the filename after -o should be an executable, not a Jou file (try --help)
+    run_jou("-O8 examples/hello.jou")  # Output: <jouexe>: invalid optimization level "8" (try --help)
+    run_jou("--lolwat")  # Output: <jouexe>: unknown argument "--lolwat" (try --help)
     run_jou("lolwat.jou")  # Output: compiler error in file "lolwat.jou": cannot open file: No such file or directory
-    run_jou("--linker-flags")  # Output: <jouexe>: there must be a string of flags after --linker-flags (try "<jouexe> --help")
-    run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try "<jouexe> --help")
-    run_jou("--check --check")  # Output: <jouexe>: --check cannot be given multiple times (try "<jouexe> --help")
+    run_jou("--linker-flags")  # Output: <jouexe>: there must be a string of flags after --linker-flags (try --help)
+    run_jou("--linker-flags x --linker-flags y")  # Output: <jouexe>: --linker-flags cannot be given multiple times (try --help)
+    run_jou("--check --check")  # Output: <jouexe>: --check cannot be given multiple times (try --help)
 
     # Output: <jouexe>: warning: -O1 does nothing when used together with --check (see "<jouexe> --help")
     # Output: Checked 3 files.
@@ -81,9 +81,9 @@ def main() -> int:
 
     # Test caching of compiled files. We just ran hello.jou so nothing should be recompiled.
     #
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/hello_<hash>_<hash>.o
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/io_<hash>_<hash>.o
-    # Output: Reusing previously compiled file: examples/jou_compiled/hello/intnative_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: jou_compiled/object_files/hello_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: jou_compiled/object_files/io_<hash>_<hash>.o
+    # Output: Reusing previously compiled file: jou_compiled/object_files/intnative_<hash>_<hash>.o
     run_jou("-v examples/hello.jou > tmp/hello_out_v.txt")
     print_reusing_compiled_file_lines("tmp/hello_out_v.txt")
 
@@ -120,6 +120,8 @@ def main() -> int:
     # Output:                        statements in code
     # Output:   -j1/-j2/-j3/...      how many threads to use for compiling object files
     # Output:                        (default = number of CPU cores)
+    # Output:   --lines N-M          ignore everything before line number N and after line M
+    # Output:                        (used by joutest to test code in markdown files)
     # Output:
     # Output: Options for debugging the compiler:
     # Output:   -v / --verbose    show briefly what the compiler is doing
@@ -156,24 +158,6 @@ def main() -> int:
     else:
         system("tmp/tests/hello.exe")
 
-    # Compile from stdin
-    # Output: Hello World
-    run_jou("- < examples/hello.jou")
-
-    # Error with compiling from stdin
-    # Output: compiler error in file "<stdin>", line 1: not a valid statement
-    run_jou("- < tests/data/hellohellohello.txt")
-    # Output: compiler error in file "custom_name.lol", line 1: not a valid statement
-    run_jou("--stdin-name custom_name.lol - < tests/data/hellohellohello.txt")
-    # Output: <jouexe>: there must be an argument after --stdin-name
-    run_jou("--stdin-name")
-    # Output: <jouexe>: missing Jou file name (try "<jouexe> --help")
-    run_jou("--stdin-name custom_name.lol")
-    # Output: <jouexe>: input file must be "-" (stdin) when --stdin-name is used
-    run_jou("--stdin-name custom_name.lol examples/hello.jou")
-    # Output: <jouexe>: --stdin-name cannot be given multiple times
-    run_jou("--stdin-name a --stdin-name b -")
-
     # Compiler in weird place
     # TODO: make this test work with new (more robust) standard library finding logic?
     #if WINDOWS:
@@ -188,8 +172,28 @@ def main() -> int:
     if WINDOWS or system("which valgrind >/dev/null 2>/dev/null") != 0:
         # valgrind not available --> produce some fake output to pass the test
         puts("100 bytes in 1 blocks are definitely lost in loss record 1 of 1")
+        fflush(get_stdout())
     else:
         ret = system("./jou --valgrind examples/memory_leak.jou 2>&1 | grep 'definitely lost' | cut -d' ' -f2-")
         assert ret == 0
+
+    # Old compiler versions used to compile to jou_compiled/foo/foo instead of
+    # jou_compiled/foo. Let's set up the same situation and see what happens.
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
+    mkdir("tmp/tests/old_jou_compiled_structure", 0o777)
+    mkdir("tmp/tests/old_jou_compiled_structure/jou_compiled", 0o777)
+    mkdir("tmp/tests/old_jou_compiled_structure/jou_compiled/foo", 0o777)
+
+    f = fopen("tmp/tests/old_jou_compiled_structure/foo.jou", "wb")
+    assert f != NULL
+    fputs("import \"stdlib/io.jou\"\ndef main() -> int:\n    puts(\"Fooooo!\")\n    return 0", f)
+    fclose(f)
+
+    # Output: Fooooo!
+    if WINDOWS:
+        system("cd tmp\\tests\\old_jou_compiled_structure && ..\\..\\..\\jou.exe foo.jou")
+    else:
+        system("cd tmp/tests/old_jou_compiled_structure && ../../../jou foo.jou")
 
     return 0

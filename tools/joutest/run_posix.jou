@@ -1,0 +1,289 @@
+import "stdlib/assert.jou"
+import "stdlib/list.jou"
+import "stdlib/errno.jou"
+import "stdlib/process.jou"
+import "stdlib/intnative.jou"
+
+import "./fail.jou"
+import "./state.jou"
+import "./posix.jou"
+
+assert not WINDOWS
+
+
+@public
+class RunState:
+    test: Test*
+    output: List[byte]
+    child_pid: int
+    output_pipe_read: int  # parent process reads output of test
+
+def state_from_fd(states: RunState*, nstates: int, fd: int) -> RunState*:
+    for s = states; s < &states[nstates]; s++:
+        if s.output_pipe_read == fd:
+            return s
+    return NULL
+
+def state_from_pid(states: RunState*, nstates: int, pid: int) -> RunState*:
+    for s = states; s < &states[nstates]; s++:
+        if s.child_pid == pid:
+            return s
+    return NULL
+
+
+# This uses the traditional fork()+exec() instead of posix_spawn(), because
+# there is no standard way to add a chdir() that runs in the child process of
+# posix_spawn(). Some platforms have posix_spawn_file_actions_addchdir_np(),
+# but others do not.
+
+def fail_child_process_before_exec(error_pipe_write: int) -> None:
+    e: int = get_errno()
+    write(error_pipe_write, &e, sizeof(e))
+    _exit(127)
+
+def this_runs_in_child_process(
+    state: RunState*,
+    output_pipe_write: int,
+    error_pipe_read: int,
+    error_pipe_write: int,
+) -> noreturn:
+    # Close ends of pipes that only the parent uses
+    if state.output_pipe_read != -1:
+        close(state.output_pipe_read)
+    close(error_pipe_read)
+
+    e: int
+
+    devnull = -1
+    if (
+        state.test.config.stdout == CaptureMode.Discard
+        or state.test.config.stderr == CaptureMode.Discard
+    ):
+        devnull = open("/dev/null", O_WRONLY)
+        if devnull == -1:
+            fail_child_process_before_exec(error_pipe_write)
+
+    match state.test.config.stdout:
+        case CaptureMode.CompareToComments:
+            if dup2(output_pipe_write, 1) == -1:
+                fail_child_process_before_exec(error_pipe_write)
+        case CaptureMode.DoNotCapture:
+            pass
+        case CaptureMode.Discard:
+            if dup2(devnull, 1) == -1:
+                fail_child_process_before_exec(error_pipe_write)
+
+    match state.test.config.stderr:
+        case CaptureMode.CompareToComments:
+            if dup2(output_pipe_write, 2) == -1:
+                fail_child_process_before_exec(error_pipe_write)
+        case CaptureMode.DoNotCapture:
+            pass
+        case CaptureMode.Discard:
+            if dup2(devnull, 2) == -1:
+                fail_child_process_before_exec(error_pipe_write)
+
+    if devnull != -1:
+        close(devnull)
+
+    if state.test.working_directory != NULL:
+        if chdir(state.test.working_directory) != 0:
+            fail_child_process_before_exec(error_pipe_write)
+
+    execvp(state.test.actual_command_list.ptr[0], state.test.actual_command_list.ptr)
+
+    # We get here only if exec failed
+    fail_child_process_before_exec(error_pipe_write)
+
+
+# The CLOEXEC (close-on-exec) flag means that a successful exec closes the
+# pipe (or other file descriptor) instead of sharing it to the child. It is
+# basically the reasonable thing to do, but not the default behavior for
+# historical reasons.
+#
+# If this code was multi-threaded, creating file descriptors with CLOEXEC
+# would be even more important, because all child processes inherit all
+# currently open non-O_CLOEXEC file descriptors. Basically, if you have
+# threads that run processes, then opening anything without O_CLOEXEC is bad.
+#
+# Here O_CLOEXEC means that the command we run cannot access our error pipe,
+# and it is closed when exec succeeds. For example, if the command starts
+# some background job, it cannot keep the pipe open, which would cause
+# joutest to wait until the background job is done.
+def create_cloexec_pipe(read_end: int*, write_end: int*) -> None:
+    # We can't use pipe2() to create a pipe that already has the flag we
+    # want, because MacOS doesn't have pipe2(). So we create the pipe and
+    # set the flag separately. This would not be good in a multi-threaded
+    # program, because another thread could fork+exec between creating the
+    # pipe and setting the flag.
+    pipefd: int[2]
+    if pipe(&pipefd) != 0:
+        fail_with_errno("pipe() failed", get_errno())
+
+    if fcntl(pipefd[0], F_SETFD, FD_CLOEXEC) != 0 or fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0:
+        fail_with_errno("fcntl() failed", get_errno())
+
+    *read_end = pipefd[0]
+    *write_end = pipefd[1]
+
+def set_blocking(fd: int, blocking: bool) -> None:
+    flags = fcntl(fd, F_GETFL, 0)
+    if flags == -1:
+        fail_with_errno("fcntl() failed", get_errno())
+
+    if blocking:
+        flags &= ~O_NONBLOCK
+    else:
+        flags |= O_NONBLOCK
+
+    if fcntl(fd, F_SETFL, flags) == -1:
+        fail_with_errno("fcntl() failed", get_errno())
+
+@public
+def spawn_test(test: Test*) -> RunState:
+    state = RunState{test = test}
+
+    # These are only accessed here, no need to put these to the state
+    output_pipe_write: int
+    error_pipe_read: int
+    error_pipe_write: int
+
+    if state.test.uses_output_capturing:
+        create_cloexec_pipe(&state.output_pipe_read, &output_pipe_write)
+        set_blocking(state.output_pipe_read, False)
+    else:
+        state.output_pipe_read = -1
+        output_pipe_write = -1
+
+    create_cloexec_pipe(&error_pipe_read, &error_pipe_write)
+
+    # Make sure the argument list ends with NULL so we can pass it to execvp()
+    state.test.actual_command_list.append(NULL)
+    state.test.actual_command_list.pop()
+
+    pid = fork()
+    if pid < 0:
+        fail_with_errno("fork() failed", get_errno())
+    elif pid == 0:
+        this_runs_in_child_process(&state, output_pipe_write, error_pipe_read, error_pipe_write)
+
+    # If we get here, we are in the parent process.
+    state.child_pid = pid
+
+    # Close pipes that parent process does not use
+    if output_pipe_write != -1:
+        close(output_pipe_write)
+    close(error_pipe_write)
+
+    # Detect errors before exec in child process. The pipe is cloexec, so
+    # it closes with no writing on successful exec.
+    #
+    # Note: This assumes that the whole error fits into the OS default pipe
+    #       buffer size. Otherwise the child process would get stuck
+    #       writing to the pipe while the parent is waiting for it.
+    assert test.start_error == 0
+    if read(error_pipe_read, &test.start_error, sizeof(test.start_error)) < 0:
+        fail_with_errno("read() failed", get_errno())
+    close(error_pipe_read)
+
+    # We won't be reading output for processes that didn't start properly.
+    # Error was already communicated through another pipe.
+    if test.start_error != 0 and state.output_pipe_read != -1:
+        close(state.output_pipe_read)
+        state.output_pipe_read = -1
+
+    return state
+
+
+def read_output(state: RunState*) -> intnative:
+    read_size = 10000
+    state.output.grow(state.output.len + read_size)
+    n = read(state.output_pipe_read, state.output.end(), read_size)
+
+    if n < 0:  # TODO: retry on EINTR?
+        fail_with_errno("read() failed", get_errno())
+    elif n == 0:
+        # No more output
+        close(state.output_pipe_read)
+        state.output_pipe_read = -1
+    else:
+        state.output.len += n
+
+    return n
+
+@public
+def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
+    # We don't special-case processes that failed to start, because they still
+    # need waitpid() to prevent zombie process problems.
+
+    while True:
+        # Step 1: poll() + read()
+        # ~~~~~~~~~~~~~~~~~~~~~~~
+
+        polls: pollfd[MAX_PARALLELISM]
+        npolls = 0
+        for i = 0; i < nstates; i++:
+            if states[i].output_pipe_read != -1:
+                polls[npolls++] = pollfd{fd = states[i].output_pipe_read, events = POLLIN}
+
+        if npolls > 0:
+            # The 100ms timeout helps make full use of available CPU cores.
+            # Without it, joutest sometimes uses one less core than available,
+            # e.g. 75% CPU usage on a machine with 4 cores.
+            #
+            # I don't fully understand why that is, but the tiny amount of
+            # extra CPU spent once every 100ms is harmless, so this is fine.
+            ret = poll(polls, npolls, 100)
+            if ret == -1:
+                fail_with_errno("poll() failed", get_errno())
+
+            for p = &polls[0]; p < &polls[npolls]; p++:
+                assert p.revents & POLLNVAL == 0
+
+                # There's no good way to get error message for POLLERR.
+                # So just consider it as EOF.
+                #
+                # AI is telling me that there may be more data to read even if
+                # we get POLLHUP. That seems plausible, so let's read it.
+                if p.revents & (POLLIN | POLLHUP | POLLERR) != 0:
+                    state = state_from_fd(states, nstates, p.fd)
+                    assert state != NULL
+                    read_output(state)
+
+        # Step 2: waitpid() + read()
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        waitpid_options = 0
+        for s = states; s < &states[nstates]; s++:
+            if s.output_pipe_read != -1:
+                # We should go back to poll() soon
+                waitpid_options = WNOHANG
+                break
+
+        wstatus: int
+        pid = waitpid(-1, &wstatus, waitpid_options)
+        if pid == -1:
+            # TODO: retry if we get EINTR?
+            fail_with_errno("waitpid() failed", get_errno())
+
+        if pid > 0 and (WIFEXITED(wstatus) or WIFSIGNALED(wstatus)):
+            # A test process died
+            state = state_from_pid(states, nstates, pid)
+            assert state != NULL  # there should be no other child processes than the tests
+
+            if state.output_pipe_read != -1:
+                # There may be more output in OS pipe buffer. Read all of it before closing.
+                set_blocking(state.output_pipe_read, True)
+                while read_output(state) > 0:
+                    pass
+                close(state.output_pipe_read)
+                state.output_pipe_read = -1
+
+            if WIFEXITED(wstatus):
+                state.test.actual_exit_code = WEXITSTATUS(wstatus)
+            else:
+                assert WTERMSIG(wstatus) != 0
+                state.test.terminating_signal = WTERMSIG(wstatus)
+
+            # TODO(Jou): pointer subtraction
+            return (((state as intnative) - (states as intnative)) // sizeof(*state)) as int

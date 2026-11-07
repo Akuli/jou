@@ -112,17 +112,27 @@ cd_to_containing_directory = true
 # Test joutest with itself #
 ############################
 [[tests]]
-files = "tests/tests_of_joutest/**/joutest.toml"
-command = ["joutest", "--no-colors"]
-cd_to_containing_directory = true
+files = [
+    "tests/tests_of_joutest/**/joutest.toml",
+    "tests/tests_of_joutest/*.jou",
+]
 output_comment_rules = {
     Output = '{comment}',
     Error = 'joutest error in file "{file}", line {line}: {comment}'
 }
 
 [[tests]]
+files = "tests/tests_of_joutest/**/joutest.toml"
+cd_to_containing_directory = true
+command = ["joutest", "-j1", "--no-colors"]
+
+[[tests]]
 files = "tests/tests_of_joutest/**/*verbose*/joutest.toml"
-command = ["joutest", "--no-colors", "--verbose"]
+command = ["joutest", "-j1", "--no-colors", "--verbose"]
+
+[[tests]]
+files = "tests/tests_of_joutest/should_succeed/verbose_O3/joutest.toml"
+command = ["joutest", "-j1", "--no-colors", "--verbose", "--jou", "jou -O3"]
 
 [[tests]]
 files = [
@@ -134,8 +144,9 @@ expected_exit_code = 1
 [[tests]]
 files = "tests/tests_of_joutest/bad_configs/command_not_found/joutest.toml"
 command = {
-    windows = ['cmd', '/c', '..\..\..\..\joutest --no-colors | ..\..\..\..\jou windows_output_hack.jou'],
-    default = ['joutest', '--no-colors'],
+    if = "WINDOWS",
+    then = ['cmd', '/c', '..\..\..\..\joutest -j1 --no-colors | ..\..\..\..\jou windows_output_hack.jou'],
+    else = ["joutest", "-j1", "--no-colors"],
 }
 
 
@@ -154,11 +165,8 @@ skip_mode_if_no_expected_output = "skip_silently"
 
 [[tests]]
 files = "doc/assert.md"
-# Change the file name shown in error messages
-command = ["jou", "--stdin-name", "test.jou", "-"]
-# TODO: This setting doesn't exist. Ideally joutest would show line numbers
-#       relative to the code block in markdown file, not the whole markdown file.
-#       Usually the joutest default is good, but not for showing assertion errors.
+# TODO: Ideally we could somehow show line numbers relative to the code block in
+#       markdown file, not the whole markdown file.
 #add_newlines_to_fix_markdown_line_number = false
 skip_mode = "skip_normally"
 
@@ -175,9 +183,24 @@ files = [
     "doc/tutorial.md",
     "doc/types.md",
 ]
-command = {
-    # Apparently ver>nul is the Windows cmd equivalent of "true".
-    # https://stackoverflow.com/a/47318952
-    windows = ["cmd", "/c", 'jou --stdin-name {file} - || ver>nul'],
-    default = ["sh", "-c", "jou --stdin-name {file} - || true"],
-}
+expected_exit_code = "any"
+
+##########################################################
+# Examples that do something runtests.sh doesn't support #
+##########################################################
+#
+# Eventually all examples (and other tests) should be migrated from the legacy
+# runtests.sh script to joutest. For now I have migrated any examples that have
+# needed special-casing, so that I don't need to redo the same special-casing
+# again during a migration.
+[[tests]]
+files = "examples/replace.jou"
+
+[[tests]]
+files = "examples/argc_argv.jou"
+stdout = "discard"  # TODO: capture and compare?
+
+[[tests]]
+files = ["examples/cli_manual.jou", "examples/cli_argparse.jou", "examples/replace.jou"]
+stderr = "discard"  # TODO: capture and compare?
+expected_exit_code = 2

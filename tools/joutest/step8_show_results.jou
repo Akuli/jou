@@ -12,7 +12,7 @@ import "./state.jou"
 
 if not WINDOWS:
     import "stdlib/errno.jou"
-    declare strsignal(sig: int) -> byte*
+    import "./posix.jou"
 
 
 def show_failures(tests: List[Test]) -> None:
@@ -23,16 +23,16 @@ def show_failures(tests: List[Test]) -> None:
         printf("%s*** Command: %s\n", YELLOW, test.actual_command_string)
         if test.working_directory != NULL:
             printf("    Working directory: %s\n", test.working_directory)
-        if test.stdin_input != NULL:
+        if test.first_markdown_lineno != 0 and test.last_markdown_lineno != 0:
             # Please keep this in 'file "foo", line 123' form. Output like that
             # becomes clickable in some editors, at least porcupine.
-            printf("    Input: file \"%s\", line %d to line %d\n", test.path, test.first_markdown_lineno, test.last_markdown_lineno)
+            printf("    Test came from file \"%s\", line %d to line %d\n", test.path, test.first_markdown_lineno, test.last_markdown_lineno)
         printf("%s", RESET)
 
         if test.start_error != 0:
             printf("Process failed to start: ")
             if WINDOWS:
-                message: byte[500] = windows_error_to_string(test.start_error as uint32)
+                message = windows_error_to_string(test.start_error as uint32)
                 puts(message)
             else:
                 puts(strerror(test.start_error))
@@ -52,7 +52,7 @@ def show_failures(tests: List[Test]) -> None:
             if test.uses_output_capturing and strcmp(test.expected_output, test.actual_output) != 0:
                 print_diff(test.expected_output, test.actual_output)
 
-            if test.config.expected_exit_code != test.actual_exit_code:
+            if test.config.expected_exit_code != test.actual_exit_code and test.config.expected_exit_code != -1:
                 printf(
                     "Process exited with code %d. The correct exit code would be %d.\n",
                     test.actual_exit_code,
@@ -89,10 +89,12 @@ def fail_with_no_tests_found_error_including_filter_strings(filter_strings: List
 
 
 @public
-def step7_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
+def step8_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
     succeeded = 0
     failed = 0
     skipped = 0
+    skipped_with_last_failed_flag = 0
+
     for test = tests.ptr; test < tests.end(); test++:
         match test.skip:
             case SkipMode.DontSkip:
@@ -103,6 +105,8 @@ def step7_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
                         failed++
             case SkipMode.SkipNormally:
                 skipped++
+                if test.skipped_with_last_failed_flag:
+                    skipped_with_last_failed_flag++
             case SkipMode.SkipSilently:
                 pass
 
@@ -125,7 +129,7 @@ def step7_show_results(tests: List[Test], args: CommandLineArgs*) -> noreturn:
         printf(", %s%d skipped", YELLOW, skipped)
     printf("%s\n", RESET)
 
-    if succeeded > 0 and failed == 0:
+    if succeeded + skipped_with_last_failed_flag > 0 and failed == 0:
         exit(0)
     else:
         exit(1)

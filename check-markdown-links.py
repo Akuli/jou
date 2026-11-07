@@ -11,8 +11,6 @@ from http.client import responses as status_code_names
 from pathlib import Path
 from datetime import datetime, timedelta
 
-import requests
-
 PROJECT_ROOT = Path(__file__).absolute().parent
 assert (PROJECT_ROOT / "README.md").is_file()
 os.chdir(PROJECT_ROOT)
@@ -41,6 +39,9 @@ def find_links_in_file(markdown_file_path):
 
 
 def check_https_link(url):
+    # This import is here so that offline mode can work with no dependencies
+    import requests
+
     # Give website owners some sort of idea why we are doing these requests.
     headers = {
         "User-Agent": "check-markdown-links.py/1.0 (+https://github.com/Akuli/jou)"
@@ -176,7 +177,7 @@ def main():
         help="don't do HTTP requests, just assume that https:// links are fine",
     )
     parser.add_argument(
-        "--verbose",
+        "-v", "--verbose",
         action="store_true",
         help="also print links that are ok",
     )
@@ -187,19 +188,30 @@ def main():
 
     for path in find_markdown_files():
         for lineno, target in find_links_in_file(path):
+            if args.verbose:
+                # Print this before we do the check, so you can see immediately
+                # what we are checking
+                print(f"{path}:{lineno}: ", end="", flush=True)
+
             result = check_link(path, target, offline_mode=args.offline)
             if result == "ok" or result.startswith("assume ok"):
                 if args.verbose:
-                    print(f"{path}:{lineno}: {result}")
+                    print(result)
+                else:
+                    print(".", end="", flush=True)
                 good_links += 1
             else:
-                print(f"{path}:{lineno}: {result}")
+                if not verbose:
+                    # Initial \n avoids showing this on the same line with dots.
+                    print(f"\n{path}:{lineno}: ")
+                print(result)
                 bad_links += 1
 
     if good_links + bad_links == 0:
         print("Error: no links found")
         sys.exit(1)
 
+    print()
     print()
     print(f"checked {good_links + bad_links} links: {good_links} good, {bad_links} bad")
     if bad_links > 0:

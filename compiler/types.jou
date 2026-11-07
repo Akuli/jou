@@ -248,7 +248,7 @@ class Type:
 
                 # Results are cached in related_types, just like arrays.
                 # Before we go further, let's check if the type we want is already cached.
-                info = cast_type_to_typeinfo(self)
+                info = cast_type_to_typeinfo(self.classdata.definition.symbol().type)
                 for r = info.related_types.ptr; r < info.related_types.end(); r++:
                     t = &(*r).type
                     if (

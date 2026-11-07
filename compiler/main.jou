@@ -413,16 +413,15 @@ def compile_to_object_files() -> None:
     tokenize_and_parse_all_files()
     init_global_target()
     typecheck_and_build_everything(True)
+    setup_jou_compiled_directory()
     optimize_llvm_ir_and_write_object_files_in_parallel()
 
 
 def compile_to_jou_compiled_and_run() -> int:
     compile_to_object_files()
-    exepath = get_jou_compiled_exe_path()
-    run_linker(exepath)
-    ret = run_exe(exepath)
-    free(exepath)
-    return ret
+    exe_path = lock_exe_path()
+    run_linker(exe_path)
+    return run_exe(exe_path)
 
 
 def compile_to_outfile() -> None:

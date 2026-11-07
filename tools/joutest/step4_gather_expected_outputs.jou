@@ -69,21 +69,17 @@ def parse_comment_from_line(test: Test*, lineno: int, line: byte*) -> Comment:
     return Comment{}
 
 
-global big_buffer: byte[1_000_000]  # surely big enough to fit entire lines!
-
-
 def parse_comments(test: Test*) -> List[Comment]:
     comments = List[Comment]{}
-    lineno = 1
 
-    if test.stdin_input == NULL:
+    if test.code_in_markdown == NULL:
         f = fopen(test.path, "rb")
         if f == NULL:
             e = get_errno()
-            message: byte[300]
-            snprintf(message, sizeof(message), "reading expected output from '%s' failed", test.path)
-            fail_with_errno(message, e)
+            snprintf(big_buffer, sizeof(big_buffer), "reading expected output from '%s' failed", test.path)
+            fail_with_errno(big_buffer, e)
 
+        lineno = 1
         while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
             big_buffer[strcspn(big_buffer, "\r\n")] = '\0'
 
@@ -94,7 +90,9 @@ def parse_comments(test: Test*) -> List[Comment]:
         fclose(f)
 
     else:
-        p = test.stdin_input
+        p = test.code_in_markdown
+        lineno = test.first_markdown_lineno
+
         while *p != '\0':
             line_len = llmin(strcspn(p, "\r\n"), sizeof(big_buffer) - 1) as intnative
             memcpy(big_buffer, p, line_len)

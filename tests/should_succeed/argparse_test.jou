@@ -1,0 +1,142 @@
+import "stdlib/assert.jou"
+import "stdlib/str.jou"
+import "stdlib/ascii.jou"
+import "stdlib/list.jou"
+import "stdlib/argparse.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+def parse_and_dump(command_line: byte*) -> None:
+    temp_copy: byte[500]
+    assert strlen(command_line) < sizeof(temp_copy)
+    strcpy(temp_copy, command_line)
+
+    argv_list = split_by_ascii_whitespace(temp_copy)
+    argv_list.append(NULL)
+
+    printf("%s", argv_list.ptr[0])
+
+    parser = ArgumentParser{argv = argv_list.ptr}
+    while parser.next():
+        if strcmp(parser.flag, "") == 0:
+            value = parser.take_value()
+            assert value != NULL
+            printf(" [arg '%s']", value)
+        else:
+            printf(" %s", parser.flag)
+            if strcmp(parser.flag, "-o") == 0 or strcmp(parser.flag, "--output") == 0:
+                # Test taking a value for the flag
+                value = parser.take_value()
+                if value == NULL:
+                    printf("=[NULL]")
+                else:
+                    printf("='%s'", value)
+
+        if parser.pending_value != NULL:
+            printf(" [pending '%s']", parser.pending_value)
+
+    printf("\n")
+    free(argv_list.ptr)
+
+
+def main() -> int:
+    # These are the examples I tried initially while developing this thing
+
+    # Output: program
+    parse_and_dump("program")
+    # Output: program --help
+    parse_and_dump("program --help")
+    # Output: program --help --lol
+    parse_and_dump("program --help --lol")
+    # Output: program --help --lol -x
+    parse_and_dump("program --help --lol -x")
+    # Output: program --help --lol -x [pending '']
+    parse_and_dump("program --help --lol -x=")
+    # Output: program --help --lol -x [pending 'y']
+    parse_and_dump("program --help --lol -x=y")
+    # Output: program --help --lol -x [pending 'y'] -o='x'
+    parse_and_dump("program --help --lol -x=y -o x")
+    # Output: program --help --lol -x [pending 'y'] -o='x'
+    parse_and_dump("program --help --lol -x=y -ox")
+    # Output: program --help --lol -x [pending 'y'] -o='' [arg 'x']
+    parse_and_dump("program --help --lol -x=y -o= x")
+    # Output: program --help --lol -x [pending 'y'] -o='x'
+    parse_and_dump("program --help --lol -x=y -o=x")
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x'
+    parse_and_dump("program --help --lol -x=y -o=x -o x")
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x'
+    parse_and_dump("program --help --lol -x=y -o=x -ox")
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' [arg 'bla']
+    parse_and_dump("program --help --lol -x=y -o=x -ox bla")
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' [arg 'y']
+    parse_and_dump("program --help --lol -x=y -o=x -ox y")
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x'
+    parse_and_dump("program --help --lol -x=y -o=x -ox -o x")
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x' --output='x'
+    parse_and_dump("program --help --lol -x=y -o=x -ox -o x --output x")
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x' --output='x' --output='x'
+    parse_and_dump("program --help --lol -x=y -o=x -ox -o x --output x --output=x")
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x' --output='x' --output='x' --outputx
+    parse_and_dump("program --help --lol -x=y -o=x -ox -o x --output x --output=x --outputx")
+    # Output: program --help --lol -x [pending 'y'] -o='x' -o='x' -o='x' --output='x' --output='x' --outputx --output=[NULL]
+    parse_and_dump("program --help --lol -x=y -o=x -ox -o x --output x --output=x --outputx --output")
+
+    # More tests added afterwards
+
+    # Output: program -ä -ö [pending 'mörkö']
+    parse_and_dump("program -äö=mörkö")
+    # Output: program --örkki --mörkki [pending 'hirviö'] [arg 'örvelö']
+    parse_and_dump("program --örkki --mörkki=hirviö örvelö")
+
+    # Python does this, and I think it makes sense:
+    #
+    #    $ cat a.py
+    #    import argparse
+    #    p = argparse.ArgumentParser()
+    #    p.add_argument("--foo")
+    #    print(p.parse_args())
+    #
+    #    $ python3 a.py --foo=--bar
+    #    Namespace(foo='--bar')
+    #
+    #    $ python3 a.py --foo --bar
+    #    usage: a.py [-h] [--foo FOO]
+    #    a.py: error: argument --foo: expected one argument
+    #
+    #    $ python3 a.py --foo -x
+    #    usage: a.py [-h] [--foo FOO]
+    #    a.py: error: argument --foo: expected one argument
+    #
+    #    $ python3 a.py --foo -1
+    #    Namespace(foo='-1')
+    #
+    # Output: program -o='--lol' --output='--lol'
+    # Output: program -o='-x' --output='-x'
+    # Output: program -o='-1' --output='-1'
+    # Output: program -o='-' --output='-'
+    # Output: program -o='--' --output='--'
+    parse_and_dump("program -o=--lol --output=--lol")
+    parse_and_dump("program -o=-x --output=-x")
+    parse_and_dump("program -o=-1 --output=-1")
+    parse_and_dump("program -o=- --output=-")
+    parse_and_dump("program -o=-- --output=--")
+    # Output: program -o=[NULL] --lol --output=[NULL] --lol
+    # Output: program -o=[NULL] -x --output=[NULL] -x
+    # Output: program -o='-1' --output='-1'
+    # Output: program -o='-' --output='-'
+    parse_and_dump("program -o --lol --output --lol")
+    parse_and_dump("program -o -x --output -x")
+    parse_and_dump("program -o -1 --output -1")
+    parse_and_dump("program -o - --output -")
+
+    # Output: program [arg '--help'] [arg '-x'] [arg 'plain']
+    # Output: program [arg '--']
+    # Output: program -o=[NULL] [arg '--output'] [arg '--']
+    # Output: program --output=[NULL] [arg '-o'] [arg '--']
+    parse_and_dump("program -- --help -x plain")
+    parse_and_dump("program -- --")
+    parse_and_dump("program -o -- --output --")
+    parse_and_dump("program --output -- -o --")
+
+    return 0

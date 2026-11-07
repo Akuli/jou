@@ -1,5 +1,8 @@
 # Jou Tutorial
 
+If you already know C, you should probably save some time
+by reading [the other tutorial](tutorial-c.md) instead of this one.
+
 On surface level, Jou looks a lot like Python, but **it doesn't behave like Python**,
 so you will probably be disappointed if you know Python well and you expect all of your knowledge to work as is.
 The main differences are:
@@ -27,7 +30,7 @@ On most other systems, executable files typically don't have a file extension at
 By default, Jou places executables into a folder named `jou_compiled/`.
 
 For example, if you run `hello.jou`, you get a file named
-`jou_compiled\hello\hello.exe` (Windows) or `jou_compiled/hello/hello` (other platforms).
+`jou_compiled\hello.exe` (Windows) or `jou_compiled/hello` (other platforms).
 You can run this file without Jou, or even move it to a different computer that doesn't have Jou, and run it there.
 
 When the operating system runs an executable,

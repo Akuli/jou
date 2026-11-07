@@ -1,10 +1,14 @@
-# TODO: This step is kinda dumb and could probably be deleted.
-
 import "stdlib/assert.jou"
+import "stdlib/errno.jou"
+import "stdlib/intnative.jou"
+import "stdlib/math.jou"
+import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/json.jou"
 
+import "./fail.jou"
 import "./state.jou"
 import "./string_formatter.jou"
 
@@ -82,27 +86,156 @@ if not WINDOWS:
         return result.ptr
 
 
-def configure_skip(test: Test*, filters: List[byte*]) -> None:
-    assert test.skip == SkipMode.DontSkip
+def figure_out_which_tests_succeeded_before(tests: List[Test]) -> None:
+    f = fopen("jou_compiled/joutest_last_run.json", "rb")
+    if f == NULL:
+        return
 
-    if filters.len > 0:
+    file_content = List[byte]{}
+    while True:
+        n = fread(big_buffer, 1, array_count(big_buffer), f)
+        if n == 0:
+            break
+        file_content.extend_from_ptr(big_buffer, n)
+    fclose(f)
+    file_content.append('\0')
+
+    if (
+        not json_is_valid(file_content.ptr)
+        or json_to_double(json_get(file_content.ptr, "file_format_version")) != 1
+    ):
+        free(file_content.ptr)
+        return
+
+    # For n tests this is O(n^2), but I don't think it will ever be noticeable
+    # as long as the inner loop is fast. That's why outer loop parses JSON.
+    for j = json_array_first(json_get(file_content.ptr, "tests")); j != NULL; j = json_array_next(j):
+        if not (
+            json_equals_string(json_get(j, "result"), "success")
+            or (
+                # Carry around success from multiple test runs ago
+                json_equals_string(json_get(j, "result"), "skipped")
+                and json_is_true(json_get(j, "succeeded_before"))
+            )
+        ):
+            continue
+
+        path = json_to_string(json_get(j, "path"))
+        if path == NULL:
+            # weird...
+            continue
+
+        code_in_markdown = json_to_string(json_get(j, "code_in_markdown"))
+
+        for test = tests.ptr; test < tests.end(); test++:
+            if (
+                strcmp(test.path, path) == 0
+                and (
+                    (test.code_in_markdown == NULL and code_in_markdown == NULL)
+                    or (
+                        test.code_in_markdown != NULL
+                        and code_in_markdown != NULL
+                        and strcmp(test.code_in_markdown, code_in_markdown) == 0
+                    )
+                )
+            ):
+                # Consider it a match
+                test.succeeded_before = True
+
+        free(path)
+        free(code_in_markdown)
+
+    free(file_content.ptr)
+
+
+# Returns True if source code for the test contains any of given strings
+def file_content_has_substring(test: Test*, strings: List[byte*]) -> bool:
+    if strings.len == 0:
+        return False
+
+    if test.code_in_markdown != NULL:
+        for s = strings.ptr; s < strings.end(); s++:
+            if strstr(test.code_in_markdown, *s) != NULL:
+                return True
+        return False
+
+    preserve_amount = 0
+    for s = strings.ptr; s < strings.end(); s++:
+        n = strlen(*s)
+        if n > 0.5*sizeof(big_buffer):
+            # just give up, user is trying to troll
+            return False
+        preserve_amount = max(preserve_amount, n as int)
+
+    f = fopen(test.path, "rb")
+    if f != NULL:
+        len: intnative = 0
+        while True:
+            n = fread(&big_buffer[len], 1, sizeof(big_buffer) - len - 1, f)
+            if n == 0:
+                if ferror(f) != 0:
+                    break  # go to error handling below
+                fclose(f)
+                return False
+            # A bit of a hack, but works well enough: get rid of '\0' bytes
+            # in file content
+            for i = len; i < len + n; i++:
+                if big_buffer[i] == '\0':
+                    big_buffer[i] = 255 as byte
+            len += n
+
+            assert len < sizeof(big_buffer)
+            big_buffer[len] = '\0'
+
+            for s = strings.ptr; s < strings.end(); s++:
+                if strstr(big_buffer, *s) != NULL:
+                    fclose(f)
+                    return True
+
+            # Preserve some of the data in big_buffer to avoid missing a
+            # substring on the boundary between big_buffer sized chunks.
+            if len > preserve_amount:
+                memmove(big_buffer, &big_buffer[len - preserve_amount], preserve_amount + 1)
+                len = preserve_amount
+                assert big_buffer[len] == '\0'  # this is the +1 above
+
+    e = get_errno()
+    snprintf(big_buffer, sizeof(big_buffer), "reading \"%s\" failed", test.path)
+    fail_with_errno(big_buffer, e)
+
+
+def assign_skip(dest: SkipMode*, value: SkipMode) -> bool:
+    # The "highest" skip mode wins (no skip specified < normal skip < silent skip)
+    if (value as int) > (*dest as int):
+        *dest = value
+        return True
+    return False
+
+def configure_skip(test: Test*, args: CommandLineArgs*) -> None:
+    assert test.skip == SkipMode.DontSkip
+    assert test.skip as int == 0
+
+    if args.filter_strings.len > 0:
         matches_some_filter = False
-        for f = filters.ptr; f < filters.end(); f++:
+        for f = args.filter_strings.ptr; f < args.filter_strings.end(); f++:
             if strstr(test.path, *f) != NULL:
                 matches_some_filter = True
                 break
         if not matches_some_filter:
-            test.skip = SkipMode.SkipSilently
-            return
+            assign_skip(&test.skip, SkipMode.SkipSilently)
 
-    test.skip = test.config.skip_mode
+    if file_content_has_substring(test, args.skip_if_contains):
+        # should this be normal skip or silent skip?
+        # I don't know. Let's be explicit for now, unless that causes problems.
+        assign_skip(&test.skip, SkipMode.SkipNormally)
 
-    # The "highest" skip mode wins (no skip specified < normal skip < silent skip)
-    if (
-        *test.expected_output == '\0'
-        and (test.config.skip_mode_if_no_expected_output as int) > (test.skip as int)
-    ):
-        test.skip = test.config.skip_mode_if_no_expected_output
+    assign_skip(&test.skip, test.config.skip_mode)
+
+    if *test.expected_output == '\0':
+        assign_skip(&test.skip, test.config.skip_mode_if_no_expected_output)
+
+    if test.succeeded_before:
+        test.skipped_with_last_failed_flag = assign_skip(&test.skip, SkipMode.SkipNormally)
 
 
 declare dirname(path: byte*) -> byte*
@@ -121,6 +254,11 @@ def configure_command(test: Test*) -> None:
     memset(params, 0, sizeof(params))
     params[FormatParam.File as int] = test.get_relative_path()
 
+    lines_string: byte[100] = ""
+    if test.first_markdown_lineno != 0 and test.last_markdown_lineno != 0:
+        sprintf(lines_string, "%d-%d", test.first_markdown_lineno, test.last_markdown_lineno)
+    params[FormatParam.Lines as int] = lines_string
+
     assert test.config.value_present[TestConfigOption.Command as int]
     assert test.actual_command_list.len == 0
     for arg = test.config.command.ptr; arg < test.config.command.end(); arg++:
@@ -135,15 +273,18 @@ def configure_command(test: Test*) -> None:
 
 def configure_uses_output_capturing(test: Test*) -> None:
     test.uses_output_capturing = (
-        test.config.stdout != CaptureMode.DoNotCapture
-        or test.config.stderr != CaptureMode.DoNotCapture
+        test.config.stdout == CaptureMode.CompareToComments
+        or test.config.stderr == CaptureMode.CompareToComments
     )
 
 
 @public
 def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
+    if args.last_failed:
+        figure_out_which_tests_succeeded_before(tests)
+
     for test = tests.ptr; test < tests.end(); test++:
-        configure_skip(test, args.filter_strings)
+        configure_skip(test, args)
         if test.skip == SkipMode.SkipSilently:
             continue
         configure_working_directory(test)

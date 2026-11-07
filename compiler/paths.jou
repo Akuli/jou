@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/errno.jou"
 import "stdlib/ascii.jou"
 import "stdlib/fs.jou"
 import "stdlib/mem.jou"
@@ -12,7 +13,14 @@ import "./hash.jou"
 @public
 declare dirname(path: byte*) -> byte*
 
+declare rmdir(path: byte*) -> int
+declare atexit(function: funcptr() -> None) -> int
 
+assert WINDOWS or LINUX or MACOS or NETBSD  # I checked that EEXIST is 17 on these
+const EEXIST: int = 17
+
+
+@public
 def file_exists(path: byte*) -> bool:
     f = fopen(path, "r")
     if f == NULL:
@@ -101,16 +109,17 @@ def find_stdlib() -> byte*:
     exit(1)
 
 
+# Please keep this in sync with joutest. The same function is copied there.
 def write_gitignore(p: byte*) -> None:
-    filename: byte*
-    asprintf(&filename, "%s/.gitignore", p)
-    if not file_exists(filename):
+    full_path: byte*
+    asprintf(&full_path, "%s/.gitignore", p)
+    if not file_exists(full_path):
         # write '*' into gitignore, so that git won't track any compiled files
-        f = fopen(filename, "w")
+        f = fopen(full_path, "w")
         if f != NULL:
             fprintf(f, "*")
             fclose(f)
-    free(filename)
+    free(full_path)
 
 
 # "/home/akuli/folder/file.jou" --> "file.jou"
@@ -128,48 +137,21 @@ def skip_slashes(name: byte*) -> byte*:
     return name
 
 
-# When compiling file foo.jou, we use jou_compiled/foo/ subdirectory.
-#
-# This is currently needed to avoid race conditions when running multiple files
-# at the same time. Feel free to clean this up if you implement locking.
-# See also: https://github.com/Akuli/jou/issues/743
-def get_path_to_jou_compiled_subfolder() -> byte*:
-    # Place jou_compiled into the same directory with the main file we are compiling.
-    # No strong reason for doing this. Feel free to change this if it causes problems.
-    infile = strdup(global_compiler_state.args.infile)
-    jou_compiled: byte*
-    asprintf(&jou_compiled, "%s/jou_compiled", dirname(infile))
-    free(infile)
-
-    mkdir(jou_compiled, 0o777)
-    write_gitignore(jou_compiled)
-
-    if global_compiler_state.args.infile_is_stdin:
-        # TODO: This might cause issues if multiple stdin's are compiled at the same time.
-        name = "stdin"
-    else:
-        name = skip_slashes(global_compiler_state.args.infile)
-
-    name_len = strlen(name)
-    if name_len > 4 and ends_with(name, ".jou"):
-        name_len -= 4
-
-    subfolder: byte*
-    asprintf(&subfolder, "%s/%.*s", jou_compiled, name_len as int, name)
-    mkdir(subfolder, 0o777)
-
-    free(jou_compiled)
-    return subfolder
+@public
+def setup_jou_compiled_directory() -> None:
+    mkdir("jou_compiled", 0o777)
+    write_gitignore("jou_compiled")
+    mkdir("jou_compiled/object_files", 0o777)
 
 
 # Deletes files in a directory whose name ends with the given suffix.
 #
 # This may occasionally miss some files because they are being deleted while
 # looping through the directory.
-def delete_by_suffix(dir: byte*, suffix: byte*) -> None:
+def delete_by_suffix(dir: byte*, suffix: byte*, never_delete_this_name: byte*) -> None:
     iter = DirIter{dir = dir}
     while iter.next():
-        if ends_with(iter.name, suffix):
+        if ends_with(iter.name, suffix) and strcmp(iter.name, never_delete_this_name) != 0:
             ret = unlink(iter.path)
             if ret == 0 and global_compiler_state.args.verbosity >= 1:
                 printf("Deleted %s\n", iter.path)
@@ -201,6 +183,54 @@ def get_simple_name(jou_file_path: byte*) -> byte[50]:
     return result
 
 
+# Think of the input to this function as an integer interval from a to b; that
+# is, as the set {a, a+1, a+2, ..., b}. It is obviously enough to specify the
+# two end points of such a set.
+#
+# This function has the following properties:
+#
+#   1.  If multiple intervals do not overlap, this function returns different
+#       values for them.
+#
+#   2.  Changing the interval slightly (e.g. increment a or b) rarely changes
+#       the return value of this function. This works better for long intervals.
+#
+# In the typical use case, a and b are the first and last line of a code block
+# in a markdown file that joutest is feeding to the compiler. The return value
+# is baked into the identifier hash. Then the above properties mean:
+#
+#   1.  Every code block in the markdown file gets a different identifier hash.
+#
+#   2.  A small change in the markdown file rarely changes the identifier
+#       hashes, which slows down the growth of jou_compiled/object_files/ as
+#       the markdown file is edited. This works better for long code blocks.
+@public  # public for tests
+def disjoint_interval_id(a: int, b: int) -> int:
+    assert a >= 0
+    assert b >= 0
+
+    # a and b are inclusive
+    length = b - a + 1
+    assert length > 0
+
+    # Split the integers into parts of size 2^k each, where 2^k is the largest
+    # power of two such that 2^k <= length.
+    #
+    # For example, with length 4, 5, 6 or 7 (hehe):
+    #
+    #   0,1,2,3  |  4,5,6,7  | 8,9,10,11  |  12,13,14,15  |  ...
+    #
+    # The given interval will either fill one of these parts entirely, or it
+    # will go across multiple parts. In either case, no other non-overlapping
+    # interval with the same k can have its start in the same part.
+    k = 0
+    while (1 << (k+1)) <= length:
+        k++
+
+    # Use a few high bits to store k. It is quite small, surely less than 32.
+    return (a >> k) | (k << 26)
+
+
 # See doc/lazy-recompile.md for an explaanation of the hashes.
 #
 # For example, if foo.jou is compiled with -O1 and -O2, this function returns
@@ -211,13 +241,24 @@ def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
     h = new_hash()
     h.add_byte(global_compiler_state.args.optlevel as byte)
     h.add_bytes(jou_file_path, strlen(jou_file_path))
+
+    if (
+        strcmp(jou_file_path, global_compiler_state.args.infile) == 0
+        and global_compiler_state.args.line_number_range[0] != 0
+        and global_compiler_state.args.line_number_range[1] != 0
+    ):
+        # Give different hashes to non-overlapping --lines=123-456 slices, but
+        # avoid changing the hash if code example only moves or resizes slightly
+        h.add_int(disjoint_interval_id(
+            global_compiler_state.args.line_number_range[0],
+            global_compiler_state.args.line_number_range[1],
+        ))
+
     return h
 
 
 @public
 def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Hash, exists: bool*) -> byte*:
-    subfolder = get_path_to_jou_compiled_subfolder()
-
     simple_name = get_simple_name(jou_file.path)
     identifier_hash = calculate_identifier_hash(jou_file.path)
 
@@ -225,51 +266,122 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Ha
     # Example file name: simple_name_0011223344556677_8899aabbccddeeff.o
 
     assert sizeof(simple_name) == 50
-    filename: byte[200]
-    sprintf(filename, "%s_%016llx_%016llx.o", simple_name, content_hash.hash, identifier_hash.hash)
+    path: byte[300]
+    sprintf(path, "jou_compiled/object_files/%s_%016llx_%016llx.o", simple_name, content_hash.hash, identifier_hash.hash)
 
-    full_path: byte*
-    asprintf(&full_path, "%s/%s", subfolder, filename)
+    # This should be treated so that False means it may exist anyway. Another
+    # compiler process could produce the same object file after this check.
+    *exists = file_exists(path)
 
-    *exists = file_exists(full_path)
-
+    # Delete any previously compiled versions of the same source file
+    #
+    # We could always delete old versions, but let's do that only if we will
+    # produce a new object file, just in case going through the directory
+    # contents is slow for some reason.
     if not *exists:
-        # We will create the file. Delete any previously compiled version of the same source file.
-        suffix_len = 19  # "_" between hashes, 16 characters for hash, ".o" at end
-        suffix = &filename[strlen(filename) - suffix_len]
-        delete_by_suffix(subfolder, suffix)
+        suffix_len = strlen("_8899aabbccddeeff.o")
+        suffix = &path[strlen(path) - suffix_len]
+        name = &path[strlen("jou_compiled/object_files/")]
+        delete_by_suffix("jou_compiled/object_files", suffix, name)
 
-    free(subfolder)
-    return full_path
+    return strdup(path)
 
 
 # Returns the path of compiled `.exe` when the Jou compiler runs it directly.
+#
+# Specifically, when compiling foo.jou:
+#   - Returns one of "jou_compiled/foo", "jou_compiled/foo2", "jou_compiled/foo3"
+#     etc (on Windows there's .exe at the end)
+#   - Tells other Jou compiler processes to not use the same file by also
+#     creating an empty directory jou_compiled/foo.lock or jou_compiled/fooN.lock
+#
+# The lock is a directory, because creating and deleting directories behaves
+# more consistently across supported operating systems.
 @public
-def get_jou_compiled_exe_path() -> byte*:
-    assert global_compiler_state.args.outfile == NULL
+def lock_exe_path() -> byte[100]:
+    assert global_compiler_state.exe_lock_path[0] == '\0'
 
-    if global_compiler_state.args.infile_is_stdin:
-        # TODO: This might cause issues if multiple stdin's are compiled at the same time.
-        name = "stdin"
-    else:
-        name = skip_slashes(global_compiler_state.args.infile)
+    simple_name: byte[50] = get_simple_name(global_compiler_state.args.infile)
+    exe_path: byte[100]
+    assert sizeof(global_compiler_state.exe_lock_path) == 100
 
-    name_len = strlen(name)
-    if name_len > 4 and ends_with(name, ".jou"):
-        name_len -= 4
+    for i = 1; i < 100; i++:
+        if i == 1:
+            sprintf(exe_path, "jou_compiled/%s", simple_name)
+            sprintf(global_compiler_state.exe_lock_path, "jou_compiled/%s.lock", simple_name)
+        else:
+            sprintf(exe_path, "jou_compiled/%s%d", simple_name, i)
+            sprintf(global_compiler_state.exe_lock_path, "jou_compiled/%s%d.lock", simple_name, i)
 
+        if WINDOWS:
+            strcat(exe_path, ".exe")
+
+        if mkdir(global_compiler_state.exe_lock_path, 0o777) == -1:
+            if get_errno() != EEXIST:
+                fprintf(get_stderr(), "error: failed to create directory \"%s\": %s\n", global_compiler_state.exe_lock_path, strerror(get_errno()))
+                exit(1)
+            # already locked by another Jou compiler process
+            continue
+
+        # Check if we can write to the executable, if not it's probably running.
+        #
+        # Jou compiler doesn't hold a lock while the program is running, because
+        # it would be difficult to ensure that the lock file is deleted once the
+        # program exits regardless of how it dies. But operating systems don't
+        # allow writing to a running executable, so we can use that to check if
+        # the executable is running.
+        #
+        # Note 2026-11-06: This may also fail with "is a directory" error,
+        # because older versions of the Jou compiler placed the executable to
+        # jou_compiled/foo/foo instead of jou_compiled/foo.
+        f = fopen(exe_path, "wb")
+        if f == NULL:
+            rmdir(global_compiler_state.exe_lock_path)
+            continue
+        fclose(f)
+
+        atexit(atexit_handler)
+        return exe_path
+
+    fprintf(
+        get_stderr(),
+        "error: seems like jou_compiled/%s, jou_compiled/%s2, jou_compiled/%s3, ..., jou_compiled/%s99 are all in use, maybe delete jou_compiled and try again?\n",
+        simple_name, simple_name, simple_name, simple_name,
+    )
+    exit(1)
+
+
+# This can be called when the exe has started running, because the exe itself
+# will act as a lock (OS doesn't allow writing to it anymore).
+@public
+def unlock_exe_path(exe_path: byte*) -> None:
+    if global_compiler_state.exe_lock_path[0] == '\0':
+        return
+
+    assert starts_with(exe_path, "jou_compiled")
     if WINDOWS:
-        suffix = ".exe"
+        assert ends_with(exe_path, ".exe")
     else:
-        suffix = ""
+        # On Windows, exe_path has ".exe" at the end which messes up this check
+        assert starts_with(global_compiler_state.exe_lock_path, exe_path)
 
-    subfolder = get_path_to_jou_compiled_subfolder()
+    if rmdir(global_compiler_state.exe_lock_path) == -1:
+        fprintf(
+            get_stderr(),
+            "error: failed to delete directory \"%s\": %s\n",
+            global_compiler_state.exe_lock_path,
+            strerror(get_errno()),
+        )
+        global_compiler_state.exe_lock_path[0] = '\0'  # no need to retry in atexit() handler
+        exit(1)
 
-    result: byte*
-    asprintf(&result, "%s/%.*s%s", subfolder, name_len as int, name, suffix)
+    global_compiler_state.exe_lock_path[0] = '\0'
 
-    free(subfolder)
-    return result
+
+def atexit_handler() -> None:
+    if global_compiler_state.exe_lock_path[0] != '\0' and rmdir(global_compiler_state.exe_lock_path) == -1:
+        fprintf(get_stderr(), "error: failed to delete directory \"%s\": %s\n", global_compiler_state.exe_lock_path, strerror(get_errno()))
+        # don't exit, we are already exiting
 
 
 def delete_slice(start: byte*, end: byte*) -> None:

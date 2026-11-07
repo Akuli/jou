@@ -9,18 +9,37 @@ import "stdlib/process.jou"
 
 import "./ast.jou"
 import "./state.jou"
+import "./paths.jou"
 
 if WINDOWS:
-    import "./paths.jou"
+    import "stdlib/utf8.jou"
+    import "stdlib/windows_api/kernel32.jou"
 else:
+    import "stdlib/errno.jou"
     import "../config.jou"
 
 
-# TODO: move to stdlib?
-if WINDOWS:
-    declare SetEnvironmentVariableA(name: byte*, value: byte*) -> int
-else:
+if not WINDOWS:
+    # TODO: move to stdlib?
     declare setenv(name: byte*, value: byte*, overwrite: int) -> int
+    declare waitpid(pid: int, wstatus: int*, options: int) -> int
+    declare posix_spawn(
+        pid: int*,
+        path: byte*,
+        file_actions: void*,  # actually posix_spawn_file_actions_t*
+        attrp: void*,         # actually posix_spawnattr_t*
+        argv: byte**,
+        envp: byte**,
+    ) -> int
+    declare posix_spawnp(
+        pid: int*,
+        path: byte*,
+        file_actions: void*,  # actually posix_spawn_file_actions_t*
+        attrp: void*,         # actually posix_spawnattr_t*
+        argv: byte**,
+        envp: byte**,
+    ) -> int
+    declare strsignal(signal: int) -> byte*
 
 def set_env_var(name: byte*, value: byte*) -> bool:
     if WINDOWS:
@@ -116,21 +135,37 @@ def run_linker(exepath: byte*) -> None:
     free(command)
 
 
-@public
-def run_exe(exepath: byte*) -> int:
-    if global_compiler_state.args.verbosity >= 1:
-        printf("Run: %s\n", exepath)
+if not WINDOWS:
+    declare global environ: byte**
 
-    command: byte*
-    if WINDOWS:
-        asprintf(&command, "\"%s\"", exepath)
-        while strstr(command, "/") != NULL:
-            *strstr(command, "/") = '\\'
-    else:
-        if global_compiler_state.args.valgrind:
-            asprintf(&command, "valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 '%s'", exepath)
-        else:
-            asprintf(&command, "'%s'", exepath)
+    # TODO(Jou): put these to stdlib, copy/pasta from joutest
+
+    # Returns True if the process terminated with a signal
+    @inline
+    def WIFSIGNALED(s: int) -> bool:
+        # 127 means "stopped", see WIFSTOPPED(). We should never get that value.
+        return WTERMSIG(s) != 0 and WTERMSIG(s) != 127
+
+    # Returns True if the process exited normally.
+    @inline
+    def WIFEXITED(s: int) -> bool:
+        return WTERMSIG(s) == 0
+
+    # If the process terminated by exiting normally, returns the exit code.
+    @inline
+    def WEXITSTATUS(s: int) -> int:
+        return (s >> 8) & 0xff
+
+    # If the process terminated with a signal, returns the signal number.
+    @inline
+    def WTERMSIG(s: int) -> int:
+        return s & 0x7f
+
+
+@public
+def run_exe(exe: byte*) -> int:
+    if global_compiler_state.args.verbosity >= 1:
+        printf("Run: %s\n", exe)
 
     # Jou programs can use JOU_COMPILER_PATH environment variable to detect
     # whether they are being ran from the Jou compiler or invoke the compiler
@@ -148,10 +183,92 @@ def run_exe(exepath: byte*) -> int:
     fflush(get_stdout())
     fflush(get_stderr())
 
-    ret = system(command)
-    free(command)
+    if WINDOWS:
+        wide_exe = string_to_windows(exe, NULL, 0)
+        assert wide_exe != NULL
 
-    # Do not exit immediately, so that the compiler can clean up the memory it
-    # uses. This makes error messages much shorter when running tests with
-    # valgrind fails.
-    return 0 if ret == 0 else 1  # TODO: extract actual error code / return value
+        startup_info = STARTUPINFOW{}
+        startup_info.cb = sizeof(startup_info) as uint32
+        process_info = PROCESS_INFORMATION{}
+
+        ret = CreateProcessW(
+            wide_exe,
+            NULL,
+            NULL,
+            NULL,
+            False as int,
+            0,
+            NULL,
+            NULL,
+            &startup_info,
+            &process_info,
+        )
+        if ret == 0:
+            fprintf(get_stderr(), "error: running %s failed (Windows error %u)\n", exe, GetLastError())
+            exit(1)
+
+        free(wide_exe)
+
+    else:
+        child_pid: int
+
+        if global_compiler_state.args.valgrind:
+            valgrind_command = [
+                "valgrind",
+                "-q",
+                "--leak-check=full",
+                "--show-leak-kinds=all",
+                "--error-exitcode=1",
+                exe,
+                NULL,
+            ]
+            # We use posix_spawnp() to find valgrind from PATH
+            ret = posix_spawnp(&child_pid, valgrind_command[0], NULL, NULL, valgrind_command, environ)
+            if ret != 0:
+                fprintf(get_stderr(), "error: running valgrind failed: %s\n", strerror(ret))
+                exit(1)
+        else:
+            exe_command = [exe, NULL]
+            ret = posix_spawn(&child_pid, exe, NULL, NULL, exe_command, environ)
+            if ret != 0:
+                fprintf(get_stderr(), "error: running %s failed: %s\n", exe, strerror(ret))
+                exit(1)
+
+    # Now that the program has started running, we no longer need to hold the
+    # lock directory that prevents other Jou compilers from writing to the same
+    # executable. They will notice that the executable is running.
+    #
+    # We can't do this with valgrind, because valgrind doesn't lock the
+    # executable like the OS does when running directly. And even if it did,
+    # there would be a race condition when valgrind hasn't yet locked the file.
+    if not global_compiler_state.args.valgrind:
+        unlock_exe_path(exe)
+
+    if WINDOWS:
+        if WaitForSingleObject(process_info.hProcess, INFINITE) != 0:
+            fprintf(get_stderr(), "error: WaitForSingleObject() failed (Windows error %u)\n", GetLastError())
+            exit(1)
+
+        exit_code: uint32 = 0
+        if GetExitCodeProcess(process_info.hProcess, &exit_code) == 0:
+            fprintf(get_stderr(), "error: GetExitCodeProcess() failed (Windows error %u)\n", GetLastError())
+            exit(1)
+
+        CloseHandle(process_info.hThread)
+        CloseHandle(process_info.hProcess)
+        return exit_code as int
+    else:
+        status: int
+        if waitpid(child_pid, &status, 0) == -1:
+            fprintf(get_stderr(), "error: waitpid() failed: %s\n", strerror(get_errno()))
+            return 1
+
+        # Do not exit immediately, so that the compiler can clean up the memory it
+        # uses. This makes error messages much shorter when running tests with
+        # valgrind fails.
+        if not WIFEXITED(status):
+            if WIFSIGNALED(status):
+                fprintf(get_stderr(), "%s\n", strsignal(WTERMSIG(status)))
+            # TODO: other return code for killing with signal?
+            return 1
+        return WEXITSTATUS(status)

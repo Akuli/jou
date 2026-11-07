@@ -53,18 +53,17 @@ and we simply check if a file with the correct name exists already.
 When you run `jou examples/hello.jou`, you end up with files that look something like this:
 
 ```
-examples/
-└── jou_compiled/
-    └── hello/
-        ├── _assert_fail_69fbb4a31067cf2b_c836422383205631.o
-        ├── hello
-        ├── hello_b79384c3bc4f7e71_206571b75665c619.o
-        └── io_73a880ec4a91db7d_9bd7fe21c89ad529.o
+jou_compiled/
+├── hello
+└── object_files/
+    ├── hello_e53211d1c1fca8c2_d02364f3b948fde4.o
+    ├── intnative_70511099224e9ccc_ad674a9093283ed0.o
+    └── io_a1ba24f64c4cb16c_ad9ac958397bd736.o
 ```
 
 Here's how the files are named:
 
-    hello_b79384c3bc4f7e71_206571b75665c619.o
+    hello_e53211d1c1fca8c2_d02364f3b948fde4.o
     |___| |______________| |______________|
       |          |                |
       |          |                |
