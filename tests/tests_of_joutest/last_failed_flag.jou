@@ -15,14 +15,14 @@ def write_to_file(path: byte*, content: byte*) -> None:
 
 
 def joutest(flags: byte*) -> int:
-    printf("$ joutest %s\n", flags)
+    printf("$ joutest -j1 %s\n", flags)
     fflush(get_stdout())
 
     command: byte[1000]
     if WINDOWS:
-        snprintf(command, sizeof(command), "cd tmp\\joutest-lf && ..\\..\\joutest.exe %s", flags)
+        snprintf(command, sizeof(command), "cd tmp\\joutest-lf && ..\\..\\joutest.exe -j1 %s", flags)
     else:
-        snprintf(command, sizeof(command), "cd tmp/joutest-lf && ../../joutest %s", flags)
+        snprintf(command, sizeof(command), "cd tmp/joutest-lf && ../../joutest -j1 %s", flags)
     return system(command)
 
 
@@ -42,7 +42,7 @@ def main() -> int:
     write_to_file("tmp/joutest-lf/bad.jou", "lol")
 
     # Output: ===== (1) Initial run =====
-    # Output: $ joutest --no-colors
+    # Output: $ joutest -j1 --no-colors
     # Output: F...
     # Output:
     # Output: *** Command: jou bad.jou
@@ -59,7 +59,7 @@ def main() -> int:
     # Second time should be similar to user but it's different internally.
     #
     # Output: ===== (2) Twice with --lf =====
-    # Output: $ joutest --no-colors --lf
+    # Output: $ joutest -j1 --no-colors --lf
     # Output: Fsss
     # Output:
     # Output: *** Command: jou bad.jou
@@ -68,7 +68,7 @@ def main() -> int:
     # Output:
     # Output:
     # Output: 0 succeeded, 1 failed, 3 skipped
-    # Output: $ joutest --no-colors --lf
+    # Output: $ joutest -j1 --no-colors --lf
     # Output: Fsss
     # Output:
     # Output: *** Command: jou bad.jou
@@ -86,11 +86,11 @@ def main() -> int:
     # tests were skipped with --lf.
     #
     # Output: ===== (3) Fixed =====
-    # Output: $ joutest --no-colors --lf
+    # Output: $ joutest -j1 --no-colors --lf
     # Output: .sss
     # Output:
     # Output: 1 succeeded, 3 skipped
-    # Output: $ joutest --no-colors --lf
+    # Output: $ joutest -j1 --no-colors --lf
     # Output: ssss
     # Output:
     # Output: 0 succeeded, 4 skipped
@@ -103,7 +103,7 @@ def main() -> int:
     # Add new bad file
     #
     # Output: ===== (4) New bad file =====
-    # Output: $ joutest --no-colors --lf
+    # Output: $ joutest -j1 --no-colors --lf
     # Output: sFsss
     # Output:
     # Output: *** Command: jou bad2.jou
@@ -120,7 +120,7 @@ def main() -> int:
     # Everything runs again if --lf flag is removed
     #
     # Output: ===== (5) Everything again =====
-    # Output: $ joutest --no-colors
+    # Output: $ joutest -j1 --no-colors
     # Output: .F...
     # Output:
     # Output: *** Command: jou bad2.jou

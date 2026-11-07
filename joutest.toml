@@ -14,11 +14,11 @@ output_comment_rules = {
 [[tests]]
 files = "tests/tests_of_joutest/**/joutest.toml"
 cd_to_containing_directory = true
-command = ["joutest", "--no-colors"]
+command = ["joutest", "-j1", "--no-colors"]
 
 [[tests]]
 files = "tests/tests_of_joutest/**/*verbose*/joutest.toml"
-command = ["joutest", "--no-colors", "--verbose"]
+command = ["joutest", "-j1", "--no-colors", "--verbose"]
 
 [[tests]]
 files = [
@@ -31,8 +31,8 @@ expected_exit_code = 1
 files = "tests/tests_of_joutest/bad_configs/command_not_found/joutest.toml"
 command = {
     if = "WINDOWS",
-    then = ['cmd', '/c', '..\..\..\..\joutest --no-colors | ..\..\..\..\jou windows_output_hack.jou'],
-    else = ['joutest', '--no-colors'],
+    then = ['cmd', '/c', '..\..\..\..\joutest -j1 --no-colors | ..\..\..\..\jou windows_output_hack.jou'],
+    else = ["joutest", "-j1", "--no-colors"],
 }
 
 ###############################
