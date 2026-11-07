@@ -2,7 +2,6 @@
 # of the code is really hard to get right.
 
 import "stdlib/assert.jou"
-import "stdlib/random.jou"
 import "stdlib/process.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
@@ -151,17 +150,29 @@ def test_writing_to_running_program() -> None:
         waitpid(pid, NULL, 0)
 
 
+# Let's avoid rand(), so that we get the same random numbers on all platforms
+global my_rand_state: uint64 = 1
+
+def my_rand() -> int:
+    # This is perhaps the simplest random generator I've seen online.
+    #
+    # It is from section "4. Marsaglia’s Xorshift Generators" in a paper
+    # titled "Note on Marsaglia's Xorshift Random Number Generators"
+    my_rand_state ^= my_rand_state << 7
+    my_rand_state ^= my_rand_state >> 9
+    return my_rand_state & 0x7fff_ffff
+
+
 def test_disjoint_interval_id() -> None:
-    printf("some rand() values: %d %d %d %d %d\n", rand(), rand(), rand(), rand(), rand())
     iterations = 1000
     changed_with_add = 0
     changed_with_move = 0
 
     for i = 0; i < iterations; i++:
-        a1 = rand() % 200
-        b1 = a1 + (rand() % 20)      # let's assume code blocks are 1 to 20 lines long
-        a2 = b1 + 1 + (rand() % 20)  # code blocks in markdown file do not overlap
-        b2 = a2 + (rand() % 20)      # let's assume code blocks are 1 to 20 lines long
+        a1 = my_rand() % 200
+        b1 = a1 + (my_rand() % 20)      # let's assume code blocks are 1 to 20 lines long
+        a2 = b1 + 1 + (my_rand() % 20)  # code blocks in markdown file do not overlap
+        b2 = a2 + (my_rand() % 20)      # let's assume code blocks are 1 to 20 lines long
 
         if disjoint_interval_id(a1, b1) == disjoint_interval_id(a2, b2):
             printf("FAIL: [%d,%d] and [%d,%d]\n", a1,b1, a2,b2)
