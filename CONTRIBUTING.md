@@ -143,17 +143,6 @@ For more information about joutest, you can look at [joutest's documentation](do
 
 Sometimes it is useful to look at `.github/workflows/` to see how the CI runs tests.
 
-To find missing `free()`s and various other memory bugs,
-there used to be a `--valgrind` flag you could pass to the test runner,
-but the new test runner doesn't have it yet.
-I will hopefully document that again when I add it back.
-
-There is also an older test runner that is no longer used for most of the tests:
-
-```
-$ ./runtests.sh
-```
-
 
 ## Releases
 
