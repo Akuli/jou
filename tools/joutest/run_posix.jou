@@ -11,26 +11,10 @@ import "./posix.jou"
 assert not WINDOWS
 
 
-# TODO: copy/pasted to windows and posix variants of this thing
-def add_output_byte(output: List[byte]*, b: byte) -> None:
-    match b:
-        case '\0':
-            # TODO: Escaping similar to this could be good for other weird bytes too.
-            output.extend_from_ptr("<\\0>", 4)
-        case '\n':
-            # Windows line endings handling: \r\n --> \n
-            if output.len > 0 and output.end()[-1] == '\r':
-                output.pop()
-            output.append('\n')
-        case _:
-            output.append(b)
-
-
 @public
 class RunState:
     test: Test*
     output: List[byte]
-
     child_pid: int
     output_pipe_read: int  # parent process reads output of test
 
@@ -206,7 +190,9 @@ def spawn_test(test: Test*) -> RunState:
 
 
 def read_output(state: RunState*) -> intnative:
-    n = read(state.output_pipe_read, big_buffer, sizeof(big_buffer))
+    read_size = 10000
+    state.output.grow(state.output.len + read_size)
+    n = read(state.output_pipe_read, state.output.end(), read_size)
 
     if n < 0:  # TODO: retry on EINTR?
         fail_with_errno("read() failed", get_errno())
@@ -215,8 +201,7 @@ def read_output(state: RunState*) -> intnative:
         close(state.output_pipe_read)
         state.output_pipe_read = -1
     else:
-        for i = 0; i < n; i++:
-            add_output_byte(&state.output, big_buffer[i])
+        state.output.len += n
 
     return n
 
@@ -224,9 +209,9 @@ def read_output(state: RunState*) -> intnative:
 def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
     for i = 0; i < nstates; i++:
         if states[i].test.start_error != 0:
-            if state.output_pipe_read != -1:
-                close(state.output_pipe_read)
-                state.output_pipe_read = -1
+            if states[i].output_pipe_read != -1:
+                close(states[i].output_pipe_read)
+                states[i].output_pipe_read = -1
             return i
 
     while True:
@@ -250,7 +235,7 @@ def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
                 # There's no good way to get error message for POLLERR.
                 # So just consider it as EOF.
                 #
-                # AI is telling me that there may be mroe data to read even if
+                # AI is telling me that there may be more data to read even if
                 # we get POLLHUP. That seems plausible, so let's read it.
                 if p.revents & (POLLIN | POLLHUP | POLLERR) != 0:
                     state = state_from_fd(states, nstates, p.fd)
@@ -291,12 +276,6 @@ def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
             else:
                 assert WTERMSIG(wstatus) != 0
                 state.test.terminating_signal = WTERMSIG(wstatus)
-
-            if state.test.uses_output_capturing:
-                state.output.append('\0')
-                state.test.actual_output = state.output.ptr
-            else:
-                assert state.output.ptr == NULL
 
             # TODO(Jou): pointer subtraction
             return (((state as intnative) - (states as intnative)) // sizeof(*state)) as int

@@ -13,6 +13,7 @@
 import "stdlib/assert.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
+import "stdlib/mem.jou"
 
 import "./state.jou"
 import "./print_test_info.jou"
@@ -23,6 +24,7 @@ else:
     import "stdlib/fs.jou"
     import "stdlib/process.jou"
     import "./posix.jou"
+    import "./fail.jou"
     import "./run_posix.jou"
 
 
@@ -55,6 +57,26 @@ if not WINDOWS:
 
         setenv("PATH", new_path, True as int)
         free(new_path)
+
+
+def post_process_output(raw_bytes: List[byte]) -> byte*:
+    result = List[byte]{}
+
+    for p = raw_bytes.ptr; p < raw_bytes.end(); p++:
+        match *p:
+            case '\0':
+                # TODO: Escaping similar to this could be good for other weird bytes too.
+                result.extend_from_ptr("<\\0>", 4)
+            case '\n':
+                # Windows line endings handling: \r\n --> \n
+                if result.len > 0 and result.end()[-1] == '\r':
+                    result.pop()
+                result.append('\n')
+            case _:
+                result.append(*p)
+
+    result.append('\0')
+    return result.ptr
 
 
 @public
@@ -92,6 +114,11 @@ def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             # make sure we get a compile error if running[i].test is not a Test* pointer
             test2: Test* = running[i].test
             test = test2
+            if test.uses_output_capturing:
+                test.actual_output = post_process_output(running[i].output)
+                free(running[i].output.ptr)
+            else:
+                assert running[i].output.ptr == NULL
             running[i] = running[--nrunning]
 
             if (

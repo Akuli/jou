@@ -14,32 +14,10 @@ import "stdlib/windows_api/errors.jou"
 assert WINDOWS
 
 
-# TODO: copy/pasted to windows and posix variants of this thing
-def add_output_byte(output: List[byte]*, b: byte) -> None:
-    match b:
-        case '\0':
-            # TODO: Escaping similar to this could be good for other weird bytes too.
-            output.extend_from_ptr("<\\0>", 4)
-        case '\n':
-            # Windows line endings handling: \r\n --> \n
-            if output.len > 0 and output.end()[-1] == '\r':
-                output.pop()
-            output.append('\n')
-        case _:
-            output.append(b)
-
-
 # These cannot move around in memory (RunStates are moved around to keep the
 # running ones consecutively)
-#
-# Also, we can't use big_buffer because these must be different for each test.
-class OutputBuffer:
-    in_use: bool
-    buffer: byte[4096]
-    overlapped: OVERLAPPED
-
-global output_buffers: OutputBuffer[MAX_PARALLELISM]
-global next_output_buffer_index: int = 0
+global overlappeds: OVERLAPPED[MAX_PARALLELISM]
+global next_overlappeds_index: int = 0
 
 
 # Holds all state needed to run one test.
@@ -47,13 +25,13 @@ global next_output_buffer_index: int = 0
 class RunState:
     test: Test*
     output: List[byte]
-    output_buffer: OutputBuffer*  # can't use the same buffer for all tests, also this must not move around in memory
+    output_overlapped: OVERLAPPED*  # pointer because this must not move around in memory
     output_pipe_read: intnative  # parent process reads output of test
     process_info: PROCESS_INFORMATION
 
 def state_from_handle(states: RunState*, nstates: int, handle: intnative) -> RunState*:
     for s = states; s < &states[nstates]; s++:
-        if s.output_buffer.overlapped.hEvent == handle or s.process_info.hProcess == handle:
+        if s.output_overlapped.hEvent == handle or s.process_info.hProcess == handle:
             return s
     return NULL
 
@@ -210,17 +188,17 @@ def spawn_test(test: Test*) -> RunState:
     close_and_set_invalid(&output_pipe_write)
     close_and_set_invalid(&devnull)
 
-    # We give each state an output buffer so that we don't need to check for NULL
-    state.output_buffer = &output_buffers[next_output_buffer_index++]
-    next_output_buffer_index %= array_count(output_buffers)
-    assert not state.output_buffer.in_use
-    memset(state.output_buffer, 0, sizeof(*state.output_buffer))
-    state.output_buffer.in_use = True
+    # We give each state an OVERLAPPED so that we don't need to check for NULL
+    state.output_overlapped = &overlappeds[next_overlappeds_index++]
+    next_overlappeds_index %= array_count(overlappeds)
+    # Should not be in use
+    for i = 0; i < sizeof(*state.output_overlapped); i++:
+        assert (state.output_overlapped as byte*)[i] == 0
 
-    if test.start_error != 0 and test.uses_output_capturing:
-        state.output_buffer.overlapped.hEvent = CreateEventA(NULL, True as int, False as int, NULL)
-        assert state.output_buffer.overlapped.hEvent != INVALID_HANDLE_VALUE
-        if state.output_buffer.overlapped.hEvent == 0:
+    if test.start_error == 0 and test.uses_output_capturing:
+        state.output_overlapped.hEvent = CreateEventA(NULL, True as int, False as int, NULL)
+        assert state.output_overlapped.hEvent != INVALID_HANDLE_VALUE
+        if state.output_overlapped.hEvent == 0:
             fail_with_windows_error("CreateEventA() failed", GetLastError())
 
         start_reading_output(&state)
@@ -230,16 +208,22 @@ def spawn_test(test: Test*) -> RunState:
 
 def start_reading_output(state: RunState*) -> None:
     assert state.output_pipe_read != INVALID_HANDLE_VALUE
-    assert state.output_buffer.overlapped.hEvent != INVALID_HANDLE_VALUE
+    assert state.output_overlapped.hEvent != INVALID_HANDLE_VALUE
+
+    read_size = 10000
+    state.output.grow(state.output.len + read_size)
 
     # No output is ever available right away because we use overlapped IO
+    #
+    # Refactoring note: Output buffer and the OVERLAPPED structure must not
+    # move in memory between ReadFile and GetOverlappedResult().
     dummy: uint32
-    if ReadFile(state.output_pipe_read, state.output_buffer.buffer, sizeof(state.output_buffer.buffer) as uint32, &dummy, &state.output_buffer.overlapped) == 0:
+    if ReadFile(state.output_pipe_read, state.output.end(), read_size as uint32, &dummy, state.output_overlapped) == 0:
         match GetLastError():
             case ERROR_IO_PENDING:  # No more output yet, we get it later
                 pass
             case ERROR_BROKEN_PIPE:  # End of output
-                close_and_set_invalid(&state.output_buffer.overlapped.hEvent)
+                close_and_set_invalid(&state.output_overlapped.hEvent)
                 close_and_set_invalid(&state.output_pipe_read)
             case _:
                 fail_with_windows_error("ReadFile() failed", GetLastError())
@@ -248,7 +232,7 @@ def start_reading_output(state: RunState*) -> None:
 def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
     for i = 0; i < nstates; i++:
         if states[i].test.start_error != 0:
-            close_and_set_invalid(&states[i].output_buffer.overlapped.hEvent)
+            close_and_set_invalid(&states[i].output_overlapped.hEvent)
             close_and_set_invalid(&states[i].output_pipe_read)
             return i
 
@@ -265,9 +249,9 @@ def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
                 handles[nhandles++] = s.process_info.hProcess
                 added_something = True
 
-            if s.output_buffer.overlapped.hEvent != INVALID_HANDLE_VALUE:
+            if s.output_overlapped.hEvent != INVALID_HANDLE_VALUE:
                 assert nhandles < array_count(handles)
-                handles[nhandles++] = s.output_buffer.overlapped.hEvent
+                handles[nhandles++] = s.output_overlapped.hEvent
                 added_something = True
 
             # If all handles are INVALID_HANDLE_VALUE, this function should
@@ -281,33 +265,32 @@ def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
         state = state_from_handle(states, nstates, handles[handle_index])
         assert state != NULL
 
-        if handles[i] == state.output_buffer.overlapped.hEvent:
+        if handles[handle_index] == state.output_overlapped.hEvent:
             # Test wrote something to stdout
             bytes_read: uint32 = 0
-            if GetOverlappedResult(state.output_pipe_read, &state.output_buffer.overlapped, &bytes_read, False as int) == 0:
+            if GetOverlappedResult(state.output_pipe_read, state.output_overlapped, &bytes_read, False as int) == 0:
                 match GetLastError():
                     case ERROR_BROKEN_PIPE:  # End of output
                         bytes_read = 0
                     case _:
                         fail_with_windows_error("GetOverlappedResult() failed when reading output of test", GetLastError())
 
-            assert bytes_read <= sizeof(state.output_buffer)
             if bytes_read == 0:
-                close_and_set_invalid(&state.output_buffer.overlapped.hEvent)
+                close_and_set_invalid(&state.output_overlapped.hEvent)
                 close_and_set_invalid(&state.output_pipe_read)
             else:
-                for i = 0; i < bytes_read; i++:
-                    add_output_byte(&state.output, state.output_buffer.buffer[i])
+                state.output.len += bytes_read
+                assert state.output.len <= state.output.capacity
 
                 # Reset the event, zero out everything else
-                state.output_buffer.overlapped = OVERLAPPED{hEvent = state.output_buffer.overlapped.hEvent}
-                if ResetEvent(state.output_buffer.overlapped.hEvent) == 0:
+                *state.output_overlapped = OVERLAPPED{hEvent = state.output_overlapped.hEvent}
+                if ResetEvent(state.output_overlapped.hEvent) == 0:
                     fail_with_windows_error("ResetEvent() failed", GetLastError())
 
                 # Read more data
                 start_reading_output(state)
 
-        elif handles[i] == state.process_info.hProcess:
+        elif handles[handle_index] == state.process_info.hProcess:
             # Test process died. But there might still be some buffered output.
             # We can get the exit code now, so let's do that.
             exit_code: uint32 = 0
@@ -322,10 +305,10 @@ def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
             assert False
 
         if (
-            state.output_buffer.overlapped.hEvent == INVALID_HANDLE_VALUE
+            state.output_overlapped.hEvent == INVALID_HANDLE_VALUE
             and state.process_info.hProcess == INVALID_HANDLE_VALUE
         ):
             # Test running done!
-            state.output_buffer.in_use = False
+            memset(state.output_overlapped, 0, sizeof(*state.output_overlapped))
             # TODO(Jou): pointer subtraction
             return (((state as intnative) - (states as intnative)) // sizeof(*state)) as int
