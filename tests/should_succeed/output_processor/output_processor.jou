@@ -1,0 +1,40 @@
+# This is in a directory for two reasons:
+#   - joutest doesn't pick this up as a test (similar to imported files)
+#   - this doesn't look like a regular test in the rather long directory listing
+
+import "stdlib/assert.jou"
+import "stdlib/fs.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+global line: byte[100_000]
+
+def delete_last_component(s: byte*) -> None:
+    slash1 = strrchr(s, '/')
+    slash2 = strrchr(s, '\\' if WINDOWS else '/')
+    assert slash1 != NULL or slash2 != NULL
+    *(slash1 if slash1 > slash2 else slash2) = '\0'
+
+def main() -> int:
+    joudir = find_current_executable()
+    delete_last_component(joudir)
+    delete_last_component(joudir)
+
+    if WINDOWS:
+        jouexe = "jou.exe"
+    else:
+        jouexe = "./jou"
+
+    while fgets(line, sizeof(line), get_stdin()) != NULL:
+        p = &line[0]
+        while *p != '\0':
+            if starts_with(p, joudir):
+                printf("<joudir>")
+                p = &p[strlen(joudir)]
+            elif starts_with(p, jouexe) and (p[strlen(jouexe)] == ' ' or p[strlen(jouexe)] == ':'):
+                printf("<jouexe>")
+                p = &p[strlen(jouexe)]
+            else:
+                putchar(*p++)
+
+    return 0

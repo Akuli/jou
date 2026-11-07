@@ -1,6 +1,5 @@
 import "stdlib/assert.jou"
 import "stdlib/str.jou"
-import "stdlib/mem.jou"
 import "stdlib/process.jou"
 import "stdlib/io.jou"
 import "stdlib/fs.jou"
@@ -12,10 +11,9 @@ def run_jou(command: byte*) -> None:
     else:
         jou_exe = "./jou"
 
-    full_command = malloc(1000)
-    sprintf(full_command, "%s %s", jou_exe, command)
+    full_command: byte[4096]
+    snprintf(full_command, sizeof(full_command), "%s %s", jou_exe, command)
     system(full_command)
-    free(full_command)
 
 
 # Find and print things like the following...

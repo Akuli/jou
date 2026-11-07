@@ -6,18 +6,12 @@
 # Test the Jou compiler #
 #########################
 #
-# These tests are still partially done by runtests.sh. I am in the middle of
-# moving runtests.sh tests here, and likely will be for quite some time.
-#
 # TODO: examples/memory_leak.jou will need to be skipped once valgrind gets
 #       involved. Previously it was always silent-skipped, and IMO that's fine.
 #
 # TODO: tests/should_succeed/compiler_unit_tests.jou will need to be skipped
 #       when running under valgrind. Apparently LLVM leaks memory when the
 #       program starts, even if it is never called.
-#
-# TODO: When running under valgrind, everything with nonzero exit status should
-#       probably be skipped. That's how the old runtests.sh did it.
 #
 # TODO: Eventually test this on macos (the macos CI is currently broken). I
 #       will probably need to work around this compiler warning I got before:
@@ -56,20 +50,41 @@ output_comment_rules = {
 output_comment_order = ["Warning", "Output", "Error", "ErrorNoLine"]
 expected_exit_code = 1
 
+# Tests that expect working directory to be where the file is
+#
+# We don't do this for all files, because I like long but relative paths in error messages.
+[[tests]]
+files = [
+    # AoC files use fopen("sampleinput.txt", "r")
+    "examples/aoc*/day*/part*.jou",
+    # double_dotdot_import test had a bug that was reproducible only with relative path.
+    "tests/should_succeed/double_dotdot_import/*/*.jou",
+    # Perlin noise example writes to a file. We want that file to end up in the examples
+    # folder, not in project root.
+    "examples/perlin_noise.jou",
+]
+cd_to_containing_directory = true
+
 # TODO: A few files are still tested with the legacy runtests.sh
 [[tests]]
 files = [
-    "tests/404/file.jou",
-    "tests/other_errors/source_file_contain_zero_byte.jou",
-    "tests/should_succeed/compiler_cli.jou",
-    "tests/should_succeed/intnative_test.jou",
     "tests/should_succeed/link_with_liblzma_dynamic.jou",
     "tests/should_succeed/link_with_liblzma_relative_path.jou",
     "tests/should_succeed/link_with_liblzma_system_path.jou",
-    "tests/should_succeed/sizeof.jou",
-    "tests/wrong_type/sort_comparator.jou",
 ]
 skip_mode = "skip_normally"
+
+[[tests]]
+files = [
+    "tests/404/file.jou",
+    "tests/should_succeed/compiler_cli.jou",
+]
+command = {
+    if = "WINDOWS",
+    then = ['cmd', '/c', 'jou "{file}" 2>&1 | jou tests/should_succeed/output_processor/output_processor.jou'],
+    else = ["sh", "-c", 'jou "{file}" 2>&1 | jou tests/should_succeed/output_processor/output_processor.jou'],
+}
+expected_exit_code = 0
 
 # Don't run files that are only meant to be imported
 [[tests]]
@@ -86,28 +101,13 @@ expected_exit_code = 1
 
 # 32-bit only test
 [[tests]]
-files = "tests/wrong_type/pointer_to_integer_32bit.jou"
+files = "tests/wrong_type/*_32bit.jou"
 skip_mode = {if = "IS_32BIT", then = "dont_skip", else = "skip_normally"}
 
 # 64-bit only test
 [[tests]]
-files = "tests/wrong_type/pointer_to_integer_64bit.jou"
+files = "tests/wrong_type/*_64bit.jou"
 skip_mode = {if = "IS_32BIT", then = "skip_normally", else = "dont_skip"}
-
-# Tests that expect working directory to be where the file is
-#
-# We don't do this for all files, because I like long but relative paths in error messages.
-[[tests]]
-files = [
-    # AoC files use fopen("sampleinput.txt", "r")
-    "examples/aoc*/day*/part*.jou",
-    # double_dotdot_import test had a bug that was reproducible only with relative path.
-    "tests/should_succeed/double_dotdot_import/*/*.jou",
-    # Perlin noise example writes to a file. We want that file to end up in the examples
-    # folder, not in project root.
-    "examples/perlin_noise.jou",
-]
-cd_to_containing_directory = true
 
 
 ############################
