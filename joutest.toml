@@ -65,15 +65,6 @@ files = [
 ]
 cd_to_containing_directory = true
 
-# TODO: A few files are still tested with the legacy runtests.sh
-[[tests]]
-files = [
-    "tests/should_succeed/link_with_liblzma_dynamic.jou",
-    "tests/should_succeed/link_with_liblzma_relative_path.jou",
-    "tests/should_succeed/link_with_liblzma_system_path.jou",
-]
-skip_mode = "skip_normally"
-
 [[tests]]
 files = [
     "tests/404/file.jou",
@@ -86,9 +77,12 @@ command = {
 }
 expected_exit_code = 0
 
-# Don't run files that are only meant to be imported
+# Don't run some files
 [[tests]]
-files = "tests/should_succeed/imported/**/*.jou"
+files = [
+    "tests/should_succeed/imported/**/*.jou",
+    "tests/should_succeed/output_processor/output_processor.jou",
+]
 skip_mode = "skip_silently"
 
 # This is a command-line program that expects some arguments to be present
