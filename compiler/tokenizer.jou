@@ -511,6 +511,7 @@ class Tokenizer:
                         continue
                     token.kind = TokenKind.Newline
                     token.indentation_level = self.read_newline_token()
+                    token.location.lineno = self.location.lineno - 1
                 case '"':
                     token.kind = TokenKind.String
                     token.long_string = self.read_string()
