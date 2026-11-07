@@ -227,7 +227,13 @@ def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
                 polls[npolls++] = pollfd{fd = states[i].output_pipe_read, events = POLLIN}
 
         if npolls > 0:
-            ret = poll(polls, npolls, -1)
+            # The 100ms timeout helps make full use of available CPU cores.
+            # Without it, joutest sometimes uses one less core than available,
+            # e.g. 75% CPU usage on a machine with 4 cores.
+            #
+            # I don't fully understand why that is, but the tiny amount of
+            # extra CPU spent once every 100ms is harmless, so this is fine.
+            ret = poll(polls, npolls, 100)
             if ret == -1:
                 fail_with_errno("poll() failed", get_errno())
 
