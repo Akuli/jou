@@ -15,14 +15,14 @@ def write_to_file(path: byte*, content: byte*) -> None:
 
 
 def joutest(flags: byte*) -> int:
-    printf("$ joutest %s\n", flags)
+    printf("$ joutest -j1 %s\n", flags)
     fflush(get_stdout())
 
     command: byte[1000]
     if WINDOWS:
-        snprintf(command, sizeof(command), "cd tmp\\joutest-lf-verbose && ..\\..\\joutest.exe %s", flags)
+        snprintf(command, sizeof(command), "cd tmp\\joutest-lf-verbose && ..\\..\\joutest.exe -j1 %s", flags)
     else:
-        snprintf(command, sizeof(command), "cd tmp/joutest-lf-verbose && ../../joutest %s", flags)
+        snprintf(command, sizeof(command), "cd tmp/joutest-lf-verbose && ../../joutest -j1 %s", flags)
     return system(command)
 
 
@@ -41,7 +41,7 @@ def main() -> int:
     write_to_file("tmp/joutest-lf-verbose/skipped.jou", "lol")
 
     # Output: ===== (1) Initial run =====
-    # Output: $ joutest --no-colors
+    # Output: $ joutest -j1 --no-colors
     # Output: F.s
     # Output:
     # Output: *** Command: jou bad.jou
@@ -60,7 +60,7 @@ def main() -> int:
     write_to_file("tmp/joutest-lf-verbose/skipped2.jou", "lol")
 
     # Output: ===== (2) Run with verbose and lf =====
-    # Output: $ joutest --no-colors --verbose --lf
+    # Output: $ joutest -j1 --no-colors --verbose --lf
     # Output: run: jou bad.jou
     # Output: FAIL jou bad.jou
     # Output: run: jou bad2.jou
