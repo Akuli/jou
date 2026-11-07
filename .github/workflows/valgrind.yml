@@ -68,9 +68,17 @@ jobs:
           PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev"
           sudo apt install -y $PACKAGES || (sudo apt update && sudo apt install -y $PACKAGES)
       - run: LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }} make
-      - name: "Test compiler with valgrind"
+      - name: "Run joutest with valgrind"
+        # This skips tests that contain "# Error:" comments, for two reasons:
+        # because the compiler does not free memory on error, and valgrind would
+        # be even slower if all the erroring tests were valgrinded.
+        #
+        # This command doesn't work if there is a space in current working directory
+        run: ./joutest --verbose --jou="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=$(pwd)/valgrind-suppressions.sup jou --valgrind ${{ matrix.params.opt-level }}" --skip-if-contains="# Error:"
+      - name: "Run legacy runtests.sh script with valgrind"
         run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.params.opt-level }}"
-      - run: tests/toml/run.sh --valgrind --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Test TOML parser with valgrind"
+        run: tests/toml/run.sh --valgrind --jou-flags "${{ matrix.params.opt-level }}"
 
   # Please keep in sync with other .yml files
   create-issue-on-failure:
