@@ -91,7 +91,11 @@ class PathAndTestConfig:
     config: TestConfig
 
 
-def get_default_config(defaults_for_all_tests: TestConfig*, markdown: bool) -> TestConfig:
+def get_default_config(
+    defaults_for_all_tests: TestConfig*,
+    markdown: bool,
+    args: CommandLineArgs*,
+) -> TestConfig:
     defaults = TestConfig{}
 
     defaults.output_comment_rules.append(["Output", "{comment}"])
@@ -100,13 +104,10 @@ def get_default_config(defaults_for_all_tests: TestConfig*, markdown: bool) -> T
     defaults.markdown_code_block_languages.append("jou")
     defaults.value_present[TestConfigOption.MarkdownCodeBlockLanguages as int] = True
 
+    defaults.command.extend(args.jou_command)
     if markdown:
-        defaults.command.append("jou")
         defaults.command.append("--lines={lines}")
-        defaults.command.append("{file}")
-    else:
-        defaults.command.append("jou")
-        defaults.command.append("{file}")
+    defaults.command.append("{file}")
     defaults.value_present[TestConfigOption.Command as int] = True
 
     defaults_for_all_tests.assign_to(&defaults)
@@ -114,7 +115,7 @@ def get_default_config(defaults_for_all_tests: TestConfig*, markdown: bool) -> T
 
 
 @public
-def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
+def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml, args: CommandLineArgs*) -> List[Test]:
     # We can't do this in one pass (that is, loop through just once), because
     # multiple sections of joutest.toml can apply to the same file, and we
     # already need to know the final/merged configuration when extracting tests
@@ -155,6 +156,7 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml) -> List[Test]:
                         config = get_default_config(
                             &parsed_joutest_toml.defaults_for_all_tests,
                             is_markdown_file(*path),
+                            args,
                         ),
                     })
                     merged_config = &merged_configs.end()[-1]
