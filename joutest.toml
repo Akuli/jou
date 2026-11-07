@@ -85,12 +85,12 @@ expected_exit_code = 1
 # 32-bit only test
 [[tests]]
 files = "tests/wrong_type/pointer_to_integer_32bit.jou"
-skip_mode = {32bit = "dont_skip", default = "skip_normally"}
+skip_mode = {if = "IS_32BIT", then = "dont_skip", else = "skip_normally"}
 
 # 64-bit only test
 [[tests]]
 files = "tests/wrong_type/pointer_to_integer_64bit.jou"
-skip_mode = {32bit = "skip_normally", default = "dont_skip"}
+skip_mode = {if = "IS_32BIT", then = "skip_normally", else = "dont_skip"}
 
 # Tests that expect working directory to be where the file is
 #
