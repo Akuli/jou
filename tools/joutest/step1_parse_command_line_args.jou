@@ -40,14 +40,16 @@ def print_help(argv0: byte*) -> None:
     printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", argv0)
     printf("\n")
     printf("Options:\n")
-    printf("  -v / --verbose        show more output than by default\n")
-    printf("  --no-colors           do not print with colors\n")
-    printf("  --lf / --last-failed  only run tests that failed or were not present in the\n")
-    printf("                        previous test run (useful in large projects)\n")
-    printf("  -j1/-j2/-j3/...       how many tests to run in parallel (default = number of\n")
-    printf("                        CPU cores)\n")
-    printf("  --jou=\"...\"           what to use instead of \"jou\" in the default command\n")
-    printf("                        (example: --jou=\"jou -O3\")\n")
+    printf("  -v / --verbose            show more output than by default\n")
+    printf("  --no-colors               do not print with colors\n")
+    printf("  --lf / --last-failed      only run tests that failed or were not present in\n")
+    printf("                            the previous test run (useful in large projects)\n")
+    printf("  -j1/-j2/-j3/...           how many tests to run in parallel (default = number\n")
+    printf("                            of CPU cores)\n")
+    printf("  --skip-if-contains \"...\"  skip tests where the file (or markdown code block)\n")
+    printf("                            contains the given string (may be repeated)\n")
+    printf("  --jou \"...\"               what to use instead of \"jou\" in the default command\n")
+    printf("                            (example: --jou=\"jou -O3\")\n")
     printf("\n")
     printf("If FILTER arguments are given, only run the tests whose file path contains one\n")
     printf("or more FILTERs as a substring.\n")
@@ -96,6 +98,12 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 if args.jou_command.len == 0:
                     fprintf(get_stderr(), "%s: --jou-command cannot be empty (try --help)\n", argv[0])
                     exit(2)
+            case "--skip-if-contains":
+                s = parser.take_value()
+                if s == NULL:
+                    fprintf(get_stderr(), "%s: you need to specify a string after --skip-if-contains (try --help)\n", argv[0])
+                    exit(2)
+                args.skip_if_contains.append(s)
             case "":
                 args.filter_strings.append(parser.take_value())
             case _:
