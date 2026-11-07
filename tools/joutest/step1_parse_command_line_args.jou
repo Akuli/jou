@@ -1,4 +1,6 @@
 import "stdlib/argparse.jou"
+import "stdlib/ascii.jou"
+import "stdlib/mem.jou"
 import "stdlib/assert.jou"
 import "stdlib/math.jou"
 import "stdlib/io.jou"
@@ -44,6 +46,8 @@ def print_help(argv0: byte*) -> None:
     printf("                        previous test run (useful in large projects)\n")
     printf("  -j1/-j2/-j3/...       how many tests to run in parallel (default = number of\n")
     printf("                        CPU cores)\n")
+    printf("  --jou=\"...\"           what to use instead of \"jou\" in the default command\n")
+    printf("                        (example: --jou=\"jou -O3\")\n")
     printf("\n")
     printf("If FILTER arguments are given, only run the tests whose file path contains one\n")
     printf("or more FILTERs as a substring.\n")
@@ -52,6 +56,7 @@ def print_help(argv0: byte*) -> None:
 @public
 def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
     args = CommandLineArgs{parallelism = min(get_number_of_cpus(), MAX_PARALLELISM)}
+    args.jou_command.append("jou")
 
     parser = ArgumentParser{argv = argv}
     while parser.next():
@@ -75,6 +80,21 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                     exit(2)
                 if args.parallelism > MAX_PARALLELISM:
                     fprintf(get_stderr(), "%s: -j%d is not supported (the maximum is -j%d)\n", argv[0], args.parallelism, MAX_PARALLELISM)
+                    exit(2)
+            case "--jou":
+                s = parser.take_value()
+                if s == NULL:
+                    fprintf(get_stderr(), "%s: you need to specify a command that invokes jou after --jou-command (try --help)\n", argv[0])
+                    exit(2)
+                if strchr(s, '"') != NULL or strchr(s, '\'') != NULL:
+                    fprintf(get_stderr(), "%s: --jou-command cannot contain quotes, please create an issue on GitHub if you need to quote something\n")
+                    exit(2)
+                s = strdup(s)
+                assert s != NULL
+                free(args.jou_command.ptr)
+                args.jou_command = split_by_ascii_whitespace(s)
+                if args.jou_command.len == 0:
+                    fprintf(get_stderr(), "%s: --jou-command cannot be empty (try --help)\n")
                     exit(2)
             case "":
                 args.filter_strings.append(parser.take_value())

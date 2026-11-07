@@ -341,6 +341,8 @@ Everything else is optional.
         For a [test in a markdown file](#markdown-files), the default command uses `--lines`
         to tell the Jou compiler that it should ignore the rest of the markdown file.
         For other files, the default command is simply `["jou", "{file}"]`.
+        You can also pass e.g. `--jou="jou -O3"` to `joutest`
+        to use something else instead of `"jou"` in the default value.
         Inside each string, the following replacements are done:
         - `{file}` is replaced with a relative path to the test file.
             Backslashes are used on Windows, and forward slashes are used on other operating systems.
@@ -390,9 +392,7 @@ stdout = "do_not_capture"
 
 While `joutest` is usable, it is still relatively new. The following features are planned, but not implemented:
 - running multiple tests in parallel
-- passing flags to the Jou compiler: `-O0`, `-O1`, `-O2`, `-O3`, `--valgrind`
 - some way to say "if `--valgrind` was given to Jou compiler then do this"
-- some way to run the Jou compiler under valgrind (needed for testing the compiler)
 - timeout, so that an infinite loop doesn't freeze the test runner
 - maximum output size, so that an infinite loop with a print doesn't freeze the test runner
     - `--valgrind`
