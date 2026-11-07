@@ -343,6 +343,7 @@ import "stdlib/io.jou"
 global readme = embed_binary_file("../README.md")
 
 def main() -> int:
+    global readme
     # Output: Jou programming language
     for i = 2; i < 26; i++:
         putchar(readme[i])
@@ -363,6 +364,7 @@ import "stdlib/io.jou"
 global meme = embed_binary_file("images/64bit-meme.jpg")
 
 def main() -> int:
+    global meme
     printf("%d bytes\n", sizeof(meme))  # Output: 59939 bytes
     return 0
 ```
@@ -394,6 +396,7 @@ global file_content = embed_text_file("../tests/data/hellohellohello.txt")
 
 def main() -> int:
     # Output: File content is hellohellohello
+    global file_content
     printf("File content is %s\n", file_content)
     return 0
 ```
@@ -496,7 +499,7 @@ TODO: not documented yet, sorry :(
 
 ## `global`
 
-The `global` keyword is used to create a global variable. For example:
+The `global` keyword is used to create or access a global variable. For example:
 
 ```python
 import "stdlib/io.jou"
@@ -504,17 +507,43 @@ import "stdlib/io.jou"
 global x: int
 
 def print_x() -> None:
+    global x
     printf("%d\n", x)
 
 def main() -> int:
+    global x
     print_x()  # Output: 0
     x++
     print_x()  # Output: 1
     return 0
 ```
 
-Note that unlike in Python,
-you don't need to use `global` inside a function to modify the global variable.
+Note that unlike in Python, you always need an explicit `global your_variable`
+inside the function to access a global variable.
+Without it, the variable name will be treated as a local variable in future versions of Jou.
+Currently the compiler shows a warning if you forget this.
+
+For example, the following currently prints `1 2`, but in a future version of Jou it will print `1 0`:
+
+```python
+import "stdlib/io.jou"
+
+global x: int
+global y: int
+
+def print_xy() -> None:
+    global x, y     # this is same as "global x" and "global y" on separate lines
+    printf("%d %d\n", x, y)
+
+def main() -> int:
+    global x
+    # In the future, this will create a local variable named y, but for now
+    # it accesses the global variable.
+    x = 1
+    y = 2  # Warning: please add a 'global y' statement inside the main() function, this will be required in a future version of the Jou compiler
+    print_xy()  # Output: 1 2
+    return 0
+```
 
 By default, global variables are always initialized to zero memory.
 For example, numbers are initialized to zero, booleans are initialized to `False` and pointers are initialized to `NULL`.
@@ -526,6 +555,7 @@ import "stdlib/io.jou"
 global x: int = 1234
 
 def main() -> int:
+    global x
     printf("%d\n", x)  # Output: 1234
     return 0
 ```
@@ -538,6 +568,7 @@ import "stdlib/io.jou"
 global x = 1234
 
 def main() -> int:
+    global x
     printf("%d\n", x)  # Output: 1234
     return 0
 ```
