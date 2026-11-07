@@ -16,6 +16,7 @@ def print_help(argv0: byte*) -> None:
     printf("  --no-colors           do not print with colors\n")
     printf("  --lf / --last-failed  only run tests that failed or were not present in the\n")
     printf("                        previous test run (useful in large projects)\n")
+    printf("  -j1/-j2/-j3/...       how many tests to run in parallel (default = 1)\n")
     printf("\n")
     printf("If FILTER arguments are given, only run the tests whose file path contains one\n")
     printf("or more FILTERs as a substring.\n")
@@ -23,7 +24,7 @@ def print_help(argv0: byte*) -> None:
 
 @public
 def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
-    args = CommandLineArgs{}
+    args = CommandLineArgs{parallelism = 1}
 
     parser = ArgumentParser{argv = argv}
     while parser.next():
@@ -37,6 +38,17 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 disable_colors()
             case "--lf" | "--last-failed":
                 args.last_failed = True
+            case "-j":
+                string = parser.take_value()
+                args.parallelism = atoi("" if string == NULL else string)
+                string2: byte[100]
+                sprintf(string2, "%d", args.parallelism)
+                if args.parallelism < 1 or strcmp(string, string2) != 0:
+                    fprintf(get_stderr(), "%s: after -j, you must specify the number of tests to run in parallel (try --help)\n", argv[0])
+                    exit(2)
+                if args.parallelism > MAX_PARALLELISM:
+                    fprintf(get_stderr(), "%s: -j%d is not supported (the maximum is -j%d)\n", argv[0], args.parallelism, MAX_PARALLELISM)
+                    exit(2)
             case "":
                 args.filter_strings.append(parser.take_value())
             case _:

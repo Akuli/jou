@@ -9,11 +9,17 @@ import "stdlib/str.jou"
 global big_buffer: byte[1_000_000]
 
 
+# If you make this bigger than 64, note that on Windows, WaitForMultipleObjects()
+# can't take more than 64 handles at once (MAXIMUM_WAIT_OBJECTS = 64)
+@public
+const MAX_PARALLELISM: int = 64
+
 @public
 class CommandLineArgs:
     verbose: bool
     filter_strings: List[byte*]  # Only tests with one or more of these as substring are executed
     last_failed: bool
+    parallelism: int  # -j1, -j2 etc
 
 
 @public
