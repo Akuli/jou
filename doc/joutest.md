@@ -47,15 +47,30 @@ You can also try `--verbose` (or `-v`, that does the same thing):
 
 ```
 akuli@Akuli-Desktop ~/curses-klondike $ joutest --verbose
-run: jou "tests/test_args.jou"
- ok  jou "tests/test_args.jou"
-run: jou "tests/test_card.jou"
- ok  jou "tests/test_card.jou"
-run: jou "tests/test_klondike.jou"
- ok  jou "tests/test_klondike.jou"
+run: jou tests/test_args.jou
+run: jou tests/test_card.jou
+run: jou tests/test_klondike.jou
+ ok  jou tests/test_card.jou
+ ok  jou tests/test_klondike.jou
+ ok  jou tests/test_args.jou
 
 
 3 succeeded
+```
+
+By default, joutest runs multiple tests in parallel if your computer has multiple CPU cores.
+The above command was ran on a CPU with 4 cores,
+so all tests started at the same time and finished in a somewhat random order.
+You can use e.g. `-j2` to specify that joutest should run two tests at a time:
+
+```
+akuli@Akuli-Desktop ~/curses-klondike $ joutest -v -j2
+run: jou tests/test_args.jou
+run: jou tests/test_card.jou
+ ok  jou tests/test_card.jou
+run: jou tests/test_klondike.jou
+ ok  jou tests/test_klondike.jou
+ ok  jou tests/test_args.jou
 ```
 
 In a big project, running all tests is slow.
@@ -63,10 +78,10 @@ To run only some of the tests, you can specify one or more command-line argument
 Only the tests whose path contains any of the given arguments as a substring will run:
 
 ```
-akuli@Akuli-Desktop ~/curses-klondike $ joutest --verbose klon card
+akuli@Akuli-Desktop ~/curses-klondike $ joutest -v klon card
 run: jou tests/test_card.jou
- ok  jou tests/test_card.jou
 run: jou tests/test_klondike.jou
+ ok  jou tests/test_card.jou
  ok  jou tests/test_klondike.jou
 
 
@@ -113,7 +128,7 @@ def main() -> int:
 ```
 
 If the expected and actual output do not match, `joutest` shows a diff.
-For example, changing `printf("Bla4\n")` to `printf("Baa4\n")` above produces the following output:
+For example, changing `printf("Bla4\n")` to `printf("Blaaaaaaaaah\n")` above produces the following output:
 
 ```diff
 F
@@ -124,7 +139,7 @@ F
  Bla2
  Bla3
 -Bla4
-+Baa4
++Blaaaaaaaaah
  Bla5
 
 
@@ -226,10 +241,10 @@ You can omit the `markdown_code_block_languages` setting if the markdown files u
 Here's the output of `joutest`:
 
 ```diff
-.F
+F.
 
-*** Command: jou --stdin-name hello.md -
-    Input: file "hello.md", line 16 to line 20
+*** Command: jou --lines=16-20 hello.md
+    Test came from file "hello.md", line 16 to line 20
 -Hello World
 +compiler error in file "hello.md", line 19: missing " to end the string
 Process exited with code 1. The correct exit code would be 0.
@@ -239,7 +254,6 @@ Process exited with code 1. The correct exit code would be 0.
 ```
 
 Note that the file name and line number in the error message correctly point to the markdown file.
-The command and input that `joutest` uses are set up to do exactly that.
 
 
 ## If/then/else tables
@@ -394,6 +408,4 @@ While `joutest` is usable, it is still relatively new. The following features ar
 - some way to say "if `--valgrind` was given to Jou compiler then do this"
 - timeout, so that an infinite loop doesn't freeze the test runner
 - maximum output size, so that an infinite loop with a print doesn't freeze the test runner
-    - `--valgrind`
-    - `--jou-flags`
-- pre-test commands like `make`, and some way to disable them
+- maybe pre-test commands like `make`, and some way to disable them
