@@ -1,10 +1,14 @@
 import "stdlib/assert.jou"
+import "stdlib/errno.jou"
+import "stdlib/intnative.jou"
+import "stdlib/math.jou"
 import "stdlib/io.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
 import "stdlib/json.jou"
 
+import "./fail.jou"
 import "./state.jou"
 import "./string_formatter.jou"
 
@@ -144,6 +148,62 @@ def figure_out_which_tests_succeeded_before(tests: List[Test]) -> None:
     free(file_content.ptr)
 
 
+# Returns True if source code for the test contains any of given strings
+def file_content_has_substring(test: Test*, strings: List[byte*]) -> bool:
+    if strings.len == 0:
+        return False
+
+    if test.code_in_markdown != NULL:
+        for s = strings.ptr; s < strings.end(); s++:
+            if strstr(test.code_in_markdown, *s) != NULL:
+                return True
+        return False
+
+    preserve_amount = 0
+    for s = strings.ptr; s < strings.end(); s++:
+        n = strlen(*s)
+        if n > 0.5*sizeof(big_buffer):
+            # just give up, user is trying to troll
+            return False
+        preserve_amount = max(preserve_amount, n as int)
+
+    f = fopen(test.path, "rb")
+    if f != NULL:
+        len: intnative = 0
+        while True:
+            n = fread(&big_buffer[len], 1, sizeof(big_buffer) - len - 1, f)
+            if n == 0:
+                if ferror(f) != 0:
+                    break  # go to error handling below
+                fclose(f)
+                return False
+            # A bit of a hack, but works well enough: get rid of '\0' bytes
+            # in file content
+            for i = len; i < len + n; i++:
+                if big_buffer[i] == '\0':
+                    big_buffer[i] = 255 as byte
+            len += n
+
+            assert len < sizeof(big_buffer)
+            big_buffer[len] = '\0'
+
+            for s = strings.ptr; s < strings.end(); s++:
+                if strstr(big_buffer, *s) != NULL:
+                    fclose(f)
+                    return True
+
+            # Preserve some of the data in big_buffer to avoid missing a
+            # substring on the boundary between big_buffer sized chunks.
+            if len > preserve_amount:
+                memmove(big_buffer, &big_buffer[len - preserve_amount], preserve_amount + 1)
+                len = preserve_amount
+                assert big_buffer[len] == '\0'  # this is the +1 above
+
+    e = get_errno()
+    snprintf(big_buffer, sizeof(big_buffer), "reading \"%s\" failed", test.path)
+    fail_with_errno(big_buffer, e)
+
+
 def assign_skip(dest: SkipMode*, value: SkipMode) -> bool:
     # The "highest" skip mode wins (no skip specified < normal skip < silent skip)
     if (value as int) > (*dest as int):
@@ -151,19 +211,23 @@ def assign_skip(dest: SkipMode*, value: SkipMode) -> bool:
         return True
     return False
 
-
-def configure_skip(test: Test*, filters: List[byte*]) -> None:
+def configure_skip(test: Test*, args: CommandLineArgs*) -> None:
     assert test.skip == SkipMode.DontSkip
     assert test.skip as int == 0
 
-    if filters.len > 0:
+    if args.filter_strings.len > 0:
         matches_some_filter = False
-        for f = filters.ptr; f < filters.end(); f++:
+        for f = args.filter_strings.ptr; f < args.filter_strings.end(); f++:
             if strstr(test.path, *f) != NULL:
                 matches_some_filter = True
                 break
         if not matches_some_filter:
             assign_skip(&test.skip, SkipMode.SkipSilently)
+
+    if file_content_has_substring(test, args.skip_if_contains):
+        # should this be normal skip or silent skip?
+        # I don't know. Let's be explicit for now, unless that causes problems.
+        assign_skip(&test.skip, SkipMode.SkipNormally)
 
     assign_skip(&test.skip, test.config.skip_mode)
 
@@ -220,7 +284,7 @@ def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         figure_out_which_tests_succeeded_before(tests)
 
     for test = tests.ptr; test < tests.end(); test++:
-        configure_skip(test, args.filter_strings)
+        configure_skip(test, args)
         if test.skip == SkipMode.SkipSilently:
             continue
         configure_working_directory(test)
