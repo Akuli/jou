@@ -391,7 +391,6 @@ stdout = "do_not_capture"
 ## Unimplemented features
 
 While `joutest` is usable, it is still relatively new. The following features are planned, but not implemented:
-- running multiple tests in parallel
 - some way to say "if `--valgrind` was given to Jou compiler then do this"
 - timeout, so that an infinite loop doesn't freeze the test runner
 - maximum output size, so that an infinite loop with a print doesn't freeze the test runner
