@@ -14,12 +14,6 @@ import "stdlib/windows_api/errors.jou"
 assert WINDOWS
 
 
-# These cannot move around in memory (RunStates are moved around to keep the
-# running ones consecutively)
-global overlappeds: OVERLAPPED[MAX_PARALLELISM]
-global next_overlappeds_index: int = 0
-
-
 # Holds all state needed to run one test.
 @public
 class RunState:
@@ -189,11 +183,8 @@ def spawn_test(test: Test*) -> RunState:
     close_and_set_invalid(&devnull)
 
     # We give each state an OVERLAPPED so that we don't need to check for NULL
-    state.output_overlapped = &overlappeds[next_overlappeds_index++]
-    next_overlappeds_index %= array_count(overlappeds)
-    # Should not be in use
-    for i = 0; i < sizeof(*state.output_overlapped); i++:
-        assert (state.output_overlapped as byte*)[i] == 0
+    state.output_overlapped = calloc(1, sizeof(*state.output_overlapped))
+    assert state.output_overlapped != NULL
 
     if test.start_error == 0 and test.uses_output_capturing:
         state.output_overlapped.hEvent = CreateEventA(NULL, True as int, False as int, NULL)
@@ -309,6 +300,6 @@ def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
             and state.process_info.hProcess == INVALID_HANDLE_VALUE
         ):
             # Test running done!
-            memset(state.output_overlapped, 0, sizeof(*state.output_overlapped))
+            free(state.output_overlapped)
             # TODO(Jou): pointer subtraction
             return (((state as intnative) - (states as intnative)) // sizeof(*state)) as int
