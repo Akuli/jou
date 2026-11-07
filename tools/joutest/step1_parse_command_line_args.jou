@@ -87,14 +87,14 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                     fprintf(get_stderr(), "%s: you need to specify a command that invokes jou after --jou-command (try --help)\n", argv[0])
                     exit(2)
                 if strchr(s, '"') != NULL or strchr(s, '\'') != NULL:
-                    fprintf(get_stderr(), "%s: --jou-command cannot contain quotes, please create an issue on GitHub if you need to quote something\n")
+                    fprintf(get_stderr(), "%s: --jou-command cannot contain quotes, please create an issue on GitHub if you need to quote something\n", argv[0])
                     exit(2)
                 s = strdup(s)
                 assert s != NULL
                 free(args.jou_command.ptr)
                 args.jou_command = split_by_ascii_whitespace(s)
                 if args.jou_command.len == 0:
-                    fprintf(get_stderr(), "%s: --jou-command cannot be empty (try --help)\n")
+                    fprintf(get_stderr(), "%s: --jou-command cannot be empty (try --help)\n", argv[0])
                     exit(2)
             case "":
                 args.filter_strings.append(parser.take_value())
