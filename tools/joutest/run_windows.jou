@@ -1,0 +1,331 @@
+import "stdlib/assert.jou"
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+
+import "./fail.jou"
+import "./state.jou"
+
+import "stdlib/intnative.jou"
+import "stdlib/utf8.jou"
+import "stdlib/windows_api/kernel32.jou"
+import "stdlib/windows_api/errors.jou"
+
+assert WINDOWS
+
+
+# TODO: copy/pasted to windows and posix variants of this thing
+def add_output_byte(output: List[byte]*, b: byte) -> None:
+    match b:
+        case '\0':
+            # TODO: Escaping similar to this could be good for other weird bytes too.
+            output.extend_from_ptr("<\\0>", 4)
+        case '\n':
+            # Windows line endings handling: \r\n --> \n
+            if output.len > 0 and output.end()[-1] == '\r':
+                output.pop()
+            output.append('\n')
+        case _:
+            output.append(b)
+
+
+# These cannot move around in memory (RunStates are moved around to keep the
+# running ones consecutively)
+#
+# Also, we can't use big_buffer because these must be different for each test.
+class OutputBuffer:
+    in_use: bool
+    buffer: byte[4096]
+    overlapped: OVERLAPPED
+
+global output_buffers: OutputBuffer[MAX_PARALLELISM]
+global next_output_buffer_index: int = 0
+
+
+# Holds all state needed to run one test.
+@public
+class RunState:
+    test: Test*
+    output: List[byte]
+    output_buffer: OutputBuffer*  # can't use the same buffer for all tests, also this must not move around in memory
+    output_pipe_read: intnative  # parent process reads output of test
+    process_info: PROCESS_INFORMATION
+
+def state_from_handle(states: RunState*, nstates: int, handle: intnative) -> RunState*:
+    for s = states; s < &states[nstates]; s++:
+        if s.output_buffer.overlapped.hEvent == handle or s.process_info.hProcess == handle:
+            return s
+    return NULL
+
+
+def close_and_set_invalid(h: intnative*) -> None:
+    if *h != INVALID_HANDLE_VALUE:
+        CloseHandle(*h)
+        *h = INVALID_HANDLE_VALUE
+
+global pipe_name_counter: int64 = 0
+
+def create_overlapped_pipe(
+    read_end: intnative*,
+    read_end_overlapped: bool,
+    write_end: intnative*,
+    write_end_overlapped: bool,
+) -> None:
+    # Based on: https://stackoverflow.com/a/419736
+
+    pipe_name: byte[100]
+    sprintf(pipe_name, "\\\\.\\pipe\\joutest_%u_%lld", GetCurrentProcessId(), pipe_name_counter++)
+
+    *read_end = CreateNamedPipeA(
+        pipe_name,
+        PIPE_ACCESS_INBOUND | (FILE_FLAG_OVERLAPPED if read_end_overlapped else (0 as uint32)),
+        PIPE_TYPE_BYTE | PIPE_WAIT,
+        1,  # one instance of the pipe
+        0,  # default output buffer size
+        0,  # default input buffer size
+        0,  # default timeout if not specified later
+        NULL,
+    )
+    if *read_end == INVALID_HANDLE_VALUE:
+        fail_with_windows_error("CreateNamedPipeA() failed", GetLastError())
+
+    *write_end = CreateFileA(
+        pipe_name,
+        GENERIC_WRITE,
+        0,  # do not share for other processes
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL | (FILE_FLAG_OVERLAPPED if write_end_overlapped else (0 as uint32)),
+        0,  # no template file
+    )
+    if *write_end == INVALID_HANDLE_VALUE:
+        fail_with_windows_error("CreateFileA() failed", GetLastError())
+
+def make_inheritable(handle: intnative) -> None:
+    if SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) == 0:
+        fail_with_windows_error("SetHandleInformation() failed", GetLastError())
+
+    # Threading note: If this code ever needs to be multi-threaded, it
+    # needs some changes. At this point we have an inheritable handle,
+    # and ANY process started now would inherit it, which is bad.
+    # Instead, the handle should be inheritable only for the process
+    # being launched here.
+
+@public
+def spawn_test(test: Test*) -> RunState:
+    state = RunState{test = test, output_pipe_read = INVALID_HANDLE_VALUE}
+
+    # These are no longer needed once process has been spawned, so these
+    # don't need to be in the state object.
+    output_pipe_write = INVALID_HANDLE_VALUE
+    devnull = INVALID_HANDLE_VALUE
+
+    if state.test.uses_output_capturing:
+        create_overlapped_pipe(&state.output_pipe_read, True, &output_pipe_write, False)
+        make_inheritable(output_pipe_write)
+
+    if (
+        state.test.config.stdout == CaptureMode.Discard
+        or state.test.config.stderr == CaptureMode.Discard
+    ):
+        devnull = CreateFileA(
+            "NUL",
+            GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            NULL,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            0,
+        )
+        if devnull == INVALID_HANDLE_VALUE:
+            fail_with_windows_error("CreateFileA() failed for NUL", GetLastError())
+        make_inheritable(devnull)
+
+    startup_info = STARTUPINFOW{}
+    startup_info.cb = sizeof(startup_info) as uint32
+    if (
+        state.test.config.stdout != CaptureMode.DoNotCapture
+        or state.test.config.stderr != CaptureMode.DoNotCapture
+    ):
+        startup_info.dwFlags = STARTF_USESTDHANDLES
+
+        startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE)
+
+        match state.test.config.stdout:
+            case CaptureMode.CompareToComments:
+                startup_info.hStdOutput = output_pipe_write
+            case CaptureMode.Discard:
+                assert devnull != INVALID_HANDLE_VALUE
+                startup_info.hStdOutput = devnull
+            case CaptureMode.DoNotCapture:
+                startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE)
+
+        match state.test.config.stderr:
+            case CaptureMode.CompareToComments:
+                startup_info.hStdError = output_pipe_write
+            case CaptureMode.Discard:
+                assert devnull != INVALID_HANDLE_VALUE
+                startup_info.hStdError = devnull
+            case CaptureMode.DoNotCapture:
+                startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE)
+
+    # This takes a string because that's how windows works. The command
+    # line of a Windows process is a string at the lowest level. The
+    # process itself (typically libc) splits it into argc and argv or
+    # similar, if it wants. The OS does not have a concept of separate
+    # arguments.
+    #
+    # This does not pass the given string to a shell.
+    wide_command_line = string_to_windows(state.test.actual_command_string, NULL, 0)
+    if wide_command_line == NULL:
+        fail("test command is not valid UTF-8")
+
+    wide_working_directory: uint16* = NULL
+    if state.test.working_directory != NULL:
+        wide_working_directory = string_to_windows(state.test.working_directory, NULL, 0)
+        if wide_working_directory == NULL:
+            fail("test working directory is not valid UTF-8")
+
+    ret = CreateProcessW(
+        NULL,  # Program name is a part of our arguments string
+        wide_command_line,
+        NULL,
+        NULL,
+        (startup_info.dwFlags & STARTF_USESTDHANDLES != 0) as int,
+        0,
+        NULL,
+        wide_working_directory,
+        &startup_info,
+        &state.process_info,
+    )
+    if ret == 0:
+        state.test.start_error = GetLastError() as int
+    free(wide_working_directory)
+    free(wide_command_line)
+
+    # From now on, child is going to write and parent is going to read.
+    #
+    # These are inheritable handles, so it's important to close these
+    # before launching more processes.
+    close_and_set_invalid(&output_pipe_write)
+    close_and_set_invalid(&devnull)
+
+    # We give each state an output buffer so that we don't need to check for NULL
+    state.output_buffer = &output_buffers[next_output_buffer_index++]
+    next_output_buffer_index %= array_count(output_buffers)
+    assert not state.output_buffer.in_use
+    memset(state.output_buffer, 0, sizeof(*state.output_buffer))
+    state.output_buffer.in_use = True
+
+    if test.start_error != 0 and test.uses_output_capturing:
+        state.output_buffer.overlapped.hEvent = CreateEventA(NULL, True as int, False as int, NULL)
+        assert state.output_buffer.overlapped.hEvent != INVALID_HANDLE_VALUE
+        if state.output_buffer.overlapped.hEvent == 0:
+            fail_with_windows_error("CreateEventA() failed", GetLastError())
+
+        start_reading_output(&state)
+
+    return state
+
+
+def start_reading_output(state: RunState*) -> None:
+    assert state.output_pipe_read != INVALID_HANDLE_VALUE
+    assert state.output_buffer.overlapped.hEvent != INVALID_HANDLE_VALUE
+
+    # No output is ever available right away because we use overlapped IO
+    dummy: uint32
+    if ReadFile(state.output_pipe_read, state.output_buffer.buffer, sizeof(state.output_buffer.buffer) as uint32, &dummy, &state.output_buffer.overlapped) == 0:
+        match GetLastError():
+            case ERROR_IO_PENDING:  # No more output yet, we get it later
+                pass
+            case ERROR_BROKEN_PIPE:  # End of output
+                close_and_set_invalid(&state.output_buffer.overlapped.hEvent)
+                close_and_set_invalid(&state.output_pipe_read)
+            case _:
+                fail_with_windows_error("ReadFile() failed", GetLastError())
+
+@public
+def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
+    for i = 0; i < nstates; i++:
+        if states[i].test.start_error != 0:
+            close_and_set_invalid(&states[i].output_buffer.overlapped.hEvent)
+            close_and_set_invalid(&states[i].output_pipe_read)
+            return i
+
+    while True:
+        # Wait until we can read output or a process dies
+        handles: intnative[MAXIMUM_WAIT_OBJECTS]
+        nhandles: uint32 = 0
+
+        for s = states; s < &states[nstates]; s++:
+            added_something = False
+
+            if s.process_info.hProcess != INVALID_HANDLE_VALUE:
+                assert nhandles < array_count(handles)
+                handles[nhandles++] = s.process_info.hProcess
+                added_something = True
+
+            if s.output_buffer.overlapped.hEvent != INVALID_HANDLE_VALUE:
+                assert nhandles < array_count(handles)
+                handles[nhandles++] = s.output_buffer.overlapped.hEvent
+                added_something = True
+
+            # If all handles are INVALID_HANDLE_VALUE, this function should
+            # have already returned the process
+            assert added_something
+
+        handle_index: uint32 = WaitForMultipleObjects(nhandles, handles, False as int, INFINITE)
+        if handle_index >= nhandles:
+            fail_with_windows_error("WaitForMultipleObjects() failed", GetLastError())
+
+        state = state_from_handle(states, nstates, handles[handle_index])
+        assert state != NULL
+
+        if handles[i] == state.output_buffer.overlapped.hEvent:
+            # Test wrote something to stdout
+            bytes_read: uint32 = 0
+            if GetOverlappedResult(state.output_pipe_read, &state.output_buffer.overlapped, &bytes_read, False as int) == 0:
+                match GetLastError():
+                    case ERROR_BROKEN_PIPE:  # End of output
+                        bytes_read = 0
+                    case _:
+                        fail_with_windows_error("GetOverlappedResult() failed when reading output of test", GetLastError())
+
+            assert bytes_read <= sizeof(state.output_buffer)
+            if bytes_read == 0:
+                close_and_set_invalid(&state.output_buffer.overlapped.hEvent)
+                close_and_set_invalid(&state.output_pipe_read)
+            else:
+                for i = 0; i < bytes_read; i++:
+                    add_output_byte(&state.output, state.output_buffer.buffer[i])
+
+                # Reset the event, zero out everything else
+                state.output_buffer.overlapped = OVERLAPPED{hEvent = state.output_buffer.overlapped.hEvent}
+                if ResetEvent(state.output_buffer.overlapped.hEvent) == 0:
+                    fail_with_windows_error("ResetEvent() failed", GetLastError())
+
+                # Read more data
+                start_reading_output(state)
+
+        elif handles[i] == state.process_info.hProcess:
+            # Test process died. But there might still be some buffered output.
+            # We can get the exit code now, so let's do that.
+            exit_code: uint32 = 0
+            if GetExitCodeProcess(state.process_info.hProcess, &exit_code) == 0:
+                fail_with_windows_error("GetExitCodeProcess() failed", GetLastError())
+            state.test.actual_exit_code = exit_code as int
+
+            close_and_set_invalid(&state.process_info.hProcess)
+            close_and_set_invalid(&state.process_info.hThread)
+
+        else:
+            assert False
+
+        if (
+            state.output_buffer.overlapped.hEvent == INVALID_HANDLE_VALUE
+            and state.process_info.hProcess == INVALID_HANDLE_VALUE
+        ):
+            # Test running done!
+            state.output_buffer.in_use = False
+            # TODO(Jou): pointer subtraction
+            return (((state as intnative) - (states as intnative)) // sizeof(*state)) as int

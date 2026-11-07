@@ -202,10 +202,6 @@ def spawn_test(test: Test*) -> RunState:
         fail_with_errno("read() failed", get_errno())
     close(error_pipe_read)
 
-    if test.start_error != 0 and state.output_pipe_read != -1:
-        close(state.output_pipe_read)
-        state.output_pipe_read = -1
-
     return state
 
 
@@ -228,6 +224,9 @@ def read_output(state: RunState*) -> intnative:
 def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
     for i = 0; i < nstates; i++:
         if states[i].test.start_error != 0:
+            if state.output_pipe_read != -1:
+                close(state.output_pipe_read)
+                state.output_pipe_read = -1
             return i
 
     while True:
