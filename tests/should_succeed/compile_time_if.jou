@@ -56,4 +56,13 @@ if True:
             else:
                 printf("Foo\n")
 
+        # test for issue #1497
+        match 1:
+            case 1:
+                if WINDOWS and LINUX:
+                    this.should(be).compiled.out()
+            case _:
+                if WINDOWS and LINUX:
+                    this.should(be).too()
+
         return 0
