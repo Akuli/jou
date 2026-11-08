@@ -230,6 +230,10 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                     exit(2)
                 args.infile = parser.take_value()
                 assert args.infile != NULL
+                if WINDOWS:
+                    for p = args.infile; *p != '\0'; p++:
+                        if *p == '\\':
+                            *p = '/'
             case _:
                 fprintf(get_stderr(), "%s: unknown argument \"%s\" (try --help)\n", argv[0], parser.flag)
                 exit(2)
