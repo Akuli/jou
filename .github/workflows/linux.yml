@@ -16,9 +16,11 @@ jobs:
         # Please keep in sync with valgrind.yml and macos.yml
         params:
           # Oldest version
-          - { llvm-version: 15, opt-level: '-O1' }
+          # TODO: We claim to support LLVM 15 and 16. Drop support? No longer available in github actions ubuntu-latest.
+          - { llvm-version: 17, opt-level: '-O1' }
           # Latest version: all opt levels
           # TODO: LLVM 21 is not available from apt yet.
+          # TODO: ... is it still not? i would guess it is, GitHub updated ubuntu-latest since.
           - { llvm-version: 20, opt-level: '-O0' }
           - { llvm-version: 20, opt-level: '-O1' }
           - { llvm-version: 20, opt-level: '-O2' }

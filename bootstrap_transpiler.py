@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
-    # First element is always a string, but explainin that to mypy without
+    # First element is always a string, but explaining that to mypy without
     # getting unnecessary errors turned out to be too complicated.
     AST = tuple[Any, ...]
 
