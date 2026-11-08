@@ -269,6 +269,6 @@ string2: byte[100] = "hello"  # Type of "hello" is byte[100]
 ```
 
 Unlike in C, `sizeof("hello")` is not `6` in Jou:
-even though type inference can cause a string to become an array,
-it doesn't happen just because the string is inside a `sizeof()`.
+even though type inference can turn a string into an array of bytes,
+it doesn't magically become an array of the smallest possible size just because the string is inside a `sizeof()`.
 Just use `strlen()` from [stdlib/str.jou](../stdlib/str.jou).
