@@ -275,25 +275,6 @@ def configure_working_directory(test: Test*) -> None:
         free(temp)
 
 
-#        case TestConfigOption.Command:
-#            free(config.command.ptr)
-#            config.command = array_of_strings_from_toml(kv, NULL, False)
-#
-#            if config.command.len == 0:
-#                snprintf(big_buffer, sizeof(big_buffer), "'%s' cannot be empty", kv.key)
-#                fail_in_toml(kv.value.lineno, big_buffer)
-#
-#            assert kv.value.type == TOMLType.Array
-#            for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
-#                arg = toml_to_string(item)
-#                assert arg != NULL
-#                memset(allowed, 0, sizeof(allowed))
-#                allowed[FormatParam.File as int] = True
-#                allowed[FormatParam.Lines as int] = True
-#                validate_format_string_in_toml(arg, item.lineno, allowed)
-#
-
-
 def configure_command(test: Test*, args: CommandLineArgs*) -> None:
     toml = test.get_config("command")
     if toml == NULL:
