@@ -103,35 +103,6 @@ def is_markdown_file(path: byte*) -> bool:
     )
 
 
-#class PathAndTestConfig:
-#    path: byte*
-#    glob_lineno: int
-#    config: TestConfig
-#
-#
-#def get_default_config(
-#    defaults_for_all_tests: TestConfig*,
-#    markdown: bool,
-#    args: CommandLineArgs*,
-#) -> TestConfig:
-#    defaults = TestConfig{}
-#
-#    defaults.output_comment_rules.append(["Output", "{comment}"])
-#    defaults.value_present[TestConfigOption.OutputCommentRules as int] = True
-#
-#    defaults.markdown_code_block_languages.append("jou")
-#    defaults.value_present[TestConfigOption.MarkdownCodeBlockLanguages as int] = True
-#
-#    defaults.command.extend(args.jou_command)
-#    if markdown:
-#        defaults.command.append("--lines={lines}")
-#    defaults.command.append("{file}")
-#    defaults.value_present[TestConfigOption.Command as int] = True
-#
-#    defaults_for_all_tests.assign_to(&defaults)
-#    return defaults
-
-
 def files_from_toml(kv: TOMLKeyVal*, error: byte*, duplicates_are_banned: bool) -> List[byte*]:
     if error == NULL:
         snprintf(big_buffer, sizeof(big_buffer), "'%s' must be an array of strings", kv.key)
@@ -225,50 +196,3 @@ def step3_discover_tests(toml: TOML*) -> List[Test]:
 
     free(tests.ptr)
     return tests2
-
-#    for config = parsed_joutest_toml.tests.ptr; config < parsed_joutest_toml.tests.end(); config++:
-#        if not config.value_present[TestConfigOption.Files as int]:
-#            fail_in_toml(config.lineno, "each 'tests' table must contain 'files'")
-#
-#        for i = 0; i < config.files.len; i++:
-#            glob = config.files.ptr[i]
-#            glob_lineno = config.files_linenos.ptr[i]
-#
-#            glob_result = List[byte*]{}
-#            if glob_result.len == 0:
-#                if strstr(glob, "*") == NULL:
-#                    # not really a glob
-#                    snprintf(big_buffer, sizeof(big_buffer), "file not found: %s", glob)
-#                else:
-#                    snprintf(big_buffer, sizeof(big_buffer), "glob pattern '%s' does not match any files", glob)
-#                fail_in_toml(glob_lineno, big_buffer)
-#
-#            sort_strings(glob_result.ptr, glob_result.len)
-#            for path = glob_result.ptr; path < glob_result.end(); path++:
-#                merged_config: PathAndTestConfig* = NULL
-#                for m = merged_configs.ptr; m < merged_configs.end(); m++:
-#                    if strcmp(m.path, *path) == 0:
-#                        merged_config = m
-#                        break
-#                if merged_config == NULL:
-#                    merged_configs.append(PathAndTestConfig{
-#                        path = *path,
-#                        glob_lineno = glob_lineno,
-#                        config = get_default_config(
-#                            &parsed_joutest_toml.defaults_for_all_tests,
-#                            is_markdown_file(*path),
-#                            args,
-#                        ),
-#                    })
-#                    merged_config = &merged_configs.end()[-1]
-#                config.assign_to(&merged_config.config)
-#
-#            free(glob_result.ptr)
-#
-#    # Now create tests from each file
-#    tests = List[Test]{}
-#    for merged_config = merged_configs.ptr; merged_config < merged_configs.end(); merged_config++:
-#        if is_markdown_file(merged_config.path):
-#            add_tests_from_markdown(&tests, merged_config.path, &merged_config.config, merged_config.glob_lineno)
-#        else:
-#        tests.append(Test{path = merged_config.path, config = &merged_config.config})

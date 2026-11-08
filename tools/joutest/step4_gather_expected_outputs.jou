@@ -150,34 +150,6 @@ def parse_comments(test: Test*, rules: List[TOMLKeyVal]) -> List[Comment]:
     return comments
 
 
-## This must be done after merging configuration from different places but
-## before we need to use the order for sorting. That's why it's here.
-#def check_config(config: TestConfig*) -> None:
-#    if config.output_comment_order.len == 0:
-#        ok = True
-#    elif config.output_comment_order.len == config.output_comment_rules.len:
-#        # Check that they contain the same strings in some order
-#        ok = True
-#        n = config.output_comment_order.len
-#        for i1 = 0; i1 < n; i1++:
-#            found = False
-#            for i2 = 0; i2 < n; i2++:
-#                if strcmp(config.output_comment_order.ptr[i1], config.output_comment_rules.ptr[i2][0]) == 0:
-#                    found = True
-#                    break
-#            if not found:
-#                ok = False
-#                break
-#    else:
-#        ok = False
-#
-#    if not ok:
-#        fail_in_toml(
-#            config.value_linenos[TestConfigOption.OutputCommentOrder as int],
-#            "'output_comment_order' must contain the keys of 'output_comment_rules' in some order",
-#        )
-
-
 def compare_comments(a: Comment*, b: Comment*) -> int:
     assert a.sort_key != b.sort_key
     return 1 if a.sort_key > b.sort_key else -1
