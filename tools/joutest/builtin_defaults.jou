@@ -1,0 +1,16 @@
+import "stdlib/assert.jou"
+import "stdlib/toml.jou"
+
+global builtin_defaults_file_content = embed_text_file("builtin_defaults.toml")
+global builtin_defaults: TOML
+global builtin_defaults_ready: bool
+
+@public
+def get_builtin_defaults() -> TOML*:
+    if not builtin_defaults_ready:
+        builtin_defaults = parse_toml(builtin_defaults_file_content)
+
+        # If this fails, you most likely have a TOML syntax error in builtin_defaults.toml
+        assert builtin_defaults.type == TOMLType.Table
+
+    return &builtin_defaults

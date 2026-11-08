@@ -5,6 +5,7 @@ import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/toml.jou"
 
+import "./builtin_defaults.jou"
 import "./fail.jou"
 import "./state.jou"
 
@@ -324,26 +325,52 @@ def read_joutest_toml_and_parse_to_toml_object() -> TOML:
 #    return result
 
 
+def check_test_config(table: List[TOMLKeyVal]) -> None:
+    for kv = table.ptr; kv < table.end(); kv++:
+        # We only check for non-existing options here. Each option is checked
+        # later properly whenever it's used. This way we don't have much
+        # separate checking and using code far apart, which could cause bugs.
+        if (
+            strcmp(kv.key, "files") != 0
+            and strcmp(kv.key, "command") != 0
+            and toml_get(get_builtin_defaults(), kv.key) == NULL
+        ):
+            snprintf(big_buffer, sizeof(big_buffer), "unknown setting '%s' for a test", kv.key)
+            fail_in_toml(kv.value.lineno, big_buffer)
+
+def check_tests_array(toml: TOML*) -> None:
+    if toml.type != TOMLType.Array:
+        fail_in_toml(toml.lineno, "'tests' must be an array")
+    if toml.array.len == 0:
+        fail_in_toml(toml.lineno, "the 'tests' array cannot be empty")
+
+    for item = toml.array.ptr; item < toml.array.end(); item++:
+        if item.type != TOMLType.Table:
+            fail_in_toml(toml.lineno, "each item of 'tests' must be a table")
+        check_test_config(item.table)
+        assert toml_get(item, "files") != NULL  # TODO: error handling
+
+def check_the_whole_toml_file(toml: TOML*) -> None:
+    assert toml.type == TOMLType.Table
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        match kv.key with strcmp:
+            case "tests":
+                check_tests_array(&kv.value)
+            case "defaults_for_all_tests":
+                if kv.value.type != TOMLType.Table:
+                    fail_in_toml(toml.lineno, "'defaults_for_all_tests' must be a table")
+                check_test_config(kv.value.table)
+                assert toml_get(&kv.value, "files") == NULL  # TODO: error handling
+            case _:
+                snprintf(big_buffer, sizeof(big_buffer), "unknown setting '%s'", kv.key)
+                fail_in_toml(kv.value.lineno, big_buffer)
+
+    assert toml_get(toml, "tests") != NULL  # TODO: error handling
+
+
 @public
 def step2_parse_joutest_toml() -> TOML:
     toml = read_joutest_toml_and_parse_to_toml_object()
     eliminate_if_then_else_tables(&toml, 0)
+    check_the_whole_toml_file(&toml)
     return toml
-
-#    tests_toml: TOML* = NULL
-#    defaults_for_all_tests = TestConfig{}
-#
-#    assert toml.type == TOMLType.Table
-#    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-#        match kv.key with strcmp:
-#            case "tests":
-#                tests_toml = &kv.value
-#            case "defaults_for_all_tests":
-#                defaults_for_all_tests = toml_to_config(&kv.value, True)
-#            case _:
-#                snprintf(big_buffer, sizeof(big_buffer), "unknown setting '%s'", kv.key)
-#                fail_in_toml(kv.value.lineno, big_buffer)
-#
-#    if tests_toml == NULL:
-#        fail("joutest.toml must define an array named 'tests'")
-

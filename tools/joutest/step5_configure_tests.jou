@@ -316,18 +316,17 @@ def get_capture_mode_from_config(test: Test*, key: byte*) -> CaptureMode:
     assert toml != NULL  # specified in builtin_defaults.toml
 
     string = toml_to_string(toml)
-    assert string != NULL  # TODO: error handling
+    if string != NULL:
+        match string with strcmp:
+            case "compare_to_comments":
+                return CaptureMode.CompareToComments
+            case "do_not_capture":
+                return CaptureMode.DoNotCapture
+            case "discard":
+                return CaptureMode.Discard
 
-    match string with strcmp:
-        case "compare_to_comments":
-            return CaptureMode.CompareToComments
-        case "do_not_capture":
-            return CaptureMode.DoNotCapture
-        case "discard":
-            return CaptureMode.Discard
-        case _:
-            puts(string)
-            assert False  # TODO: error handling
+    snprintf(big_buffer, sizeof(big_buffer), "'%s' must be \"compare_to_comments\", \"do_not_capture\" or \"discard\"", key)
+    fail_in_toml(toml.lineno, big_buffer)
 
 def configure_output_streams(test: Test*) -> None:
     test.stdout = get_capture_mode_from_config(test, "stdout")
