@@ -1,0 +1,16 @@
+# Configuration from this file is always used for every test, unless overrided
+# by the user's joutest.toml.
+#
+# This is in a TOML file mostly so that the default values are also TOML
+# objects, and hence don't need to be special-cased as much.
+
+stdout = "compare_to_comments"
+stderr = "compare_to_comments"
+output_comment_rules = {Output = "{comment}"}
+output_comment_order = []
+skip_mode = "dont_skip"
+skip_mode_if_no_expected_output = "dont_skip"
+#command = ["jou", "{file}"]  # special-cased because this is different for markdown files and depends on --jou command-line argument
+cd_to_containing_directory = false
+expected_exit_code = 0
+markdown_code_block_languages = ["jou"]

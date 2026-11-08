@@ -1,6 +1,9 @@
+import "stdlib/list.jou"
+import "stdlib/io.jou"
+
 import "./step1_parse_command_line_args.jou"
 import "./step2_parse_joutest_toml.jou"
-#import "./step3_discover_tests.jou"
+import "./step3_discover_tests.jou"
 #import "./step4_gather_expected_outputs.jou"
 #import "./step5_configure_tests.jou"
 #import "./step6_run_tests.jou"
@@ -11,7 +14,10 @@ import "./step2_parse_joutest_toml.jou"
 def main(argc: int, argv: byte**) -> int:
     args = step1_parse_command_line_args(argc, argv)
     toml = step2_parse_joutest_toml()
-#    tests = step3_discover_tests(toml, &args)
+    tests = step3_discover_tests(&toml, &args)
+    for t = tests.ptr; t < tests.end(); t++:
+        printf("%s %d-%d (%zd)\n", t.path, t.first_markdown_lineno, t.last_markdown_lineno, t.configs.len)
+    printf("\n%zd tests\n", tests.len)
 #    step4_gather_expected_outputs(tests)
 #    step5_configure_tests(tests, &args)
 #    step6_run_tests(tests, &args)
