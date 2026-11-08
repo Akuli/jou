@@ -20,26 +20,6 @@ assert WINDOWS or LINUX or MACOS or NETBSD  # I checked that EEXIST is 17 on the
 const EEXIST: int = 17
 
 
-def normalize_path_byte(b: byte) -> byte:
-    if WINDOWS:
-        # Non-ASCII is also case-insensitive on windows, but this should be
-        # good enough for anything practical
-        if 'A' <= b and b <= 'Z':
-            return 'a' + (b - 'A')
-        if b == '\\':
-            return '/'
-    return b
-
-@public
-def path_strcmp(a: byte*, b: byte*) -> int:
-    while *a != '\0' or *b != '\0':
-        a_byte = normalize_path_byte(*a++)
-        b_byte = normalize_path_byte(*b++)
-        if a_byte != b_byte:
-            return (a_byte as int) - (b_byte as int)
-    return 0
-
-
 @public
 def file_exists(path: byte*) -> bool:
     f = fopen(path, "r")
@@ -260,8 +240,7 @@ def disjoint_interval_id(a: int, b: int) -> int:
 def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
     h = new_hash()
     h.add_byte(global_compiler_state.args.optlevel as byte)
-    for p = jou_file_path; *p != '\0'; p++:
-        h.add_byte(normalize_path_byte(*p))
+    h.add_bytes(jou_file_path, strlen(jou_file_path))
 
     if (
         strcmp(jou_file_path, global_compiler_state.args.infile) == 0

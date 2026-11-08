@@ -21,7 +21,6 @@ import "../state.jou"
 import "../constants.jou"
 import "../errors_and_warnings.jou"
 import "../evaluate.jou"
-import "../paths.jou"
 import "../types.jou"
 import "./common.jou"
 import "./step1_global_symbols.jou"
@@ -730,7 +729,7 @@ def fail_with_method_not_found(
         if (
             stmt.kind == AstStatementKind.MethodDef
             and strcmp(stmt.method.ast_signature.name, method_name) == 0
-            and path_strcmp(stmt.location.path, state.jou_file.path) != 0
+            and strcmp(stmt.location.path, state.jou_file.path) != 0
         ):
             # Method exists
             if stmt.symbol().public:
