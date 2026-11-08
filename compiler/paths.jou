@@ -41,6 +41,24 @@ def path_strcmp(a: byte*, b: byte*) -> int:
 
 
 @public
+def path_strcmp(a: byte*, b: byte*) -> int:
+    if WINDOWS:
+        # Ignore which kind of slash is used
+        while *a != '\0' or *b != '\0':
+            a_byte = *a++
+            b_byte = *b++
+            if a_byte == '\\':
+                a_byte = '/'
+            if b_byte == '\\':
+                b_byte = '/'
+            if a_byte != b_byte:
+                return (a_byte as int) - (b_byte as int)
+        return 0
+    else:
+        return strcmp(a, b)
+
+
+@public
 def file_exists(path: byte*) -> bool:
     f = fopen(path, "r")
     if f == NULL:
