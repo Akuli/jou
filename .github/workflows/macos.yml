@@ -77,14 +77,14 @@ jobs:
       - run: brew install bash diffutils llvm@${{ matrix.params.llvm-version }}
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=/opt/homebrew/opt/llvm@${{ matrix.params.llvm-version }}/bin/llvm-config" >> $GITHUB_ENV
-      - name: "Compile and test"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Compile"
+        run: make
+      - name: "Run tests"
+        run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
       - name: "Compile the compiler with itself"
         run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
-      - name: "Compile and test again"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
-      - name: "Run the new test runner"
-        run: make joutest && ./joutest --verbose
+      - name: "Run tests again"
+        run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
 
   # Please keep in sync with other .yml files
   create-issue-on-failure:

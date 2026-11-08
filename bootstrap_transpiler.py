@@ -10,7 +10,7 @@ from the full Jou compiler:
 - Outputs ugly C code instead of an executable
 - Does not support all Jou syntax, just needs enough to compile a Jou compiler
 - Avoids compiling parts of source files that are not used
-- Not tested with ./runtests.sh
+- Not tested regularly with any input other than Jou compiler sources
 - Not meant to be maintained very often
 - Coding style is "quick and dirty"
 """

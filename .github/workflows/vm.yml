@@ -137,14 +137,14 @@ jobs:
         run: tests/vm/${{ matrix.os }}.sh ${{ matrix.arch }}
 
       - run: tests/vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
-      - run: tests/vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+      - run: tests/vm/ssh.sh cd jou '&&' make
+      - run: tests/vm/ssh.sh cd jou '&&' ./joutest --verbose
       - run: tests/vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
       - run: tests/vm/ssh.sh cd jou '&&' mv jou2 jou
-      - run: tests/vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
-      - run: tests/vm/ssh.sh cd jou '&&' make joutest '&&' ./joutest --verbose
+      - run: tests/vm/ssh.sh cd jou '&&' ./joutest --verbose
 
       # Test compiler verbose flag with and without cache (#1285)
-      - run: tests/vm/ssh.sh rm -rv jou/examples/jou_compiled
+      - run: tests/vm/ssh.sh cd jou '&&' rm -rv jou_compiled
       - run: tests/vm/ssh.sh cd jou '&&' ./jou -v examples/hello.jou  # without cache
       - run: tests/vm/ssh.sh cd jou '&&' ./jou -v examples/hello.jou  # with cache
 

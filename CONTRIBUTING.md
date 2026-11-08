@@ -57,12 +57,12 @@ Following the [instructions in the README](README.md#setup) is enough.
     so `mingw64\bin` must be in PATH when running it.
 8. Run tests:
     ```
-    ./runtests.sh
+    ./joutest.exe
     ```
 
 </details>
 
-After making changes to the compiler, run `make` to recompile the compiler.
+After making changes to the compiler or test runner, run `make` to recompile.
 
 
 ## How does the compiler work?
