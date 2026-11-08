@@ -24,11 +24,15 @@ def list_contains_string(list: List[byte*], string: byte*) -> bool:
 def add_tests_from_markdown(out: List[Test]*, template_test: Test*) -> None:
     langs_toml = template_test.get_config("markdown_code_block_languages")
     assert langs_toml != NULL  # specified in builtin_defaults.toml
-    assert langs_toml.type == TOMLType.Array  # TODO: error handling
+
+    if langs_toml.type != TOMLType.Array:
+        fail_in_toml(langs_toml.lineno, "'markdown_code_block_languages' must be an array of strings")
+
     langs = List[byte*]{}
     for lang_toml = langs_toml.array.ptr; lang_toml < langs_toml.array.end(); lang_toml++:
         lang = toml_to_string(lang_toml)
-        assert lang != NULL  # TODO: error handling
+        if lang == NULL:
+            fail_in_toml(lang_toml.lineno, "'markdown_code_block_languages' must be an array of strings")
         langs.append(lang)
 
     assert template_test.path != NULL
