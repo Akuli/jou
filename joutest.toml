@@ -1,6 +1,135 @@
-############################
-# Test joutest with itself #
-############################
+# Configuration file for joutest
+# For documentation, see doc/joutest.md
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Test running Jou files in examples/ and tests/
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# TODO: Eventually test this on macos (the macos CI is currently broken). I
+#       will probably need to work around this compiler warning I got before:
+#       https://github.com/Akuli/jou/issues/1005
+
+# Files that should compile and run successfully
+[[tests]]
+files = [
+    "examples/*.jou",
+    "examples/aoc*/day*/part*.jou",
+    "tests/should_succeed/**/*.jou",
+]
+output_comment_rules = {
+    Output = '{comment}',
+    Warning = 'compiler warning for file "{file}", line {line}: {comment}'
+}
+output_comment_order = ["Warning", "Output"]
+
+# Files that should fail to compile
+[[tests]]
+files = [
+    "tests/404/*.jou",
+    "tests/already_exists_error/*.jou",
+    "tests/other_errors/*.jou",
+    "tests/syntax_error/*.jou",
+    "tests/too_long/*.jou",
+    "tests/wrong_place/*.jou",
+    "tests/wrong_type/*.jou",
+]
+output_comment_rules = {
+    Warning = 'compiler warning for file "{file}", line {line}: {comment}',
+    Output = '{comment}',
+    Error = 'compiler error in file "{file}", line {line}: {comment}',
+    ErrorNoLine = 'compiler error in file "{file}": {comment}',
+}
+output_comment_order = ["Warning", "Output", "Error", "ErrorNoLine"]
+expected_exit_code = 1
+
+# Tests that expect working directory to be where the file is
+#
+# We don't do this for all files, because I like long but relative paths in error messages.
+[[tests]]
+files = [
+    # AoC files use fopen("sampleinput.txt", "r")
+    "examples/aoc*/day*/part*.jou",
+    # double_dotdot_import test had a bug that was reproducible only with relative path.
+    "tests/should_succeed/double_dotdot_import/*/*.jou",
+    # Perlin noise example writes to a file. We want that file to end up in the examples
+    # folder, not in project root.
+    "examples/perlin_noise.jou",
+]
+cd_to_containing_directory = true
+
+# Programs that parse command-line arguments, but joutest doesn't provide any
+[[tests]]
+files = "examples/argc_argv.jou"
+stdout = "discard"  # TODO: capture and compare?
+
+[[tests]]
+files = ["examples/cli_manual.jou", "examples/cli_argparse.jou", "examples/replace.jou"]
+stderr = "discard"  # TODO: capture and compare?
+expected_exit_code = 2
+
+[[tests]]
+files = "tests/404/file.jou"
+command = {
+    if = "WINDOWS",
+    then = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/joudir.jou'],
+    else = ["sh", "-c", 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/joudir.jou'],
+}
+expected_exit_code = 0
+
+[[tests]]
+files = "tests/should_succeed/compiler_cli.jou"
+command = {
+    if = "WINDOWS",
+    then = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/jouexe.jou'],
+    else = ["sh", "-c", 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/jouexe.jou'],
+}
+
+[[tests]]
+files = "tests/should_succeed/compiler_unit_tests.jou"
+command = ["jou", "{file}"]  # don't valgrind, that would need the suppressions file
+
+# TODO(joutest): a way to mark this entire section as "if WINDOWS"
+# TODO(joutest): built-in simple output replacements, so that I don't need so many output_processor scripts
+[[tests]]
+files = [
+    "tests/other_errors/assert_fail.jou",
+    "tests/other_errors/assert_fail_complex.jou",
+    "tests/other_errors/assert_fail_multiline.jou",
+    "tests/syntax_error/missing_end_quote_in_byte.jou",
+    "tests/syntax_error/missing_end_quote_in_string.jou",
+    "tests/syntax_error/string_continue_on_next_line.jou",
+]
+command = {
+    if = "WINDOWS",
+    then = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/backslash_to_forward_slash.jou'],
+    else = ["jou", "{file}"],
+}
+expected_exit_code = {if = "WINDOWS", then = 0, else = 1}
+
+# Don't run some files
+[[tests]]
+files = [
+    "tests/should_succeed/imported/**/*.jou",  # tested through other files that import these
+    "tests/should_succeed/output_processor/*.jou",  # scripts to work around joutest limitations
+    "tests/other_errors/memory_leak.jou",  # valgrinded in compiler_cli
+]
+skip_mode = "skip_silently"
+
+# 32-bit only test
+[[tests]]
+files = "tests/wrong_type/*_32bit.jou"
+skip_mode = {if = "IS_32BIT", then = "dont_skip", else = "skip_normally"}
+
+# 64-bit only test
+[[tests]]
+files = "tests/wrong_type/*_64bit.jou"
+skip_mode = {if = "IS_32BIT", then = "skip_normally", else = "dont_skip"}
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# Test joutest with itself
+# ~~~~~~~~~~~~~~~~~~~~~~~~
 [[tests]]
 files = [
     "tests/tests_of_joutest/**/joutest.toml",
@@ -39,9 +168,10 @@ command = {
     else = ["joutest", "-j1", "--no-colors"],
 }
 
-###############################
-# Test code in markdown files #
-###############################
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Test code in markdown files
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 [[tests]]
 files = ["README.md", "doc/**/*.md"]
 markdown_code_block_languages = ["python"]
@@ -73,23 +203,3 @@ files = [
     "doc/types.md",
 ]
 expected_exit_code = "any"
-
-##########################################################
-# Examples that do something runtests.sh doesn't support #
-##########################################################
-#
-# Eventually all examples (and other tests) should be migrated from the legacy
-# runtests.sh script to joutest. For now I have migrated any examples that have
-# needed special-casing, so that I don't need to redo the same special-casing
-# again during a migration.
-[[tests]]
-files = "examples/replace.jou"
-
-[[tests]]
-files = "examples/argc_argv.jou"
-stdout = "discard"  # TODO: capture and compare?
-
-[[tests]]
-files = ["examples/cli_manual.jou", "examples/cli_argparse.jou", "examples/replace.jou"]
-stderr = "discard"  # TODO: capture and compare?
-expected_exit_code = 2

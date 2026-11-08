@@ -43,12 +43,12 @@ def main() -> int:
     printf("%d\n", sizeof(side_effect()))  # Output: 4
 
     # Size of strings. Size of byte* is expected to be 4 or 8.
-    # Output: 6 100 <pointersize>
+    # Output: 6 100 8
     printf(
         "%d %d %d\n",
         sizeof("hello"),
         sizeof("hello" as byte[100]),
-        sizeof("hello" as byte*),
+        sizeof("hello" as byte*) + (4 if IS_32BIT else 0),
     )
 
     return 0

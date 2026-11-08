@@ -72,23 +72,27 @@ jobs:
 
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
-      - name: "Compile and test"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Compile"
+        run: make
+      - name: "Run tests"
+        run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
       - name: "Compile the compiler with itself"
         run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
-      - name: "Compile and test again"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Run tests again"
+        run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
       # Valgrinding all files is slow, but let's valgrind the hello world.
       # This is enough to catch many bugs.
       #
       # We also have a separate, "full" valgrind run. See valgrind.yml.
+      #
+      # Deleting jou_compiled is important, because we want the compiler to do
+      # a lot of work to discover bugs in many places.
       - name: "Run hello world with valgrind"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
-      - run: tests/toml/run.sh --jou-flags "${{ matrix.params.opt-level }}"
-      - name: "Run the new test runner"
-        run: make joutest && ./joutest --verbose
-      - name: "Run the new test runner with valgrind"
+        run: rm -rf jou_compiled && valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=valgrind-suppressions.sup ./jou --valgrind ${{ matrix.params.opt-level }} examples/hello.jou
+      - name: "Run a few tests while valgrinding the test runner"
         # No leak checking flags here, currently joutest is a bit leaky and I'm
         # not sure if I want to fix it. The OS frees all memory anyway when
         # joutest exits.
-        run: valgrind --error-exitcode=1 ./joutest --verbose
+        run: valgrind --error-exitcode=1 ./joutest --verbose hello
+      - name: "Run TOML tests"
+        run: tests/toml/run.sh --jou-flags "${{ matrix.params.opt-level }}"

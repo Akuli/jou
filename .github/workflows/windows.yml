@@ -141,20 +141,23 @@ jobs:
           fetch-depth: 0  # Fetch the whole Git history for bootstrapping
       - run: ./windows_setup.sh --small
         shell: bash
-      - name: "Compile and test"
-        run: source activate && ./runtests.sh --verbose
+      - name: "Compile"
+        run: source activate && make
+        shell: bash
+      - name: "Run tests"
+        run: source activate && ./joutest.exe --verbose
         shell: bash
       - name: "Compile the compiler with itself"
         run: source activate && ./jou -o jou2 compiler/main.jou && mv jou2.exe jou.exe
         shell: bash
-      - name: "Compile and test again"
+      - name: "Run tests again"
         # Skip tests that check various error cases to save about 3 minutes of
         # CI time. That is important, because before this was the slowest
         # thing in CI.
-        run: source activate && ./runtests.sh should_succeed --verbose
-        shell: bash
-      - name: "Run the new test runner"
-        run: source activate && make && ./joutest.exe --verbose
+        #
+        # TODO: still need?
+        #run: source activate && ./joutest.exe --verbose should_succeed
+        run: source activate && ./joutest.exe --verbose
         shell: bash
 
   test-zip:
@@ -172,18 +175,22 @@ jobs:
       # Make sure it works even if there is a space in folder name
       - run: mv jou "test dir"
         shell: bash
-      - run: cp -r repo/tests repo/runtests.sh "test dir"
+      - run: cp -rv repo/{tests,joutest.toml,README.md} "test dir"
         shell: bash
       - name: "Delete tests that depend on files outside the tests folder"
         run: |
-          rm -v "test dir"/tests/should_succeed/compiler_unit_tests.jou
           rm -v "test dir"/tests/should_succeed/windows_argument_quoting.jou
           rm -v "test dir"/tests/should_succeed/keywords.jou
           rm -v "test dir"/tests/should_succeed/fs_test.jou
           rm -v "test dir"/tests/should_succeed/joutest_glob.jou
           rm -v "test dir"/tests/should_succeed/joutest_diff_bug.jou
         shell: bash
+      # joutest.toml mentions compiler unit tests instead of relying on wildcard.
+      # TODO(joutest): add --ignore-missing-files option?
+      - name: "Replace compiler unit tests with hello world"
+        run: cp "test dir"/examples/hello.jou "test dir"/tests/should_succeed/compiler_unit_tests.jou
+        shell: bash
       - run: cd "test dir" && ./jou.exe --verbose examples/hello.jou
         shell: bash
-      - run: cd "test dir" && ./runtests.sh --dont-run-make --verbose
+      - run: cd "test dir" && ./joutest.exe --verbose
         shell: bash
