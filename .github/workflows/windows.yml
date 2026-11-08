@@ -179,12 +179,16 @@ jobs:
         shell: bash
       - name: "Delete tests that depend on files outside the tests folder"
         run: |
-          rm -v "test dir"/tests/should_succeed/compiler_unit_tests.jou
           rm -v "test dir"/tests/should_succeed/windows_argument_quoting.jou
           rm -v "test dir"/tests/should_succeed/keywords.jou
           rm -v "test dir"/tests/should_succeed/fs_test.jou
           rm -v "test dir"/tests/should_succeed/joutest_glob.jou
           rm -v "test dir"/tests/should_succeed/joutest_diff_bug.jou
+        shell: bash
+      # joutest.toml mentions compiler unit tests instead of relying on wildcard.
+      # TODO(joutest): add --ignore-missing-files option?
+      - name: "Replace compiler unit tests with hello world"
+        run: cp "test dir"/examples/hello.jou "test dir"/tests/should_succeed/compiler_unit_tests.jou
         shell: bash
       - run: cd "test dir" && ./jou.exe --verbose examples/hello.jou
         shell: bash
