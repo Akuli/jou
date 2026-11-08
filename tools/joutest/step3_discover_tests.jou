@@ -84,7 +84,6 @@ def add_tests_from_markdown(out: List[Test]*, template_test: Test*) -> None:
         free(code.ptr)
 
     if f == NULL or ferror(f) != 0:
-        assert False  # TODO: error handling
         snprintf(big_buffer, sizeof(big_buffer), "failed to read file '%s': %s", template_test.path, strerror(get_errno()))
         # Find out where the path was first specified, put the error there
         for config = template_test.configs.ptr; config < template_test.configs.end(); config++:

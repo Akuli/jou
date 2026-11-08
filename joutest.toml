@@ -168,6 +168,16 @@ command = {
     else = ["joutest", "-j1", "--no-colors"],
 }
 
+# This test attempts to open a directory as a file. Windows gives error message
+# that is not necessarily in english.
+[[tests]]
+files = "tests/tests_of_joutest/bad_configs/markdown_read_error/joutest.toml"
+skip_mode = {
+    if = "WINDOWS",
+    then = "skip_normally",
+    else = "dont_skip",
+}
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Test code in markdown files
