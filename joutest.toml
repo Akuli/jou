@@ -6,9 +6,6 @@
 # Test running Jou files in examples/ and tests/
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# TODO: examples/memory_leak.jou will need to be skipped once valgrind gets
-#       involved. Previously it was always silent-skipped, and IMO that's fine.
-#
 # TODO: tests/should_succeed/compiler_unit_tests.jou will need to be skipped
 #       when running under valgrind. Apparently LLVM leaks memory when the
 #       program starts, even if it is never called.
@@ -117,8 +114,9 @@ expected_exit_code = {if = "WINDOWS", then = 0, else = 1}
 # Don't run some files
 [[tests]]
 files = [
-    "tests/should_succeed/imported/**/*.jou",
-    "tests/should_succeed/output_processor/*.jou",
+    "tests/should_succeed/imported/**/*.jou",  # tested through other files that import these
+    "tests/should_succeed/output_processor/*.jou",  # scripts to work around joutest limitations
+    "tests/other_errors/memory_leak.jou",  # valgrinded in compiler_cli
 ]
 skip_mode = "skip_silently"
 
