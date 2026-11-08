@@ -159,10 +159,14 @@ def write_llvm_ir_to_file(state: ThreadLocalCompilerState*, mod: LLVMModule*, o_
         move_error: uint32 = 0
         if MoveFileExA(o_path_2, o_path, 0) == 0:
             move_error = GetLastError()
+            if move_error == ERROR_ALREADY_EXISTS:
+                move_error = 0
     else:
         move_error: int = 0
         if link_(o_path_2, o_path) == -1:
             move_error = get_errno()
+            if move_error == EEXIST:
+                move_error = 0
 
     unlink(o_path_2)
 
