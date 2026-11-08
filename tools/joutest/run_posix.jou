@@ -31,12 +31,6 @@ def state_from_pid(states: RunState*, nstates: int, pid: int) -> RunState*:
     return NULL
 
 
-def close_and_set_invalid(fd: int*) -> None:
-    if *fd != -1:
-        close(*fd)
-        *fd = -1
-
-
 # This uses the traditional fork()+exec() instead of posix_spawn(), because
 # there is no standard way to add a chdir() that runs in the child process of
 # posix_spawn(). Some platforms have posix_spawn_file_actions_addchdir_np(),
@@ -54,8 +48,9 @@ def this_runs_in_child_process(
     error_pipe_write: int,
 ) -> noreturn:
     # Close ends of pipes that only the parent uses
-    close_and_set_invalid(&state.output_pipe_read)
-    close_and_set_invalid(&error_pipe_read)
+    if state.output_pipe_read != -1:
+        close(state.output_pipe_read)
+    close(error_pipe_read)
 
     e: int
 
@@ -85,7 +80,8 @@ def this_runs_in_child_process(
             if dup2(devnull, 2) == -1:
                 fail_child_process_before_exec(error_pipe_write)
 
-    close_and_set_invalid(&devnull)
+    if devnull != -1:
+        close(devnull)
 
     if state.test.working_directory != NULL:
         if chdir(state.test.working_directory) != 0:
@@ -172,8 +168,9 @@ def spawn_test(test: Test*) -> RunState:
     state.child_pid = pid
 
     # Close pipes that parent process does not use
-    close_and_set_invalid(&output_pipe_write)
-    close_and_set_invalid(&error_pipe_write)
+    if output_pipe_write != -1:
+        close(output_pipe_write)
+    close(error_pipe_write)
 
     # Detect errors before exec in child process. The pipe is cloexec, so
     # it closes with no writing on successful exec.
@@ -184,12 +181,13 @@ def spawn_test(test: Test*) -> RunState:
     assert test.start_error == 0
     if read(error_pipe_read, &test.start_error, sizeof(test.start_error)) < 0:
         fail_with_errno("read() failed", get_errno())
-    close_and_set_invalid(&error_pipe_read)
+    close(error_pipe_read)
 
     # We won't be reading output for processes that didn't start properly.
     # Error was already communicated through another pipe.
-    if test.start_error != 0:
-        close_and_set_invalid(&state.output_pipe_read)
+    if test.start_error != 0 and state.output_pipe_read != -1:
+        close(state.output_pipe_read)
+        state.output_pipe_read = -1
 
     return state
 
@@ -203,7 +201,8 @@ def read_output(state: RunState*) -> intnative:
         fail_with_errno("read() failed", get_errno())
     elif n == 0:
         # No more output
-        close_and_set_invalid(&state.output_pipe_read)
+        close(state.output_pipe_read)
+        state.output_pipe_read = -1
     else:
         state.output.len += n
 
@@ -274,7 +273,8 @@ def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
                 set_blocking(state.output_pipe_read, True)
                 while read_output(state) > 0:
                     pass
-                close_and_set_invalid(&state.output_pipe_read)
+                close(state.output_pipe_read)
+                state.output_pipe_read = -1
 
             if WIFEXITED(wstatus):
                 state.test.actual_exit_code = WEXITSTATUS(wstatus)
