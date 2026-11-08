@@ -69,6 +69,7 @@ def post_process_output(raw_bytes: List[byte]) -> byte*:
                 result.extend_from_ptr("<\\0>", 4)
             case '\n':
                 # Windows line endings handling: \r\n --> \n
+                # TODO: use crlf_to_lf() function that is in so many places already
                 if result.len > 0 and result.end()[-1] == '\r':
                     result.pop()
                 result.append('\n')
