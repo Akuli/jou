@@ -10,8 +10,8 @@ import "./step8_show_results.jou"
 
 def main(argc: int, argv: byte**) -> int:
     args = step1_parse_command_line_args(argc, argv)
-    test_configs = step2_parse_joutest_toml()
-    tests = step3_discover_tests(test_configs, &args)
+    toml = step2_parse_joutest_toml()
+    tests = step3_discover_tests(&toml)
     step4_gather_expected_outputs(tests)
     step5_configure_tests(tests, &args)
     step6_run_tests(tests, &args)

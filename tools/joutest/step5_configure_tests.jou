@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/toml.jou"
 import "stdlib/errno.jou"
 import "stdlib/intnative.jou"
 import "stdlib/math.jou"
@@ -204,6 +205,22 @@ def file_content_has_substring(test: Test*, strings: List[byte*]) -> bool:
     fail_with_errno(big_buffer, e)
 
 
+def get_skip_mode_from_config(test: Test*, key: byte*) -> SkipMode:
+    toml = test.get_config(key)
+    assert toml != NULL  # specified in builtin_defaults.toml
+
+    string = toml_to_string(toml)
+    match ("" if string == NULL else string) with strcmp:
+        case "dont_skip":
+            return SkipMode.DontSkip
+        case "skip_normally":
+            return SkipMode.SkipNormally
+        case "skip_silently":
+            return SkipMode.SkipSilently
+        case _:
+            snprintf(big_buffer, sizeof(big_buffer), "'%s' must be \"dont_skip\", \"skip_normally\" or \"skip_silently\"", key)
+            fail_in_toml(toml.lineno, big_buffer)
+
 def assign_skip(dest: SkipMode*, value: SkipMode) -> bool:
     # The "highest" skip mode wins (no skip specified < normal skip < silent skip)
     if (value as int) > (*dest as int):
@@ -229,10 +246,13 @@ def configure_skip(test: Test*, args: CommandLineArgs*) -> None:
         # I don't know. Let's be explicit for now, unless that causes problems.
         assign_skip(&test.skip, SkipMode.SkipNormally)
 
-    assign_skip(&test.skip, test.config.skip_mode)
+    assign_skip(&test.skip, get_skip_mode_from_config(test, "skip_mode"))
 
+    # do this every time, so that errors are detected even if there is expected output
+    # TODO: is there a test that ensures this behavior?
+    mode = get_skip_mode_from_config(test, "skip_mode_if_no_expected_output")
     if *test.expected_output == '\0':
-        assign_skip(&test.skip, test.config.skip_mode_if_no_expected_output)
+        assign_skip(&test.skip, mode)
 
     if test.succeeded_before:
         test.skipped_with_last_failed_flag = assign_skip(&test.skip, SkipMode.SkipNormally)
@@ -242,40 +262,99 @@ declare dirname(path: byte*) -> byte*
 
 def configure_working_directory(test: Test*) -> None:
     assert test.working_directory == NULL
-    if test.config.cd_to_containing_directory:
+
+    cd = test.get_config("cd_to_containing_directory")
+    assert cd != NULL  # specified in builtin_defaults.toml
+
+    if cd.type != TOMLType.Boolean:
+        fail_in_toml(cd.lineno, "'cd_to_containing_directory' must be a boolean")
+    if cd.boolean:
         temp = strdup(test.path)
         assert temp != NULL
         test.working_directory = strdup(dirname(temp))  # may modify temp string
         free(temp)
 
 
-def configure_command(test: Test*) -> None:
+def configure_command(test: Test*, args: CommandLineArgs*) -> None:
+    toml = test.get_config("command")
+    if toml == NULL:
+        # TODO: possible to trip up assertion by putting braces into args.jou_command
+        test.command_list.extend(args.jou_command)
+        if test.code_in_markdown != NULL:
+            test.command_list.append("--lines={lines}")
+        test.command_list.append("{file}")
+    else:
+        if toml.type != TOMLType.Array:
+            fail_in_toml(toml.lineno, "'command' must be an array of strings")
+
+        allowed: bool[enum_count(FormatParam)]
+        memset(allowed, 0, sizeof(allowed))
+        allowed[FormatParam.File as int] = True
+        allowed[FormatParam.Lines as int] = True
+
+        for item = toml.array.ptr; item < toml.array.end(); item++:
+            s = toml_to_string(item)
+            if s == NULL:
+                fail_in_toml(item.lineno, "'command' must be an array of strings")
+            validate_format_string_in_toml(s, item.lineno, allowed)
+            test.command_list.append(s)
+
+        if test.command_list.len == 0:
+            fail_in_toml(toml.lineno, "'command' cannot be empty")
+
     params: byte*[enum_count(FormatParam)]
     memset(params, 0, sizeof(params))
     params[FormatParam.File as int] = test.get_relative_path()
 
     lines_string: byte[100] = ""
-    if test.first_markdown_lineno != 0 and test.last_markdown_lineno != 0:
+    if test.code_in_markdown != NULL:
         sprintf(lines_string, "%d-%d", test.first_markdown_lineno, test.last_markdown_lineno)
     params[FormatParam.Lines as int] = lines_string
 
-    assert test.config.value_present[TestConfigOption.Command as int]
-    assert test.actual_command_list.len == 0
-    for arg = test.config.command.ptr; arg < test.config.command.end(); arg++:
-        test.actual_command_list.append(format_string(*arg, params))
+    for arg = test.command_list.ptr; arg < test.command_list.end(); arg++:
+        *arg = format_string(*arg, params)
 
-    assert test.actual_command_string == NULL
+    assert test.command_string == NULL
     if WINDOWS:
-        test.actual_command_string = command_to_string_windows(test.actual_command_list)
+        test.command_string = command_to_string_windows(test.command_list)
     else:
-        test.actual_command_string = command_to_string_posix(test.actual_command_list)
+        test.command_string = command_to_string_posix(test.command_list)
 
 
-def configure_uses_output_capturing(test: Test*) -> None:
-    test.uses_output_capturing = (
-        test.config.stdout == CaptureMode.CompareToComments
-        or test.config.stderr == CaptureMode.CompareToComments
-    )
+def get_capture_mode_from_config(test: Test*, key: byte*) -> CaptureMode:
+    toml = test.get_config(key)
+    assert toml != NULL  # specified in builtin_defaults.toml
+
+    string = toml_to_string(toml)
+    match ("" if string == NULL else string) with strcmp:
+        case "compare_to_comments":
+            return CaptureMode.CompareToComments
+        case "do_not_capture":
+            return CaptureMode.DoNotCapture
+        case "discard":
+            return CaptureMode.Discard
+        case _:
+            snprintf(big_buffer, sizeof(big_buffer), "'%s' must be \"compare_to_comments\", \"do_not_capture\" or \"discard\"", key)
+            fail_in_toml(toml.lineno, big_buffer)
+
+def configure_output_streams(test: Test*) -> None:
+    test.stdout = get_capture_mode_from_config(test, "stdout")
+    test.stderr = get_capture_mode_from_config(test, "stderr")
+    test.uses_output_capturing = (test.stdout == CaptureMode.CompareToComments or test.stderr == CaptureMode.CompareToComments)
+
+
+def configure_exit_code(test: Test*) -> None:
+    toml = test.get_config("expected_exit_code")
+    assert toml != NULL  # specified in builtin_defaults.toml
+
+    s = toml_to_string(toml)
+    if s != NULL and strcmp(s, "any") == 0:
+        test.expected_exit_code = -1
+    else:
+        test.expected_exit_code = toml_to_int(toml, -1)
+        if test.expected_exit_code < 0 or test.expected_exit_code > 255:
+            # TODO: windows allows exit codes beyond 0-255
+            fail_in_toml(toml.lineno, "'expected_exit_code' must be an integer between 0 and 255")
 
 
 @public
@@ -288,5 +367,6 @@ def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         if test.skip == SkipMode.SkipSilently:
             continue
         configure_working_directory(test)
-        configure_command(test)
-        configure_uses_output_capturing(test)
+        configure_command(test, args)
+        configure_output_streams(test)
+        configure_exit_code(test)

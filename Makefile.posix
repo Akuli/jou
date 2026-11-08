@@ -63,7 +63,7 @@ jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou
 	./bootstrap.sh
 
 COMPILER_SOURCES != echo compiler/*.jou compiler/*/*.jou
-JOUTEST_SOURCES != echo tools/joutest/*.jou
+JOUTEST_SOURCES != echo tools/joutest/*.jou tools/joutest/*.toml
 
 jou: jou_bootstrap config.jou $(COMPILER_SOURCES)
 	./jou_bootstrap -o jou compiler/main.jou

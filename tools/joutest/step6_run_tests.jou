@@ -126,8 +126,8 @@ def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
                 test.start_error == 0
                 and test.terminating_signal == 0
                 and (
-                    test.config.expected_exit_code == -1
-                    or test.config.expected_exit_code == test.actual_exit_code
+                    test.expected_exit_code == -1
+                    or test.expected_exit_code == test.actual_exit_code
                 )
                 and (
                     (not test.uses_output_capturing)

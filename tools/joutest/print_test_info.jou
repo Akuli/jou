@@ -7,7 +7,7 @@ import "./state.jou"
 
 @public
 def print_test_info_without_newlines(test: Test*) -> None:
-    printf("%s%s", RESET, test.actual_command_string)
+    printf("%s%s", RESET, test.command_string)
     if test.working_directory != NULL:
         printf(" %s(in %s)%s", CYAN, test.working_directory, RESET)
     if test.first_markdown_lineno != 0 and test.last_markdown_lineno != 0:

@@ -7,10 +7,83 @@ import "stdlib/mem.jou"
 import "stdlib/math.jou"
 import "stdlib/intnative.jou"
 import "stdlib/sort.jou"
+import "stdlib/toml.jou"
 
 import "./fail.jou"
 import "./string_formatter.jou"
 import "./state.jou"
+
+
+def get_output_comment_rules(test: Test*) -> List[TOMLKeyVal]:
+    toml = test.get_config("output_comment_rules")
+    assert toml != NULL  # specified in builtin_defaults.toml
+
+    if toml.type != TOMLType.Table:
+        fail_in_toml(toml.lineno, "'output_comment_rules' must be a table with string keys and string values")
+
+    allowed: bool[enum_count(FormatParam)]
+    memset(allowed, 0, sizeof(allowed))
+    allowed[FormatParam.File as int] = True
+    allowed[FormatParam.Line as int] = True
+    allowed[FormatParam.Comment as int] = True
+
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        if strstr(kv.key, ":") != NULL or strstr(kv.key, "#") != NULL:
+            fail_in_toml(kv.value.lineno, "keys of 'output_comment_rules' cannot contain '#' or ':' characters")
+
+        s = toml_to_string(&kv.value)
+        if s == NULL:
+            fail_in_toml(toml.lineno, "'output_comment_rules' must be a table with string keys and string values")
+        validate_format_string_in_toml(s, kv.value.lineno, allowed)
+
+    return toml.table
+
+
+def order_matches_rules(order: List[byte*], rules: List[TOMLKeyVal]) -> bool:
+    # Check that they contain the same strings in some order
+    #
+    # At the time of writing this, neither can contain duplicates, but this
+    # only assumes that rules doesn't contain duplicates (it's a mapping).
+    if order.len != rules.len:
+        return False
+    for r = rules.ptr; r < rules.end(); r++:
+        found = False
+        for ord = order.ptr; ord < order.end(); ord++:
+            if strcmp(r.key, *ord) == 0:
+                found = True
+                break
+        if not found:
+            return False
+    return True
+
+def get_output_comment_order(test: Test*, rules: List[TOMLKeyVal]) -> List[byte*]:
+    toml = test.get_config("output_comment_order")
+    assert toml != NULL  # specified in builtin_defaults.toml
+
+    order = List[byte*]{}
+    if toml.type != TOMLType.Array:
+        fail_in_toml(toml.lineno, "'output_comment_order' must be an array of strings")
+
+    ok = True
+    for s_toml = toml.array.ptr; s_toml < toml.array.end(); s_toml++:
+        s = toml_to_string(s_toml)
+        if s == NULL:
+            fail_in_toml(s_toml.lineno, "'output_comment_order' must be an array of strings")
+        for p = order.ptr; p < order.end(); p++:
+            if strcmp(*p, s) == 0:
+                snprintf(big_buffer, sizeof(big_buffer), "'%s' is repeated in 'output_comment_order'", s)
+                fail_in_toml(s_toml.lineno, big_buffer)
+        order.append(s)
+
+    if (not ok) or (order.len != 0 and not order_matches_rules(order, rules)):
+        fail_in_toml(toml.lineno, "'output_comment_order' must contain the keys of 'output_comment_rules' in some order")
+    return order
+
+
+class Comment:
+    key: byte*   # e.g. "Output"
+    formatted_text: byte*  # without the trailing '\n', owned string
+    sort_key: int64
 
 
 # Examples:
@@ -37,24 +110,16 @@ def skip_start_of_comment(p: byte*, key: byte*) -> byte*:
         case _:
             return NULL
 
-
-class Comment:
-    key: byte*   # e.g. "Output"
-    formatted_text: byte*  # without the trailing '\n', owned string
-    sort_key: int64
-
-
-def parse_comment_from_line(test: Test*, lineno: int, line: byte*) -> Comment:
+def parse_comment_from_line(test: Test*, rules: List[TOMLKeyVal], lineno: int, line: byte*) -> Comment:
     for p = &line[strlen(line)]; p >= &line[0]; p--:
-        for pair = test.config.output_comment_rules.ptr; pair < test.config.output_comment_rules.end(); pair++:
-            key = (*pair)[0]
-            template = (*pair)[1]
-
-            comment_text = skip_start_of_comment(p, key)
+        for r = rules.ptr; r < rules.end(); r++:
+            comment_text = skip_start_of_comment(p, r.key)
             if comment_text != NULL:
+                template = toml_to_string(&r.value)
+                assert template != NULL
+
                 lineno_str: byte[100]
                 sprintf(lineno_str, "%d", lineno)
-
                 params: byte*[enum_count(FormatParam)]
                 memset(params, 0, sizeof(params))
                 params[FormatParam.File as int] = test.get_relative_path()
@@ -62,14 +127,13 @@ def parse_comment_from_line(test: Test*, lineno: int, line: byte*) -> Comment:
                 params[FormatParam.Comment as int] = comment_text
 
                 return Comment{
-                    key = key,
+                    key = r.key,
                     formatted_text = format_string(template, params),
                 }
 
     return Comment{}
 
-
-def parse_comments(test: Test*) -> List[Comment]:
+def parse_comments(test: Test*, rules: List[TOMLKeyVal]) -> List[Comment]:
     comments = List[Comment]{}
 
     if test.code_in_markdown == NULL:
@@ -83,7 +147,7 @@ def parse_comments(test: Test*) -> List[Comment]:
         while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
             big_buffer[strcspn(big_buffer, "\r\n")] = '\0'
 
-            c = parse_comment_from_line(test, lineno++, big_buffer)
+            c = parse_comment_from_line(test, rules, lineno++, big_buffer)
             if c.key != NULL:
                 comments.append(c)
 
@@ -98,7 +162,7 @@ def parse_comments(test: Test*) -> List[Comment]:
             memcpy(big_buffer, p, line_len)
             big_buffer[line_len] = '\0'
 
-            c = parse_comment_from_line(test, lineno++, big_buffer)
+            c = parse_comment_from_line(test, rules, lineno++, big_buffer)
             if c.key != NULL:
                 comments.append(c)
 
@@ -111,41 +175,12 @@ def parse_comments(test: Test*) -> List[Comment]:
     return comments
 
 
-# This must be done after merging configuration from different places but
-# before we need to use the order for sorting. That's why it's here.
-def check_config(config: TestConfig*) -> None:
-    if config.output_comment_order.len == 0:
-        ok = True
-    elif config.output_comment_order.len == config.output_comment_rules.len:
-        # Check that they contain the same strings in some order
-        ok = True
-        n = config.output_comment_order.len
-        for i1 = 0; i1 < n; i1++:
-            found = False
-            for i2 = 0; i2 < n; i2++:
-                if strcmp(config.output_comment_order.ptr[i1], config.output_comment_rules.ptr[i2][0]) == 0:
-                    found = True
-                    break
-            if not found:
-                ok = False
-                break
-    else:
-        ok = False
-
-    if not ok:
-        fail_in_toml(
-            config.value_linenos[TestConfigOption.OutputCommentOrder as int],
-            "'output_comment_order' must contain the keys of 'output_comment_rules' in some order",
-        )
-
-
 def compare_comments(a: Comment*, b: Comment*) -> int:
     assert a.sort_key != b.sort_key
     return 1 if a.sort_key > b.sort_key else -1
 
-
-def sort_comments(comments: List[Comment], config: TestConfig*) -> None:
-    if config.output_comment_order.len == 0:
+def sort_comments(comments: List[Comment], order: List[byte*]) -> None:
+    if order.len == 0:
         return
 
     for comment_index = 0; comment_index < comments.len; comment_index++:
@@ -153,8 +188,8 @@ def sort_comments(comments: List[Comment], config: TestConfig*) -> None:
 
         # Sort by index of the comment's key in the configured order
         c.sort_key = -1
-        for i = 0; i < config.output_comment_order.len; i++:
-            if strcmp(config.output_comment_order.ptr[i], c.key) == 0:
+        for i = 0; i < order.len; i++:
+            if strcmp(order.ptr[i], c.key) == 0:
                 c.sort_key = i
                 break
         assert c.sort_key != -1
@@ -179,10 +214,11 @@ def join_comments_to_string(comments: List[Comment]) -> byte*:
 @public
 def step4_gather_expected_outputs(tests: List[Test]) -> None:
     for test = tests.ptr; test < tests.end(); test++:
-        check_config(test.config)
+        rules = get_output_comment_rules(test)
+        order = get_output_comment_order(test, rules)
 
-        comments = parse_comments(test)
-        sort_comments(comments, test.config)
+        comments = parse_comments(test, rules)
+        sort_comments(comments, order)
         test.expected_output = join_comments_to_string(comments)
 
         while comments.len > 0:
