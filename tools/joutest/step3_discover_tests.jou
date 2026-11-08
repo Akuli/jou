@@ -153,13 +153,14 @@ def step3_discover_tests(toml: TOML*) -> List[Test]:
 
     defaults_for_all_tests = toml_get(toml, "defaults_for_all_tests")
     if defaults_for_all_tests != NULL:
-        assert defaults_for_all_tests.type == TOMLType.Table  # TODO: error handling
-        assert toml_get(defaults_for_all_tests, "files") == NULL    # TODO: error handling
+        # Validation has already happened elsewhere
+        assert defaults_for_all_tests.type == TOMLType.Table
+        assert toml_get(defaults_for_all_tests, "files") == NULL
 
     tests_array = toml_get(toml, "tests")
-    assert tests_array != NULL  # TODO: error handling
-    assert tests_array.type == TOMLType.Array  # TODO: error handling
-    assert tests_array.array.len > 0  # TODO: error handling
+    # Validation has already happened elsewhere
+    assert tests_array != NULL
+    assert tests_array.type == TOMLType.Array
 
     for tests_item = tests_array.array.ptr; tests_item < tests_array.array.end(); tests_item++:
         assert tests_item.type == TOMLType.Table

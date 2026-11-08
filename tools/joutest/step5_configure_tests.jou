@@ -210,9 +210,7 @@ def get_skip_mode_from_config(test: Test*, key: byte*) -> SkipMode:
     assert toml != NULL  # specified in builtin_defaults.toml
 
     string = toml_to_string(toml)
-    assert string != NULL  # TODO: error handling
-
-    match string with strcmp:
+    match ("" if string == NULL else string) with strcmp:
         case "dont_skip":
             return SkipMode.DontSkip
         case "skip_normally":
@@ -220,8 +218,8 @@ def get_skip_mode_from_config(test: Test*, key: byte*) -> SkipMode:
         case "skip_silently":
             return SkipMode.SkipSilently
         case _:
-            puts(string)
-            assert False  # TODO: error handling
+            snprintf(big_buffer, sizeof(big_buffer), "'%s' must be \"dont_skip\", \"skip_normally\" or \"skip_silently\"", key)
+            fail_in_toml(toml.lineno, big_buffer)
 
 def assign_skip(dest: SkipMode*, value: SkipMode) -> bool:
     # The "highest" skip mode wins (no skip specified < normal skip < silent skip)
@@ -347,17 +345,16 @@ def get_capture_mode_from_config(test: Test*, key: byte*) -> CaptureMode:
     assert toml != NULL  # specified in builtin_defaults.toml
 
     string = toml_to_string(toml)
-    if string != NULL:
-        match string with strcmp:
-            case "compare_to_comments":
-                return CaptureMode.CompareToComments
-            case "do_not_capture":
-                return CaptureMode.DoNotCapture
-            case "discard":
-                return CaptureMode.Discard
-
-    snprintf(big_buffer, sizeof(big_buffer), "'%s' must be \"compare_to_comments\", \"do_not_capture\" or \"discard\"", key)
-    fail_in_toml(toml.lineno, big_buffer)
+    match ("" if string == NULL else string) with strcmp:
+        case "compare_to_comments":
+            return CaptureMode.CompareToComments
+        case "do_not_capture":
+            return CaptureMode.DoNotCapture
+        case "discard":
+            return CaptureMode.Discard
+        case _:
+            snprintf(big_buffer, sizeof(big_buffer), "'%s' must be \"compare_to_comments\", \"do_not_capture\" or \"discard\"", key)
+            fail_in_toml(toml.lineno, big_buffer)
 
 def configure_output_streams(test: Test*) -> None:
     test.stdout = get_capture_mode_from_config(test, "stdout")
