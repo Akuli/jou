@@ -2,9 +2,9 @@
 # For documentation, see doc/joutest.md
 
 
-#########################
-# Test the Jou compiler #
-#########################
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Test running Jou files in examples/ and tests/
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # TODO: examples/memory_leak.jou will need to be skipped once valgrind gets
 #       involved. Previously it was always silent-skipped, and IMO that's fine.
@@ -65,6 +65,16 @@ files = [
 ]
 cd_to_containing_directory = true
 
+# Programs that parse command-line arguments, but joutest doesn't provide any
+[[tests]]
+files = "examples/argc_argv.jou"
+stdout = "discard"  # TODO: capture and compare?
+
+[[tests]]
+files = ["examples/cli_manual.jou", "examples/cli_argparse.jou", "examples/replace.jou"]
+stderr = "discard"  # TODO: capture and compare?
+expected_exit_code = 2
+
 [[tests]]
 files = "tests/404/file.jou"
 command = {
@@ -119,9 +129,9 @@ files = "tests/wrong_type/*_64bit.jou"
 skip_mode = {if = "IS_32BIT", then = "skip_normally", else = "dont_skip"}
 
 
-############################
-# Test joutest with itself #
-############################
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# Test joutest with itself
+# ~~~~~~~~~~~~~~~~~~~~~~~~
 [[tests]]
 files = [
     "tests/tests_of_joutest/**/joutest.toml",
@@ -161,9 +171,9 @@ command = {
 }
 
 
-###############################
-# Test code in markdown files #
-###############################
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Test code in markdown files
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 [[tests]]
 files = ["README.md", "doc/**/*.md"]
 markdown_code_block_languages = ["python"]
@@ -195,13 +205,3 @@ files = [
     "doc/types.md",
 ]
 expected_exit_code = "any"
-
-# Programs that parse command-line arguments, but joutest doesn't provide any
-[[tests]]
-files = "examples/argc_argv.jou"
-stdout = "discard"  # TODO: capture and compare?
-
-[[tests]]
-files = ["examples/cli_manual.jou", "examples/cli_argparse.jou", "examples/replace.jou"]
-stderr = "discard"  # TODO: capture and compare?
-expected_exit_code = 2
