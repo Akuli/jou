@@ -167,14 +167,16 @@ class Test:
     # These are set in step 4 (gather expected output)
     expected_output: byte*
 
-#    # These are set in step 5 (configure tests)
-#    succeeded_before: bool  # with --lf/--last-failed, remember success from several runs ago
-#    skipped_with_last_failed_flag: bool
-#    skip: SkipMode
-#    actual_command_list: List[byte*]
-#    actual_command_string: byte*
-#    uses_output_capturing: bool
-#    working_directory: byte*  # NULL means use current directory
+    # These are set in step 5 (configure tests)
+    succeeded_before: bool  # with --lf/--last-failed, remember success from several runs ago
+    skipped_with_last_failed_flag: bool
+    skip: SkipMode
+    command_list: List[byte*]
+    command_string: byte*
+    working_directory: byte*  # NULL means use current directory
+    stdout: CaptureMode
+    stderr: CaptureMode
+    uses_output_capturing: bool
 #
 #    # These are set in step 6 (run tests)
 #    start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
@@ -183,6 +185,18 @@ class Test:
 #    actual_output: byte*
 #    simple_result: SimpleResult
 
+    # This can't really be a part of some "let's configure everything" step,
+    # because this is needed very early, e.g. before a markdown file has been
+    # parsed to discover the tests inside it.
+    @public
+    def get_config(self, key: byte*) -> TOML*:
+        assert self.configs.len > 0  # can loop backwards with pointers
+        for config = &self.configs.end()[-1]; config >= self.configs.ptr; config--:
+            toml = toml_get(*config, key)
+            if toml != NULL:
+                return toml
+        return NULL
+
     # This is a getter because it must be always available, even before the
     # "configure tests" step that sets up many of the members here.
     #
@@ -190,14 +204,10 @@ class Test:
     @public
     def get_relative_path(self) -> byte*:
         assert self.configs.len > 0
-        for config = &self.configs.end()[-1]; config >= self.configs.ptr; config--:
-            toml_value = toml_get(*config, "cd_to_containing_directory")
-            if toml_is_true(toml_value):
-                # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
-                p = &self.path[strlen(self.path)]
-                while p > self.path and not (p[-1] == '/' or (p[-1] == '\\' and WINDOWS)):
-                    p--
-                return p
-            if toml_is_false(toml_value):
-                return self.path
-        assert False
+        if toml_is_true(self.get_config("cd_to_containing_directory")):
+            # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
+            p = &self.path[strlen(self.path)]
+            while p > self.path and not (p[-1] == '/' or (p[-1] == '\\' and WINDOWS)):
+                p--
+            return p
+        return self.path

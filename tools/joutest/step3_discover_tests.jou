@@ -22,16 +22,8 @@ def list_contains_string(list: List[byte*], string: byte*) -> bool:
 
 
 def add_tests_from_markdown(out: List[Test]*, template_test: Test*) -> None:
-    langs_toml: TOML* = NULL
-
-    assert template_test.configs.len > 0  # can loop backwards with pointers
-    for config = &template_test.configs.end()[-1]; config >= template_test.configs.ptr; config--:
-        toml = toml_get(*config, "markdown_code_block_languages")
-        if toml != NULL:
-            langs_toml = toml
-            break
-
-    assert langs_toml != NULL
+    langs_toml = template_test.get_config("markdown_code_block_languages")
+    assert langs_toml != NULL  # specified in builtin_defaults.toml
     assert langs_toml.type == TOMLType.Array  # TODO: error handling
     langs = List[byte*]{}
     for lang_toml = langs_toml.array.ptr; lang_toml < langs_toml.array.end(); lang_toml++:
@@ -173,7 +165,7 @@ global builtin_defaults_file_content = embed_text_file("builtin_defaults.toml")
 global builtin_defaults: TOML
 
 @public
-def step3_discover_tests(toml: TOML*, args: CommandLineArgs*) -> List[Test]:
+def step3_discover_tests(toml: TOML*) -> List[Test]:
     builtin_defaults = parse_toml(builtin_defaults_file_content)
     assert builtin_defaults.type == TOMLType.Table
 

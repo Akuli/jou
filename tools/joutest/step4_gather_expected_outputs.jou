@@ -15,14 +15,12 @@ import "./state.jou"
 
 
 def get_output_comment_rules(test: Test*) -> List[TOMLKeyVal]:
-    assert test.configs.len > 0  # can loop backwards with pointers
-    for config = &test.configs.end()[-1]; config >= test.configs.ptr; config--:
-        toml = toml_get(*config, "output_comment_rules")
-        if toml != NULL:
-            assert toml.type == TOMLType.Table  # TODO: error handling
-            for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-                assert toml_to_string(&kv.value) != NULL  # TODO: error handling
-            return toml.table
+    toml = test.get_config("output_comment_rules")
+    assert toml != NULL  # specified in builtin_defaults.toml
+    assert toml.type == TOMLType.Table  # TODO: error handling
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        assert toml_to_string(&kv.value) != NULL  # TODO: error handling
+    return toml.table
 
     assert False  # should be at least in built-in defaults
 
@@ -32,6 +30,7 @@ def order_matches_rules(order: List[byte*], rules: List[TOMLKeyVal]) -> bool:
     if order.len != rules.len:
         return False
     for ord = order.ptr; ord < order.end(); ord++:
+        # TODO: do the tests notice that there is a bug? (duplicate in order)
         found = False
         for r = rules.ptr; r < rules.end(); r++:
             if strcmp(*ord, r.key) == 0:
@@ -43,20 +42,17 @@ def order_matches_rules(order: List[byte*], rules: List[TOMLKeyVal]) -> bool:
 
 def get_output_comment_order(test: Test*, rules: List[TOMLKeyVal]) -> List[byte*]:
     assert test.configs.len > 0  # can loop backwards with pointers
-    for config = &test.configs.end()[-1]; config >= test.configs.ptr; config--:
-        toml = toml_get(*config, "output_comment_order")
-        if toml != NULL:
-            order = List[byte*]{}
-            assert toml.type == TOMLType.Array  # TODO: error handling
-            for s_toml = toml.array.ptr; s_toml < toml.array.end(); s_toml++:
-                s = toml_to_string(s_toml)
-                assert s != NULL  # TODO: error handling
-                order.append(s)
-            if order.len != 0 and not order_matches_rules(order, rules):
-                assert False  # TODO: error handling
-            return order
-
-    assert False  # should be at least in built-in defaults
+    toml = test.get_config("output_comment_order")
+    assert toml != NULL  # specified in builtin_defaults.toml
+    order = List[byte*]{}
+    assert toml.type == TOMLType.Array  # TODO: error handling
+    for s_toml = toml.array.ptr; s_toml < toml.array.end(); s_toml++:
+        s = toml_to_string(s_toml)
+        assert s != NULL  # TODO: error handling
+        order.append(s)
+    if order.len != 0 and not order_matches_rules(order, rules):
+        assert False  # TODO: error handling
+    return order
 
 
 class Comment:
