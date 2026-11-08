@@ -399,6 +399,12 @@ def evaluate_if_statements_in_body(jou_file: JouFile*, body: List[AstStatement]*
                 evaluate_if_statements_in_body(jou_file, &body.ptr[i].while_loop.body, False)
             case AstStatementKind.ForLoop:
                 evaluate_if_statements_in_body(jou_file, &body.ptr[i].for_loop.body, False)
+            case AstStatementKind.Match:
+                match_stmt = &body.ptr[i].match_statement
+                for c = match_stmt.cases.ptr; c < match_stmt.cases.end(); c++:
+                    evaluate_if_statements_in_body(jou_file, &c.body, False)
+                if match_stmt.case_underscore != NULL:
+                    evaluate_if_statements_in_body(jou_file, match_stmt.case_underscore, False)
             case AstStatementKind.Class:
                 evaluate_if_statements_in_body(jou_file, &body.ptr[i].classdef.body, True)
             case AstStatementKind.FunctionDef:
@@ -411,7 +417,6 @@ def evaluate_if_statements_in_body(jou_file: JouFile*, body: List[AstStatement]*
                 | AstStatementKind.Assert
                 | AstStatementKind.Pass
                 | AstStatementKind.Return
-                | AstStatementKind.Match
                 | AstStatementKind.Break
                 | AstStatementKind.Continue
                 | AstStatementKind.DeclareLocalVar
