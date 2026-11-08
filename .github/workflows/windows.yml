@@ -175,7 +175,7 @@ jobs:
       # Make sure it works even if there is a space in folder name
       - run: mv jou "test dir"
         shell: bash
-      - run: cp -r repo/tests "test dir"
+      - run: cp -rv repo/{tests,joutest.toml,README.md} "test dir"
         shell: bash
       - name: "Delete tests that depend on files outside the tests folder"
         run: |

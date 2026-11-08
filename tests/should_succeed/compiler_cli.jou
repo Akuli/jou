@@ -149,6 +149,7 @@ def main() -> int:
 
     # Compile to an executable.
     # Output: Hello World
+    mkdir("tmp", 0o777)
     mkdir("tmp/tests", 0o777)
     run_jou("-o tmp/tests/hello.exe examples/hello.jou")
     if WINDOWS:
