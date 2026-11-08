@@ -18,21 +18,38 @@ def get_output_comment_rules(test: Test*) -> List[TOMLKeyVal]:
     toml = test.get_config("output_comment_rules")
     assert toml != NULL  # specified in builtin_defaults.toml
 
-    assert toml.type == TOMLType.Table  # TODO: error handling
+    if toml.type != TOMLType.Table:
+        fail_in_toml(toml.lineno, "'output_comment_rules' must be a table with string keys and string values")
+
+    allowed: bool[enum_count(FormatParam)]
+    memset(allowed, 0, sizeof(allowed))
+    allowed[FormatParam.File as int] = True
+    allowed[FormatParam.Line as int] = True
+    allowed[FormatParam.Comment as int] = True
+
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-        assert toml_to_string(&kv.value) != NULL  # TODO: error handling
+        if strstr(kv.key, ":") != NULL or strstr(kv.key, "#") != NULL:
+            fail_in_toml(kv.value.lineno, "keys of 'output_comment_rules' cannot contain '#' or ':' characters")
+
+        s = toml_to_string(&kv.value)
+        if s == NULL:
+            fail_in_toml(toml.lineno, "'output_comment_rules' must be a table with string keys and string values")
+        validate_format_string_in_toml(s, kv.value.lineno, allowed)
+
     return toml.table
 
 
 def order_matches_rules(order: List[byte*], rules: List[TOMLKeyVal]) -> bool:
     # Check that they contain the same strings in some order
+    #
+    # At the time of writing this, neither can contain duplicates, but this
+    # only assumes that rules doesn't contain duplicates (it's a mapping).
     if order.len != rules.len:
         return False
-    for ord = order.ptr; ord < order.end(); ord++:
-        # TODO: do the tests notice that there is a bug? (duplicate in order)
+    for r = rules.ptr; r < rules.end(); r++:
         found = False
-        for r = rules.ptr; r < rules.end(); r++:
-            if strcmp(*ord, r.key) == 0:
+        for ord = order.ptr; ord < order.end(); ord++:
+            if strcmp(r.key, *ord) == 0:
                 found = True
                 break
         if not found:
@@ -44,13 +61,22 @@ def get_output_comment_order(test: Test*, rules: List[TOMLKeyVal]) -> List[byte*
     assert toml != NULL  # specified in builtin_defaults.toml
 
     order = List[byte*]{}
-    assert toml.type == TOMLType.Array  # TODO: error handling
+    if toml.type != TOMLType.Array:
+        fail_in_toml(toml.lineno, "'output_comment_order' must be an array of strings")
+
+    ok = True
     for s_toml = toml.array.ptr; s_toml < toml.array.end(); s_toml++:
         s = toml_to_string(s_toml)
-        assert s != NULL  # TODO: error handling
+        if s == NULL:
+            fail_in_toml(s_toml.lineno, "'output_comment_order' must be an array of strings")
+        for p = order.ptr; p < order.end(); p++:
+            if strcmp(*p, s) == 0:
+                snprintf(big_buffer, sizeof(big_buffer), "'%s' is repeated in 'output_comment_order'", s)
+                fail_in_toml(s_toml.lineno, big_buffer)
         order.append(s)
-    if order.len != 0 and not order_matches_rules(order, rules):
-        assert False  # TODO: error handling
+
+    if (not ok) or (order.len != 0 and not order_matches_rules(order, rules)):
+        fail_in_toml(toml.lineno, "'output_comment_order' must contain the keys of 'output_comment_rules' in some order")
     return order
 
 

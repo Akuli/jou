@@ -268,7 +268,8 @@ def configure_working_directory(test: Test*) -> None:
     cd = test.get_config("cd_to_containing_directory")
     assert cd != NULL  # specified in builtin_defaults.toml
 
-    assert cd.type == TOMLType.Boolean  # TODO: error handling
+    if cd.type != TOMLType.Boolean:
+        fail_in_toml(cd.lineno, "'cd_to_containing_directory' must be a boolean")
     if cd.boolean:
         temp = strdup(test.path)
         assert temp != NULL
@@ -276,9 +277,29 @@ def configure_working_directory(test: Test*) -> None:
         free(temp)
 
 
+#        case TestConfigOption.Command:
+#            free(config.command.ptr)
+#            config.command = array_of_strings_from_toml(kv, NULL, False)
+#
+#            if config.command.len == 0:
+#                snprintf(big_buffer, sizeof(big_buffer), "'%s' cannot be empty", kv.key)
+#                fail_in_toml(kv.value.lineno, big_buffer)
+#
+#            assert kv.value.type == TOMLType.Array
+#            for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
+#                arg = toml_to_string(item)
+#                assert arg != NULL
+#                memset(allowed, 0, sizeof(allowed))
+#                allowed[FormatParam.File as int] = True
+#                allowed[FormatParam.Lines as int] = True
+#                validate_format_string_in_toml(arg, item.lineno, allowed)
+#
+
+
 def configure_command(test: Test*, args: CommandLineArgs*) -> None:
     toml = test.get_config("command")
     if toml == NULL:
+        # TODO: possible to trip up assertion by putting braces into args.jou_command
         test.command_list.extend(args.jou_command)
         if test.code_in_markdown != NULL:
             test.command_list.append("--lines={lines}")
@@ -286,18 +307,28 @@ def configure_command(test: Test*, args: CommandLineArgs*) -> None:
     else:
         if toml.type != TOMLType.Array:
             fail_in_toml(toml.lineno, "'command' must be an array of strings")
+
+        allowed: bool[enum_count(FormatParam)]
+        memset(allowed, 0, sizeof(allowed))
+        allowed[FormatParam.File as int] = True
+        allowed[FormatParam.Lines as int] = True
+
         for item = toml.array.ptr; item < toml.array.end(); item++:
             s = toml_to_string(item)
             if s == NULL:
                 fail_in_toml(item.lineno, "'command' must be an array of strings")
+            validate_format_string_in_toml(s, item.lineno, allowed)
             test.command_list.append(s)
+
+        if test.command_list.len == 0:
+            fail_in_toml(toml.lineno, "'command' cannot be empty")
 
     params: byte*[enum_count(FormatParam)]
     memset(params, 0, sizeof(params))
     params[FormatParam.File as int] = test.get_relative_path()
 
     lines_string: byte[100] = ""
-    if test.first_markdown_lineno != 0 and test.last_markdown_lineno != 0:
+    if test.code_in_markdown != NULL:
         sprintf(lines_string, "%d-%d", test.first_markdown_lineno, test.last_markdown_lineno)
     params[FormatParam.Lines as int] = lines_string
 

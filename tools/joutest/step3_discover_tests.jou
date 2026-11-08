@@ -122,13 +122,25 @@ def is_markdown_file(path: byte*) -> bool:
 
 
 def do_glob_from_toml(glob: byte*, glob_lineno: int, out: List[byte*]*) -> None:
-    assert glob_is_valid(glob)  # TODO: error handling
+    if strchr(glob, '\\') != NULL:
+        fail_in_toml(glob_lineno, "please use forward slashes instead of backslashes")
+    if not glob_is_valid(glob):
+        snprintf(big_buffer, sizeof(big_buffer), "invalid path or glob pattern: %s", glob)
+        fail_in_toml(glob_lineno, big_buffer)
 
     old_len = out.len
     do_glob(glob, ".", out, 10)  # TODO: don't hard-code depth limit?
     num_new = out.len - old_len
+
     assert num_new >= 0
-    assert num_new != 0  # TODO: error handling
+    if num_new == 0:
+        if strstr(glob, "*") == NULL:
+            # not really a glob
+            snprintf(big_buffer, sizeof(big_buffer), "file not found: %s", glob)
+        else:
+            snprintf(big_buffer, sizeof(big_buffer), "glob pattern '%s' does not match any files", glob)
+        fail_in_toml(glob_lineno, big_buffer)
+
     sort_strings(&out.end()[-num_new], num_new)
 
 
@@ -157,12 +169,14 @@ def step3_discover_tests(toml: TOML*) -> List[Test]:
         s = toml_to_string(files_toml)
         if s != NULL:
             do_glob_from_toml(s, files_toml.lineno, &paths)
-        else:
-            assert files_toml.type == TOMLType.Array  # TODO: error handling
+        elif files_toml.type == TOMLType.Array:
             for files_item = files_toml.array.ptr; files_item < files_toml.array.end(); files_item++:
                 s = toml_to_string(files_item)
-                assert s != NULL  # TODO: error handling
+                if s == NULL:
+                    fail_in_toml(files_item.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
                 do_glob_from_toml(s, files_item.lineno, &paths)
+        else:
+            fail_in_toml(files_toml.lineno, "'files' must be a path, a glob pattern such as \"tests/*.jou\", or an array of paths and/or glob patterns")
 
         for p = paths.ptr; p < paths.end(); p++:
             test: Test* = NULL

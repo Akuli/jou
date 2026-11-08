@@ -209,51 +209,13 @@ def read_joutest_toml_and_parse_to_toml_object() -> TOML:
 #        case TestConfigOption.Stderr:
 #            config.stderr = enum_from_toml(kv, CAPTURE_MODE_NAMES, enum_count(CaptureMode)) as CaptureMode
 #
-#        case TestConfigOption.OutputCommentRules:
-#            free(config.output_comment_rules.ptr)
-#            config.output_comment_rules = table_with_string_values_from_toml(kv)
-#
-#            assert kv.value.type == TOMLType.Table
-#            for inner_kv = kv.value.table.ptr; inner_kv < kv.value.table.end(); inner_kv++:
-#                if strstr(inner_kv.key, ":") != NULL or strstr(inner_kv.key, "#") != NULL:
-#                    fail_in_toml(inner_kv.value.lineno, "keys of 'output_comment_rules' cannot contain '#' or ':' characters")
-#
-#                s = toml_to_string(&inner_kv.value)
-#                assert s != NULL
-#
-#                memset(allowed, 0, sizeof(allowed))
-#                allowed[FormatParam.File as int] = True
-#                allowed[FormatParam.Line as int] = True
-#                allowed[FormatParam.Comment as int] = True
-#                validate_format_string_in_toml(s, inner_kv.value.lineno, allowed)
-#
-#        case TestConfigOption.OutputCommentOrder:
-#            free(config.output_comment_order.ptr)
-#            config.output_comment_order = array_of_strings_from_toml(kv, NULL, True)
-#
 #        case TestConfigOption.SkipMode:
 #            config.skip_mode = enum_from_toml(kv, SKIP_MODE_NAMES, enum_count(SkipMode)) as SkipMode
 #
 #        case TestConfigOption.SkipModeIfNoExpectedOutput:
 #            config.skip_mode_if_no_expected_output = enum_from_toml(kv, SKIP_MODE_NAMES, enum_count(SkipMode)) as SkipMode
 #
-#        case TestConfigOption.Command:
-#            free(config.command.ptr)
-#            config.command = array_of_strings_from_toml(kv, NULL, False)
-#
-#            if config.command.len == 0:
-#                snprintf(big_buffer, sizeof(big_buffer), "'%s' cannot be empty", kv.key)
-#                fail_in_toml(kv.value.lineno, big_buffer)
-#
-#            assert kv.value.type == TOMLType.Array
-#            for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
-#                arg = toml_to_string(item)
-#                assert arg != NULL
-#                memset(allowed, 0, sizeof(allowed))
-#                allowed[FormatParam.File as int] = True
-#                allowed[FormatParam.Lines as int] = True
-#                validate_format_string_in_toml(arg, item.lineno, allowed)
-#
+
 #        case TestConfigOption.CdToContainingDirectory:
 #            if toml_is_true(&kv.value):
 #                config.cd_to_containing_directory = True
@@ -348,7 +310,8 @@ def check_tests_array(toml: TOML*) -> None:
         if item.type != TOMLType.Table:
             fail_in_toml(toml.lineno, "each item of 'tests' must be a table")
         check_test_config(item.table)
-        assert toml_get(item, "files") != NULL  # TODO: error handling
+        if toml_get(item, "files") == NULL:
+            fail_in_toml(toml.lineno, "each 'tests' table must contain 'files'")
 
 def check_the_whole_toml_file(toml: TOML*) -> None:
     assert toml.type == TOMLType.Table
@@ -360,12 +323,16 @@ def check_the_whole_toml_file(toml: TOML*) -> None:
                 if kv.value.type != TOMLType.Table:
                     fail_in_toml(toml.lineno, "'defaults_for_all_tests' must be a table")
                 check_test_config(kv.value.table)
-                assert toml_get(&kv.value, "files") == NULL  # TODO: error handling
+
+                files = toml_get(&kv.value, "files")
+                if files != NULL:
+                    fail_in_toml(files.lineno, "you cannot specify 'files' inside defaults_for_all_tests")
             case _:
                 snprintf(big_buffer, sizeof(big_buffer), "unknown setting '%s'", kv.key)
                 fail_in_toml(kv.value.lineno, big_buffer)
 
-    assert toml_get(toml, "tests") != NULL  # TODO: error handling
+    if toml_get(toml, "tests") == NULL:
+        fail("joutest.toml must define an array named 'tests'")
 
 
 @public
