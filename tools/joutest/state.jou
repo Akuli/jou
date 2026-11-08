@@ -1,4 +1,6 @@
 import "stdlib/list.jou"
+import "stdlib/str.jou"
+import "stdlib/assert.jou"
 import "stdlib/toml.jou"
 
 
@@ -162,9 +164,9 @@ class Test:
     first_markdown_lineno: int  # Line number if markdown file, 0 if not markdown file
     last_markdown_lineno: int   # Line number if markdown file, 0 if not markdown file
 
-#    # These are set in step 4 (gather expected output)
-#    expected_output: byte*
-#
+    # These are set in step 4 (gather expected output)
+    expected_output: byte*
+
 #    # These are set in step 5 (configure tests)
 #    succeeded_before: bool  # with --lf/--last-failed, remember success from several runs ago
 #    skipped_with_last_failed_flag: bool
@@ -181,15 +183,21 @@ class Test:
 #    actual_output: byte*
 #    simple_result: SimpleResult
 
-#    # This is a getter because it must be always available, even before the
-#    # "configure tests" step that sets up many of the members here.
-#    @public
-#    def get_relative_path(self) -> byte*:
-#        if self.config.cd_to_containing_directory:
-#            # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
-#            p = &self.path[strlen(self.path)]
-#            while p > self.path and not (p[-1] == '/' or (p[-1] == '\\' and WINDOWS)):
-#                p--
-#            return p
-#        else:
-#            return self.path
+    # This is a getter because it must be always available, even before the
+    # "configure tests" step that sets up many of the members here.
+    #
+    # TODO: maybe the "configure tests" step be split into two parts...
+    @public
+    def get_relative_path(self) -> byte*:
+        assert self.configs.len > 0
+        for config = &self.configs.end()[-1]; config >= self.configs.ptr; config--:
+            toml_value = toml_get(*config, "cd_to_containing_directory")
+            if toml_is_true(toml_value):
+                # Take just the file name: "some/workdir/hello.jou" --> "hello.jou"
+                p = &self.path[strlen(self.path)]
+                while p > self.path and not (p[-1] == '/' or (p[-1] == '\\' and WINDOWS)):
+                    p--
+                return p
+            if toml_is_false(toml_value):
+                return self.path
+        assert False

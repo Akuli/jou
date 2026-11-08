@@ -228,7 +228,6 @@ def step3_discover_tests(toml: TOML*, args: CommandLineArgs*) -> List[Test]:
     for t = tests.ptr; t < tests.end(); t++:
         if is_markdown_file(t.path):
             add_tests_from_markdown(&tests2, t)
-            free(t.configs.ptr)
         else:
             tests2.append(*t)
 
