@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: wget https://github.com/editorconfig-checker/editorconfig-checker/releases/download/v3.2.0/ec-linux-amd64.tar.gz
+      - run: curl -Lf --retry 6 --retry-all-errors -o ec-linux-amd64.tar.gz https://github.com/editorconfig-checker/editorconfig-checker/releases/download/v3.2.0/ec-linux-amd64.tar.gz
       - name: Verify checksum
         run: |
           if [ "$(sha256sum ec-linux-amd64.tar.gz  | cut -d' ' -f1)" != "5e6a63097904be33c8d18e960f54fd8f60ada5464fe0056cd3dbbd0678584d15" ]; then
