@@ -54,17 +54,16 @@ done
 
 if ! [ -x ./toml-test ]; then
     echo "Downloading toml-test..."
-    wget -q https://github.com/toml-lang/toml-test/releases/download/v2.1.0/toml-test-v2.1.0-linux-amd64.gz
+    curl -LfSs --retry 6 --retry-all-errors -o toml-test.gz https://github.com/toml-lang/toml-test/releases/download/v2.1.0/toml-test-v2.1.0-linux-amd64.gz
 
     echo "Verifying..."
-    if [ "$(sha256sum toml-test-v2.1.0-linux-amd64.gz | cut -d' ' -f1)" != "99fd36c93b297ebde9719ec174266765f56a28924d7fca799d911f3f4354c25d" ]; then
+    if [ "$(sha256sum toml-test.gz | cut -d' ' -f1)" != "99fd36c93b297ebde9719ec174266765f56a28924d7fca799d911f3f4354c25d" ]; then
         echo "Verifying failed!!!" >&2
         exit 1
     fi
 
     echo "Extracting toml-test..."
-    gunzip toml-test-v2.1.0-linux-amd64.gz
-    mv -v toml-test-v2.1.0-linux-amd64 toml-test
+    gunzip toml-test.gz
     chmod +x toml-test
 fi
 
