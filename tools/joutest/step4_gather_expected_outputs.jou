@@ -41,7 +41,7 @@ def skip_start_of_comment(p: byte*, key: byte*) -> byte*:
 class Comment:
     key: byte*   # e.g. "Output"
     formatted_text: byte*  # without the trailing '\n', owned string
-    sort_key: int
+    sort_key: int64
 
 
 def parse_comment_from_line(test: Test*, lineno: int, line: byte*) -> Comment:
