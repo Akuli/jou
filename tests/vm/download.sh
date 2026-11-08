@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This script downloads a file. But unlike plain old wget:
+# This script downloads a file. But unlike plain old curl:
 #
 #   - If the file has been downloaded before (either fully or partially), it
 #     will not be downloaded again.
@@ -30,25 +30,25 @@ cache_file="$cache_dir/$(basename "$url")"
 mkdir -vp "$cache_dir"
 
 verified=no
-wget_flags=""
+curl_flags=""
 if [ -f "$cache_file" ]; then
     echo -n "$0: verifying... "  # Only output one line of text when downloading nothing
     if [ $(sha256sum "$cache_file" | cut -d' ' -f1) = $sha256 ]; then
         verified=yes
     else
         echo "$0: verifying failed, assuming file is partially downloaded and downloading the rest of it..."
-        wget_flags='--continue'
+        curl_flags='-C -'
     fi
 else
     echo "$0: downloading $url"
     if [ "$GITHUB_ACTIONS" = "true" ]; then
-        wget_flags='-q'
+        curl_flags='-Ss'
     fi
 fi
 
 # Refactoring note: Please double check that verifying is always done!
 if [ $verified = no ]; then
-    (cd "$cache_dir" && wget $wget_flags "$url")
+    (cd "$cache_dir" && curl -Lf --retry 6 --retry-all-errors $curl_flags -o "$(basename $url)" "$url")
     echo "$0: verifying..."
     if [ $(sha256sum "$cache_file" | cut -d' ' -f1) != $sha256 ]; then
         echo "$0: verifying $cache_file failed!!!" >&2
