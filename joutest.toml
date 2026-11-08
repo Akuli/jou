@@ -168,6 +168,21 @@ command = {
     else = ["joutest", "-j1", "--no-colors"],
 }
 
+# This test attempts to read a directory as if it was a file. Windows gives
+# error message that is not necessarily in english, netbsd returns binary junk.
+[[tests]]
+files = "tests/tests_of_joutest/bad_configs/markdown_read_error/joutest.toml"
+skip_mode = {
+    if = "WINDOWS",
+    then = "skip_normally",
+    else = {
+        # TODO(joutest): "WINDOWS or NETBSD" ?
+        if = "NETBSD",
+        then = "skip_normally",
+        else = "dont_skip",
+    }
+}
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Test code in markdown files
