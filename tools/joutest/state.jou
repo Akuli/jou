@@ -32,8 +32,8 @@ enum CaptureMode:
     DoNotCapture        # do nothing with the output, let it go to console
     Discard             # send the output to the null device
 
-@public
-global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comments", "do_not_capture", "discard"]
+#@public
+#global CAPTURE_MODE_NAMES: byte*[enum_count(CaptureMode)] = ["compare_to_comments", "do_not_capture", "discard"]
 
 
 @public
@@ -42,38 +42,38 @@ enum SkipMode:
     SkipNormally
     SkipSilently
 
-@public
-global SKIP_MODE_NAMES: byte*[enum_count(SkipMode)] = ["dont_skip", "skip_normally", "skip_silently"]
+#@public
+#global SKIP_MODE_NAMES: byte*[enum_count(SkipMode)] = ["dont_skip", "skip_normally", "skip_silently"]
 
 
-@public
-enum TestConfigOption:
-    Files
-    Stdout
-    Stderr
-    OutputCommentRules
-    OutputCommentOrder
-    SkipMode
-    SkipModeIfNoExpectedOutput
-    Command
-    CdToContainingDirectory
-    ExpectedExitCode
-    MarkdownCodeBlockLanguages
-
-@public
-global TEST_CONFIG_OPTION_NAMES: byte*[enum_count(TestConfigOption)] = [
-    "files",
-    "stdout",
-    "stderr",
-    "output_comment_rules",
-    "output_comment_order",
-    "skip_mode",
-    "skip_mode_if_no_expected_output",
-    "command",
-    "cd_to_containing_directory",
-    "expected_exit_code",
-    "markdown_code_block_languages",
-]
+#@public
+#enum TestConfigOption:
+#    Files
+#    Stdout
+#    Stderr
+#    OutputCommentRules
+#    OutputCommentOrder
+#    SkipMode
+#    SkipModeIfNoExpectedOutput
+#    Command
+#    CdToContainingDirectory
+#    ExpectedExitCode
+#    MarkdownCodeBlockLanguages
+#
+#@public
+#global TEST_CONFIG_OPTION_NAMES: byte*[enum_count(TestConfigOption)] = [
+#    "files",
+#    "stdout",
+#    "stderr",
+#    "output_comment_rules",
+#    "output_comment_order",
+#    "skip_mode",
+#    "skip_mode_if_no_expected_output",
+#    "command",
+#    "cd_to_containing_directory",
+#    "expected_exit_code",
+#    "markdown_code_block_languages",
+#]
 #
 #@public
 #class TestConfig:
