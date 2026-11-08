@@ -1450,7 +1450,7 @@ def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*
         builder.hash.add_uint64(hash_of_compiler().hash)
 
         builder.llvm_module = LLVMModuleCreateWithName(jou_file.path)
-        builder.hash.add_string(jou_file.path)
+        add_path_to_hash(&builder.hash, jou_file.path)
 
         assert global_compiler_state.target.ready
 
