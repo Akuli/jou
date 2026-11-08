@@ -39,6 +39,12 @@ def path_strcmp(a: byte*, b: byte*) -> int:
             return (a_byte as int) - (b_byte as int)
     return 0
 
+@public
+def add_path_to_hash(h: Hash*, path: byte*) -> None:
+    for ; *path != '\0'; path++:
+        h.add_byte(normalize_path_byte(*path))
+    h.add_byte('\0')
+
 
 @public
 def file_exists(path: byte*) -> bool:
@@ -260,8 +266,7 @@ def disjoint_interval_id(a: int, b: int) -> int:
 def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
     h = new_hash()
     h.add_byte(global_compiler_state.args.optlevel as byte)
-    for p = jou_file_path; *p != '\0'; p++:
-        h.add_byte(normalize_path_byte(*p))
+    add_path_to_hash(&h, jou_file_path)
 
     if (
         strcmp(jou_file_path, global_compiler_state.args.infile) == 0
