@@ -97,8 +97,8 @@ def spawn_test(test: Test*) -> RunState:
         make_inheritable(output_pipe_write)
 
     if (
-        state.test.config.stdout == CaptureMode.Discard
-        or state.test.config.stderr == CaptureMode.Discard
+        state.test.stdout == CaptureMode.Discard
+        or state.test.stderr == CaptureMode.Discard
     ):
         devnull = CreateFileA(
             "NUL",
@@ -116,14 +116,14 @@ def spawn_test(test: Test*) -> RunState:
     startup_info = STARTUPINFOW{}
     startup_info.cb = sizeof(startup_info) as uint32
     if (
-        state.test.config.stdout != CaptureMode.DoNotCapture
-        or state.test.config.stderr != CaptureMode.DoNotCapture
+        state.test.stdout != CaptureMode.DoNotCapture
+        or state.test.stderr != CaptureMode.DoNotCapture
     ):
         startup_info.dwFlags = STARTF_USESTDHANDLES
 
         startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE)
 
-        match state.test.config.stdout:
+        match state.test.stdout:
             case CaptureMode.CompareToComments:
                 startup_info.hStdOutput = output_pipe_write
             case CaptureMode.Discard:
@@ -132,7 +132,7 @@ def spawn_test(test: Test*) -> RunState:
             case CaptureMode.DoNotCapture:
                 startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE)
 
-        match state.test.config.stderr:
+        match state.test.stderr:
             case CaptureMode.CompareToComments:
                 startup_info.hStdError = output_pipe_write
             case CaptureMode.Discard:
@@ -148,7 +148,7 @@ def spawn_test(test: Test*) -> RunState:
     # arguments.
     #
     # This does not pass the given string to a shell.
-    wide_command_line = string_to_windows(state.test.actual_command_string, NULL, 0)
+    wide_command_line = string_to_windows(state.test.command_string, NULL, 0)
     if wide_command_line == NULL:
         fail("test command is not valid UTF-8")
 

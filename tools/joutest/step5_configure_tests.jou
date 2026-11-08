@@ -335,6 +335,20 @@ def configure_output_streams(test: Test*) -> None:
     test.uses_output_capturing = (test.stdout == CaptureMode.CompareToComments or test.stderr == CaptureMode.CompareToComments)
 
 
+def configure_exit_code(test: Test*) -> None:
+    toml = test.get_config("expected_exit_code")
+    assert toml != NULL  # specified in builtin_defaults.toml
+
+    s = toml_to_string(toml)
+    if s != NULL and strcmp(s, "any") == 0:
+        test.expected_exit_code = -1
+    else:
+        test.expected_exit_code = toml_to_int(toml, -1)
+        if test.expected_exit_code < 0 or test.expected_exit_code > 255:
+            # TODO: windows allows exit codes beyond 0-255
+            fail_in_toml(toml.lineno, "'expected_exit_code' must be an integer between 0 and 255")
+
+
 @public
 def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     if args.last_failed:
@@ -347,3 +361,4 @@ def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         configure_working_directory(test)
         configure_command(test, args)
         configure_output_streams(test)
+        configure_exit_code(test)

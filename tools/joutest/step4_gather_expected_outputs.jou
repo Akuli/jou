@@ -17,12 +17,11 @@ import "./state.jou"
 def get_output_comment_rules(test: Test*) -> List[TOMLKeyVal]:
     toml = test.get_config("output_comment_rules")
     assert toml != NULL  # specified in builtin_defaults.toml
+
     assert toml.type == TOMLType.Table  # TODO: error handling
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
         assert toml_to_string(&kv.value) != NULL  # TODO: error handling
     return toml.table
-
-    assert False  # should be at least in built-in defaults
 
 
 def order_matches_rules(order: List[byte*], rules: List[TOMLKeyVal]) -> bool:
@@ -41,9 +40,9 @@ def order_matches_rules(order: List[byte*], rules: List[TOMLKeyVal]) -> bool:
     return True
 
 def get_output_comment_order(test: Test*, rules: List[TOMLKeyVal]) -> List[byte*]:
-    assert test.configs.len > 0  # can loop backwards with pointers
     toml = test.get_config("output_comment_order")
     assert toml != NULL  # specified in builtin_defaults.toml
+
     order = List[byte*]{}
     assert toml.type == TOMLType.Array  # TODO: error handling
     for s_toml = toml.array.ptr; s_toml < toml.array.end(); s_toml++:

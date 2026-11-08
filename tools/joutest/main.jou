@@ -1,16 +1,11 @@
-import "stdlib/assert.jou"
-import "stdlib/list.jou"
-import "stdlib/str.jou"
-import "stdlib/io.jou"
-
 import "./step1_parse_command_line_args.jou"
 import "./step2_parse_joutest_toml.jou"
 import "./step3_discover_tests.jou"
 import "./step4_gather_expected_outputs.jou"
 import "./step5_configure_tests.jou"
-#import "./step6_run_tests.jou"
-#import "./step7_save_results.jou"
-#import "./step8_show_results.jou"
+import "./step6_run_tests.jou"
+import "./step7_save_results.jou"
+import "./step8_show_results.jou"
 
 
 def main(argc: int, argv: byte**) -> int:
@@ -19,15 +14,6 @@ def main(argc: int, argv: byte**) -> int:
     tests = step3_discover_tests(&toml)
     step4_gather_expected_outputs(tests)
     step5_configure_tests(tests, &args)
-    for t = tests.ptr; t < tests.end(); t++:
-        if strcmp(t.path, "doc/tutorial.md") == 0 and strstr(t.code_in_markdown, "Output:") != NULL:
-            puts(t.code_in_markdown)
-            assert t.expected_output != NULL
-            puts(t.expected_output)
-            assert t.command_string != NULL
-            puts(t.command_string)
-            break
-#    step6_run_tests(tests, &args)
-#    step7_save_results(tests, &args)
-#    step8_show_results(tests, &args)
-    return 0
+    step6_run_tests(tests, &args)
+    step7_save_results(tests, &args)
+    step8_show_results(tests, &args)

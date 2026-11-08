@@ -177,13 +177,14 @@ class Test:
     stdout: CaptureMode
     stderr: CaptureMode
     uses_output_capturing: bool
-#
-#    # These are set in step 6 (run tests)
-#    start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
-#    terminating_signal: int  # (POSIX only) signal number that killed the test while running
-#    actual_exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
-#    actual_output: byte*
-#    simple_result: SimpleResult
+    expected_exit_code: int
+
+    # These are set in step 6 (run tests)
+    start_error: int  # If nonzero, the test failed to start: errno on posix, GetLastError() on windows
+    terminating_signal: int  # (POSIX only) signal number that killed the test while running
+    actual_exit_code: int  # If no start error, and not killed by signal, it exited normally with this status code
+    actual_output: byte*
+    simple_result: SimpleResult
 
     # This can't really be a part of some "let's configure everything" step,
     # because this is needed very early, e.g. before a markdown file has been

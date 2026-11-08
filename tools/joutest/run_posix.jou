@@ -55,15 +55,12 @@ def this_runs_in_child_process(
     e: int
 
     devnull = -1
-    if (
-        state.test.config.stdout == CaptureMode.Discard
-        or state.test.config.stderr == CaptureMode.Discard
-    ):
+    if state.test.stdout == CaptureMode.Discard or state.test.stderr == CaptureMode.Discard:
         devnull = open("/dev/null", O_WRONLY)
         if devnull == -1:
             fail_child_process_before_exec(error_pipe_write)
 
-    match state.test.config.stdout:
+    match state.test.stdout:
         case CaptureMode.CompareToComments:
             if dup2(output_pipe_write, 1) == -1:
                 fail_child_process_before_exec(error_pipe_write)
@@ -73,7 +70,7 @@ def this_runs_in_child_process(
             if dup2(devnull, 1) == -1:
                 fail_child_process_before_exec(error_pipe_write)
 
-    match state.test.config.stderr:
+    match state.test.stderr:
         case CaptureMode.CompareToComments:
             if dup2(output_pipe_write, 2) == -1:
                 fail_child_process_before_exec(error_pipe_write)
@@ -90,7 +87,7 @@ def this_runs_in_child_process(
         if chdir(state.test.working_directory) != 0:
             fail_child_process_before_exec(error_pipe_write)
 
-    execvp(state.test.actual_command_list.ptr[0], state.test.actual_command_list.ptr)
+    execvp(state.test.command_list.ptr[0], state.test.command_list.ptr)
 
     # We get here only if exec failed
     fail_child_process_before_exec(error_pipe_write)
@@ -158,8 +155,8 @@ def spawn_test(test: Test*) -> RunState:
     create_cloexec_pipe(&error_pipe_read, &error_pipe_write)
 
     # Make sure the argument list ends with NULL so we can pass it to execvp()
-    state.test.actual_command_list.append(NULL)
-    state.test.actual_command_list.pop()
+    state.test.command_list.append(NULL)
+    state.test.command_list.pop()
 
     pid = fork()
     if pid < 0:

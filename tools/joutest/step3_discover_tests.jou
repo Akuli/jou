@@ -1,5 +1,4 @@
 import "stdlib/ascii.jou"
-import "stdlib/intnative.jou"
 import "stdlib/assert.jou"
 import "stdlib/errno.jou"
 import "stdlib/io.jou"
@@ -103,22 +102,22 @@ def is_markdown_file(path: byte*) -> bool:
     )
 
 
-def files_from_toml(kv: TOMLKeyVal*, error: byte*, duplicates_are_banned: bool) -> List[byte*]:
-    if error == NULL:
-        snprintf(big_buffer, sizeof(big_buffer), "'%s' must be an array of strings", kv.key)
-        error = big_buffer
-
-    if kv.value.type != TOMLType.Array:
-        fail_in_toml(kv.value.lineno, error)
-
-    result = List[byte*]{}
-    for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
-        s = toml_to_string(item)
-        if s == NULL:
-            fail_in_toml(item.lineno, error)
-        result.append(s)
-
-    return result
+#def files_from_toml(kv: TOMLKeyVal*, error: byte*, duplicates_are_banned: bool) -> List[byte*]:
+#    if error == NULL:
+#        snprintf(big_buffer, sizeof(big_buffer), "'%s' must be an array of strings", kv.key)
+#        error = big_buffer
+#
+#    if kv.value.type != TOMLType.Array:
+#        fail_in_toml(kv.value.lineno, error)
+#
+#    result = List[byte*]{}
+#    for item = kv.value.array.ptr; item < kv.value.array.end(); item++:
+#        s = toml_to_string(item)
+#        if s == NULL:
+#            fail_in_toml(item.lineno, error)
+#        result.append(s)
+#
+#    return result
 
 
 def do_glob_from_toml(glob: byte*, glob_lineno: int, out: List[byte*]*) -> None:
