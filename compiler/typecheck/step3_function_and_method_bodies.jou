@@ -1248,15 +1248,7 @@ def typecheck_expression(state: State*, expr: AstExpression*, type_hint: Type*) 
                 fail(expr.location, msg)
 
         case AstExpressionKind.SizeOf:
-            if (
-                expr.operands[0].kind == AstExpressionKind.Constant
-                and expr.operands[0].constant.kind == ConstantKind.PointerString
-            ):
-                # sizeof("foo") should be 4
-                obj_type_hint = uint_type(8).array_type((strlen(expr.operands[0].constant.pointer_string) as int) + 1)
-            else:
-                obj_type_hint = NULL
-            typecheck_expression_not_void(state, &expr.operands[0], obj_type_hint)
+            typecheck_expression_not_void(state, &expr.operands[0], NULL)
             result = int_type(32)
 
         case AstExpressionKind.ArrayCount:
