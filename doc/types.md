@@ -264,20 +264,11 @@ Jou also uses type inference for strings.
 By default, strings are `byte*`, but they can also be inferred as arrays:
 
 ```python
-import "stdlib/io.jou"
-
-def main() -> int:
-    string1 = "foo"             # Type of "foo" is byte* (the default)
-    string2: byte[100] = "foo"  # Type of "foo" is byte[100]
-    n = sizeof("foo")           # Type of "foo" is byte[4] (smallest possible)
-
-    # Output: 4 bytes are needed for "foo".
-    printf("%d bytes are needed for \"%s\".\n", n, string1)
-
-    return 0
+string1 = "hello"             # Type of "hello" is byte* (the default)
+string2: byte[100] = "hello"  # Type of "hello" is byte[100]
 ```
 
-When the `sizeof` operator is applied to a string,
-the compiler chooses the smallest possible array size where the string fits.
-Above `"foo"` needs 4 bytes because of [the terminating zero byte](tutorial.md#more-about-strings):
-in this context, `"foo"` is same as `['f', 'o', 'o', '\0']`.
+Unlike in C, `sizeof("hello")` is not `6` in Jou:
+even though type inference can cause a string to become an array,
+it doesn't happen just because the string is inside a `sizeof()`.
+Just use `strlen()` from [stdlib/str.jou](../stdlib/str.jou).
