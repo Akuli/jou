@@ -194,4 +194,11 @@ def main() -> int:
     else:
         system("cd tmp/tests/old_jou_compiled_structure && ../../../jou foo.jou")
 
+    if WINDOWS:
+        # These caused linker errors, because the compiler loaded the same file
+        # twice: once from command line, again through imports.
+        assert system("jou tests/should_succeed/import_cycle.jou >NUL") == 0
+        assert system("jou tests\\should_succeed\\import_cycle.jou >NUL") == 0
+        assert system("jou tests/should_succeed/iMpOrT_cYcLe.jou >NUL") == 0
+
     return 0
