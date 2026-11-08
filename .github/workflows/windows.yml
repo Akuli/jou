@@ -145,7 +145,7 @@ jobs:
         run: source activate && make
         shell: bash
       - name: "Run tests"
-        run: ./joutest.exe --verbose
+        run: source activate && ./joutest.exe --verbose
         shell: bash
       - name: "Compile the compiler with itself"
         run: source activate && ./jou -o jou2 compiler/main.jou && mv jou2.exe jou.exe
@@ -156,8 +156,8 @@ jobs:
         # thing in CI.
         #
         # TODO: still need?
-        #run: ./joutest.exe --verbose should_succeed
-        run: ./joutest.exe --verbose
+        #run: source activate && ./joutest.exe --verbose should_succeed
+        run: source activate && ./joutest.exe --verbose
         shell: bash
 
   test-zip:
