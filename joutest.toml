@@ -66,22 +66,45 @@ files = [
 cd_to_containing_directory = true
 
 [[tests]]
+files = "tests/404/file.jou"
+command = {
+    if = "WINDOWS",
+    then = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/joudir.jou'],
+    else = ["sh", "-c", 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/joudir.jou'],
+}
+expected_exit_code = 0
+
+[[tests]]
+files = "tests/should_succeed/compiler_cli.jou"
+command = {
+    if = "WINDOWS",
+    then = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/jouexe.jou'],
+    else = ["sh", "-c", 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/jouexe.jou'],
+}
+
+# TODO(joutest): a way to mark this entire section as "if WINDOWS"
+# TODO(joutest): built-in simple output replacements, so that I don't need so many output_processor scripts
+[[tests]]
 files = [
-    "tests/404/file.jou",
-    "tests/should_succeed/compiler_cli.jou",
+    "tests/other_errors/assert_fail.jou",
+    "tests/other_errors/assert_fail_complex.jou",
+    "tests/other_errors/assert_fail_multiline.jou",
+    "tests/syntax_error/missing_end_quote_in_byte.jou",
+    "tests/syntax_error/missing_end_quote_in_string.jou",
+    "tests/syntax_error/string_continue_on_next_line.jou",
 ]
 command = {
     if = "WINDOWS",
-    then = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/output_processor.jou'],
-    else = ["sh", "-c", 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/output_processor.jou'],
+    then = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/backslash_to_forward_slash.jou'],
+    else = ["jou", "{file}"],
 }
-expected_exit_code = 0
+expected_exit_code = {if = "WINDOWS", then = 0, else = 1}
 
 # Don't run some files
 [[tests]]
 files = [
     "tests/should_succeed/imported/**/*.jou",
-    "tests/should_succeed/output_processor/output_processor.jou",
+    "tests/should_succeed/output_processor/*.jou",
 ]
 skip_mode = "skip_silently"
 
