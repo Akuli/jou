@@ -21,6 +21,24 @@ const EEXIST: int = 17
 
 
 @public
+def path_strcmp(a: byte*, b: byte*) -> int:
+    if WINDOWS:
+        # Ignore which kind of slash is used
+        while *a != '\0' or *b != '\0':
+            a_byte = *a++
+            b_byte = *b++
+            if a_byte == '\\':
+                a_byte = '/'
+            if b_byte == '\\':
+                b_byte = '/'
+            if a_byte != b_byte:
+                return (a_byte as int) - (b_byte as int)
+        return 0
+    else:
+        return strcmp(a, b)
+
+
+@public
 def file_exists(path: byte*) -> bool:
     f = fopen(path, "r")
     if f == NULL:
@@ -240,6 +258,9 @@ def disjoint_interval_id(a: int, b: int) -> int:
 def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
     h = new_hash()
     h.add_byte(global_compiler_state.args.optlevel as byte)
+    # TODO: normalize the path somewhat, e.g. which slashes to use on windows
+    # Currently, on windows, we may miss cache only because slashes are different
+    # See also: path_strcmp()
     h.add_bytes(jou_file_path, strlen(jou_file_path))
 
     if (
