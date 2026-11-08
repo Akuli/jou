@@ -6,6 +6,7 @@ import "stdlib/list.jou"
 import "stdlib/mem.jou"
 import "stdlib/sort.jou"
 import "stdlib/str.jou"
+import "stdlib/toml.jou"
 
 import "./fail.jou"
 import "./glob.jou"
@@ -19,60 +20,60 @@ def list_contains_string(list: List[byte*], string: byte*) -> bool:
     return False
 
 
-def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*, glob_lineno: int) -> None:
-    f = fopen(path, "rb")
-    if f == NULL:
-        snprintf(big_buffer, sizeof(big_buffer), "failed to open file '%s': %s", path, strerror(get_errno()))
-        fail(big_buffer)
-
-    lineno = 0
-    code_first_lineno = 0  # 0 if not inside a code block
-    code = List[byte]{}
-
-    while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
-        lineno++
-
-        if starts_with(big_buffer, "```"):
-            lang = &big_buffer[3]
-            trim_ascii_whitespace(lang)
-
-            if *lang != '\0' and list_contains_string(config.markdown_code_block_languages, lang):
-                # Start of code block
-                code_first_lineno = lineno + 1
-                assert code.len == 0
-
-            elif *lang == '\0' and code_first_lineno != 0:
-                # End of code block
-                code.append('\0')
-                test = Test{
-                    path = strdup(path),
-                    config = config,
-                    first_markdown_lineno = code_first_lineno,
-                    last_markdown_lineno = lineno - 1,
-                    code_in_markdown = strdup(code.ptr),
-                }
-                assert test.code_in_markdown != NULL
-                tests.append(test)
-
-                code_first_lineno = 0
-                code.len = 0
-
-            else:
-                # Whatever this is, it cannot occur in the middle of a code block
-                code_first_lineno = 0
-                code.len = 0
-
-        elif code_first_lineno != 0:
-            # Line inside a code block
-            code.extend_from_ptr(big_buffer, strlen(big_buffer))
-
-    free(code.ptr)
-
-    if ferror(f) != 0:
-        snprintf(big_buffer, sizeof(big_buffer), "failed to read file '%s': %s", path, strerror(get_errno()))
-        fail_in_toml(glob_lineno, big_buffer)
-
-    fclose(f)
+#def add_tests_from_markdown(tests: List[Test]*, path: byte*, config: TestConfig*, glob_lineno: int) -> None:
+#    f = fopen(path, "rb")
+#    if f == NULL:
+#        snprintf(big_buffer, sizeof(big_buffer), "failed to open file '%s': %s", path, strerror(get_errno()))
+#        fail(big_buffer)
+#
+#    lineno = 0
+#    code_first_lineno = 0  # 0 if not inside a code block
+#    code = List[byte]{}
+#
+#    while fgets(big_buffer, sizeof(big_buffer), f) != NULL:
+#        lineno++
+#
+#        if starts_with(big_buffer, "```"):
+#            lang = &big_buffer[3]
+#            trim_ascii_whitespace(lang)
+#
+#            if *lang != '\0' and list_contains_string(config.markdown_code_block_languages, lang):
+#                # Start of code block
+#                code_first_lineno = lineno + 1
+#                assert code.len == 0
+#
+#            elif *lang == '\0' and code_first_lineno != 0:
+#                # End of code block
+#                code.append('\0')
+#                test = Test{
+#                    path = strdup(path),
+#                    config = config,
+#                    first_markdown_lineno = code_first_lineno,
+#                    last_markdown_lineno = lineno - 1,
+#                    code_in_markdown = strdup(code.ptr),
+#                }
+#                assert test.code_in_markdown != NULL
+#                tests.append(test)
+#
+#                code_first_lineno = 0
+#                code.len = 0
+#
+#            else:
+#                # Whatever this is, it cannot occur in the middle of a code block
+#                code_first_lineno = 0
+#                code.len = 0
+#
+#        elif code_first_lineno != 0:
+#            # Line inside a code block
+#            code.extend_from_ptr(big_buffer, strlen(big_buffer))
+#
+#    free(code.ptr)
+#
+#    if ferror(f) != 0:
+#        snprintf(big_buffer, sizeof(big_buffer), "failed to read file '%s': %s", path, strerror(get_errno()))
+#        fail_in_toml(glob_lineno, big_buffer)
+#
+#    fclose(f)
 
 
 def is_markdown_file(path: byte*) -> bool:
@@ -85,37 +86,37 @@ def is_markdown_file(path: byte*) -> bool:
     )
 
 
-class PathAndTestConfig:
-    path: byte*
-    glob_lineno: int
-    config: TestConfig
-
-
-def get_default_config(
-    defaults_for_all_tests: TestConfig*,
-    markdown: bool,
-    args: CommandLineArgs*,
-) -> TestConfig:
-    defaults = TestConfig{}
-
-    defaults.output_comment_rules.append(["Output", "{comment}"])
-    defaults.value_present[TestConfigOption.OutputCommentRules as int] = True
-
-    defaults.markdown_code_block_languages.append("jou")
-    defaults.value_present[TestConfigOption.MarkdownCodeBlockLanguages as int] = True
-
-    defaults.command.extend(args.jou_command)
-    if markdown:
-        defaults.command.append("--lines={lines}")
-    defaults.command.append("{file}")
-    defaults.value_present[TestConfigOption.Command as int] = True
-
-    defaults_for_all_tests.assign_to(&defaults)
-    return defaults
+#class PathAndTestConfig:
+#    path: byte*
+#    glob_lineno: int
+#    config: TestConfig
+#
+#
+#def get_default_config(
+#    defaults_for_all_tests: TestConfig*,
+#    markdown: bool,
+#    args: CommandLineArgs*,
+#) -> TestConfig:
+#    defaults = TestConfig{}
+#
+#    defaults.output_comment_rules.append(["Output", "{comment}"])
+#    defaults.value_present[TestConfigOption.OutputCommentRules as int] = True
+#
+#    defaults.markdown_code_block_languages.append("jou")
+#    defaults.value_present[TestConfigOption.MarkdownCodeBlockLanguages as int] = True
+#
+#    defaults.command.extend(args.jou_command)
+#    if markdown:
+#        defaults.command.append("--lines={lines}")
+#    defaults.command.append("{file}")
+#    defaults.value_present[TestConfigOption.Command as int] = True
+#
+#    defaults_for_all_tests.assign_to(&defaults)
+#    return defaults
 
 
 @public
-def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml, args: CommandLineArgs*) -> List[Test]:
+def step3_discover_tests(parsed_joutest_toml: TOML*, args: CommandLineArgs*) -> List[Test]:
     # We can't do this in one pass (that is, loop through just once), because
     # multiple sections of joutest.toml can apply to the same file, and we
     # already need to know the final/merged configuration when extracting tests
@@ -167,10 +168,10 @@ def step3_discover_tests(parsed_joutest_toml: ParsedJoutestToml, args: CommandLi
     # Now create tests from each file
     tests = List[Test]{}
     for merged_config = merged_configs.ptr; merged_config < merged_configs.end(); merged_config++:
-        if is_markdown_file(merged_config.path):
-            add_tests_from_markdown(&tests, merged_config.path, &merged_config.config, merged_config.glob_lineno)
-        else:
-            tests.append(Test{path = merged_config.path, config = &merged_config.config})
+#        if is_markdown_file(merged_config.path):
+#            add_tests_from_markdown(&tests, merged_config.path, &merged_config.config, merged_config.glob_lineno)
+#        else:
+        tests.append(Test{path = merged_config.path, config = &merged_config.config})
 
     # Can't free merged_configs, tests contain pointers to its configs now
     return tests
