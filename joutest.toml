@@ -89,6 +89,10 @@ command = {
     else = ["sh", "-c", 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/jouexe.jou'],
 }
 
+[[tests]]
+files = "tests/should_succeed/compiler_unit_tests.jou"
+command = ["jou", "{file}"]  # don't valgrind, that would need the suppressions file
+
 # TODO(joutest): a way to mark this entire section as "if WINDOWS"
 # TODO(joutest): built-in simple output replacements, so that I don't need so many output_processor scripts
 [[tests]]
