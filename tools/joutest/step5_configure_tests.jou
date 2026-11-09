@@ -209,17 +209,15 @@ def get_skip_mode_from_config(test: Test*, key: byte*) -> SkipMode:
     toml = test.get_config(key)
     assert toml != NULL  # specified in builtin_defaults.toml
 
-    string = toml_to_string(toml)
-    match ("" if string == NULL else string) with strcmp:
-        case "dont_skip":
-            return SkipMode.DontSkip
-        case "skip_normally":
-            return SkipMode.SkipNormally
-        case "skip_silently":
-            return SkipMode.SkipSilently
-        case _:
-            snprintf(big_buffer, sizeof(big_buffer), "'%s' must be \"dont_skip\", \"skip_normally\" or \"skip_silently\"", key)
-            fail_in_toml(toml.lineno, big_buffer)
+    if toml_is_false(toml):
+        return SkipMode.DontSkip
+    if toml_is_true(toml):
+        return SkipMode.SkipNormally
+    if toml_to_string(toml) != NULL and strcmp(toml_to_string(toml), "silent") == 0:
+        return SkipMode.SkipSilently
+
+    snprintf(big_buffer, sizeof(big_buffer), "'%s' must be false, true or \"silent\"", key)
+    fail_in_toml(toml.lineno, big_buffer)
 
 def assign_skip(dest: SkipMode*, value: SkipMode) -> bool:
     # The "highest" skip mode wins (no skip specified < normal skip < silent skip)
@@ -246,11 +244,11 @@ def configure_skip(test: Test*, args: CommandLineArgs*) -> None:
         # I don't know. Let's be explicit for now, unless that causes problems.
         assign_skip(&test.skip, SkipMode.SkipNormally)
 
-    assign_skip(&test.skip, get_skip_mode_from_config(test, "skip_mode"))
+    assign_skip(&test.skip, get_skip_mode_from_config(test, "skip"))
 
     # do this every time, so that errors are detected even if there is expected output
     # TODO: is there a test that ensures this behavior?
-    mode = get_skip_mode_from_config(test, "skip_mode_if_no_expected_output")
+    mode = get_skip_mode_from_config(test, "skip_if_no_expected_output")
     if *test.expected_output == '\0':
         assign_skip(&test.skip, mode)
 

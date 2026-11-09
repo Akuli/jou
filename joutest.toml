@@ -114,17 +114,17 @@ files = [
     "tests/should_succeed/output_processor/*.jou",  # scripts to work around joutest limitations
     "tests/other_errors/memory_leak.jou",  # valgrinded in compiler_cli
 ]
-skip_mode = "skip_silently"
+skip = "silent"
 
 # 32-bit only test
 [[tests]]
 files = "tests/wrong_type/*_32bit.jou"
-skip_mode = {if = "IS_32BIT", then = "dont_skip", else = "skip_normally"}
+skip = {if = "IS_32BIT", then = false, else = true}
 
 # 64-bit only test
 [[tests]]
 files = "tests/wrong_type/*_64bit.jou"
-skip_mode = {if = "IS_32BIT", then = "skip_normally", else = "dont_skip"}
+skip = {if = "IS_32BIT", then = true, else = false}
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -172,14 +172,14 @@ command = {
 # error message that is not necessarily in english, netbsd returns binary junk.
 [[tests]]
 files = "tests/tests_of_joutest/bad_configs/markdown_read_error/joutest.toml"
-skip_mode = {
+skip = {
     if = "WINDOWS",
-    then = "skip_normally",
+    then = true,
     else = {
         # TODO(joutest): "WINDOWS or NETBSD" ?
         if = "NETBSD",
-        then = "skip_normally",
-        else = "dont_skip",
+        then = true,
+        else = false,
     }
 }
 
@@ -195,14 +195,14 @@ output_comment_rules = {
     'Warning' = 'compiler warning for file "{file}", line {line}: {comment}',
     'Error' = 'compiler error in file "{file}", line {line}: {comment}',
 }
-skip_mode_if_no_expected_output = "skip_silently"
+skip_if_no_expected_output = "silent"
 
 [[tests]]
 files = "doc/assert.md"
 # TODO: Ideally we could somehow show line numbers relative to the code block in
 #       markdown file, not the whole markdown file.
 #add_newlines_to_fix_markdown_line_number = false
-skip_mode = "skip_normally"
+skip = true
 
 # Ignore exit codes for code in markdown that intentionally fails to compile or run
 #
