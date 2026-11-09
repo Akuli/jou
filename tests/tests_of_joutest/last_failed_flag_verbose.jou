@@ -35,7 +35,7 @@ def main() -> int:
     mkdir("tmp", 0o777)
     mkdir("tmp/joutest-lf-verbose", 0o777)
 
-    write_to_file("tmp/joutest-lf-verbose/joutest.toml", "[[tests]]\nfiles = \"*.jou\"\n[[tests]]\nfiles = \"skipped*.jou\"\nskip = \"skip_normally\"")
+    write_to_file("tmp/joutest-lf-verbose/joutest.toml", "[[tests]]\nfiles = \"*.jou\"\n[[tests]]\nfiles = \"skipped*.jou\"\nskip = true")
     write_to_file("tmp/joutest-lf-verbose/good.jou", "def main() -> int:\n    return 0")
     write_to_file("tmp/joutest-lf-verbose/bad.jou", "lol")
     write_to_file("tmp/joutest-lf-verbose/skipped.jou", "lol")
