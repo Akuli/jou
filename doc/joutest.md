@@ -271,29 +271,27 @@ files = {
 }
 ```
 
-The `if` value can be any [built-in Jou boolean constant](supported-platforms.md#built-in-constants) as a string,
-and `then` and `else` are the values to be used.
-So on Windows, the above is equivalent to:
+For example, on Windows, the above is equivalent to:
 
 ```toml
 [[tests]]
 files = "windows_tests/test_*.jou"
 ```
 
-You can also nest multiple `if` tables:
+The `if` condition can be:
+- any [built-in Jou boolean constant](supported-platforms.md#built-in-constants) as a string
+- `{any = [cond1, cond2, cond3]}` (this is basically `or`) where the array contains any number of other valid conditions
+- `{all = [cond1, cond2, cond3]}` (this is basically `and`)
+- `{not = cond}`
+
+For example, the following skips a test if joutest is running on Windows or NetBSD:
 
 ```toml
-[[tests]]
-files = {
-    if = "WINDOWS",
-    then = "windows_tests/test_*.jou",
-    else = {
-        if = "MACOS",
-        then = "macos_tests/test_*.jou",
-        else = "posix_tests/test_*.jou",
-    },
-}
+skip_mode = {if.any = ["WINDOWS", "NETBSD"], then = "skip_normally", else = "dont_skip"}
 ```
+
+Here `if.any = ["WINDOWS", "NETBSD"]` is same as `if = {any = ["WINDOWS", "NETBSD"]}`
+because of how TOML works.
 
 
 ## Content of `joutest.toml`
