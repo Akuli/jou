@@ -344,10 +344,18 @@ def lock_exe_path() -> byte[100]:
             strcat(exe_path, ".exe")
 
         if mkdir(global_compiler_state.exe_lock_path, 0o777) == -1:
-            if get_errno() != EEXIST:
-                fprintf(get_stderr(), "error: failed to create directory \"%s\": %s\n", global_compiler_state.exe_lock_path, strerror(get_errno()))
-                exit(1)
-            # already locked by another Jou compiler process
+            # already locked by another Jou compiler process.
+            #
+            # You would think that the error is EEXIST (File exists), but on
+            # windows, it can also be EACCES (Permission denied). See:
+            #
+            #   https://github.com/Akuli/jou/issues/1521
+            #   https://stackoverflow.com/questions/25394431/why-does-mkdir-occasionally-give-access-denied
+            #   https://stackoverflow.com/questions/60112795/os-mkdir-can-fail-with-permissionerror-after-successful-shutil-rmtree-on-windows
+            #
+            # I don't think it makes sense to check which error we got. Some
+            # other system might return something else funny in some obscure
+            # corner case.
             continue
 
         # Check if we can write to the executable, if not it's probably running.
