@@ -172,16 +172,7 @@ command = {
 # error message that is not necessarily in english, netbsd returns binary junk.
 [[tests]]
 files = "tests/tests_of_joutest/bad_configs/markdown_read_error/joutest.toml"
-skip = {
-    if = "WINDOWS",
-    then = true,
-    else = {
-        # TODO(joutest): "WINDOWS or NETBSD" ?
-        if = "NETBSD",
-        then = true,
-        else = false,
-    }
-}
+skip_mode = {if.any = ["WINDOWS", "NETBSD"], then = true, else = false}
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
