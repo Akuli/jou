@@ -119,12 +119,12 @@ skip = "silent"
 # 32-bit only test
 [[tests]]
 files = "tests/wrong_type/*_32bit.jou"
-skip = {if = "IS_32BIT", then = false, else = true}
+skip.if.not = "IS_32BIT"
 
 # 64-bit only test
 [[tests]]
 files = "tests/wrong_type/*_64bit.jou"
-skip = {if = "IS_32BIT", then = true, else = false}
+skip.if = "IS_32BIT"
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~
