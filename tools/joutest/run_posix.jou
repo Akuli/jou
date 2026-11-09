@@ -273,8 +273,7 @@ def wait_for_any_test_to_complete(states: RunState*, nstates: int) -> int:
                 set_blocking(state.output_pipe_read, True)
                 while read_output(state) > 0:
                     pass
-                close(state.output_pipe_read)
-                state.output_pipe_read = -1
+                assert state.output_pipe_read == -1
 
             if WIFEXITED(wstatus):
                 state.test.actual_exit_code = WEXITSTATUS(wstatus)
