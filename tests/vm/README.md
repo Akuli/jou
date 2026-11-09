@@ -78,3 +78,8 @@ Dependencies (in addition to what you need for Jou anyway):
 - aarch64: `sudo apt install qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu`
 - armv6: `sudo apt install qemu-system-arm`
 - Raspberry Pi OS: `sudo apt install parted jq e2fsprogs`
+
+After making changes to the scripts,
+GitHub Actions sets up VMs in pull requests from scratch every time, which is very slow.
+To fix this, trigger a GitHub Actions run manually on the main branch
+using the "Run workflow" button here: https://github.com/Akuli/jou/actions/workflows/vm.yml
