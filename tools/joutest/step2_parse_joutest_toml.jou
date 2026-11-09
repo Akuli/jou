@@ -11,9 +11,27 @@ import "./state.jou"
 
 
 def condition_is_true(toml: TOML*) -> bool:
+    if toml.type == TOMLType.Table and toml.table.len == 1:
+        value = &toml.table.ptr.value
+        match toml.table.ptr.key with strcmp:
+            case "any":
+                if value.type == TOMLType.Array:
+                    for item = value.array.ptr; item < value.array.end(); item++:
+                        if condition_is_true(item):
+                            return True
+                    return False
+            case "all":
+                if value.type == TOMLType.Array:
+                    for item = value.array.ptr; item < value.array.end(); item++:
+                        if not condition_is_true(item):
+                            return False
+                    return True
+            case "not":
+                return not condition_is_true(value)
+
     condition = toml_to_string(toml)
     if condition == NULL:
-        fail_in_toml(toml.lineno, "'if' condition must be a string")
+        fail_in_toml(toml.lineno, "'if' condition must be a string or {any = [...]} or {all = [...]} or {not = ...}")
 
     match condition with strcmp:
         case "WINDOWS":
