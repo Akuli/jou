@@ -27,15 +27,9 @@ output_comment_rules = {Second = "second {comment}", First = "first {comment}", 
 files = "hello.jou"
 output_comment_order = []  # This is the default value, I just want to check that it can be specified explicitly
 
-[[tests]]
-files = {if.any = ["WINDOWS", {not = "WINDOWS"}], then = "hello2.jou", else = "this should not be used.jou"}
-
-[[tests]]
-files = {if.all = ["LINUX", {not = "LINUX"}], then = "this should not be used.jou", else = "hello3.jou"}
-
 # These comments are for joutest. It is being used to test itself here.
 # See joutest.toml at the root of the repository.
 #
-# Output: .........
+# Output: .......
 # Output:
-# Output: 9 succeeded
+# Output: 7 succeeded

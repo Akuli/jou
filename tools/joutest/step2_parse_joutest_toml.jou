@@ -65,28 +65,32 @@ def eliminate_if_then_else_tables(toml: TOML*, depth: int) -> None:
                 if condition != NULL:
                     then_value = toml_get(toml, "then")
                     else_value = toml_get(toml, "else")
-                    if then_value == NULL or else_value == NULL:
-                        fail_in_toml(toml.lineno, "if/then/else tables must contain 'if', 'then' and 'else'")
 
-                    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
-                        if (
-                            strcmp(kv.key, "if") != 0
-                            and strcmp(kv.key, "then") != 0
-                            and strcmp(kv.key, "else") != 0
-                        ):
-                            snprintf(big_buffer, sizeof(big_buffer), "unknown setting '%s' in an if/then/else table", kv.key)
-                            fail_in_toml(kv.value.lineno, big_buffer)
+                    if then_value == NULL and else_value == NULL:
+                        # Leaks memory, but doesn't really matter in this use case
+                        toml.type = TOMLType.Boolean
+                        toml.boolean = condition_is_true(condition)
 
-                    if condition_is_true(condition):
-                        new_value = then_value
+                    elif then_value != NULL and else_value != NULL:
+                        for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+                            if (
+                                strcmp(kv.key, "if") != 0
+                                and strcmp(kv.key, "then") != 0
+                                and strcmp(kv.key, "else") != 0
+                            ):
+                                snprintf(big_buffer, sizeof(big_buffer), "unknown setting '%s' in an if/then/else table", kv.key)
+                                fail_in_toml(kv.value.lineno, big_buffer)
+
+                        new_value = then_value if condition_is_true(condition) else else_value
+                        temp = *new_value
+                        *new_value = TOML{type = TOMLType.Error}  # avoid freeing the value
+                        toml.free()
+                        *toml = temp
+
                     else:
-                        new_value = else_value
+                        fail_in_toml(toml.lineno, "if/then/else tables must contain 'if', 'then' and 'else' (or just 'if', that means same as 'then = true, else = false')")
 
-                    temp = *new_value
-                    *new_value = TOML{type = TOMLType.Error}  # avoid freeing the value
-                    toml.free()
-                    *toml = temp
-                    continue  # Repeat to handle nested `if` tables
+                    continue  # Repeat to handle nested `if` tables, if any
 
                 # Normal table
                 for kv = toml.table.ptr; kv < toml.table.end(); kv++:

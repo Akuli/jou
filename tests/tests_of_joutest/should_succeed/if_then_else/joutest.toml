@@ -2,6 +2,16 @@
 files = "hello.jou"
 command = {if = "WINDOWS", then = ["cmd", "/c", "echo hello"], else = ["echo", "hello"]}
 
-# Output: .
+[[tests]]
+files = "skipped.jou"
+skip.if.any = ["WINDOWS", {not = "WINDOWS"}]
+
+[[tests]]
+files = {if.any = ["WINDOWS", {not = "WINDOWS"}], then = "hello2.jou", else = "this should not be used.jou"}
+
+[[tests]]
+files = {if.all = ["LINUX", {not = "LINUX"}], then = "this should not be used.jou", else = "hello3.jou"}
+
+# Output: .s..
 # Output:
-# Output: 1 succeeded
+# Output: 3 succeeded, 1 skipped

@@ -284,14 +284,31 @@ The `if` condition can be:
 - `{all = [cond1, cond2, cond3]}` (this is basically `and`)
 - `{not = cond}`
 
+If `then` and `else` are omitted, joutest behaves as if you specified `then = true, else = false`.
+
 For example, the following skips a test if joutest is running on Windows or NetBSD:
 
 ```toml
-skip_mode = {if.any = ["WINDOWS", "NETBSD"], then = "skip_normally", else = "dont_skip"}
+skip = {if = {any = ["WINDOWS", "NETBSD"]}, then = true, else = false}
 ```
 
-Here `if.any = ["WINDOWS", "NETBSD"]` is same as `if = {any = ["WINDOWS", "NETBSD"]}`
-because of how TOML works.
+Because of how TOML works, you can also write `if.any = ["WINDOWS", "NETBSD"]` instead of `if = {any = ["WINDOWS", "NETBSD"]}`:
+
+```toml
+skip = {if.any = ["WINDOWS", "NETBSD"], then = true, else = false}
+```
+
+And joutest allows you to omit `then` and `else` in this case:
+
+```toml
+skip = {if.any = ["WINDOWS", "NETBSD"]}
+```
+
+By applying the same TOML syntax feature again, this simplifies even more:
+
+```toml
+skip.if.any = ["WINDOWS", "NETBSD"]
+```
 
 
 ## Content of `joutest.toml`
@@ -335,16 +352,16 @@ Everything else is optional.
         then the output specified in `# Output1:` comments goes before the output specified in `# Output2:` comments,
         even when `# Output1:` comments are placed after `# Output2:` comments.
         An empty array means that all output comments are used in their original order.
-    - `skip_mode` (default: `"dont_skip"`) defines whether and how the test is skipped:
-        - `"dont_skip"` means that the test will run unless something else causes it to be skipped.
+    - `skip` (default: `false`) defines whether and how the test is skipped:
+        - `false` means that the test will run unless something else causes it to be skipped.
             This is the default.
-        - `"skip_normally"` means that the test does not run,
+        - `true` means that the test does not run,
             and the test shows up as skipped (yellow `s`) when you run `joutest`.
             However, if something else causes the test to be skipped silently,
             then that happens instead, and the test does not show up at all in the output.
-        - `"skip_silently"` means that the test is ignored entirely.
+        - `"silent"` means that the test is ignored entirely.
             It does not show up at all when you run `joutest`.
-    - `skip_mode_if_no_expected_output` (default: `"dont_skip"`) is like `skip_mode`,
+    - `skip_if_no_expected_output` (default: `false`) is like `skip`,
         but it only applies if the expected output specified with [output comments](#output-comments) is empty.
         In other words, this determines whether tests with no output comments are skipped.
         By default, having or not having output comments does not affect skipping.
