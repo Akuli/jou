@@ -16,14 +16,14 @@ jobs:
         params:
           # Oldest version
           # TODO: We claim to support LLVM 15 and 16. Drop support? No longer available in github actions ubuntu-latest.
-          - { llvm-version: 17, opt-level: '-O1' }
+          - { llvm-version: 17, opt-level: '-O1', os: ubuntu-26.04 }
           # Latest version: all opt levels
           # TODO: LLVM 21 is not available from apt yet.
           # TODO: ... is it still not? i would guess it is, GitHub updated ubuntu-latest since.
-          - { llvm-version: 20, opt-level: '-O0' }
-          - { llvm-version: 20, opt-level: '-O1' }
-          - { llvm-version: 20, opt-level: '-O2' }
-          - { llvm-version: 20, opt-level: '-O3' }
+          - { llvm-version: 20, opt-level: '-O0', os: ubuntu-26.04 }
+          - { llvm-version: 20, opt-level: '-O1', os: ubuntu-26.04 }
+          - { llvm-version: 20, opt-level: '-O2', os: ubuntu-26.04 }
+          - { llvm-version: 20, opt-level: '-O3', os: ubuntu-26.04 }
           - { llvm-version: 20, opt-level: '-O1', os: ubuntu-26.04-arm }
     runs-on: ${{ matrix.os }}
     steps:
