@@ -22,11 +22,6 @@ jobs:
           - { llvm-version: 22, opt-level: '-O1', os: ubuntu-26.04 }
           - { llvm-version: 22, opt-level: '-O2', os: ubuntu-26.04 }
           - { llvm-version: 22, opt-level: '-O3', os: ubuntu-26.04 }
-          - { llvm-version: 17, opt-level: '-O1', os: ubuntu-26.04-arm }  # TODO: temporary, remove
-          - { llvm-version: 18, opt-level: '-O1', os: ubuntu-26.04-arm }  # TODO: temporary, remove
-          - { llvm-version: 19, opt-level: '-O1', os: ubuntu-26.04-arm }  # TODO: temporary, remove
-          - { llvm-version: 20, opt-level: '-O1', os: ubuntu-26.04-arm }  # TODO: temporary, remove
-          - { llvm-version: 21, opt-level: '-O1', os: ubuntu-26.04-arm }  # TODO: temporary, remove
           - { llvm-version: 22, opt-level: '-O1', os: ubuntu-26.04-arm }
     runs-on: ${{ matrix.params.os }}
     steps:
@@ -81,14 +76,11 @@ jobs:
       - name: "Compile"
         run: make
       - name: "Run tests"
-        #run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
-        run: true  # TODO: enable again
+        run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
       - name: "Compile the compiler with itself"
-        #run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
-        run: true  # TODO: enable again
+        run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
       - name: "Run tests again"
-        #run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
-        run: true  # TODO: enable again
+        run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
       # Valgrinding all files is slow, but let's valgrind the hello world.
       # This is enough to catch many bugs.
       #
