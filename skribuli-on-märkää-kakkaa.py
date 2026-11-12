@@ -44,5 +44,5 @@ for path in sorted(glob.glob("valgrind-logs*/valgrind*arm*/6_*")):
 for path, errors in errors.items():
     print(path.split('(')[1].split(')')[0])
     for error_id in sorted(errors):
-        print("  ", error_id)
+        print("  ", error_id.split('(')[0])
     print()
