@@ -335,6 +335,9 @@ Everything else is optional.
         then the output specified in `# Output1:` comments goes before the output specified in `# Output2:` comments,
         even when `# Output1:` comments are placed after `# Output2:` comments.
         An empty array means that all output comments are used in their original order.
+    - `expected_output_transforms` (default: `[]`) is an array of operations that will be done to the expected output collected from comments.
+        Currently the only supported operation is `{replace = "...", with = "..."}`, which finds and replaces substrings with another string.
+        For example, `{replace = '\', with = '/'}` is useful for Windows paths.
     - `skip_mode` (default: `"dont_skip"`) defines whether and how the test is skipped:
         - `"dont_skip"` means that the test will run unless something else causes it to be skipped.
             This is the default.

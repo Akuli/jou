@@ -89,7 +89,6 @@ command = {
 files = "tests/should_succeed/compiler_unit_tests.jou"
 command = ["jou", "{file}"]  # don't valgrind, that would need the suppressions file
 
-# TODO(joutest): built-in simple output replacements, so that I don't need so many output_processor scripts
 [[tests]]
 files = {
     # This section is needed only on windows
@@ -104,8 +103,10 @@ files = {
     ],
     else = [],
 }
-command = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/backslash_to_forward_slash.jou']
-expected_exit_code = 0
+expected_output_transforms = [
+    {replace = 'tests\other_errors\', with = 'tests/other_errors/'},
+    {replace = 'tests\syntax_error\', with = 'tests/syntax_error/'},
+]
 
 # Don't run some files
 [[tests]]

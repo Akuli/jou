@@ -357,6 +357,44 @@ def configure_exit_code(test: Test*) -> None:
             fail_in_toml(toml.lineno, "'expected_exit_code' must be an integer between 0 and 255")
 
 
+# Returns False if the TOML specifies something invalid
+def do_expected_output_transform(test: Test*, toml: TOML*) -> bool:
+    old = toml_to_string(toml_get(toml, "replace"))
+    new = toml_to_string(toml_get(toml, "with"))
+    if old == NULL or new == NULL:
+        return False  # TODO: tests
+
+    assert toml.type == TOMLType.Table  # must be, if toml_get() succeeded
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        if strcmp(kv.key, "replace") != 0 and strcmp(kv.key, "with") != 0:
+            return False  # TODO: tests
+
+    result = List[byte]{}
+    s = test.expected_output
+    while *s != '\0':
+        if starts_with(s, old):
+            s = &s[strlen(old)]
+            result.extend_from_ptr(new, strlen(new))
+        else:
+            result.append(*s++)
+    result.append('\0')
+
+    free(test.expected_output)
+    test.expected_output = result.ptr
+    return True
+
+def transform_expected_output(test: Test*) -> None:
+    toml = test.get_config("expected_output_transforms")
+    assert toml != NULL  # specified in builtin_defaults.toml
+
+    if toml.type != TOMLType.Array:
+        assert False  # TODO: error handling
+
+    for transform = toml.array.ptr; transform < toml.array.end(); transform++:
+        ok = do_expected_output_transform(test, transform)
+        assert ok  # TODO: error handling
+
+
 @public
 def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     if args.last_failed:
@@ -370,3 +408,4 @@ def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         configure_command(test, args)
         configure_output_streams(test)
         configure_exit_code(test)
+        transform_expected_output(test)
