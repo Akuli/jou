@@ -89,23 +89,23 @@ command = {
 files = "tests/should_succeed/compiler_unit_tests.jou"
 command = ["jou", "{file}"]  # don't valgrind, that would need the suppressions file
 
-# TODO(joutest): a way to mark this entire section as "if WINDOWS"
 # TODO(joutest): built-in simple output replacements, so that I don't need so many output_processor scripts
 [[tests]]
-files = [
-    "tests/other_errors/assert_fail.jou",
-    "tests/other_errors/assert_fail_complex.jou",
-    "tests/other_errors/assert_fail_multiline.jou",
-    "tests/syntax_error/missing_end_quote_in_byte.jou",
-    "tests/syntax_error/missing_end_quote_in_string.jou",
-    "tests/syntax_error/string_continue_on_next_line.jou",
-]
-command = {
+files = {
+    # This section is needed only on windows
     if = "WINDOWS",
-    then = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/backslash_to_forward_slash.jou'],
-    else = ["jou", "{file}"],
+    then = [
+        "tests/other_errors/assert_fail.jou",
+        "tests/other_errors/assert_fail_complex.jou",
+        "tests/other_errors/assert_fail_multiline.jou",
+        "tests/syntax_error/missing_end_quote_in_byte.jou",
+        "tests/syntax_error/missing_end_quote_in_string.jou",
+        "tests/syntax_error/string_continue_on_next_line.jou",
+    ],
+    else = [],
 }
-expected_exit_code = {if = "WINDOWS", then = 0, else = 1}
+command = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/backslash_to_forward_slash.jou']
+expected_exit_code = 0
 
 # Don't run some files
 [[tests]]
