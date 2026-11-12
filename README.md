@@ -183,6 +183,7 @@ These LLVM/clang versions are supported:
 - LLVM 19 with clang 19
 - LLVM 20 with clang 20
 - LLVM 21 with clang 21
+- LLVM 22 with clang 22
 
 By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
@@ -212,6 +213,7 @@ $ LLVM_CONFIG=llvm-config-15 make
     - `llvm@19`
     - `llvm@20`
     - `llvm@21`
+    - `llvm@22`
 2. Install Python if you don't have it already.
     Any reasonably new version will work.
 3. Download and compile Jou.
