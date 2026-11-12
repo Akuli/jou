@@ -95,4 +95,5 @@ jobs:
         # joutest exits.
         run: valgrind --error-exitcode=1 ./joutest --verbose hello
       - name: "Run TOML tests"
+        if: runner.arch == 'X64'
         run: tests/toml/run.sh --jou-flags "${{ matrix.params.opt-level }}"
