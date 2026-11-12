@@ -143,7 +143,7 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 1. Install the dependencies:
     ```
-    $ sudo apt install git llvm-19-dev clang-19 make python3
+    $ sudo apt install git llvm-22-dev clang-22 make python3
     ```
     Let me know if you use a distro that doesn't have `apt`,
     and you need help with this step.
@@ -176,8 +176,6 @@ The instructions for developing Jou are in [CONTRIBUTING.md](CONTRIBUTING.md).
     so you need to use a full path (or `$HOME`) instead.
 
 These LLVM/clang versions are supported:
-- LLVM 15 with clang 15
-- LLVM 16 with clang 16
 - LLVM 17 with clang 17
 - LLVM 18 with clang 18
 - LLVM 19 with clang 19
@@ -189,25 +187,23 @@ By default, the `make` command picks the latest available version.
 You can also specify the version manually by setting the `LLVM_CONFIG` variable:
 
 ```
-$ sudo apt install llvm-15-dev clang-15
+$ sudo apt install llvm-20-dev clang-20
 $ make clean    # Delete files that were compiled with previous LLVM version
-$ LLVM_CONFIG=llvm-config-15 make
+$ LLVM_CONFIG=llvm-config-20 make
 ```
 
 </details>
 
 <details> <summary>MacOS</summary>
 
-1. Install Git, make and LLVM 15.
+1. Install Git, make and LLVM.
     If you do software development on MacOS, you probably already have Git and make,
     because they come with Xcode Command Line Tools.
     You can use [brew](https://brew.sh/) to install LLVM:
     ```
-    $ brew install llvm@15
+    $ brew install llvm@22
     ```
-    Instead of LLVM 15, you can also use any other supported LLVM version:
-    - `llvm@15`
-    - `llvm@16`
+    Instead of LLVM 22, you can also use any other supported LLVM version:
     - `llvm@17`
     - `llvm@18`
     - `llvm@19`
