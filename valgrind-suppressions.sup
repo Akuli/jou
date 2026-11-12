@@ -91,8 +91,17 @@
 
 # On aarch64, LLVM reads uninitialized memory for some reason. I didn't find
 # anyone online with the same valgrind error.
+
 {
-   <buildModuleSimplificationPipeline on aarch64>
+   <LLVM 19 buildModuleSimplificationPipeline on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm11PassBuilder33buildModuleSimplificationPipelineENS_17OptimizationLevelENS_18ThinOrFullLTOPhaseE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.19.*
+   ...
+}
+{
+   <LLVM 20 buildModuleSimplificationPipeline on aarch64>
    Memcheck:Cond
    fun:_ZN4llvm11PassBuilder33buildModuleSimplificationPipelineENS_17OptimizationLevelENS_18ThinOrFullLTOPhaseE
    ...
@@ -100,7 +109,24 @@
    ...
 }
 {
-   <emitPatchableFunctionEntries on aarch64>
+   <LLVM 21 buildModuleSimplificationPipeline on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm11PassBuilder33buildModuleSimplificationPipelineENS_17OptimizationLevelENS_18ThinOrFullLTOPhaseE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.21.*
+   ...
+}
+
+{
+   <LLVM 19 emitPatchableFunctionEntries on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm10AsmPrinter28emitPatchableFunctionEntriesEv
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.19.*
+   ...
+}
+{
+   <LLVM 20 emitPatchableFunctionEntries on aarch64>
    Memcheck:Cond
    fun:_ZN4llvm10AsmPrinter28emitPatchableFunctionEntriesEv
    ...
@@ -108,7 +134,24 @@
    ...
 }
 {
-   <llvm::TailCallElimPass::run>
+   <LLVM 21 emitPatchableFunctionEntries on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm10AsmPrinter28emitPatchableFunctionEntriesEv
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.21.*
+   ...
+}
+
+{
+   <LLVM 21 llvm::TailCallElimPass::run on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm16TailCallElimPass3runERNS_8FunctionERNS_15AnalysisManagerIS1_JEEE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.21.*
+   ...
+}
+{
+   <LLVM 22 llvm::TailCallElimPass::run on aarch64>
    Memcheck:Cond
    fun:_ZN4llvm16TailCallElimPass3runERNS_8FunctionERNS_15AnalysisManagerIS1_JEEE
    ...
