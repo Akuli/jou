@@ -81,7 +81,7 @@ jobs:
         # This command doesn't work if there is a space in current working directory
         run: |
           ./joutest --verbose \
-            --jou="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=$(pwd)/valgrind-suppressions.sup --gen-suppressions=all jou --valgrind ${{ matrix.params.opt-level }}" \
+            --jou="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=$(pwd)/valgrind-suppressions.sup jou --valgrind ${{ matrix.params.opt-level }}" \
             --skip-if-contains='# Error:' \
             --skip-if-contains='# ErrorNoLine:' \
             --skip-if-contains='compiler error in file "'
