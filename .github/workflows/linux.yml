@@ -9,7 +9,6 @@ on:
 jobs:
   test:
     timeout-minutes: 10
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
@@ -25,6 +24,8 @@ jobs:
           - { llvm-version: 20, opt-level: '-O1' }
           - { llvm-version: 20, opt-level: '-O2' }
           - { llvm-version: 20, opt-level: '-O3' }
+          - { llvm-version: 20, opt-level: '-O1', os: ubuntu-26.04-arm }
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
         with:
