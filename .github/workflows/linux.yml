@@ -25,7 +25,7 @@ jobs:
           - { llvm-version: 20, opt-level: '-O2', os: ubuntu-26.04 }
           - { llvm-version: 20, opt-level: '-O3', os: ubuntu-26.04 }
           - { llvm-version: 20, opt-level: '-O1', os: ubuntu-26.04-arm }
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.params.os }}
     steps:
       - uses: actions/checkout@v6
         with:
