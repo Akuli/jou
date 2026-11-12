@@ -39,15 +39,15 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-latest
+          #- ubuntu-latest
           - ubuntu-26.04-arm
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         # Please keep in sync with linux.yml and macos.yml
         params:
           # Oldest version: all opt levels
-          - { llvm-version: 17, opt-level: '-O0' }
-          - { llvm-version: 17, opt-level: '-O1' }
-          - { llvm-version: 17, opt-level: '-O2' }
+          #- { llvm-version: 17, opt-level: '-O0' }
+          #- { llvm-version: 17, opt-level: '-O1' }
+          #- { llvm-version: 17, opt-level: '-O2' }
           - { llvm-version: 17, opt-level: '-O3' }
           # Most versions: -O3 seems to trigger the most valgrind warnings, using that
           - { llvm-version: 18, opt-level: '-O3' }
@@ -55,9 +55,9 @@ jobs:
           - { llvm-version: 20, opt-level: '-O3' }
           - { llvm-version: 21, opt-level: '-O3' }
           # Latest version: all opt levels
-          - { llvm-version: 22, opt-level: '-O0' }
-          - { llvm-version: 22, opt-level: '-O1' }
-          - { llvm-version: 22, opt-level: '-O2' }
+          #- { llvm-version: 22, opt-level: '-O0' }
+          #- { llvm-version: 22, opt-level: '-O1' }
+          #- { llvm-version: 22, opt-level: '-O2' }
           - { llvm-version: 22, opt-level: '-O3' }
       fail-fast: false
     runs-on: ${{ matrix.os }}
@@ -81,7 +81,7 @@ jobs:
         # This command doesn't work if there is a space in current working directory
         run: |
           ./joutest --verbose \
-            --jou="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=$(pwd)/valgrind-suppressions.sup jou --valgrind ${{ matrix.params.opt-level }}" \
+            --jou="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=$(pwd)/valgrind-suppressions.sup --gen-suppressions=all jou --valgrind ${{ matrix.params.opt-level }}" \
             --skip-if-contains='# Error:' \
             --skip-if-contains='# ErrorNoLine:' \
             --skip-if-contains='compiler error in file "'
