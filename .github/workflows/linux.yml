@@ -91,7 +91,7 @@ jobs:
       # Deleting jou_compiled is important, because we want the compiler to do
       # a lot of work to discover bugs in many places.
       - name: "Run hello world with valgrind"
-        run: rm -rf jou_compiled && valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=valgrind-suppressions.sup --gen-suppressions=yes ./jou --valgrind ${{ matrix.params.opt-level }} examples/hello.jou
+        run: rm -rf jou_compiled && valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=valgrind-suppressions.sup --gen-suppressions=all ./jou --valgrind ${{ matrix.params.opt-level }} examples/hello.jou
       - name: "Run a few tests while valgrinding the test runner"
         # No leak checking flags here, currently joutest is a bit leaky and I'm
         # not sure if I want to fix it. The OS frees all memory anyway when
