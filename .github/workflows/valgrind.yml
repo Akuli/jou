@@ -94,7 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [check-if-needed, valgrind]
-    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.valgrind.result == 'failure' }}
+    if: ${{ github.repository == 'Akuli/jou' && github.ref == 'refs/heads/main' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.valgrind.result == 'failure' }}
     permissions:
       issues: write
     steps:
