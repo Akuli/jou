@@ -26,7 +26,7 @@
    ...
 }
 
-# Not a leak. Apparently LLVM versions 16, 17 and 18 read uninitialized memory
+# Not a bug. Apparently LLVM versions 16, 17 and 18 read uninitialized memory
 # but behavior doesn't depend on the data they read.
 {
    <compute known bits bug LLVM 17 version>
@@ -66,5 +66,221 @@
    fun:_ZN4llvm13FPPassManager13runOnFunctionERNS_8FunctionE
    fun:_ZN4llvm13FPPassManager11runOnModuleERNS_6ModuleE
    fun:_ZN4llvm6legacy15PassManagerImpl3runERNS_6ModuleE
+   ...
+}
+
+# On aarch64, LLVM reads uninitialized memory for some reason. I didn't find
+# anyone online with the same valgrind error.
+
+{
+   <LLVM 19 buildModuleSimplificationPipeline on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm11PassBuilder33buildModuleSimplificationPipelineENS_17OptimizationLevelENS_18ThinOrFullLTOPhaseE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.19.1
+   ...
+}
+{
+   <LLVM 20 buildModuleSimplificationPipeline on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm11PassBuilder33buildModuleSimplificationPipelineENS_17OptimizationLevelENS_18ThinOrFullLTOPhaseE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.20.1
+   ...
+}
+{
+   <LLVM 21 buildModuleSimplificationPipeline on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm11PassBuilder33buildModuleSimplificationPipelineENS_17OptimizationLevelENS_18ThinOrFullLTOPhaseE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.21.1
+   ...
+}
+{
+   <LLVM 22 buildModuleSimplificationPipeline on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm11PassBuilder33buildModuleSimplificationPipelineENS_17OptimizationLevelENS_18ThinOrFullLTOPhaseE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.22.1
+   ...
+}
+
+{
+   <LLVM 17 emitPatchableFunctionEntries on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm10AsmPrinter28emitPatchableFunctionEntriesEv
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM-17.so.1
+   ...
+}
+{
+   <LLVM 18 emitPatchableFunctionEntries on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm10AsmPrinter28emitPatchableFunctionEntriesEv
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM-18.so.1
+   ...
+}
+{
+   <LLVM 19 emitPatchableFunctionEntries on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm10AsmPrinter28emitPatchableFunctionEntriesEv
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.19.1
+   ...
+}
+{
+   <LLVM 20 emitPatchableFunctionEntries on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm10AsmPrinter28emitPatchableFunctionEntriesEv
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.20.1
+   ...
+}
+{
+   <LLVM 21 emitPatchableFunctionEntries on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm10AsmPrinter28emitPatchableFunctionEntriesEv
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.21.1
+   ...
+}
+{
+   <LLVM 22 emitPatchableFunctionEntries on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm10AsmPrinter28emitPatchableFunctionEntriesEv
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.22.1
+   ...
+}
+
+{
+   <LLVM 21 llvm::TailCallElimPass::run on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm16TailCallElimPass3runERNS_8FunctionERNS_15AnalysisManagerIS1_JEEE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.21.1
+   ...
+}
+{
+   <LLVM 22 llvm::TailCallElimPass::run on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm16TailCallElimPass3runERNS_8FunctionERNS_15AnalysisManagerIS1_JEEE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.22.1
+   ...
+}
+
+{
+   <LLVM 19 llvm::BitcodeWriter::writeModule on aarch64>
+   Memcheck:Value8
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.19.1
+   fun:_ZN4llvm13BitcodeWriter11writeModuleERKNS_6ModuleEbPKNS_18ModuleSummaryIndexEbPSt5arrayIjLm5EE
+   ...
+}
+{
+   <LLVM 20 llvm::BitcodeWriter::writeModule on aarch64>
+   Memcheck:Value8
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.20.1
+   fun:_ZN4llvm13BitcodeWriter11writeModuleERKNS_6ModuleEbPKNS_18ModuleSummaryIndexEbPSt5arrayIjLm5EE
+   ...
+}
+{
+   <LLVM 21 llvm::BitcodeWriter::writeModule on aarch64>
+   Memcheck:Value8
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.21.1
+   fun:_ZN4llvm13BitcodeWriter11writeModuleERKNS_6ModuleEbPKNS_18ModuleSummaryIndexEbPSt5arrayIjLm5EE
+   ...
+}
+{
+   <LLVM 22 llvm::BitcodeWriter::writeModule on aarch64>
+   Memcheck:Value8
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.22.1
+   fun:_ZN4llvm13BitcodeWriter11writeModuleERKNS_6ModuleEbPKNS_18ModuleSummaryIndexEbPSt5arrayIjLm5EE
+   ...
+}
+
+{
+   <LLVM 17 llvm::InstCombinePass::run on aarch64>
+   Memcheck:Cond
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM-17.so.1
+   ...
+   fun:_ZN4llvm15InstCombinePass3runERNS_8FunctionERNS_15AnalysisManagerIS1_JEEE
+   ...
+}
+{
+   <LLVM 18 llvm::InstCombinePass::run on aarch64>
+   Memcheck:Cond
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM-18.so.1
+   ...
+   fun:_ZN4llvm15InstCombinePass3runERNS_8FunctionERNS_15AnalysisManagerIS1_JEEE
+   ...
+}
+{
+   <LLVM 20 llvm::InstCombinePass::run on aarch64>
+   Memcheck:Cond
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.20.1
+   ...
+   fun:_ZN4llvm15InstCombinePass3runERNS_8FunctionERNS_15AnalysisManagerIS1_JEEE
+   ...
+}
+{
+   <LLVM 21 llvm::InstCombinePass::run on aarch64>
+   Memcheck:Cond
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.21.1
+   ...
+   fun:_ZN4llvm15InstCombinePass3runERNS_8FunctionERNS_15AnalysisManagerIS1_JEEE
+   ...
+}
+
+{
+   <LLVM 19 llvm::VPlan::createInitialVPlan on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm5VPlan18createInitialVPlanEPKNS_4SCEVERNS_15ScalarEvolutionEbbPNS_4LoopE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.19.1
+   ...
+}
+{
+   <LLVM 20 llvm::VPlan::createInitialVPlan on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm5VPlan18createInitialVPlanEPNS_4TypeERNS_25PredicatedScalarEvolutionEbbPNS_4LoopE
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.20.1
+   ...
+}
+
+{
+   <LLVM 21 llvm::VPlanTransforms::* on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm15VPlanTransforms*
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.21.1
+   ...
+}
+{
+   <LLVM 22 llvm::VPlanTransforms::* on aarch64>
+   Memcheck:Cond
+   fun:_ZN4llvm15VPlanTransforms*
+   ...
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM.so.22.1
+   ...
+}
+
+{
+   <LLVM 17 llvm::getInlineCost on aarch64>
+   Memcheck:Cond
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM-17.so.1
+   ...
+   fun:_ZN4llvm13getInlineCostERNS_8CallBaseEPNS_8FunctionERKNS_12InlineParamsERNS_19TargetTransformInfoENS_12function_refIFRNS_15AssumptionCacheERS2_EEENS9_IFRKNS_17TargetLibraryInfoESC_EEENS9_IFRNS_18BlockFrequencyInfoESC_EEEPNS_18ProfileSummaryInfoEPNS_25OptimizationRemarkEmitterE
+   ...
+}
+
+{
+   <LLVM 17 llvm::simplifyInstruction on aarch64>
+   Memcheck:Cond
+   obj:/usr/lib/aarch64-linux-gnu/libLLVM-17.so.1
+   ...
+   fun:_ZN4llvm19simplifyInstructionEPNS_11InstructionERKNS_13SimplifyQueryE
    ...
 }

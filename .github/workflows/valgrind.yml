@@ -35,10 +35,12 @@ jobs:
   valgrind:
     needs: [check-if-needed]
     if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
-    runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-26.04-arm
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         # Please keep in sync with linux.yml and macos.yml
         params:
@@ -47,17 +49,18 @@ jobs:
           - { llvm-version: 17, opt-level: '-O1' }
           - { llvm-version: 17, opt-level: '-O2' }
           - { llvm-version: 17, opt-level: '-O3' }
-          # Most versions: just one opt level to save time
-          - { llvm-version: 18, opt-level: '-O1' }
-          - { llvm-version: 19, opt-level: '-O1' }
-          - { llvm-version: 20, opt-level: '-O1' }
-          - { llvm-version: 21, opt-level: '-O1' }
+          # Most versions: -O3 seems to trigger the most valgrind warnings, using that
+          - { llvm-version: 18, opt-level: '-O3' }
+          - { llvm-version: 19, opt-level: '-O3' }
+          - { llvm-version: 20, opt-level: '-O3' }
+          - { llvm-version: 21, opt-level: '-O3' }
           # Latest version: all opt levels
           - { llvm-version: 22, opt-level: '-O0' }
           - { llvm-version: 22, opt-level: '-O1' }
           - { llvm-version: 22, opt-level: '-O2' }
           - { llvm-version: 22, opt-level: '-O3' }
       fail-fast: false
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -83,6 +86,7 @@ jobs:
             --skip-if-contains='# ErrorNoLine:' \
             --skip-if-contains='compiler error in file "'
       - name: "Test TOML parser with valgrind"
+        if: runner.arch == 'X64'
         run: tests/toml/run.sh --valgrind --jou-flags "${{ matrix.params.opt-level }}"
 
   # Please keep in sync with other .yml files
@@ -91,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [check-if-needed, valgrind]
-    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.valgrind.result == 'failure' }}
+    if: ${{ github.repository == 'Akuli/jou' && github.ref == 'refs/heads/main' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.valgrind.result == 'failure' }}
     permissions:
       issues: write
     steps:
