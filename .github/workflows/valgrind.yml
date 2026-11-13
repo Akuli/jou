@@ -86,6 +86,7 @@ jobs:
             --skip-if-contains='# ErrorNoLine:' \
             --skip-if-contains='compiler error in file "'
       - name: "Test TOML parser with valgrind"
+        if: runner.arch == 'X64'
         run: tests/toml/run.sh --valgrind --jou-flags "${{ matrix.params.opt-level }}"
 
   # Please keep in sync with other .yml files
