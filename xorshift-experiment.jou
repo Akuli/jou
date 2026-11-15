@@ -1,4 +1,5 @@
 import "stdlib/assert.jou"
+import "stdlib/limits.jou"
 import "stdlib/time.jou"
 import "stdlib/random.jou"
 import "stdlib/io.jou"
@@ -10,9 +11,10 @@ import "stdlib/mem.jou"
 # The goal of this script is to find a and b such that given some nonzero
 # initial state, this cycles through all nonzero uint64 values and never gets
 # stuck at zero.
-def xorshift_rng(a: int, b: int, state: uint64*) -> None:
-    *state ^= *state << a
-    *state ^= *state >> b
+def xorshift_rng(a: int, b: int, state: uint64) -> uint64:
+    state ^= state << a
+    state ^= state >> b
+    return state
 
 
 # Think of 64-bit number as a vector mod 2, but reversed.
@@ -182,9 +184,7 @@ def xorshift_matrix(a: int, b: int) -> uint64[64]:
     )
 
 
-def matrix_pow(matrix: uint64[64], i: int) -> uint64[64]:
-    assert i >= 0
-
+def matrix_pow(matrix: uint64[64], i: uint64) -> uint64[64]:
     # Exponentiation by squaring: M^i = M^(sum of powers of two) = product of M^(power of two)
     result = identity_matrix()
     while i != 0:
@@ -203,11 +203,11 @@ def test_xorshift_far_into_future() -> None:
     a = 12
     b = 34
     initial_state: uint64 = 5678
-    repeats = 9012
+    repeats: uint32 = 9012
 
     result = initial_state
     for i = 0; i < repeats; i++:
-        xorshift_rng(a, b, &result)
+        result = xorshift_rng(a, b, result)
 
     assert xorshift_far_into_future(a, b, initial_state, repeats) == result
 
@@ -221,10 +221,11 @@ def main() -> int:
     test_xorshift_far_into_future()
     puts("tests ok")  # Output: tests ok
 
-    # Find prime factors of 2^64 - 1
+    # Find prime factors of 2^64 - 1. In Jou, the most convenient way to
+    # write 2^64 - 1 is probably UINT64_MAX.
     prime_factors: uint64[10]
     prime_factors_len = 0
-    n: uint64 = 0xFFFF_FFFF_FFFF_FFFF
+    n = UINT64_MAX
     while n >= 2:
         d: uint64 = 2
         while n % d != 0:
@@ -234,8 +235,8 @@ def main() -> int:
         prime_factors[prime_factors_len++] = d
         n //= d
 
-    # Output: 2^64 = 3 * 5 * 17 * 257 * 641 * 65537 * 6700417 (7 prime factors)
-    printf("2^64 = ")
+    # Output: 2^64 - 1 = 3 * 5 * 17 * 257 * 641 * 65537 * 6700417 (7 prime factors)
+    printf("2^64 - 1 = ")
     for i = 0; i < prime_factors_len; i++:
         if i > 0:
             printf(" * ")
@@ -263,10 +264,48 @@ def main() -> int:
             #
             # Let's do the xorshift 2^64 - 1 times to check for states 1 and 2.
             # Any nonzero initial state would do instead of 123.
-            if xorshift_far_into_future(a, b, initial_state, 0xFFFF_FFFF_FFFF_FFFF) != initial_state:
+            if xorshift_far_into_future(a, b, initial_state, UINT64_MAX) != initial_state:
                 # Case 1 or case 2
                 continue
 
-            printf("a=%d b=%d\n", a, b)
+            # Now, let's distinguish cases 3 and 4.
+            #
+            # Theorem
+            # ~~~~~~~
+            #
+            # In case 3, the xorshift back to the starting state at iteration
+            #
+            #   (2^64 - 1) / p
+            #
+            # where p is some prime factor of 2^64 - 1.
+            #
+            # Proof
+            # ~~~~~
+            #
+            # Let k be the smallest number of iterations needed to get back to
+            # the initial state. After that point, the values repeat, so the
+            # next time of reaching initial state is 2k, then 3k, then 4k and
+            # so on. Because iteration 2^64 - 1 goes back to the initial state,
+            # we have
+            #
+            #   mk = 2^64 - 1
+            #
+            # for some m. We have k < 2^64 - 1 because not all 2^64 - 1 nonzero
+            # states are visited. Therefore m >= 2, so it contains at least one
+            # prime factor p, and p must also appear in 2^64 - 1. Now
+            #
+            #   (2^64 - 1) / p = (mk) / p = (m/p) * k.
+            #
+            # Here m/p is an integer, and iteration (m/p)*k produces the
+            # initial state because it is a multiple of k.  [_]
+            case3 = False
+            for i = 0; i < prime_factors_len; i++:
+                p = prime_factors[i]
+                if xorshift_far_into_future(a, b, initial_state, UINT64_MAX // p) == initial_state:
+                    case3 = True
+                    break
+
+            if not case3:
+                printf("Found values that work!!! a=%d b=%d\n", a, b)
 
     return 0
