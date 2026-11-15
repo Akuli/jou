@@ -1,0 +1,24 @@
+# This caused a compiler error before
+
+import "stdlib/list.jou"
+import "stdlib/mem.jou"
+import "stdlib/io.jou"
+
+class HashMapEntry[K, V]:
+    key: K
+    value: V
+
+@public
+class HashMap[K, V]:
+    entries: List[HashMapEntry[K, V]]
+
+    @inline
+    def put(self, key: K, value: V) -> None:
+        self.entries.append(HashMapEntry[K, V]{key = key, value = value})
+
+def main() -> int:
+    hm = HashMap[int, int]{}
+    hm.put(123, 456)
+    printf("%zd\n", hm.entries.len)  # Output: 1
+    free(hm.entries.ptr)
+    return 0
