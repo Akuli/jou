@@ -1,0 +1,364 @@
+import "stdlib/assert.jou"
+import "stdlib/time.jou"
+import "stdlib/random.jou"
+import "stdlib/io.jou"
+import "stdlib/mem.jou"
+
+
+# This is the xorshift RNG. To understand the operations, see doc/bitwise.md.
+#
+# The goal of this script is to find a and b such that given some nonzero
+# initial state, this cycles through all nonzero uint64 values and never gets
+# stuck at zero.
+def xorshift_rng(a: int, b: int, state: uint64*) -> None:
+    *state ^= *state << a
+    *state ^= *state >> b
+
+
+# We say that xorshift with some a and b is "nice", if there exists a nonzero
+# seed such that when started from it, the xorshift cycles through all 2^64 - 1
+# nonzero states forever without going to the zero state.
+#
+#
+# First, some mathematical facts:
+#
+# 1. If the state ever becomes zero, the xorshift will stay stuck in the zero
+#    state forever.
+#
+# 2. A nice xorshift cycles through the same nonzero values if started from ANY
+#    nonzero state. Therefore the choice of initial state doesn't matter much
+#    in practice.
+#
+# 3. If a nice xorshift is repeated 2^64 times, it produces the same result as
+#    doing it once.
+#
+# 4. Suppose some xorshift produces the same nonzero state when repeated 2^64
+#    times, but it is not nice. Then 
+#       (1) For some state, repeating the xorshift 2^64 times produces the same
+#           result as repeating it just once
+#       (2) 
+#
+# Fact 1 is obvious if you look at the source code.
+#
+# To understand fact 2, think about the cycle of 2^64 - 1 nonzero states. It
+# just says that you can enter the cycle at any point.
+#
+# To get fact 3, consider first repeating 2^64 - 1 times. That is a full cycle,
+# so you get back to the starting state, and once there, you do it once more.
+#
+# 
+#
+# Fact 3 
+# one more call
+# and then done one more 
+# one
+# and does not get stuck at the zero state. Then ANY nonzero seed will cycle
+# through the same 2^64 - 1 states.
+#
+# Note 2
+# ~~~~~~
+#
+# 
+#
+# Proof
+# ~~~~~
+#
+# Consider the set
+#
+#   { s, f(s), f(f(s)), f(f(f(s))), ... }
+#
+# where s is the initial state known to work. This set contains all 2^64 - 1
+# nonzero 64-bit numbers, and because f doesn't get stuck at zero
+
+
+# Think of 64-bit number as a vector mod 2, but reversed.
+# Example: 123 = 0b000...001111011 = [1,1,0,1,1,1,1,0,0,0,0,...,0]
+#
+# This is reversed to make the linear algebra make more sense. For example, the
+# standard basis is:
+#
+#   [1,0,0,...]  [0,1,0,...]  [0,0,1,...]  ...  [0,0,0,..,0,1]
+#        1            2            4       ...       2^63
+#
+# xor becomes vector addition:
+#
+#   vector(n ^ m) = vector(n) + vector(m)
+#
+# where + adds every vector element mod 2 (unlike Jou's + operator).
+#
+# Bitwise shifting becomes matrix-vector multiplication:
+#
+#   vector(n << i) = vector(n) * left_shift_matrix(i)
+#
+# where * is vector-matrix multiplication, with all additions done mod 2.
+#
+# In linear algebra, the matrix usually goes on the left and the vector is
+# vertical, but the xorshift papers place the matrix on the right and the
+# vector is horizontal. Let's follow xorshift's convention.
+def multiply_vector_and_matrix(a: uint64, b: uint64[64]) -> uint64:
+    # Created by modifying fast_matrix_multiply() to take just one row in first matrix
+    ab: uint64 = 0
+    for k = 0; k < 64; k++:
+        ab ^= b[k] * ((a >> k) & 1)
+    return ab
+
+def left_shift_matrix(shift_amount: int) -> uint64[64]:
+    result: uint64[64]
+    for i = 0; i < 64; i++:
+        # The standard basis means: [1,0,0,...], [0,1,0,...], ..., [0,0,...,1]
+        basis_vector = (1 as uint64) << i
+
+        # Usually in linear algebra, you think about columns like this:
+        #
+        #   i'th column of matrix = matrix * (i'th basis vector)
+        #
+        # We place the matrix on the right when multiplying, so this becomes:
+        #
+        #   i'th row of matrix = (i'th basis vector) * matrix
+        result[i] = basis_vector << shift_amount
+    return result
+
+def right_shift_matrix(shift_amount: int) -> uint64[64]:
+    result: uint64[64]
+    for i = 0; i < 64; i++:
+        result[i] = ((1 as uint64) << i) >> shift_amount
+    return result
+
+def identity_matrix() -> uint64[64]:
+    return left_shift_matrix(0)
+
+def test_shifting_with_matrices() -> None:
+    l2 = left_shift_matrix(2)
+    assert multiply_vector_and_matrix(1234, l2) == 1234 << 2
+
+    r3 = right_shift_matrix(3)
+    assert multiply_vector_and_matrix(1234, r3) == 1234 >> 3
+
+
+# For debugging
+@public  # silence unused function warning
+def print_matrix(m: uint64[64]) -> None:
+    for i = 0; i < 64; i++:
+        for j = 0; j < 64; j++:
+            printf("%d", (m[i] >> j) & 1)
+        printf("\n")
+    printf("\n")
+
+# For tests
+def random_matrix() -> uint64[64]:
+    matrix: uint64[64]
+#    f = fopen("/dev/urandom", "rb")
+#    assert f != NULL
+#    fread(&matrix as byte*, 1, sizeof(matrix), f)
+#    fclose(f)
+    for i = 0; i < 64; i++:
+        matrix[i] = ((rand() as uint64) << 32) | rand()
+    return matrix
+
+
+# In my quick and dirty benchmark, ~215us per matrix multiplication
+def simple_matrix_multiply(a: uint64[64], b: uint64[64]) -> uint64[64]:
+    # Formula from linear algebra class: (AB)_ij = sum_k A_ik B_kj
+    ab: uint64[64]
+    memset(ab, 0, sizeof(ab))
+    for i = 0; i < 64; i++:
+        for j = 0; j < 64; j++:
+            for k = 0; k < 64; k++:
+                aik = (a[i] >> k) & 1
+                bkj = (b[k] >> j) & 1
+                ab[i] ^= ((aik*bkj) as uint64) << j
+    return ab
+
+# In my quick and dirty benchmark, ~3us per matrix multiplication
+def fast_matrix_multiply(a: uint64[64], b: uint64[64]) -> uint64[64]:
+    # Created by refactoring simple_matrix_multiply()
+    ab: uint64[64]
+    memset(ab, 0, sizeof(ab))
+    for i = 0; i < 64; i++:
+        for k = 0; k < 64; k++:
+            ab[i] ^= b[k] * ((a[i] >> k) & 1)
+    return ab
+
+
+def test_simple_matrix_multiply() -> None:
+    a = random_matrix()
+    b: uint64[64]
+    for i = 0; i < 64; i++:
+        # identity matrix
+        b[i] = (1 as uint64) << i
+
+    ab = simple_matrix_multiply(a, b)
+    assert memcmp(a, ab, sizeof(a)) == 0
+
+    ba = simple_matrix_multiply(b, a)
+    assert memcmp(a, ba, sizeof(a)) == 0
+
+def test_fast_matrix_multiply() -> None:
+    a = random_matrix()
+    b = random_matrix()
+    ab1 = simple_matrix_multiply(a, b)
+    ab2 = fast_matrix_multiply(a, b)
+    assert memcmp(ab1, ab2, sizeof(ab1)) == 0
+
+
+@public  # silence unused function warning
+def quick_and_dirty_benchmark() -> None:
+    n = 1000
+    a = random_matrix()
+    b = random_matrix()
+    start = monotonic_ns()
+    for i = 0; i < n; i++:
+        a = simple_matrix_multiply(a, b)
+        b = simple_matrix_multiply(a, b)
+    end = monotonic_ns()
+    printf("simple: %.2fus per matrix multiplication\n", (end - start) * 1e-3 / (2*n))
+
+    n = 10000
+    a = random_matrix()
+    b = random_matrix()
+    start = monotonic_ns()
+    for i = 0; i < n; i++:
+        a = fast_matrix_multiply(a, b)
+        b = fast_matrix_multiply(a, b)
+    end = monotonic_ns()
+    printf("fast: %.2fus per matrix multiplication\n", (end - start) * 1e-3 / (2*n))
+
+
+def add_matrices_mod_2(a: uint64[64], b: uint64[64]) -> uint64[64]:
+    for i = 0; i < 64; i++:
+        a[i] ^= b[i]
+    return a
+
+
+# Returns matrix that does xorshift when multiplied on the right.
+def xorshift_matrix(a: int, b: int) -> uint64[64]:
+    return fast_matrix_multiply(
+        add_matrices_mod_2(left_shift_matrix(a), identity_matrix()),
+        add_matrices_mod_2(right_shift_matrix(b), identity_matrix()),
+    )
+
+
+def matrix_pow(matrix: uint64[64], i: int) -> uint64[64]:
+    assert i >= 0
+
+    # Exponentiation by squaring: M^i = M^(sum of powers of two) = product of M^(power of two)
+    result = identity_matrix()
+    while i != 0:
+        if i & 1 != 0:
+            result = fast_matrix_multiply(result, matrix)
+        matrix = fast_matrix_multiply(matrix, matrix)
+        i >>= 1
+    return result
+
+
+# Does xorshift i times, but much faster than literally doing it i times.
+def xorshift_far_into_future(a: int, b: int, state: uint64, i: uint64) -> uint64:
+    return multiply_vector_and_matrix(state, matrix_pow(xorshift_matrix(a, b), i))
+
+def test_xorshift_far_into_future() -> None:
+    a = 12
+    b = 34
+    initial_state: uint64 = 5678
+    repeats = 9012
+
+    result = initial_state
+    for i = 0; i < repeats; i++:
+        xorshift_rng(a, b, &result)
+
+    assert xorshift_far_into_future(a, b, initial_state, repeats) == result
+
+
+def main() -> int:
+    #quick_and_dirty_benchmark()
+
+    test_shifting_with_matrices()
+    test_simple_matrix_multiply()
+    test_fast_matrix_multiply()
+    test_xorshift_far_into_future()
+    puts("tests ok")  # Output: tests ok
+
+    # Find prime factors of 2^64 - 1
+    prime_factors: uint64[10]
+    prime_factors_len = 0
+    n: uint64 = 0xFFFF_FFFF_FFFF_FFFF
+    while n >= 2:
+        d: uint64 = 2
+        while n % d != 0:
+            d++
+        # Now d is a prime
+        assert prime_factors_len < array_count(prime_factors)
+        prime_factors[prime_factors_len++] = d
+        n //= d
+
+    # Output: 2^64 = 3 * 5 * 17 * 257 * 641 * 65537 * 6700417 (7 prime factors)
+    printf("2^64 = ")
+    for i = 0; i < prime_factors_len; i++:
+        if i > 0:
+            printf(" * ")
+        printf("%llu", prime_factors[i])
+    printf(" (%d prime factors)\n", prime_factors_len)
+
+    for a = 1; a < 64; a++:
+        for b = 1; b < 64; b++:
+            # Any nonzero number would work
+            initial_state: uint64 = 123
+
+            # Given a and b, and a nonzero initial state, a xorshift must do
+            # one of the following things:
+            #
+            #   1. Eventually get stuck at zero
+            #
+            #   2. Go into a cycle of nonzero states that never comes back to
+            #      the initial state
+            #
+            #   3. Eventually come back to the initial state, but without
+            #      visiting all 2^64 - 1 nonzero states
+            #
+            #   4. Visit all 2^64 - 1 nonzero states and then come back to the
+            #      initial state
+            #
+            # Let's do the xorshift 2^64 - 1 times to check for states 1 and 2.
+            # Any nonzero initial state would do instead of 123.
+            if xorshift_far_into_future(a, b, initial_state, 0xFFFF_FFFF_FFFF_FFFF) != initial_state:
+                # Case 1 or case 2
+                continue
+
+            printf("a=%d b=%d\n", a, b)
+            
+            
+            # By looking at the code, it is clear that if the state ever
+            # becomes zero, the xorshift will get stuck in the zero state
+            # forever. Let's start by filtering out those cases.
+            
+            # Lemma 1
+            # ~~~~~~~
+            #
+            # Let f be xorshift with some a and b such that f cycles through
+            # all 2^63 - 1 nonzero states with some nonzero seed and never gets
+            # stuck at state 0. Then
+            #
+            #   
+            # nonzero s, where f^(2^64) denotes doing the xorshift 2^64 times, and
+            # there exists an initial state for which f cycles through all 2^64 - 1
+            # nonzero states. Then f which f cycles through all 2^64 - 1 nonzero states
+            # given any initial state.
+    #
+    # Proof
+    # ~~~~~
+    #
+    # Consider the set
+    #
+    #   S = { s, f(s), f(f(s)), f(f(f(s))), ... }
+    #
+    # where f is the xorshift, and s is the initial state that causes it to
+    # cycles through all states. This set is of size 2^63 - 1, and all numbers
+    # in it are nonzero: if xorshift becomes zero at any step along the way,
+    # it remains zero forever
+    #
+#
+# For this to happen, it is enough if any nonzero initial state reaches all
+# 2^64 - 1 possible values.
+
+    # Claim: If xorshift with some nonzero seed doesn't cycle through 
+
+    return 0
