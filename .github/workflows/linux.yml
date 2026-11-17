@@ -9,19 +9,20 @@ on:
 jobs:
   test:
     timeout-minutes: 10
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         # Please keep in sync with valgrind.yml and macos.yml
         params:
           # Oldest version
-          - { llvm-version: 17, opt-level: '-O1' }
+          - { llvm-version: 17, opt-level: '-O1', os: ubuntu-26.04 }
           # Latest version: all opt levels
-          - { llvm-version: 22, opt-level: '-O0' }
-          - { llvm-version: 22, opt-level: '-O1' }
-          - { llvm-version: 22, opt-level: '-O2' }
-          - { llvm-version: 22, opt-level: '-O3' }
+          - { llvm-version: 22, opt-level: '-O0', os: ubuntu-26.04 }
+          - { llvm-version: 22, opt-level: '-O1', os: ubuntu-26.04 }
+          - { llvm-version: 22, opt-level: '-O2', os: ubuntu-26.04 }
+          - { llvm-version: 22, opt-level: '-O3', os: ubuntu-26.04 }
+          - { llvm-version: 22, opt-level: '-O1', os: ubuntu-26.04-arm }
+    runs-on: ${{ matrix.params.os }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -94,4 +95,5 @@ jobs:
         # joutest exits.
         run: valgrind --error-exitcode=1 ./joutest --verbose hello
       - name: "Run TOML tests"
+        if: runner.arch == 'X64'
         run: tests/toml/run.sh --jou-flags "${{ matrix.params.opt-level }}"

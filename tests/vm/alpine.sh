@@ -13,13 +13,15 @@ case $arch in
         sha=4c6c76a7669c1ec55c6a7e9805b387abdd9bc5df308fd0e4a9c6e6ac028bc1cc
         disk_name_inside_vm=sda
         ;;
-    aarch64)
-        qemu='qemu-system-aarch64 -machine virt -cpu cortex-a72 -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd'
-        sha=ce1e5fb1318365401ce309eb57c39521c11ac087e348ea7f9d3dd2122a58d0c2
-        disk_name_inside_vm=vdb
-        ;;
+    # Used to be a thing, but installing qemu-system-aarch64 with apt fails on Ubuntu 26.04.
+    # Switched to using GitHub's ubuntu on arm thing.
+#    aarch64)
+#        qemu='qemu-system-aarch64 -machine virt -cpu cortex-a72 -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd'
+#        sha=ce1e5fb1318365401ce309eb57c39521c11ac087e348ea7f9d3dd2122a58d0c2
+#        disk_name_inside_vm=vdb
+#        ;;
     *)
-        echo "$0: Unsupported architecture '$arch' (must be x86 or aarch64)"
+        echo "$0: Unsupported architecture '$arch' (must be x86)"
         exit 2
 esac
 
