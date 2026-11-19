@@ -7,8 +7,8 @@ cd_to_containing_directory = true
 
 # Output: run: jou hello.jou
 # Output: FAIL jou hello.jou
-# Output: run: jou --stdin-name markdown_file.md - (input file "markdown_file.md", line 2 to line 5)
-# Output: FAIL jou --stdin-name markdown_file.md - (input file "markdown_file.md", line 2 to line 5)
+# Output: run: jou --lines=2-5 markdown_file.md (file "markdown_file.md", line 2 to line 5)
+# Output: FAIL jou --lines=2-5 markdown_file.md (file "markdown_file.md", line 2 to line 5)
 # Output: run: jou subdir_hello.jou (in subdir)
 # Output: FAIL jou subdir_hello.jou (in subdir)
 # Output:
@@ -17,8 +17,8 @@ cd_to_containing_directory = true
 # Output: -Hello World
 # Output: +Hello Wroold
 # Output:
-# Output: *** Command: jou --stdin-name markdown_file.md -
-# Output:     Input: file "markdown_file.md", line 2 to line 5
+# Output: *** Command: jou --lines=2-5 markdown_file.md
+# Output:     Test came from file "markdown_file.md", line 2 to line 5
 # Output: -Hello from markdown
 # Output: +Hello form mrakdwoon
 # Output:

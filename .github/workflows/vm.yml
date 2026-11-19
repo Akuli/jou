@@ -19,10 +19,6 @@ on:
         type: boolean
         description: "Run tests with NetBSD on amd64 (fast)"
         default: true
-      alpine-aarch64:
-        type: boolean
-        description: "Run tests with alpine linux on aarch64 (slow)"
-        default: false
       raspios-armv6:
         type: boolean
         description: "Run tests with Raspberry Pi OS on armv6 (very slow)"
@@ -43,7 +39,7 @@ jobs:
         id: decide
         run: |
           fast='alpine-x86 netbsd-amd64'
-          slow='alpine-aarch64 raspios-armv6'
+          slow='raspios-armv6'
 
           case "$GITHUB_EVENT_NAME" in
             pull_request)
@@ -109,9 +105,6 @@ jobs:
         run: |
           sudo apt update
           case ${{ matrix.arch }} in
-            aarch64)
-              sudo apt install -y --no-install-recommends ncat qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu
-              ;;
             x86 | amd64)
               sudo apt install -y --no-install-recommends ncat qemu-system-x86
               ;;
@@ -137,14 +130,14 @@ jobs:
         run: tests/vm/${{ matrix.os }}.sh ${{ matrix.arch }}
 
       - run: tests/vm/ssh.sh cd jou '&&' git clean -ffdx -e tmp/bootstrap_cache
-      - run: tests/vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
+      - run: tests/vm/ssh.sh cd jou '&&' make
+      - run: tests/vm/ssh.sh cd jou '&&' ./joutest --verbose
       - run: tests/vm/ssh.sh cd jou '&&' ./jou -o jou2 compiler/main.jou
       - run: tests/vm/ssh.sh cd jou '&&' mv jou2 jou
-      - run: tests/vm/ssh.sh cd jou '&&' ./runtests.sh --verbose
-      - run: tests/vm/ssh.sh cd jou '&&' make joutest '&&' ./joutest --verbose
+      - run: tests/vm/ssh.sh cd jou '&&' ./joutest --verbose
 
       # Test compiler verbose flag with and without cache (#1285)
-      - run: tests/vm/ssh.sh rm -rv jou/examples/jou_compiled
+      - run: tests/vm/ssh.sh cd jou '&&' rm -rv jou_compiled
       - run: tests/vm/ssh.sh cd jou '&&' ./jou -v examples/hello.jou  # without cache
       - run: tests/vm/ssh.sh cd jou '&&' ./jou -v examples/hello.jou  # with cache
 

@@ -31,6 +31,8 @@ if False:
 
 if True:
     def main() -> int:
+        mkdir("tmp", 0o777)
+        mkdir("tmp/tests", 0o777)
         mkdir("tmp/tests/foo", 0o777)
         f = fopen("tmp/tests/foo/bar", "w")
         if f != NULL:
@@ -54,5 +56,14 @@ if True:
                 printf("Foo\n")
             else:
                 printf("Foo\n")
+
+        # test for issue #1497
+        match 1:
+            case 1:
+                if WINDOWS and LINUX:
+                    this.should(be).compiled.out()
+            case _:
+                if WINDOWS and LINUX:
+                    this.should(be).too()
 
         return 0

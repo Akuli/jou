@@ -1,13 +1,19 @@
 # I don't like unit tests for various reasons, but they're great when some part
 # of the code is really hard to get right.
 
+import "stdlib/assert.jou"
+import "stdlib/process.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/mem.jou"
+import "stdlib/fs.jou"
 import "../../compiler/hash.jou"
 import "../../compiler/paths.jou"
 
-if not WINDOWS:
+if WINDOWS:
+    import "stdlib/utf8.jou"
+    import "stdlib/windows_api/kernel32.jou"
+else:
     # Make sure we link with LLVM
     import "../../config.jou"
 
@@ -17,6 +23,19 @@ if not WINDOWS:
     @public
     def dummy_function() -> None:
         puts(JOU_CLANG_PATH)
+
+    # TODO(Jou): add to stdlib?
+    declare waitpid(pid: int, wstatus: int*, options: int) -> int
+    declare kill(pid: int, signal: int) -> int
+    declare global environ: byte**
+    declare posix_spawn(
+        pid: int*,
+        path: byte*,
+        file_actions: void*,  # actually posix_spawn_file_actions_t*
+        attrp: void*,         # actually posix_spawnattr_t*
+        argv: byte**,
+        envp: byte**,
+    ) -> int
 
 
 if WINDOWS:
@@ -72,7 +91,115 @@ def test_fnv1a_hash() -> None:
         printf("%llX\n", h.hash)
 
 
+# Compiler relies on fopen(running_program, "wb") == NULL to detect whether it
+# can use jou_compiled/foo or does it have to try jou_compiled/foo2 etc
+def test_writing_to_running_program() -> None:
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
+
+    f = fopen("tmp/tests/spinner.jou", "w")
+    assert f != NULL
+    fputs("def main() -> int:\n    while True:\n        pass", f)
+    fclose(f)
+    assert system("jou -o tmp/tests/spinner tmp/tests/spinner.jou") == 0
+
+    if WINDOWS:
+        exe = "tmp/tests/spinner.exe"
+
+        wide_exe: uint16[100]
+        string_to_windows(exe, wide_exe, array_count(wide_exe))
+        startup_info = STARTUPINFOW{}
+        startup_info.cb = sizeof(startup_info) as uint32
+        process_info = PROCESS_INFORMATION{}
+        ret = CreateProcessW(
+            wide_exe,
+            NULL,
+            NULL,
+            NULL,
+            False as int,
+            0,
+            NULL,
+            NULL,
+            &startup_info,
+            &process_info,
+        )
+        assert ret != 0
+
+    else:
+        exe = "tmp/tests/spinner"
+
+        exe_argv = [exe, NULL]
+        pid: int
+        ret = posix_spawn(&pid, exe, NULL, NULL, exe_argv, environ)
+        assert ret == 0
+
+    # Output: can't write
+    f = fopen(exe, "wb")
+    if f == NULL:
+        printf("can't write\n")
+    else:
+        printf("looks like we can write\n")
+        fclose(f)
+
+    if WINDOWS:
+        TerminateProcess(process_info.hProcess, 1)
+        CloseHandle(process_info.hThread)
+        CloseHandle(process_info.hProcess)
+    else:
+        kill(pid, 9)
+        waitpid(pid, NULL, 0)
+
+
+# Let's avoid rand(), so that we get the same random numbers on all platforms
+global my_rand_state: uint64 = 1
+
+def my_rand() -> int:
+    # This is perhaps the simplest random generator I've seen online.
+    #
+    # It is from section "4. Marsaglia’s Xorshift Generators" in a paper
+    # titled "Note on Marsaglia's Xorshift Random Number Generators"
+    my_rand_state ^= my_rand_state << 7
+    my_rand_state ^= my_rand_state >> 9
+    return my_rand_state & 0x7fff_ffff
+
+
+def test_disjoint_interval_id() -> None:
+    iterations = 1000
+    changed_with_add = 0
+    changed_with_move = 0
+
+    for i = 0; i < iterations; i++:
+        a1 = my_rand() % 200
+        b1 = a1 + (my_rand() % 20)      # let's assume code blocks are 1 to 20 lines long
+        a2 = b1 + 1 + (my_rand() % 20)  # code blocks in markdown file do not overlap
+        b2 = a2 + (my_rand() % 20)      # let's assume code blocks are 1 to 20 lines long
+
+        if disjoint_interval_id(a1, b1) == disjoint_interval_id(a2, b2):
+            printf("FAIL: [%d,%d] and [%d,%d]\n", a1,b1, a2,b2)
+            assert False
+
+        # These would ideally be rare, but they happen sometimes and that's fine
+        if disjoint_interval_id(a1, b1) != disjoint_interval_id(a1, b1 + 1):
+            changed_with_add++
+        if disjoint_interval_id(a1, b1) != disjoint_interval_id(a1 + 1, b1 + 1):
+            changed_with_move++
+
+    # Probability that adding a new line to a code block changes its identity
+    add_ratio = changed_with_add / iterations
+
+    # Probability that moving a code block down by one line changes its identity
+    move_ratio = changed_with_move / iterations
+
+    # These are about 0.2, would be better with longer code blocks
+    if (0.1 < add_ratio and add_ratio < 0.3) and (0.1 < move_ratio and move_ratio < 0.3):
+        printf("ratios good\n")  # Output: ratios good
+    else:
+        printf("got bad ratios: %f %f\n", add_ratio, move_ratio)
+
+
 def main() -> int:
     test_link_statement_path_rewriting()
     test_fnv1a_hash()
+    test_writing_to_running_program()
+    test_disjoint_interval_id()
     return 0

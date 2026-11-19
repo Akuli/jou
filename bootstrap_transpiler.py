@@ -10,7 +10,7 @@ from the full Jou compiler:
 - Outputs ugly C code instead of an executable
 - Does not support all Jou syntax, just needs enough to compile a Jou compiler
 - Avoids compiling parts of source files that are not used
-- Not tested with ./runtests.sh
+- Not tested regularly with any input other than Jou compiler sources
 - Not meant to be maintained very often
 - Coding style is "quick and dirty"
 """
@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
-    # First element is always a string, but explainin that to mypy without
+    # First element is always a string, but explaining that to mypy without
     # getting unnecessary errors turned out to be too complicated.
     AST = tuple[Any, ...]
 
@@ -1384,8 +1384,6 @@ def get_funcdef_c_name(path: str, ast: AST, klass: JouType | None) -> str:
         # It is a method
         return klass.to_c(fwd_decl_is_enough=True) + "_" + jou_name
 
-    # TODO: handle methods!
-
     if jou_name == "main":
         return "main"
 
@@ -1586,16 +1584,9 @@ def declare_c_function(
     for (arg_name, _, _), argtype in zip(args, func.type.funcptr_argtypes):
         arg_strings.append(f"{argtype.to_c()} var_{arg_name}")
 
-    if (
-        func_name == "main"
-        and len(arg_strings) == 2
-        and arg_strings[1].startswith("uint8_t**")
-    ):
+    if func_name == "main" and len(arg_strings) == 2 and arg_strings[1] == "uint8_t** var_argv":
         # clang is picky. It wants "char **argv", not "uint8_t **argv".
-        #
-        # I don't think there's a good way to silence that error, so let's
-        # work around it instead.
-        arg_strings[1] = arg_strings[1].replace("uint8_t", "char", 1)
+        arg_strings[1] = "char **argv"
 
     if takes_varargs:
         arg_strings.append("...")
@@ -2667,6 +2658,9 @@ def define_function(path: str, ast: AST, klass: JouType | None) -> None:
     print(f"// This is the body of function {name}() defined in {path}.")
     declaration = declare_c_function(path, ast, klass=klass)[1]
     print(declaration, "{")
+
+    if "char **argv" in declaration:
+        print("uint8_t **var_argv = (void*)argv;")
 
     # Turn this:
     #

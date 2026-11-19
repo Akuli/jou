@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - run: sudo apt install -y codespell || (sudo apt update && sudo apt install -y codespell)
-      - run: codespell --enable-colors -L ot,bu,hel,fom,olt,fo,nd,worl $(git ls-files)
+      - run: codespell --enable-colors -L ot,bu,hel,fom,olt,fo,nd,worl,tru,fals $(git ls-files)
 
   # For consistency, Jou code in markdown files should use ```python, not ```python3
   python-in-markdown:
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: wget https://github.com/editorconfig-checker/editorconfig-checker/releases/download/v3.2.0/ec-linux-amd64.tar.gz
+      - run: curl -Lf --retry 6 --retry-all-errors -o ec-linux-amd64.tar.gz https://github.com/editorconfig-checker/editorconfig-checker/releases/download/v3.2.0/ec-linux-amd64.tar.gz
       - name: Verify checksum
         run: |
           if [ "$(sha256sum ec-linux-amd64.tar.gz  | cut -d' ' -f1)" != "5e6a63097904be33c8d18e960f54fd8f60ada5464fe0056cd3dbbd0678584d15" ]; then
@@ -48,22 +48,6 @@ jobs:
           fi
       - run: tar xf ec-linux-amd64.tar.gz bin/ec-linux-amd64
       - run: bin/ec-linux-amd64
-
-  markdownlink-checker:
-    timeout-minutes: 2
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - name: Cache state file of link checker
-        uses: actions/cache@v3
-        with:
-          path: links.json
-          key: links-${{ hashFiles('check-markdown-links.py') }}
-      - run: pip install requests==2.32.3
-      - run: python check-markdown-links.py --verbose
 
   # Run the release script to make sure it doesn't error.
   release-dry-run:

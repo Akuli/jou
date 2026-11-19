@@ -1,0 +1,29 @@
+import "stdlib/fs.jou"
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+global line: byte[100_000]
+
+def main() -> int:
+    joudir = find_current_executable()
+    *strrchr(joudir, '\\' if WINDOWS else '/') = '\0'
+    *strrchr(joudir, '\\' if WINDOWS else '/') = '\0'
+
+    while fgets(line, sizeof(line), get_stdin()) != NULL:
+        p = &line[0]
+        while *p != '\0':
+            starts_with_joudir = True
+            for i = 0; joudir[i] != '\0'; i++:
+                c = p[i]
+                if c == '/' and WINDOWS:
+                    c = '\\'
+                if c != joudir[i]:
+                    starts_with_joudir = False
+                    break
+            if starts_with_joudir:
+                printf("<joudir>")
+                p = &p[strlen(joudir)]
+            else:
+                putchar(*p++)
+
+    return 0

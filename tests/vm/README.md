@@ -73,8 +73,13 @@ Here are some guidelines for working on the scripts:
     - `expect` would be an unnecessary dependency.
 
 Dependencies (in addition to what you need for Jou anyway):
-- All architectures and operating systems: `sudo apt install wget openssh-client ncat`
+- All architectures and operating systems: `sudo apt install curl openssh-client ncat`
 - x86: `sudo apt install qemu-system-x86`
 - aarch64: `sudo apt install qemu-system-aarch64 qemu-efi-aarch64 ipxe-qemu`
 - armv6: `sudo apt install qemu-system-arm`
 - Raspberry Pi OS: `sudo apt install parted jq e2fsprogs`
+
+After making changes to the scripts,
+GitHub Actions sets up VMs in pull requests from scratch every time, which is very slow.
+To fix this, trigger a GitHub Actions run manually on the main branch
+using the "Run workflow" button here: https://github.com/Akuli/jou/actions/workflows/vm.yml

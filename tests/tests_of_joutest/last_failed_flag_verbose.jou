@@ -15,33 +15,33 @@ def write_to_file(path: byte*, content: byte*) -> None:
 
 
 def joutest(flags: byte*) -> int:
-    printf("$ joutest %s\n", flags)
+    printf("$ joutest -j1 %s\n", flags)
     fflush(get_stdout())
 
     command: byte[1000]
     if WINDOWS:
-        snprintf(command, sizeof(command), "cd tmp\\joutest-lf && ..\\..\\joutest.exe %s", flags)
+        snprintf(command, sizeof(command), "cd tmp\\joutest-lf-verbose && ..\\..\\joutest.exe -j1 %s", flags)
     else:
-        snprintf(command, sizeof(command), "cd tmp/joutest-lf && ../../joutest %s", flags)
+        snprintf(command, sizeof(command), "cd tmp/joutest-lf-verbose && ../../joutest -j1 %s", flags)
     return system(command)
 
 
 def main() -> int:
     if WINDOWS:
-        system("if exist tmp\\joutest-lf rmdir /s /q tmp\\joutest-lf")
+        system("if exist tmp\\joutest-lf-verbose rmdir /s /q tmp\\joutest-lf-verbose")
     else:
-        system("rm -rf tmp/joutest-lf")
+        system("rm -rf tmp/joutest-lf-verbose")
 
     mkdir("tmp", 0o777)
-    mkdir("tmp/joutest-lf", 0o777)
+    mkdir("tmp/joutest-lf-verbose", 0o777)
 
-    write_to_file("tmp/joutest-lf/joutest.toml", "[[tests]]\nfiles = \"*.jou\"\n[[tests]]\nfiles = \"skipped*.jou\"\nskip_mode = \"skip_normally\"")
-    write_to_file("tmp/joutest-lf/good.jou", "def main() -> int:\n    return 0")
-    write_to_file("tmp/joutest-lf/bad.jou", "lol")
-    write_to_file("tmp/joutest-lf/skipped.jou", "lol")
+    write_to_file("tmp/joutest-lf-verbose/joutest.toml", "[[tests]]\nfiles = \"*.jou\"\n[[tests]]\nfiles = \"skipped*.jou\"\nskip_mode = \"skip_normally\"")
+    write_to_file("tmp/joutest-lf-verbose/good.jou", "def main() -> int:\n    return 0")
+    write_to_file("tmp/joutest-lf-verbose/bad.jou", "lol")
+    write_to_file("tmp/joutest-lf-verbose/skipped.jou", "lol")
 
     # Output: ===== (1) Initial run =====
-    # Output: $ joutest --no-colors
+    # Output: $ joutest -j1 --no-colors
     # Output: F.s
     # Output:
     # Output: *** Command: jou bad.jou
@@ -55,12 +55,12 @@ def main() -> int:
     assert joutest("--no-colors") != 0
 
     # Create new files to see how various things show up
-    write_to_file("tmp/joutest-lf/good2.jou", "def main() -> int:\n    return 0")
-    write_to_file("tmp/joutest-lf/bad2.jou", "lol")
-    write_to_file("tmp/joutest-lf/skipped2.jou", "lol")
+    write_to_file("tmp/joutest-lf-verbose/good2.jou", "def main() -> int:\n    return 0")
+    write_to_file("tmp/joutest-lf-verbose/bad2.jou", "lol")
+    write_to_file("tmp/joutest-lf-verbose/skipped2.jou", "lol")
 
     # Output: ===== (2) Run with verbose and lf =====
-    # Output: $ joutest --no-colors --verbose --lf
+    # Output: $ joutest -j1 --no-colors --verbose --lf
     # Output: run: jou bad.jou
     # Output: FAIL jou bad.jou
     # Output: run: jou bad2.jou

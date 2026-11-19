@@ -47,15 +47,30 @@ You can also try `--verbose` (or `-v`, that does the same thing):
 
 ```
 akuli@Akuli-Desktop ~/curses-klondike $ joutest --verbose
-run: jou "tests/test_args.jou"
- ok  jou "tests/test_args.jou"
-run: jou "tests/test_card.jou"
- ok  jou "tests/test_card.jou"
-run: jou "tests/test_klondike.jou"
- ok  jou "tests/test_klondike.jou"
+run: jou tests/test_args.jou
+run: jou tests/test_card.jou
+run: jou tests/test_klondike.jou
+ ok  jou tests/test_card.jou
+ ok  jou tests/test_klondike.jou
+ ok  jou tests/test_args.jou
 
 
 3 succeeded
+```
+
+By default, joutest runs multiple tests in parallel if your computer has multiple CPU cores.
+The above command was ran on a CPU with 4 cores,
+so all tests started at the same time and finished in a somewhat random order.
+You can use e.g. `-j2` to specify that joutest should run two tests at a time:
+
+```
+akuli@Akuli-Desktop ~/curses-klondike $ joutest -v -j2
+run: jou tests/test_args.jou
+run: jou tests/test_card.jou
+ ok  jou tests/test_card.jou
+run: jou tests/test_klondike.jou
+ ok  jou tests/test_klondike.jou
+ ok  jou tests/test_args.jou
 ```
 
 In a big project, running all tests is slow.
@@ -63,10 +78,10 @@ To run only some of the tests, you can specify one or more command-line argument
 Only the tests whose path contains any of the given arguments as a substring will run:
 
 ```
-akuli@Akuli-Desktop ~/curses-klondike $ joutest --verbose klon card
+akuli@Akuli-Desktop ~/curses-klondike $ joutest -v klon card
 run: jou tests/test_card.jou
- ok  jou tests/test_card.jou
 run: jou tests/test_klondike.jou
+ ok  jou tests/test_card.jou
  ok  jou tests/test_klondike.jou
 
 
@@ -113,7 +128,7 @@ def main() -> int:
 ```
 
 If the expected and actual output do not match, `joutest` shows a diff.
-For example, changing `printf("Bla4\n")` to `printf("Baa4\n")` above produces the following output:
+For example, changing `printf("Bla4\n")` to `printf("Blaaaaaaaaah\n")` above produces the following output:
 
 ```diff
 F
@@ -124,7 +139,7 @@ F
  Bla2
  Bla3
 -Bla4
-+Baa4
++Blaaaaaaaaah
  Bla5
 
 
@@ -226,10 +241,10 @@ You can omit the `markdown_code_block_languages` setting if the markdown files u
 Here's the output of `joutest`:
 
 ```diff
-.F
+F.
 
-*** Command: jou --stdin-name hello.md -
-    Input: file "hello.md", line 16 to line 20
+*** Command: jou --lines=16-20 hello.md
+    Test came from file "hello.md", line 16 to line 20
 -Hello World
 +compiler error in file "hello.md", line 19: missing " to end the string
 Process exited with code 1. The correct exit code would be 0.
@@ -239,7 +254,6 @@ Process exited with code 1. The correct exit code would be 0.
 ```
 
 Note that the file name and line number in the error message correctly point to the markdown file.
-The command and input that `joutest` uses are set up to do exactly that.
 
 
 ## If/then/else tables
@@ -257,100 +271,32 @@ files = {
 }
 ```
 
-The `if` value can be any [built-in Jou boolean constant](supported-platforms.md#built-in-constants) as a string,
-and `then` and `else` are the values to be used.
-So on Windows, the above is equivalent to:
+For example, on Windows, the above is equivalent to:
 
 ```toml
 [[tests]]
 files = "windows_tests/test_*.jou"
 ```
 
-You can also nest multiple `if` tables:
+The `if` condition can be:
+- any [built-in Jou boolean constant](supported-platforms.md#built-in-constants) as a string
+- `{any = [cond1, cond2, cond3]}` (this is basically `or`) where the array contains any number of other valid conditions
+- `{all = [cond1, cond2, cond3]}` (this is basically `and`)
+- `{not = cond}`
+
+For example, the following skips a test if joutest is running on Windows or NetBSD:
 
 ```toml
-[[tests]]
-files = {
-    if = "WINDOWS",
-    then = "windows_tests/test_*.jou",
-    else = {
-        if = "MACOS",
-        then = "macos_tests/test_*.jou",
-        else = "posix_tests/test_*.jou",
-    },
-}
+skip_mode = {if.any = ["WINDOWS", "NETBSD"], then = "skip_normally", else = "dont_skip"}
 ```
 
-
-## Condition Tables
-
-> [!NOTE]
-> Condition tables are deprecated.
-> They still work, but joutest shows a warning if you use them,
-> and support for condition tables will be removed in the future.
-> Consider using if/then/tables instead as shown above.
-
-In `joutest.toml`, **any TOML table with a `default` key is a condition table.**
-Before `joutest` looks up any settings from `joutest.toml`,
-it replaces each condition table with one of its values.
-
-For example, consider this:
-
-```toml
-[[tests]]
-files = {windows = "windows_tests/test_*.jou", default = "posix_tests/test_*.jou"}
-```
-
-On Windows, the above is equivalent to:
-
-```toml
-[[tests]]
-files = "windows_tests/test_*.jou"
-```
-
-The following keys can be used in condition tables:
-- `windows`
-- `macos`
-- `linux`
-- `32bit`
-- `default` (used when nothing else matches)
-
-If multiple different keys match,
-`joutest` will fail with an error and refuse to run any tests.
-For example, the following is probably a bad idea,
-because it does not work at all on 32-bit Linux systems:
-
-```toml
-files = {linux = "linux_tests.jou", 32bit = "32bit_tests.jou", default = "fallback_tests.jou"}
-```
-
-You can instead use nested condition tables to explicitly define
-which value is considered more important:
-
-```toml
-# This uses linux_tests.jou on 32-bit linux
-files = {
-    linux = "linux_tests.jou",
-    default = {
-        32bit = "32bit_tests.jou",
-        default = "fallback_tests.jou",
-    },
-}
-
-# This uses 32bit_tests.jou on 32-bit linux
-files = {
-    32bit = "32bit_tests.jou",
-    default = {
-        linux = "linux_tests.jou",
-        default = "fallback_tests.jou",
-    },
-}
-```
+Here `if.any = ["WINDOWS", "NETBSD"]` is same as `if = {any = ["WINDOWS", "NETBSD"]}`
+because of how TOML works.
 
 
 ## Content of `joutest.toml`
 
-Note that any value can be specified using [if/then/else tables](#ifthenelse-tables) or [condition tables](#condition-tables).
+Note that any value can be specified using [if/then/else tables](#ifthenelse-tables).
 
 The only required things are the `tests` array, and `files` inside each table of the `tests` array.
 Everything else is optional.
@@ -402,15 +348,18 @@ Everything else is optional.
         but it only applies if the expected output specified with [output comments](#output-comments) is empty.
         In other words, this determines whether tests with no output comments are skipped.
         By default, having or not having output comments does not affect skipping.
-    - `command` (default: `["jou", "{file}"]` or `["jou", "--stdin-name", "{file}", "-"]`)
+    - `command` (default: `["jou", "{file}"]` or `["jou", "--lines={lines}", "{file}"]`)
         is the command that `joutest` invokes to run the test.
-        For [tests in markdown files](#markdown-files),
-        `joutest` writes a part of the markdown file to the stdin of the test process,
-        and the default command tells the Jou compiler to run code from its stdin.
-        For other files, the default command is `["jou", "{file}"]`.
+        For a [test in a markdown file](#markdown-files), the default command uses `--lines`
+        to tell the Jou compiler that it should ignore the rest of the markdown file.
+        For other files, the default command is simply `["jou", "{file}"]`.
+        You can also pass e.g. `--jou="jou -O3"` to `joutest`
+        to use something else instead of `"jou"` in the default value.
         Inside each string, the following replacements are done:
         - `{file}` is replaced with a relative path to the test file.
             Backslashes are used on Windows, and forward slashes are used on other operating systems.
+        - `{lines}` is e.g. `"12-34"` when testing code in a markdown file between lines 12 and 34,
+            or empty string when the test does not come from a markdown file.
         - `{{` is replaced with a `{` character.
         - `}}` is replaced with a `}` character.
     - `cd_to_containing_directory` (default: `false`) is a boolean that determines the current working directory
@@ -421,7 +370,8 @@ Everything else is optional.
         if `cd_to_containing_directory` is `true`, then `{file}` is
         only the file name rather than a path, e.g. `test_foo.jou` instead of `tests/test_foo.jou`.
     - `expected_exit_code` (default: `0`) is the correct
-        [exit code](tutorial.md#main-function-and-binaries) for the test as an integer.
+        [exit code](tutorial.md#main-function-and-binaries) for the test as an integer,
+        or the string `"any"` to accept any exit code.
         If errors are expected, you probably want to set this to `1`.
     - `markdown_code_block_languages` (default: `["jou"]`) is an array of strings
         to determine what to [test in markdown files](#markdown-files).
@@ -453,12 +403,7 @@ stdout = "do_not_capture"
 ## Unimplemented features
 
 While `joutest` is usable, it is still relatively new. The following features are planned, but not implemented:
-- running multiple tests in parallel
-- passing flags to the Jou compiler: `-O0`, `-O1`, `-O2`, `-O3`, `--valgrind`
 - some way to say "if `--valgrind` was given to Jou compiler then do this"
-- some way to run the Jou compiler under valgrind (needed for testing the compiler)
 - timeout, so that an infinite loop doesn't freeze the test runner
 - maximum output size, so that an infinite loop with a print doesn't freeze the test runner
-    - `--valgrind`
-    - `--jou-flags`
-- pre-test commands like `make`, and some way to disable them
+- maybe pre-test commands like `make`, and some way to disable them

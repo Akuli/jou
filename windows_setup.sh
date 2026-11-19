@@ -72,7 +72,7 @@ else
 
     if [ -z "$offline_zip" ]; then
         echo "Downloading $filename..."
-        curl -L -C - -o $filename $url
+        curl -Lf --retry 3 --retry-all-errors -C - -o $filename $url
     else
         echo "Copying $offline_zip to ./$filename..."
         cp "$offline_zip" "$filename"

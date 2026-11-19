@@ -43,6 +43,7 @@ Remove-Item doc -Recurse
 Remove-Item examples -Recurse
 Remove-Item mingw64 -Recurse
 Remove-Item LICENSE
+Remove-Item joutest.exe
 Rename-Item jou.exe jou.exe.old
 foreach ($dll in Get-ChildItem . -Filter *.dll) {
     try {

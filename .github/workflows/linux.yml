@@ -9,28 +9,20 @@ on:
 jobs:
   test:
     timeout-minutes: 10
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         # Please keep in sync with valgrind.yml and macos.yml
         params:
-          # Oldest version: all opt levels
-          - { llvm-version: 15, opt-level: '-O0' }
-          - { llvm-version: 15, opt-level: '-O1' }
-          - { llvm-version: 15, opt-level: '-O2' }
-          - { llvm-version: 15, opt-level: '-O3' }
-          # Most versions: just one opt level to save time
-          - { llvm-version: 16, opt-level: '-O1' }
-          - { llvm-version: 17, opt-level: '-O1' }
-          - { llvm-version: 18, opt-level: '-O1' }
-          - { llvm-version: 19, opt-level: '-O1' }
+          # Oldest version
+          - { llvm-version: 17, opt-level: '-O1', os: ubuntu-26.04 }
           # Latest version: all opt levels
-          # TODO: LLVM 21 is not available from apt yet.
-          - { llvm-version: 20, opt-level: '-O0' }
-          - { llvm-version: 20, opt-level: '-O1' }
-          - { llvm-version: 20, opt-level: '-O2' }
-          - { llvm-version: 20, opt-level: '-O3' }
+          - { llvm-version: 22, opt-level: '-O0', os: ubuntu-26.04 }
+          - { llvm-version: 22, opt-level: '-O1', os: ubuntu-26.04 }
+          - { llvm-version: 22, opt-level: '-O2', os: ubuntu-26.04 }
+          - { llvm-version: 22, opt-level: '-O3', os: ubuntu-26.04 }
+          - { llvm-version: 22, opt-level: '-O1', os: ubuntu-26.04-arm }
+    runs-on: ${{ matrix.params.os }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -80,23 +72,28 @@ jobs:
 
       - name: "Select LLVM version"
         run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
-      - name: "Compile and test"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Compile"
+        run: make
+      - name: "Run tests"
+        run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
       - name: "Compile the compiler with itself"
         run: ./jou -o jou2 compiler/main.jou && mv jou2 jou
-      - name: "Compile and test again"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Run tests again"
+        run: ./joutest --verbose --jou="jou ${{ matrix.params.opt-level }}"
       # Valgrinding all files is slow, but let's valgrind the hello world.
       # This is enough to catch many bugs.
       #
       # We also have a separate, "full" valgrind run. See valgrind.yml.
+      #
+      # Deleting jou_compiled is important, because we want the compiler to do
+      # a lot of work to discover bugs in many places.
       - name: "Run hello world with valgrind"
-        run: ./runtests.sh --verbose --jou-flags "${{ matrix.params.opt-level }}" --valgrind hello
-      - run: tests/toml/run.sh --jou-flags "${{ matrix.params.opt-level }}"
-      - name: "Run the new test runner"
-        run: make joutest && ./joutest --verbose
-      - name: "Run the new test runner with valgrind"
+        run: rm -rf jou_compiled && valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=valgrind-suppressions.sup ./jou --valgrind ${{ matrix.params.opt-level }} examples/hello.jou
+      - name: "Run a few tests while valgrinding the test runner"
         # No leak checking flags here, currently joutest is a bit leaky and I'm
         # not sure if I want to fix it. The OS frees all memory anyway when
         # joutest exits.
-        run: valgrind --error-exitcode=1 ./joutest --verbose
+        run: valgrind --error-exitcode=1 ./joutest --verbose hello
+      - name: "Run TOML tests"
+        if: runner.arch == 'X64'
+        run: tests/toml/run.sh --jou-flags "${{ matrix.params.opt-level }}"

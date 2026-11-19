@@ -35,30 +35,32 @@ jobs:
   valgrind:
     needs: [check-if-needed]
     if: ${{ needs.check-if-needed.outputs.needed == 'true' }}
-    runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-26.04-arm
         # Testing all levels because there was a bug that only happened with -O1. (#224)
         # Please keep in sync with linux.yml and macos.yml
         params:
           # Oldest version: all opt levels
-          - { llvm-version: 15, opt-level: '-O0' }
-          - { llvm-version: 15, opt-level: '-O1' }
-          - { llvm-version: 15, opt-level: '-O2' }
-          - { llvm-version: 15, opt-level: '-O3' }
-          # Most versions: just one opt level to save time
-          - { llvm-version: 16, opt-level: '-O1' }
+          - { llvm-version: 17, opt-level: '-O0' }
           - { llvm-version: 17, opt-level: '-O1' }
-          - { llvm-version: 18, opt-level: '-O1' }
-          - { llvm-version: 19, opt-level: '-O1' }
-          # Latest version: all opt levels
-          # TODO: LLVM 21 is not available from apt yet.
-          - { llvm-version: 20, opt-level: '-O0' }
-          - { llvm-version: 20, opt-level: '-O1' }
-          - { llvm-version: 20, opt-level: '-O2' }
+          - { llvm-version: 17, opt-level: '-O2' }
+          - { llvm-version: 17, opt-level: '-O3' }
+          # Most versions: -O3 seems to trigger the most valgrind warnings, using that
+          - { llvm-version: 18, opt-level: '-O3' }
+          - { llvm-version: 19, opt-level: '-O3' }
           - { llvm-version: 20, opt-level: '-O3' }
+          - { llvm-version: 21, opt-level: '-O3' }
+          # Latest version: all opt levels
+          - { llvm-version: 22, opt-level: '-O0' }
+          - { llvm-version: 22, opt-level: '-O1' }
+          - { llvm-version: 22, opt-level: '-O2' }
+          - { llvm-version: 22, opt-level: '-O3' }
       fail-fast: false
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -67,18 +69,33 @@ jobs:
         run: |
           PACKAGES="llvm-${{ matrix.params.llvm-version }}-dev clang-${{ matrix.params.llvm-version }} make valgrind liblzma-dev"
           sudo apt install -y $PACKAGES || (sudo apt update && sudo apt install -y $PACKAGES)
-      - run: LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }} make
-      - name: "Test compiler with valgrind"
-        run: ./runtests.sh --verbose --valgrind --jou-flags "${{ matrix.params.opt-level }}"
-      - run: tests/toml/run.sh --valgrind --jou-flags "${{ matrix.params.opt-level }}"
+      - name: "Select LLVM version"
+        run: echo "LLVM_CONFIG=llvm-config-${{ matrix.params.llvm-version }}" >> $GITHUB_ENV
+      - name: "Compile"
+        run: make
+      - name: "Run tests with valgrind"
+        # This skips tests that contain various errors, for two reasons:
+        #   - the compiler does not free memory on error
+        #   - valgrinding would be even slower if all the erroring tests were valgrinded
+        #
+        # This command doesn't work if there is a space in current working directory
+        run: |
+          ./joutest --verbose \
+            --jou="valgrind -q --leak-check=full --show-leak-kinds=all --error-exitcode=1 --suppressions=$(pwd)/valgrind-suppressions.sup jou --valgrind ${{ matrix.params.opt-level }}" \
+            --skip-if-contains='# Error:' \
+            --skip-if-contains='# ErrorNoLine:' \
+            --skip-if-contains='compiler error in file "'
+      - name: "Test TOML parser with valgrind"
+        if: runner.arch == 'X64'
+        run: tests/toml/run.sh --valgrind --jou-flags "${{ matrix.params.opt-level }}"
 
-  # Please keep in sync with macos.yml and linux-aarch64.yml
+  # Please keep in sync with other .yml files
   create-issue-on-failure:
     name: Create an issue if failed
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [check-if-needed, valgrind]
-    if: ${{ github.repository == 'Akuli/jou' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.valgrind.result == 'failure' }}
+    if: ${{ github.repository == 'Akuli/jou' && github.ref == 'refs/heads/main' && always() && needs.check-if-needed.outputs.needed == 'true' && needs.valgrind.result == 'failure' }}
     permissions:
       issues: write
     steps:

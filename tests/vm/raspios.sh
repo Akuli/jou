@@ -249,7 +249,7 @@ if ! ../ssh.sh which git; then
         echo "$url"
         (
             cd shared_folder/apt_update
-            if wget -q -O "$filename" "$url"; then
+            if curl -LfSs -o "$filename" "$url"; then
                 if [[ "$url" == *.xz ]]; then
                     # File is xz compressed
                     mv "$filename" "$filename.xz"
@@ -273,7 +273,7 @@ if ! ../ssh.sh which git; then
     mkdir -vp shared_folder/apt_install
     ../ssh.sh apt-get install --print-uris -y $packages | grep "^'http" | tr -d "'" | while read -r url filename ignore_the_rest; do
         echo "  $filename"
-        wget -q --continue -O "shared_folder/apt_install/$filename" "$url"
+        curl -LfSs -C - -o "shared_folder/apt_install/$filename" "$url"
     done
 
     echo "Installing packages from shared folder..."

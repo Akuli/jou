@@ -1,0 +1,44 @@
+name: Markdown links
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  pull-request:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python check-markdown-links.py --offline
+
+  nightly:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install requests==2.32.3
+      - run: python check-markdown-links.py
+
+  # Please keep in sync with other .yml files
+  create-issue-on-failure:
+    name: Create an issue if failed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [nightly]
+    if: ${{ github.event_name != 'pull_request' && github.repository == 'Akuli/jou' && always() && needs.nightly.result == 'failure' }}
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - run: ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Markdown link checker failed"

@@ -1,7 +1,10 @@
 import "stdlib/io.jou"
 import "stdlib/process.jou"
+import "stdlib/fs.jou"
 
 def write_hello_123() -> None:
+    mkdir("tmp", 0o777)
+    mkdir("tmp/tests", 0o777)
     f = fopen("tmp/tests/hello.txt", "w")
     if f == NULL:
         printf("can't write tmp/tests/hello.txt\n")
