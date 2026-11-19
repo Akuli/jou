@@ -60,7 +60,7 @@ For now, function analyzing means determining diagnostics
 (e.g. undefined variable names, wrong argument types) for the function,
 but later it may be extended to more than diagnostics, such as:
 - Types of variables and other intermediate values inside the function
-    (useful if joulsp is later turned into a Jou compiler)
+    (useful for hovers, or if joulsp is later turned into a Jou compiler)
 - Jump-to-definition information for local variables
 
 The langserver never forgets about a file entirely:
@@ -70,7 +70,7 @@ This also means that each `JouFile` doesn't need its own allocator.
 Just use `malloc()` for allocations tied to a `JouFile`.
 
 
-## File analyzing
+## File Analyzing
 
 Symbol lookups and evaluating compile-time `if` statements
 are combined into a single "file analyzing" step,
@@ -78,7 +78,7 @@ because they can depend on each other in both directions.
 These dependencies can also be cyclic or spread across multiple files.
 **This is the only step that deals with multiple files at once.**
 
-```
+```python
 # Symbol lookup depends on evaluating a compile-time if statement
 if True:
     def this_is_a_symbol() -> None:
@@ -104,35 +104,40 @@ const C: int = B  # Error: constant B depends on itself
 Analyzing results are stored in symbol tables.
 There's one symbol table for each file.
 Each symbol table is a hash table with symbol names as keys and analyzing results as values.
-For example, if the user's project only uses `printf()`,
-there's no need to analyze every symbol of `stdlib/io.jou` in full detail.
 
-Symbol tables are caches, not sources of truth.
-If a symbol table doesn't contain a symbol, the symbol might still exist in the file,
-but it hasn't been needed yet.
+File analyzing is done with lazy evaluation.
+Here are some examples that hopefully explain how this works:
+- If the user's project only uses `printf()`,
+    and the user doesn't open `stdlib/io.jou` in the editor to have a look inside,
+    we don't analyze every symbol of `stdlib/io.jou` in full detail.
+- It's useful to know that `stdlib/str.jou` doesn't define a `printf()`,
+    so that when looking up `printf()`, we can quickly put "not found" into the symbol table of `stdlib/str.jou`.
+    To help with that, the parser produces a list of possible symbol names
+    that could be defined somewhere in the file.
+    The parser doesn't know how compile-time `if` statements end up being evaluated,
+    so this list may contain symbol names that are not really defined in the file.
+- Symbol tables are caches, not sources of truth.
+    For example, the symbol table of `stdlib/io.jou` might not contain `puts()` if you never used `puts()`.
+    "Not found" is a valid analyzing result that can go in a symbol table,
+    and that's how you know for sure that a symbol does not exist.
+- Cycles are handled with marking.
+    In the above example, we end up trying to get the symbol for `B` or `C` recursively,
+    and when we get to the inner call, the symbol has already been marked as being currently analyzed.
 
-For now, all symbol tables are cleared when the AST of any file changes.
+For now, all symbol tables are cleared when the AST of any file changes anywhere else than inside a function or method.
+To detect this, we simply compare the old and new ASTs without recursing into function bodies.
 I think it would be possible to figure out which symbols can remain cached,
 but this seems like a rabbit hole, and I don't want to think about it yet.
 
-Cycles are handled with marking.
-For example, if we are trying to get the symbol for constant `C`,
-but `C` has already been marked as being currently analyzed,
-then the result of analyzing `C` is a cyclic dependency error.
-In the above example, the result of analyzing `A` is a constant with unknown value.
-
-File analyzing is done with lazy evaluation.
-This helps with handling cycles, and should also improve performance.
-
-One of the possible analyzing results is "no such symbol exists".
-For example, it's useful to know that `stdlib/str.jou` doesn't define a `printf()`.
-To help with that, the parser produces a list of possible symbol names
-that could be defined somewhere in the file.
-The parser doesn't know how compile-time `if` statements end up being evaluated,
-so this list may contain symbol names that are not really defined in the file.
+To avoid getting many errors in code that uses symbols that contain errors,
+such as `A`, `B` and `C` in the above example,
+there is an `Unknown` type and an `Unknown` value that are emitted for errors.
+So if you are working on some part of the langserver, and your code receives an `Unknown` type or value,
+you should try to accept it without causing more errors,
+because there is already an error somewhere else.
 
 
-## Function analyzing
+## Function Analyzing
 
 The whole function is always analyzed when anything inside it changes,
 and the results of function analyzing are cached.
@@ -179,7 +184,7 @@ Caveats with symbol lookups:
 All this also applies to methods. A method is basically a function with a fancy name.
 
 
-## Caching the diagnostics
+## Caching the Diagnostics
 
 The final diagnostics sent to the langserver depend on a lot of different things,
 so we just recompute them instead of trying to predict whether they will change.
@@ -191,7 +196,7 @@ so that diagnostics are sent to the editor only for files whose diagonstics chan
 
 For both convenience and performance, I wanted to compare types with a simple `==` operator.
 This means that types should be either pointers or some kind of IDs.
-I chose pointers, because that also lets me do things like `puts(some_type.name)`.
+I chose pointers, because that also lets me do things like `puts(some_type.name)` while debugging.
 
 For classes, each `Type*` represents **one version** of the class and its fields
 (not methods, those are treated as functions).
