@@ -18,9 +18,9 @@ def run_jou(command: byte*) -> None:
 
 # Find and print things like the following...
 #
-#   Reusing previously compiled file: jou_compiled/object_files/hello_36494a390f444fbd_c836422383205631.o
+#   Reusing previously compiled file: jou_compiled/object_files/hello_b6fa5980cce58dd48ffcf0386857ef04_fd5821e5308b3f09bf94b8aad37660a9.o
 #
-# ...but replace things like 36494a390f444fbd with "<hash>" as they are platform-specific.
+# ...but replace things like b6fa5980cce58dd48ffcf0386857ef04 with "<hash>".
 def print_reusing_compiled_file_lines(path: byte*) -> None:
     f = fopen(path, "r")
     assert f != NULL
@@ -31,13 +31,13 @@ def print_reusing_compiled_file_lines(path: byte*) -> None:
             p = &line[0]
             while *p != '\0':
                 is_hash = True
-                for i = 0; i < 16; i++:
+                for i = 0; i < 32; i++:
                     if not (('0' <= p[i] and p[i] <= '9') or ('a' <= p[i] and p[i] <= 'f')):
                         is_hash = False
                         break
                 if is_hash:
                     printf("<hash>")
-                    p = &p[16]
+                    p = &p[32]
                 else:
                     putchar(*p++)
 
