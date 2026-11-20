@@ -188,10 +188,10 @@ def delete_by_suffix(dir: byte*, suffix: byte*, never_delete_this_name: byte*) -
                 printf("Deleted %s\n", iter.path)
 
 
-def get_simple_name(jou_file_path: byte*) -> byte[40]:
+def get_simple_name(jou_file_path: byte*) -> byte[30]:
     jou_file_path = skip_slashes(jou_file_path)
 
-    result: byte[40]
+    result: byte[30]
     memset(result, 0, sizeof(result))
     result_len = 0
 
@@ -296,7 +296,7 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: ui
     # See doc/lazy-recompile.md for an explaanation of the file naming.
     # Example file name: simple_name_00112233445566778899aabbccddeeff_00112233445566778899aabbccddeeff.o
 
-    assert sizeof(simple_name) == 40
+    assert sizeof(simple_name) == 30
     path: byte[300]
     sprintf(path, "jou_compiled/object_files/%s_%016llx%016llx_%016llx%016llx.o", simple_name, content_hash[0], content_hash[1], identifier_hash[0], identifier_hash[1])
 
@@ -332,7 +332,7 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: ui
 def lock_exe_path() -> byte[100]:
     assert global_compiler_state.exe_lock_path[0] == '\0'
 
-    simple_name: byte[40] = get_simple_name(global_compiler_state.args.infile)
+    simple_name: byte[30] = get_simple_name(global_compiler_state.args.infile)
     exe_path: byte[100]
     assert sizeof(global_compiler_state.exe_lock_path) == 100
 
