@@ -85,8 +85,8 @@ Basically, all inputs given to LLVM are also baked into the content hash.
 
 The **identifier hash** is a hash of the file path `"examples/hello.jou"` and a few other things.
 It is used to delete old object files.
-Before the compiler creates `foo_1111222233334444_5555666677778888.o`,
-it deletes existing files whose name ends with `_5555666677778888.o`.
+Before the compiler creates `foo_11111111222222223333333344444444_55555555666666667777777788888888.o`,
+it deletes other files whose name ends with `_55555555666666667777777788888888.o`.
 This means that if you edit and recompile a file 1000 times,
 you don't end up with 1000 object files in the `jou_compiled` folder,
 because the identifier hash is the same every time.
