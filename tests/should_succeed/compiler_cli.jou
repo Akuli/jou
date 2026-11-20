@@ -202,4 +202,8 @@ def main() -> int:
         assert system("jou tests\\should_succeed\\import_cycle.jou >NUL") == 0
         assert system("jou tests/should_succeed/iMpOrT_cYcLe.jou >NUL") == 0
 
+    # Here -lm should be the value of --linker-flags, not a separate thing
+    # Output: Hello World
+    assert system("jou --linker-flags -lm examples/hello.jou") == 0
+
     return 0

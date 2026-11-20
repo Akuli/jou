@@ -304,3 +304,8 @@ Methods:
 - `take_value() -> byte*` is the difference between `--foo` and `--foo=bar`.
     Call `take_value()` once between the `next()` calls to take a value with the flag, as in `--foo=bar`.
     If no value was given, `take_value()` returns `NULL`.
+- `take_value_with_dash() -> byte*` is just like `take_value()`,
+    except that it doesn't care if the argument looks like it could be another flag.
+    For example, `--my-number -1` is ambiguous:
+    is `-1` a negative number, or a separate flag like `-v` but with a number instead of a letter?
+    In this situation, `take_value()` does not consume the `-1`, but `take_value_with_dash()` consumes it.

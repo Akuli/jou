@@ -1,4 +1,3 @@
-import "stdlib/ascii.jou"
 import "stdlib/str.jou"
 import "stdlib/utf8.jou"
 
@@ -73,8 +72,7 @@ class ArgumentParser:
 
         return True
 
-    @public
-    def take_value(self) -> byte*:
+    def take_value_internal(self, can_start_with_dash: bool) -> byte*:
         if self.pending_value != NULL:
             # Handle -o=foo.txt
             result = self.pending_value
@@ -89,12 +87,18 @@ class ArgumentParser:
 
         if self.argv[self.argv_index] != NULL and self.argv[self.argv_index + 1] != NULL:
             # Handle two separate arguments: -o foo.txt
-            #
-            # Don't eat --foo or -f as a value, but eat -1 because negative
-            # numbers are common. This is what Python's argparse does.
+            # Don't eat --foo or -f as a value unless explicitly requested.
             arg = self.argv[self.argv_index + 1]
-            if arg[0] != '-' or strcmp(arg, "-") == 0 or is_ascii_digit(arg[1]):
+            if arg[0] != '-' or strcmp(arg, "-") == 0 or can_start_with_dash:
                 self.argv_index++
                 return arg
 
         return NULL
+
+    @public
+    def take_value(self) -> byte*:
+        return self.take_value_internal(False)
+
+    @public
+    def take_value_with_dash(self) -> byte*:
+        return self.take_value_internal(True)
