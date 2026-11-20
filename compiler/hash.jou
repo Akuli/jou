@@ -3,8 +3,6 @@
 #
 # The hash algorithm we use is MurmurHash3_x64_128:
 # https://github.com/aappleby/smhasher/blob/07bb4de10a63e8cc2e1724865454eba635742383/src/MurmurHash3.cpp#L255
-# It is super easy to implement. We use the 64-bit variant to get a reasonably
-# low probability for collisions.
 #
 # Of course, this is not cryptographically secure, but it doesn't matter for a
 # compiler: if someone can place whatever they want into `jou_compiled`, you're
@@ -18,9 +16,6 @@ import "stdlib/str.jou"
 def rotl64(x: uint64, r: int8) -> uint64:
     return (x << r) | (x >> (64 - r))
 
-const c1: uint64 = 0x87c37b91114253d5
-const c2: uint64 = 0x4cf5ad432745937f
-
 @inline
 def fmix64(k: uint64) -> uint64:
     k ^= k >> 33
@@ -29,6 +24,9 @@ def fmix64(k: uint64) -> uint64:
     k *= 0xc4ceb9fe1a85ec53
     k ^= k >> 33
     return k
+
+const c1: uint64 = 0x87c37b91114253d5
+const c2: uint64 = 0x4cf5ad432745937f
 
 @inline
 def murmur_iteration(h1: uint64, h2: uint64, k1: uint64, k2: uint64) -> uint64[2]:
