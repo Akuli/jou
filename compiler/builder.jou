@@ -351,7 +351,7 @@ def build_llvm_cast(
     assert False
 
 
-def hash_type(hash: Hash*, type: Type*) -> None:
+def hash_type(hash: Hasher*, type: Type*) -> None:
     assert type != NULL
 
     hash.add_string("type")
@@ -380,7 +380,7 @@ def hash_type(hash: Hash*, type: Type*) -> None:
                 hash.add_int(f.union_id)
 
 
-def hash_signature(hash: Hash*, sig: Signature*) -> None:
+def hash_signature(hash: Hasher*, sig: Signature*) -> None:
     hash.add_string("signature")
     hash.add_string(sig.name)
 
@@ -438,7 +438,7 @@ class Builder:
     llvm_code_start_block: LLVMBasicBlock*
     llvm_returns_a_value: bool
 
-    hash: Hash
+    hash: Hasher
     hash_id_counter: int64
 
     uvg_print: bool
@@ -1414,7 +1414,7 @@ class Builder:
 #
 # This always builds and checks UVG's.
 @public
-def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*) -> None:
+def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: uint64[2]*) -> None:
     assert (llvm_out != NULL and hash_out != NULL) or (llvm_out == NULL and hash_out == NULL)
     we_are_making_object_file = llvm_out != NULL
 
@@ -1438,7 +1438,6 @@ def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*
     if we_are_making_object_file:
         builder.llvm_builder = LLVMCreateBuilder()
         assert builder.llvm_builder != NULL
-        builder.hash = new_hash()
 
         # Compilation results depend on the compiler that compiles them, so
         # let's bake this whole compiler into the hash.
@@ -1447,7 +1446,8 @@ def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*
         # However, we don't include it in the hash here, because compilation
         # results for different optimization levels are separated anyway.
         # See doc/lazy-recompile.md for details.
-        builder.hash.add_uint64(hash_of_compiler().hash)
+        h: uint64[2] = hash_of_compiler()
+        builder.hash.add_bytes(&h as byte*, sizeof(h))
 
         builder.llvm_module = LLVMModuleCreateWithName(jou_file.path)
         add_path_to_hash(&builder.hash, jou_file.path)
@@ -1463,7 +1463,7 @@ def build_file(jou_file: JouFile*, llvm_out: LLVMMemoryBuffer**, hash_out: Hash*
     feed_file_to_builder(jou_file, &builder)
 
     if we_are_making_object_file:
-        *hash_out = builder.hash
+        *hash_out = builder.hash.finish()
         *llvm_out = LLVMWriteBitcodeToMemoryBuffer(builder.llvm_module)
         assert *llvm_out != NULL
         LLVMDisposeBuilder(builder.llvm_builder)
