@@ -94,10 +94,11 @@ def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     assert 1 <= args.parallelism and args.parallelism <= MAX_PARALLELISM
     running: RunState[MAX_PARALLELISM]
     nrunning = 0
+    stop_asap = False
 
     p = tests.ptr
-    while nrunning > 0 or p < tests.end():
-        if nrunning < args.parallelism and p < tests.end():
+    while nrunning > 0 or (p < tests.end() and not stop_asap):
+        if nrunning < args.parallelism and p < tests.end() and not stop_asap:
             test = p++
             match test.skip:
                 case SkipMode.DontSkip:
@@ -139,3 +140,10 @@ def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
             else:
                 test.simple_result = SimpleResult.Failed
                 print_fail(test, args.verbose)
+                if args.stop_on_first_error:
+                    stop_asap = True
+
+    while p < tests.end():
+        assert args.stop_on_first_error
+        assert stop_asap
+        (p++).skip = SkipMode.SkipSilently
