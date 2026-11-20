@@ -351,15 +351,15 @@ def build_llvm_cast(
     assert False
 
 
-def hash_type(h: Hasher*, type: Type*) -> None:
+def hash_type(hash: Hasher*, type: Type*) -> None:
     assert type != NULL
 
-    h.add_string("type")
-    h.add_int(type.kind as int)
+    hash.add_string("type")
+    hash.add_int(type.kind as int)
     match type.kind:
         case TypeKind.Array:
-            h.add_int64(type.array.count)
-            hash_type(h, type.array.item_type)
+            hash.add_int64(type.array.count)
+            hash_type(hash, type.array.item_type)
         case (
             # Treat all pointers the same, since they are the same LLVM type.
             TypeKind.Pointer
@@ -372,12 +372,12 @@ def hash_type(h: Hasher*, type: Type*) -> None:
         ):
             pass
         case TypeKind.FloatingPoint | TypeKind.SignedInteger | TypeKind.UnsignedInteger:
-            h.add_int(type.size_in_bits)
+            hash.add_int(type.size_in_bits)
         case TypeKind.Class:
             # Ignore methods, because only the fields affect the LLVM type.
             for f = type.classdata.fields.ptr; f < type.classdata.fields.end(); f++:
-                hash_type(h, f.type)
-                h.add_int(f.union_id)
+                hash_type(hash, f.type)
+                hash.add_int(f.union_id)
 
 
 def hash_signature(hash: Hasher*, sig: Signature*) -> None:
