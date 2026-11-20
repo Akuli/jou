@@ -24,6 +24,7 @@ const c1: uint64 = 0x87c37b91114253d5
 const c2: uint64 = 0x4cf5ad432745937f
 
 
+@inline
 def fmix64(k: uint64) -> uint64:
     k ^= k >> 33
     k *= 0xff51afd7ed558ccd
@@ -47,14 +48,14 @@ class Hasher:
     def add_bytes(self, data: byte*, data_len: intnative) -> None:
         self.total_len += data_len
 
-        buffer_pos: intnative = self.buffer[15]
+        buffer_pos = self.buffer[15]
         assert buffer_pos < array_count(self.buffer)
 
         for i = 0; i < data_len; i++:
             self.buffer[buffer_pos++] = data[i]
-            if buffer_pos == array_count(self.buffer):
-                buffer_pos = 0
-
+            buffer_pos &= 15
+            if buffer_pos == 0:
+                # We filled an entire block
                 h1 = self.state[0]
                 h2 = self.state[1]
                 k1 = self.buffer64[0]
@@ -82,7 +83,7 @@ class Hasher:
 
                 self.state = [h1, h2]
 
-        self.buffer[15] = (buffer_pos + data_len) & (15 as byte)
+        self.buffer[15] = buffer_pos
 
     @public
     def add_byte(self, b: byte) -> None:
