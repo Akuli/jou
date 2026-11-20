@@ -143,7 +143,7 @@ def step6_run_tests(tests: List[Test], args: CommandLineArgs*) -> None:
                 if args.stop_on_first_error:
                     stop_asap = True
 
-    while p < tests.end():
+    for ; p < tests.end(); p++:
         assert args.stop_on_first_error
         assert stop_asap
-        (p++).skip = SkipMode.SkipSilently
+        p.skip = SkipMode.SkipSilently
