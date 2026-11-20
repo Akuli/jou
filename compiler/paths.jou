@@ -41,7 +41,7 @@ def path_strcmp(a: byte*, b: byte*) -> int:
     return 0
 
 @public
-def add_path_to_hash(h: Hash*, path: byte*) -> None:
+def add_path_to_hash(h: Hasher*, path: byte*) -> None:
     for ; *path != '\0'; path++:
         h.add_byte(normalize_path_byte(*path))
     h.add_byte('\0')
@@ -59,8 +59,10 @@ def file_exists(path: byte*) -> bool:
 
 # Returns a value that changes when the compiler is recompiled.
 @public
-def hash_of_compiler() -> Hash:
-    if global_compiler_state.cached_compiler_hash.hash != 0:
+def hash_of_compiler() -> uint64[2]:
+    # TODO(Jou): array equals
+    #if global_compiler_state.cached_compiler_hash[0] != [0, 0]:
+    if global_compiler_state.cached_compiler_hash[0] != 0 or global_compiler_state.cached_compiler_hash[1] != 0:
         return global_compiler_state.cached_compiler_hash
 
     path = find_current_executable()
@@ -68,19 +70,20 @@ def hash_of_compiler() -> Hash:
         fprintf(get_stderr(), "error: cannot locate the currently running Jou compiler executable\n")
         exit(1)
 
+    hasher = Hasher{}
+
     f = fopen(path, "rb")
     free(path)
     if f == NULL:
         ok = False
     else:
-        global_compiler_state.cached_compiler_hash = new_hash()
         buf: byte[4096]
         fail = False
         while True:
             n = fread(buf, 1, sizeof(buf), f)
             if n == 0:
                 break
-            global_compiler_state.cached_compiler_hash.add_bytes(buf, n)
+            hasher.add_bytes(buf, n)
         ok = (ferror(f) == 0)
         fclose(f)
 
@@ -88,6 +91,7 @@ def hash_of_compiler() -> Hash:
         fprintf(get_stderr(), "error: failed to calculate hash of the Jou compiler executable\n")
         exit(1)
 
+    global_compiler_state.cached_compiler_hash = hasher.finish()
     return global_compiler_state.cached_compiler_hash
 
 
@@ -184,10 +188,10 @@ def delete_by_suffix(dir: byte*, suffix: byte*, never_delete_this_name: byte*) -
                 printf("Deleted %s\n", iter.path)
 
 
-def get_simple_name(jou_file_path: byte*) -> byte[50]:
+def get_simple_name(jou_file_path: byte*) -> byte[40]:
     jou_file_path = skip_slashes(jou_file_path)
 
-    result: byte[50]
+    result: byte[40]
     memset(result, 0, sizeof(result))
     result_len = 0
 
@@ -264,8 +268,8 @@ def disjoint_interval_id(a: int, b: int) -> int:
 # different hashes, computed from the pairs ("foo.jou", 1) and ("foo.jou", 2).
 # This means we store two compiled versions of foo.jou for the two optimization
 # levels, and we always have it ready regardless of which level is used.
-def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
-    h = new_hash()
+def calculate_identifier_hash(jou_file_path: byte*) -> uint64[2]:
+    h = Hasher{}
     h.add_byte(global_compiler_state.args.optlevel as byte)
     add_path_to_hash(&h, jou_file_path)
 
@@ -281,20 +285,20 @@ def calculate_identifier_hash(jou_file_path: byte*) -> Hash:
             global_compiler_state.args.line_number_range[1],
         ))
 
-    return h
+    return h.finish()
 
 
 @public
-def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Hash, exists: bool*) -> byte*:
+def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: uint64[2], exists: bool*) -> byte*:
     simple_name = get_simple_name(jou_file.path)
     identifier_hash = calculate_identifier_hash(jou_file.path)
 
     # See doc/lazy-recompile.md for an explaanation of the file naming.
-    # Example file name: simple_name_0011223344556677_8899aabbccddeeff.o
+    # Example file name: simple_name_00112233445566778899aabbccddeeff_00112233445566778899aabbccddeeff.o
 
-    assert sizeof(simple_name) == 50
+    assert sizeof(simple_name) == 40
     path: byte[300]
-    sprintf(path, "jou_compiled/object_files/%s_%016llx_%016llx.o", simple_name, content_hash.hash, identifier_hash.hash)
+    sprintf(path, "jou_compiled/object_files/%s_%016llx%016llx_%016llx%016llx.o", simple_name, content_hash[0], content_hash[1], identifier_hash[0], identifier_hash[1])
 
     # This should be treated so that False means it may exist anyway. Another
     # compiler process could produce the same object file after this check.
@@ -306,7 +310,7 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Ha
     # produce a new object file, just in case going through the directory
     # contents is slow for some reason.
     if not *exists:
-        suffix_len = strlen("_8899aabbccddeeff.o")
+        suffix_len = strlen("_00112233445566778899aabbccddeeff.o")
         suffix = &path[strlen(path) - suffix_len]
         name = &path[strlen("jou_compiled/object_files/")]
         delete_by_suffix("jou_compiled/object_files", suffix, name)
@@ -328,7 +332,7 @@ def get_path_to_object_file_in_jou_compiled(jou_file: JouFile*, content_hash: Ha
 def lock_exe_path() -> byte[100]:
     assert global_compiler_state.exe_lock_path[0] == '\0'
 
-    simple_name: byte[50] = get_simple_name(global_compiler_state.args.infile)
+    simple_name: byte[40] = get_simple_name(global_compiler_state.args.infile)
     exe_path: byte[100]
     assert sizeof(global_compiler_state.exe_lock_path) == 100
 

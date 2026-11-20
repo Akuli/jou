@@ -1,8 +1,8 @@
-# This file is used to calculate 64-bit hashes. They are used to check whether
+# This file is used to calculate 128-bit hashes. They are used to check whether
 # source files have changed so that we need to recompile.
 #
-# The hash algorithm we use is FNV-1a:
-# https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+# The hash algorithm we use is MurmurHash3_x64_128:
+# https://github.com/aappleby/smhasher/blob/07bb4de10a63e8cc2e1724865454eba635742383/src/MurmurHash3.cpp#L255
 # It is super easy to implement. We use the 64-bit variant to get a reasonably
 # low probability for collisions.
 #
@@ -11,27 +11,82 @@
 # doomed anyway :)
 
 import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
 import "stdlib/str.jou"
 
 
-# Do not instantiate this as `Hash{}`, that uses wrong initial value.
-# Use new_hash() function.
+@inline
+def rotl64(x: uint64, r: int8) -> uint64:
+    return (x << r) | (x >> (64 - r))
+
+
+const c1: uint64 = 0x87c37b91114253d5
+const c2: uint64 = 0x4cf5ad432745937f
+
+
+def fmix64(k: uint64) -> uint64:
+    k ^= k >> 33
+    k *= 0xff51afd7ed558ccd
+    k ^= k >> 33
+    k *= 0xc4ceb9fe1a85ec53
+    k ^= k >> 33
+    return k
+
+
+# Use `Hasher{}` to initialize this with seed 0.
 @public
-class Hash:
-    hash: uint64
-    created_correctly: bool
+class Hasher:
+    state: uint64[2]
+    union:
+        buffer: byte[16]  # buffer[15] is the length, it's never full
+        buffer64: uint64[2]  # this is mostly to ensure it's nicely aligned
+    total_len: intnative
 
     # Add data to hash
     @public
-    def add_byte(self, b: byte) -> None:
-        assert self.created_correctly  # If this fails, use new_hash() function
-        self.hash ^= b
-        self.hash *= 0x100_0000_01b3
+    def add_bytes(self, data: byte*, data_len: intnative) -> None:
+        self.total_len += data_len
+
+        buffer_pos: intnative = self.buffer[15]
+        assert buffer_pos < array_count(self.buffer)
+
+        for i = 0; i < data_len; i++:
+            self.buffer[buffer_pos++] = data[i]
+            if buffer_pos == array_count(self.buffer):
+                buffer_pos = 0
+
+                h1 = self.state[0]
+                h2 = self.state[1]
+                k1 = self.buffer64[0]
+                k2 = self.buffer64[1]
+
+                k1 *= c1
+                k1 = rotl64(k1, 31)
+                k1 *= c2
+                h1 ^= k1
+
+                h1 = rotl64(h1, 27)
+                h1 += h2
+                h1 *= 5
+                h1 += 0x52dce729
+
+                k2 *= c2
+                k2 = rotl64(k2, 33)
+                k2 *= c1
+                h2 ^= k2
+
+                h2 = rotl64(h2, 31)
+                h2 += h1
+                h2 *= 5
+                h2 += 0x38495ab5
+
+                self.state = [h1, h2]
+
+        self.buffer[15] = (buffer_pos + data_len) & (15 as byte)
 
     @public
-    def add_bytes(self, data: byte*, len: int64) -> None:
-        for i: int64 = 0; i < len; i++:
-            self.add_byte(data[i])
+    def add_byte(self, b: byte) -> None:
+        self.add_bytes(&b, 1)
 
     @public
     def add_bool(self, b: bool) -> None:
@@ -55,7 +110,63 @@ class Hash:
         self.add_int64(len)
         self.add_bytes(s, len)
 
+    @public
+    def finish(self) -> uint64[2]:
+        h1 = self.state[0]
+        h2 = self.state[1]
+        k1: uint64 = 0
+        k2: uint64 = 0
 
-@public
-def new_hash() -> Hash:
-    return Hash{hash = 0xcbf2_9ce4_8422_2325, created_correctly = True}
+        tail_len = self.buffer[15]
+        if tail_len >= 15:
+            k2 ^= (self.buffer[14] as uint64) << 48
+        if tail_len >= 14:
+            k2 ^= (self.buffer[13] as uint64) << 40
+        if tail_len >= 13:
+            k2 ^= (self.buffer[12] as uint64) << 32
+        if tail_len >= 12:
+            k2 ^= (self.buffer[11] as uint64) << 24
+        if tail_len >= 11:
+            k2 ^= (self.buffer[10] as uint64) << 16
+        if tail_len >= 10:
+            k2 ^= (self.buffer[ 9] as uint64) << 8
+        if tail_len >=  9:
+            k2 ^= (self.buffer[ 8] as uint64) << 0
+            k2 *= c2
+            k2 = rotl64(k2, 33)
+            k2 *= c1
+            h2 ^= k2
+        if tail_len >=  8:
+            k1 ^= (self.buffer[ 7] as uint64) << 56
+        if tail_len >=  7:
+            k1 ^= (self.buffer[ 6] as uint64) << 48
+        if tail_len >=  6:
+            k1 ^= (self.buffer[ 5] as uint64) << 40
+        if tail_len >=  5:
+            k1 ^= (self.buffer[ 4] as uint64) << 32
+        if tail_len >=  4:
+            k1 ^= (self.buffer[ 3] as uint64) << 24
+        if tail_len >=  3:
+            k1 ^= (self.buffer[ 2] as uint64) << 16
+        if tail_len >=  2:
+            k1 ^= (self.buffer[ 1] as uint64) << 8
+        if tail_len >=  1:
+            k1 ^= (self.buffer[ 0] as uint64) << 0
+            k1 *= c1
+            k1 = rotl64(k1, 31)
+            k1 *= c2
+            h1 ^= k1
+
+        h1 ^= self.total_len
+        h2 ^= self.total_len
+
+        h1 += h2
+        h2 += h1
+
+        h1 = fmix64(h1)
+        h2 = fmix64(h2)
+
+        h1 += h2
+        h2 += h1
+
+        return [h1, h2]

@@ -353,7 +353,7 @@ def build_everything(we_are_making_object_files: bool) -> None:
         assert jou_file.llvm_ir == NULL
 
         if we_are_making_object_files:
-            hash: Hash
+            hash: uint64[2]
             build_file(jou_file, &jou_file.llvm_ir, &hash)
 
             exists: bool
