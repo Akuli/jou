@@ -363,6 +363,9 @@ def do_expected_output_transform(test: Test*, toml: TOML*) -> None:
     if old == NULL or new == NULL:
         fail_in_toml(toml.lineno, "each transform must be a table like {replace = \"...\", with = \"...\"}")
 
+    if old[0] == '\0':
+        fail_in_toml(toml_get(toml, "replace").lineno, "'replace' cannot be empty string")
+
     assert toml.type == TOMLType.Table  # must be, if toml_get() succeeded
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
         if strcmp(kv.key, "replace") != 0 and strcmp(kv.key, "with") != 0:
