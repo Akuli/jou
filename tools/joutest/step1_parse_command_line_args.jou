@@ -39,13 +39,16 @@ def get_number_of_cpus() -> int:
 def print_help(argv0: byte*) -> None:
     printf("Usage: %s [options] [FILTER FILTER2 FILTER3 ...]\n", argv0)
     printf("\n")
+    printf("See doc/joutest.md to get started with joutest.\n")
+    printf("\n")
     printf("Options:\n")
     printf("  -v / --verbose            show more output than by default\n")
     printf("  --no-colors               do not print with colors\n")
-    printf("  --lf / --last-failed      only run tests that failed or were not present in\n")
-    printf("                            the previous test run (useful in large projects)\n")
     printf("  -j1/-j2/-j3/...           how many tests to run in parallel (default = number\n")
     printf("                            of CPU cores)\n")
+    printf("  --lf / --last-failed      only run tests that failed or were not present in\n")
+    printf("                            the previous test run (useful in large projects)\n")
+    printf("  -x                        if a test fails, skip the remaining tests\n")
     printf("  --skip-if-contains \"...\"  skip tests where the file (or markdown code block)\n")
     printf("                            contains the given string (may be repeated)\n")
     printf("  --jou \"...\"               what to use instead of \"jou\" in the default command\n")
@@ -70,8 +73,6 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 args.verbose = True
             case "--no-colors":
                 disable_colors()
-            case "--lf" | "--last-failed":
-                args.last_failed = True
             case "-j":
                 string = parser.take_value()
                 args.parallelism = atoi("" if string == NULL else string)
@@ -83,6 +84,10 @@ def step1_parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 if args.parallelism > MAX_PARALLELISM:
                     fprintf(get_stderr(), "%s: -j%d is not supported (the maximum is -j%d)\n", argv[0], args.parallelism, MAX_PARALLELISM)
                     exit(2)
+            case "--lf" | "--last-failed":
+                args.last_failed = True
+            case "-x":
+                args.stop_on_first_error = True
             case "--jou":
                 s = parser.take_value()
                 if s == NULL:

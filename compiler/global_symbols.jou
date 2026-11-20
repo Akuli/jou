@@ -100,11 +100,12 @@ def create_global_symbol_lookup_hash_table(jou_file: JouFile*) -> None:
     for avail_index = 0; avail_index < jou_file.available_symbols.len; avail_index++:
         avail = &jou_file.available_symbols.ptr[avail_index]
         assert avail.statement.symbol() != NULL
-        hash = new_hash()
+        hash = Hasher{}
         hash.add_string(avail.statement.symbol().name)
 
         # Find empty spot
-        table_index = hash.hash % hash_table_len
+        h = hash.finish()
+        table_index = h[0] % hash_table_len
         while jou_file.symbol_hash_table[table_index] != -1:
             table_index = (table_index+1) % hash_table_len
 
@@ -125,10 +126,11 @@ def find_global_symbol_statement(jou_file: JouFile*, name: byte*, kind: GlobalSy
 
     # Look up from hash table. Handles imports and everything defined in the current file.
     if jou_file.available_symbols.len != 0:
-        hash = new_hash()
+        hash = Hasher{}
         hash.add_string(name)
         hash_table_len = jou_file.available_symbols.len * HASH_TABLE_FACTOR
-        for table_index = hash.hash % hash_table_len; jou_file.symbol_hash_table[table_index] != -1; table_index = (table_index+1) % hash_table_len:
+        h = hash.finish()
+        for table_index = h[0] % hash_table_len; jou_file.symbol_hash_table[table_index] != -1; table_index = (table_index+1) % hash_table_len:
             avail_index = jou_file.symbol_hash_table[table_index]
             avail = &jou_file.available_symbols.ptr[avail_index]
             assert avail.statement.symbol() != NULL

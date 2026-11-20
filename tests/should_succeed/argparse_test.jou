@@ -32,6 +32,13 @@ def parse_and_dump(command_line: byte*) -> None:
                     printf("=[NULL]")
                 else:
                     printf("='%s'", value)
+            if strcmp(parser.flag, "-D") == 0 or strcmp(parser.flag, "--with-dash") == 0:
+                # Test taking a value so that it's allowed to start with dash
+                value = parser.take_value_with_dash()
+                if value == NULL:
+                    printf("=[NULL]")
+                else:
+                    printf("='%s'", value)
 
         if parser.pending_value != NULL:
             printf(" [pending '%s']", parser.pending_value)
@@ -89,28 +96,6 @@ def main() -> int:
     # Output: program --örkki --mörkki [pending 'hirviö'] [arg 'örvelö']
     parse_and_dump("program --örkki --mörkki=hirviö örvelö")
 
-    # Python does this, and I think it makes sense:
-    #
-    #    $ cat a.py
-    #    import argparse
-    #    p = argparse.ArgumentParser()
-    #    p.add_argument("--foo")
-    #    print(p.parse_args())
-    #
-    #    $ python3 a.py --foo=--bar
-    #    Namespace(foo='--bar')
-    #
-    #    $ python3 a.py --foo --bar
-    #    usage: a.py [-h] [--foo FOO]
-    #    a.py: error: argument --foo: expected one argument
-    #
-    #    $ python3 a.py --foo -x
-    #    usage: a.py [-h] [--foo FOO]
-    #    a.py: error: argument --foo: expected one argument
-    #
-    #    $ python3 a.py --foo -1
-    #    Namespace(foo='-1')
-    #
     # Output: program -o='--lol' --output='--lol'
     # Output: program -o='-x' --output='-x'
     # Output: program -o='-1' --output='-1'
@@ -121,14 +106,26 @@ def main() -> int:
     parse_and_dump("program -o=-1 --output=-1")
     parse_and_dump("program -o=- --output=-")
     parse_and_dump("program -o=-- --output=--")
+
+    # This is the difference between take_value() and take_value_with_dash()
     # Output: program -o=[NULL] --lol --output=[NULL] --lol
     # Output: program -o=[NULL] -x --output=[NULL] -x
-    # Output: program -o='-1' --output='-1'
-    # Output: program -o='-' --output='-'
+    # Output: program -o=[NULL] -1 --output=[NULL] -1
+    # Output: program -D='--lol' --with-dash='--lol'
+    # Output: program -D='-x' --with-dash='-x'
+    # Output: program -D='-1' --with-dash='-1'
     parse_and_dump("program -o --lol --output --lol")
     parse_and_dump("program -o -x --output -x")
     parse_and_dump("program -o -1 --output -1")
+    parse_and_dump("program -D --lol --with-dash --lol")
+    parse_and_dump("program -D -x --with-dash -x")
+    parse_and_dump("program -D -1 --with-dash -1")
+
+    # File name "-" often means stdin or stdout, so it's always taken as an argument
+    # Output: program -o='-' --output='-'
+    # Output: program -D='-' --with-dash='-'
     parse_and_dump("program -o - --output -")
+    parse_and_dump("program -D - --with-dash -")
 
     # Output: program [arg '--help'] [arg '-x'] [arg 'plain']
     # Output: program [arg '--']

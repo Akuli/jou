@@ -187,7 +187,7 @@ def parse_command_line_args(argc: int, argv: byte**) -> CommandLineArgs:
                 if args.linker_flags != NULL:
                     fprintf(get_stderr(), "%s: --linker-flags cannot be given multiple times (try --help)\n", argv[0])
                     exit(2)
-                args.linker_flags = parser.take_value()
+                args.linker_flags = parser.take_value_with_dash()
                 if args.linker_flags == NULL:
                     fprintf(get_stderr(), "%s: there must be a string of flags after --linker-flags (try --help)\n", argv[0])
                     exit(2)

@@ -2,6 +2,7 @@
 # of the code is really hard to get right.
 
 import "stdlib/assert.jou"
+import "stdlib/math.jou"
 import "stdlib/process.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
@@ -76,19 +77,52 @@ def test_link_statement_path_rewriting() -> None:
     free(s)
 
 
-def test_fnv1a_hash() -> None:
-    tests = [
-        "",             # Output: CBF29CE484222325
-        "a",            # Output: AF63DC4C8601EC8C
-        "foobar",       # Output: 85944171F73967E8
-        "FNV",          # Output: F32BBE199CF22F39
-        "HashFunction", # Output: FC11AA668104F0B5
-    ]
+# Let's avoid rand(), so that we get the same random numbers on all platforms
+global my_rand_state: uint64 = 12345123451234512345
 
-    for i = 0; i < array_count(tests); i++:
-        h = new_hash()
-        h.add_bytes(tests[i], strlen(tests[i]))
-        printf("%llX\n", h.hash)
+def my_rand() -> int:
+    # This is perhaps the simplest random generator I've seen online.
+    #
+    # It is from section "4. Marsaglia’s Xorshift Generators" in a paper
+    # titled "Note on Marsaglia's Xorshift Random Number Generators"
+    my_rand_state ^= my_rand_state << 7
+    my_rand_state ^= my_rand_state >> 9
+    return my_rand_state & 0x7fff_ffff
+
+
+def test_murmur_hash() -> None:
+    # Hash of empty data
+    hasher = Hasher{}
+    hasher.add_bytes("", 0)
+    hasher.add_bytes("", 0)
+    hasher.add_bytes("", 0)
+    h = hasher.finish()
+    printf("%016llx%016llx\n", h[0], h[1])  # Output: 00000000000000000000000000000000
+
+    # Hash of the same test string using several different chunkings
+    #
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    # Output: 1879638ed4e49bb1ab63d437a5a3717b
+    for i = 0; i < 10; i++:
+        hasher = Hasher{}
+
+        s = "Hello world, this is a test string that is multiple chunks long. Bla bla bla. Mur Murrr Murrrrrrrr!!!!"
+        while *s != '\0':
+            # Test bigger and smaller chunks
+            chunk_len = min(my_rand() % (40 if i < 2 else 10), strlen(s) as int)
+            hasher.add_bytes(s, chunk_len)
+            s = &s[chunk_len]
+
+        h = hasher.finish()
+        printf("%016llx%016llx\n", h[0], h[1])
 
 
 # Compiler relies on fopen(running_program, "wb") == NULL to detect whether it
@@ -150,19 +184,6 @@ def test_writing_to_running_program() -> None:
         waitpid(pid, NULL, 0)
 
 
-# Let's avoid rand(), so that we get the same random numbers on all platforms
-global my_rand_state: uint64 = 1
-
-def my_rand() -> int:
-    # This is perhaps the simplest random generator I've seen online.
-    #
-    # It is from section "4. Marsaglia’s Xorshift Generators" in a paper
-    # titled "Note on Marsaglia's Xorshift Random Number Generators"
-    my_rand_state ^= my_rand_state << 7
-    my_rand_state ^= my_rand_state >> 9
-    return my_rand_state & 0x7fff_ffff
-
-
 def test_disjoint_interval_id() -> None:
     iterations = 1000
     changed_with_add = 0
@@ -199,7 +220,7 @@ def test_disjoint_interval_id() -> None:
 
 def main() -> int:
     test_link_statement_path_rewriting()
-    test_fnv1a_hash()
+    test_murmur_hash()
     test_writing_to_running_program()
     test_disjoint_interval_id()
     return 0
