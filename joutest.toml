@@ -79,11 +79,9 @@ expected_exit_code = 0
 
 [[tests]]
 files = "tests/should_succeed/compiler_cli.jou"
-command = {
-    if = "WINDOWS",
-    then = ['cmd', '/c', 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/jouexe.jou'],
-    else = ["sh", "-c", 'jou {file} 2>&1 | jou tests/should_succeed/output_processor/jouexe.jou'],
-}
+expected_output_transforms = [
+    {replace = "<jouexe>", with = {if = "WINDOWS", then = "jou.exe", else = "./jou"}},
+]
 
 [[tests]]
 files = "tests/should_succeed/compiler_unit_tests.jou"
