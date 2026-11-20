@@ -1,8 +1,8 @@
 # Design of joulsp
 
 The Jou langserver reuses previously computed things to a reasonable extent.
-The design is simple enough that there's no complicated cache invalidation bugs,
-but fancy enough that typing a single character into a file doesn't redo everything.
+The design is simple enough that there's not too many cache invalidation bugs,
+but fancy enough that typing a single character into a file doesn't redo absolutely everything.
 
 Design goals:
 - Simple design: no version numbers, timestamps, or full-blown query engine
@@ -68,6 +68,61 @@ if a file has been a part of the project at some point, a `JouFile` remains in m
 I don't think this will be a problem in practice.
 This also means that each `JouFile` doesn't need its own allocator.
 Just use `malloc()` for allocations tied to a `JouFile`.
+
+
+## Cache Invalidation
+
+It seems to me that when designing a langserver,
+I need to choose one of two following two things,
+and alleviate the pain to the extent that I can:
+- Building a full-blown query system with supports for dependencies and versioning
+- Cache invalidation hell
+
+I first tried to design a query system, but as expected, it became very complicated very quickly,
+so I chose to deal with cache invalidation instead.
+
+Here are all the things that we cache for file analyzing and function analyzing.
+In other words, look at these if you get a nasty cache invalidation bug.
+- `JouFile` for every file we have ever looked at
+    - Hash of file contents ([VFS](#virtual-file-system) takes care of reading files reasonably)
+    - AST
+    - 128-bit hash of diagnostics sent to the langserver (diagnostics depend on basically everything, so we just recompute them every time and compare with the hash)
+- Symbol cache
+    - Conceptually, a mapping whose keys are `(JouFile*, symbol name)` pairs and each value is a `NULL` (not found) or a `Symbol*`
+    - Example: value corresponding to key `(JouFile of stdlib/io.jou, "printf")` is a function symbol
+    - Populated lazily to support cyclic dependencies
+    - If the symbol table doesn't contain a symbol, it means we didn't try to look it up yet
+    - Same `Symbol*` can appear in multiple files
+    - Example: `("my_file.jou", "printf")` exists if we have analyzed code that contains `printf("hello\n")`, even if user forgot to import `stdlib/io.jou`
+- Type cache
+    - Conceptually, a mapping whose keys are enough information to find a type (e.g. "array of 10 ints") and each value is a `Type*`
+    - A `Type*` is **never modified** after it goes into the type cache.
+        For example, to add a new field to an existing class,
+        do not pull its `Type*` out of the type cache and modify it.
+        Create a new `Type*` instead.
+- Function analyzing results
+    - Conceptually, a mapping whose keys include all the things listed below, and values are results of function analyzing
+    - Keyed by the following things baked into a single 128-bit hash:
+        - `JouFile*`
+        - Function's AST
+            - Includes the signature: function name, arguments, return type
+            - Line numbers are relative to start of function, so that adding an empty line to start of file doesn't cause every function to be reanalyzed
+        - [Symbol hashes](#symbol-hashes) of all the symbol lookups performed while parameter types and return type (if any)
+- Diagnostics for each file
+    - Depends on a lot of different things, recomputed every time
+    - One 128-bit hash per file
+
+The 128-bit hashes are assumed to never collide.
+
+
+Many edits of a file (e.g. adding a comment) do not affect the AST at all,
+and those are easy enough to detect by just comparing the old and new AST.
+But what exactly should we do when the AST changes?
+
+
+## Symbol Hashes
+
+
 
 
 ## File Analyzing
@@ -229,17 +284,3 @@ To fix this, we use simple mark-and-sweep garbage collection:
 4. Clear the marks of remaining types.
 
 
-## Summary of what gets cached
-
-In other words: where to look if you have one of those nasty cache invalidation bugs.
-
-- File size, mtime (modified time), and current time just before each `JouFile` was opened
-- ASTs (one per `JouFile`)
-    - Depends only on the file's source code
-- Function analyzing results
-    - Depends on:
-        - the function's AST (128-bit hash with function-relative line numbers)
-        - results of symbol lookups (hits and misses)
-- Diagnostics for each file
-    - Depends on a lot of different things, recomputed every time
-    - One 128-bit hash per file
