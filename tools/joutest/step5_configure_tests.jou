@@ -357,6 +357,44 @@ def configure_exit_code(test: Test*) -> None:
             fail_in_toml(toml.lineno, "'expected_exit_code' must be an integer between 0 and 255")
 
 
+def do_expected_output_transform(test: Test*, toml: TOML*) -> None:
+    old = toml_to_string(toml_get(toml, "replace"))
+    new = toml_to_string(toml_get(toml, "with"))
+    if old == NULL or new == NULL:
+        fail_in_toml(toml.lineno, "each transform must be a table like {replace = \"...\", with = \"...\"}")
+
+    if old[0] == '\0':
+        fail_in_toml(toml_get(toml, "replace").lineno, "'replace' cannot be empty string")
+
+    assert toml.type == TOMLType.Table  # must be, if toml_get() succeeded
+    for kv = toml.table.ptr; kv < toml.table.end(); kv++:
+        if strcmp(kv.key, "replace") != 0 and strcmp(kv.key, "with") != 0:
+            snprintf(big_buffer, sizeof(big_buffer), "unknown key '%s' in transform", kv.key)
+            fail_in_toml(kv.value.lineno, big_buffer)
+
+    result = List[byte]{}
+    s = test.expected_output
+    while *s != '\0':
+        if starts_with(s, old):
+            s = &s[strlen(old)]
+            result.extend_from_ptr(new, strlen(new))
+        else:
+            result.append(*s++)
+    result.append('\0')
+
+    free(test.expected_output)
+    test.expected_output = result.ptr
+
+def transform_expected_output(test: Test*) -> None:
+    toml = test.get_config("expected_output_transforms")
+    assert toml != NULL  # specified in builtin_defaults.toml
+    if toml.type != TOMLType.Array:
+        fail_in_toml(toml.lineno, "expected_output_transforms must be an array")
+
+    for transform = toml.array.ptr; transform < toml.array.end(); transform++:
+        do_expected_output_transform(test, transform)
+
+
 @public
 def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
     if args.last_failed:
@@ -370,3 +408,4 @@ def step5_configure_tests(tests: List[Test], args: CommandLineArgs*) -> None:
         configure_command(test, args)
         configure_output_streams(test)
         configure_exit_code(test)
+        transform_expected_output(test)
