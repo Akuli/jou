@@ -56,19 +56,19 @@ When you run `jou examples/hello.jou`, you end up with files that look something
 jou_compiled/
 ├── hello
 └── object_files/
-    ├── hello_e53211d1c1fca8c2_d02364f3b948fde4.o
-    ├── intnative_70511099224e9ccc_ad674a9093283ed0.o
-    └── io_a1ba24f64c4cb16c_ad9ac958397bd736.o
+    ├── hello_b6fa5980cce58dd48ffcf0386857ef04_fd5821e5308b3f09bf94b8aad37660a9.o
+    ├── intnative_c4da2ccef08b0752db666bf90cbcf6a6_25e281dfc14e115f2d3730fd2f5b6338.o
+    └── io_db5a4aa107350346a1abcd9a8b729fe6_657bd84a8ba6918c81918d1529b7c10b.o
 ```
 
 Here's how the files are named:
 
-    hello_e53211d1c1fca8c2_d02364f3b948fde4.o
-    |___| |______________| |______________|
-      |          |                |
-      |          |                |
-    Simple    Content        Identifier
-     name      hash             hash
+    hello_b6fa5980cce58dd48ffcf0386857ef04_fd5821e5308b3f09bf94b8aad37660a9.o
+    |___| |______________________________| |______________________________|
+      |                  |                                |
+      |                  |                                |
+    Simple            Content                        Identifier
+     name              hash                             hash
 
 The file name starts with **a simple name**
 whose purpose is to make the file name more human-readable.
