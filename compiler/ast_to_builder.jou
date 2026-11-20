@@ -347,7 +347,7 @@ class AstToBuilder:
         assert class_type != NULL
         assert class_type.kind == TypeKind.Class
 
-        inst_ptr = self.builder.stack_alloc(class_type, NULL)
+        inst_ptr = self.builder.stack_alloc(self.map_type(class_type), NULL)
         self.builder.memset_to_zero(inst_ptr)
         for f = inst.fields.ptr; f < inst.fields.end(); f++:
             field_ptr = self.builder.class_field_pointer(inst_ptr, f.name)
