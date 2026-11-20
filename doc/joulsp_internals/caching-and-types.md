@@ -284,3 +284,109 @@ To fix this, we use simple mark-and-sweep garbage collection:
 4. Clear the marks of remaining types.
 
 
+## AI draft
+
+TODO: rewrite this into actual documentation, it is a much simpler design than the rest of what's here now
+
+----
+
+
+
+
+Here is a clean draft of your language server caching design doc, capturing your depth-based cycle handling, function-level memoization, and the pragmatic trade-offs you chose.
+
+---
+
+# Design Doc: Function-Level Caching for the Jou Language Server
+
+**Status:** Draft
+
+**Target Language:** Jou (Akuli)
+
+---
+
+## 1. Problem & Goals
+
+A full query-and-versioning engine (such as Salsa) adds significant complexity for a relatively small language like Jou. At the same time, naive full-project reanalysis on every edit is wasteful—especially when a user edits a rarely used type in a widely imported module (like `utils.jou`).
+
+### Key Observations About Jou & IDE Usage
+
+* **Bounded open files:** A user typically only has a small number of files open in the editor at once.
+* **Selective symbol usage:** Imported files do not need full deep analysis upfront; only the symbols actually referenced need to be resolved/inspected.
+* **Shallow re-export chains:** Re-exporting symbols from other files is rare in Jou, keeping cross-file lookup chains short, though cyclic type/symbol references are common.
+* **Fast top-level/symbol collection:** Re-running non-function-body analysis when needed is fast enough that caching *function body analysis* provides the main speedup.
+
+### Goals
+
+1. Cache function analysis results (including methods, treated uniformly as functions with qualified/special names) using a **128-bit cache key** with negligible collision probability.
+2. Reanalyze only functions whose inputs/dependencies have actually changed.
+3. Keep the invalidation model simple, predictable, and easy to maintain.
+
+---
+
+## 2. Caching Strategy
+
+### What Is Cached
+
+* **Cached:** Analysis results for individual functions/methods (types, diagnostics, resolved references, etc., as produced by function-body analysis).
+* **Not cached (recomputed as needed):** Top-level/global symbol discovery and resolution leading into function analysis.
+
+### Cache Invalidation Rules
+
+A cached analysis entry for a function is considered obsolete if:
+
+1. There is a **newer** analysis entry/version for the same function name, **or**
+2. The current AST **no longer contains** a function with that name.
+
+*(Note: Because the cache key itself encodes the inputs observed during function analysis, an unchanged function with unchanged inputs naturally hits the cache via its 128-bit key.)*
+
+---
+
+## 3. Designing the 128-Bit Function Cache Key
+
+A function's cache key is a **128-bit hash** built from:
+
+1. The function's own AST/definition (relevant to its body/signature).
+2. All global symbol lookups performed during function analysis, **including both hits and misses**—for example:
+* Lookup miss: "`printf` was not found in `stdlib/str.jou`"
+* Lookup hit: "`printf` was found in `stdlib/io.jou` with signature `<...>`"
+
+
+3. Definitions of classes/types referenced during analysis (including fields, types, declaration order, and conditional compilation outcomes).
+
+### Hashing Practices
+
+* **Domain tagging:** Prefix every hashed item (lookup hit, lookup miss, field, type, back-reference) with a distinct tag and length/boundary markers so distinct inputs cannot serialize to the same byte stream.
+* **128-bit digest:** Use a strong 128-bit hash algorithm (e.g., xxHash3-128) so accidental collisions are practically nonexistent.
+
+---
+
+## 4. Handling Cyclic Classes with Recursion Depth
+
+Classes and types in Jou can reference themselves directly or mutually (e.g., `Foo` has a `Bar*` field and `Bar` has a `Foo` field). A naive recursive hash would loop infinitely.
+
+### Depth-Based Cycle Markers
+
+During a single hash traversal:
+
+* Track the **current recursion depth** (e.g., `1` at the start of hashing a class, incrementing as recursion descends into nested types, and resetting to `0` when unwinding).
+* If hashing a class encounters a class that is **already active on the current call stack**, emit a cycle/back-reference marker containing that **active recursion depth** instead of recursing further.
+* Once a class finishes hashing, reset its active depth so it is no longer treated as an active ancestor.
+
+### Trade-offs & Implications
+
+* **Works for self-cycles and mutual cycles:** Because the depth refers to a frame on the active call stack, cycles terminate cleanly and bake the cycle structure into the hash.
+* **Not memoizable per-class across differing call depths:** Because the same class can be reached at different depths depending on the traversal path or entry point, per-class hash results aren't simply cached standalone by class alone—instead, the depth-aware traversal runs as part of computing the function's 128-bit key.
+* **Future optimization path:** If profiling later shows class/type hashing becoming a bottleneck in large graphs, this area is isolated and can be refined without changing the overall function-cache architecture.
+
+---
+
+## 5. Open Questions / Future Tweaks to Watch
+
+* **Cache eviction:** Decide on a retention cap (such as a max cache size or max entries per function name) so long editing sessions don't accumulate unbounded stale entries.
+* **Diagnostics & source locations:** Verify whether any diagnostics stored in a cached function result depend on line/column numbers of external declarations that might shift during edits outside the function.
+* **Conditional compilation (`if SOME_CONSTANT:`):** Ensure constant conditions affecting visible fields/symbols are reflected consistently in lookups and hashed type shapes.
+
+---
+
+Would you like to expand any section of this draft—such as concrete pseudocode for the cache key builder or a section on error/diagnostic handling?
