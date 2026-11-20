@@ -357,17 +357,17 @@ def configure_exit_code(test: Test*) -> None:
             fail_in_toml(toml.lineno, "'expected_exit_code' must be an integer between 0 and 255")
 
 
-# Returns False if the TOML specifies something invalid
-def do_expected_output_transform(test: Test*, toml: TOML*) -> bool:
+def do_expected_output_transform(test: Test*, toml: TOML*) -> None:
     old = toml_to_string(toml_get(toml, "replace"))
     new = toml_to_string(toml_get(toml, "with"))
     if old == NULL or new == NULL:
-        return False  # TODO: tests
+        fail_in_toml(toml.lineno, "each transform must be a table like {replace = \"...\", with = \"...\"}")
 
     assert toml.type == TOMLType.Table  # must be, if toml_get() succeeded
     for kv = toml.table.ptr; kv < toml.table.end(); kv++:
         if strcmp(kv.key, "replace") != 0 and strcmp(kv.key, "with") != 0:
-            return False  # TODO: tests
+            snprintf(big_buffer, sizeof(big_buffer), "unknown key '%s' in transform", kv.key)
+            fail_in_toml(kv.value.lineno, big_buffer)
 
     result = List[byte]{}
     s = test.expected_output
@@ -381,18 +381,15 @@ def do_expected_output_transform(test: Test*, toml: TOML*) -> bool:
 
     free(test.expected_output)
     test.expected_output = result.ptr
-    return True
 
 def transform_expected_output(test: Test*) -> None:
     toml = test.get_config("expected_output_transforms")
     assert toml != NULL  # specified in builtin_defaults.toml
-
     if toml.type != TOMLType.Array:
-        assert False  # TODO: error handling
+        fail_in_toml(toml.lineno, "expected_output_transforms must be an array")
 
     for transform = toml.array.ptr; transform < toml.array.end(); transform++:
-        ok = do_expected_output_transform(test, transform)
-        assert ok  # TODO: error handling
+        do_expected_output_transform(test, transform)
 
 
 @public
