@@ -10,8 +10,6 @@
 # compiler: if someone can place whatever they want into `jou_compiled`, you're
 # doomed anyway :)
 
-import "stdlib/assert.jou"
-import "stdlib/mem.jou"
 import "stdlib/intnative.jou"
 import "stdlib/str.jou"
 
@@ -145,6 +143,7 @@ class Hasher:
         k2: uint64 = 0
 
         tail_len = self.buffer[15]
+        # TODO: can this be cleaned up without affecting performance?
         if tail_len >= 15:
             k2 ^= (self.buffer[14] as uint64) << 48
         if tail_len >= 14:
