@@ -1,9 +1,5 @@
 # Design of joulsp
 
-The Jou langserver reuses previously computed things to a reasonable extent.
-The design is simple enough that there's not too many cache invalidation bugs,
-but fancy enough that typing a single character into a file doesn't redo absolutely everything.
-
 Design goals:
 - Simple design: no version numbers, timestamps, or full-blown query engine
 - Fast enough on large Jou projects
@@ -11,15 +7,32 @@ Design goals:
 - The langserver is easy to work on (for example, types can be compared with `==` operator)
 - Cache invalidation hell should be rare when developing the langserver
 
-Overall, I found it surprisingly difficult to
-design a simple but reasonably efficient langserver,
-but I'm pretty happy with how the design turned out.
+I found it surprisingly difficult to design something that satisfies these goals.
+Basically, it seems like I need to choose one of following downsides:
+- Recompute everything every time the user types one character
+- Building a full-blown query system with supports for dependencies and versioning
+- Cache invalidation hell
+
+I chose cache invalidation, and surprisingly, I'm quite happy with the resulting design.
+After several iterations of designing, the cache invalidation is surprisingly simple and predictable.
 
 
-## High-level structure
+## Conventions
 
-Let's focus on producing diagnostics (that is, mostly errors and warnings).
-Here's what needs to happen for each file:
+In Jou, a method `do_thing()` in `class Foo` is basically a function named `Foo.do_thing`.
+When this document discusses "functions", it also includes methods.
+
+We assume that 128-bit hashes never have hash collisions.
+Currently the hash function is [MurmurHash3_x64_128](https://github.com/aappleby/smhasher/blob/07bb4de10a63e8cc2e1724865454eba635742383/src/MurmurHash3.cpp#L255).
+
+This document focuses on producing diagnostics (that is, mostly errors and warnings).
+Once those work, it should be easy enough to add other langserver features.
+
+
+## High-Level Structure
+
+For now, let's focus on producing diagnostics (that is, mostly errors and warnings).
+Here are all the things that need to happen:
 
 ```
                                     ,-- File analyzing ---------------------.
@@ -40,7 +53,7 @@ Source code --> Tokens --> AST ---->|          Function signatures          |
              |          |   |       ,-- Function analyzing ---------.   |
              |          |   |       |                               |   |
              |          |   '------>|    Everything that happens    |   |
-             |          |           |  inside a function or method  |   |
+             |          |           | inside a function (or method) |   |
              |        Errors        |                               |   |
              |          |           '-------------------------------'   |
              |          |                   |                           |
@@ -52,8 +65,8 @@ Source code --> Tokens --> AST ---->|          Function signatures          |
                                 Diagnostics for file
 ```
 
-Here a symbol lookup means finding a function, method, type (class or typedef), global variable,
-or other such thing inside a given `JouFile*`.
+Here a symbol lookup means finding a function (or method), class, `typedef`, global variable,
+`const` constant, or other such thing inside a given `JouFile*`.
 Each symbol is either public or private.
 
 For now, function analyzing means determining diagnostics
@@ -65,73 +78,57 @@ but later it may be extended to more than diagnostics, such as:
 
 The langserver never forgets about a file entirely:
 if a file has been a part of the project at some point, a `JouFile` remains in memory.
-I don't think this will be a problem in practice.
+I don't think this will be a problem, and if it is, this can be cleaned up later.
 This also means that each `JouFile` doesn't need its own allocator.
 Just use `malloc()` for allocations tied to a `JouFile`.
 
 
-## Cache Invalidation
+## Timeline
 
-It seems to me that when designing a langserver,
-I need to choose one of two following two things,
-and alleviate the pain to the extent that I can:
-- Building a full-blown query system with supports for dependencies and versioning
-- Cache invalidation hell
-
-I first tried to design a query system, but as expected, it became very complicated very quickly,
-so I chose to deal with cache invalidation instead.
-
-Here are all the things that we cache for file analyzing and function analyzing.
-In other words, look at these if you get a nasty cache invalidation bug.
-- `JouFile` for every file we have ever looked at
-    - Hash of file contents ([VFS](#virtual-file-system) takes care of reading files reasonably)
-    - AST
-    - 128-bit hash of diagnostics sent to the langserver (diagnostics depend on basically everything, so we just recompute them every time and compare with the hash)
-- Symbol cache
-    - Conceptually, a mapping whose keys are `(JouFile*, symbol name)` pairs and each value is a `NULL` (not found) or a `Symbol*`
-    - Example: value corresponding to key `(JouFile of stdlib/io.jou, "printf")` is a function symbol
-    - Populated lazily to support cyclic dependencies
-    - If the symbol table doesn't contain a symbol, it means we didn't try to look it up yet
-    - Same `Symbol*` can appear in multiple files
-    - Example: `("my_file.jou", "printf")` exists if we have analyzed code that contains `printf("hello\n")`, even if user forgot to import `stdlib/io.jou`
-- Type cache
-    - Conceptually, a mapping whose keys are enough information to find a type (e.g. "array of 10 ints") and each value is a `Type*`
-    - A `Type*` is **never modified** after it goes into the type cache.
-        For example, to add a new field to an existing class,
-        do not pull its `Type*` out of the type cache and modify it.
-        Create a new `Type*` instead.
-- Function analyzing results
-    - Conceptually, a mapping whose keys include all the things listed below, and values are results of function analyzing
-    - Keyed by the following things baked into a single 128-bit hash:
-        - `JouFile*`
-        - Function's AST
-            - Includes the signature: function name, arguments, return type
-            - Line numbers are relative to start of function, so that adding an empty line to start of file doesn't cause every function to be reanalyzed
-        - [Symbol hashes](#symbol-hashes) of all the symbol lookups performed while parameter types and return type (if any)
-- Diagnostics for each file
-    - Depends on a lot of different things, recomputed every time
-    - One 128-bit hash per file
-
-The 128-bit hashes are assumed to never collide.
+Here's mostly what happens during one iteration of the langserver's core (see [io-and-replay.md](io-and-replay.md)):
+1. Receive a langserver event from editor. For example, user opened or edited a file.
+2. Parse new and changed files. This produces new ASTs. Each `JouFile*` may also contain a previously parsed AST.
+3. If the old and new ASTs differ anywhere else than inside a function body (possibly in a signature),
+   clear the [symbol cache](#symbol-cache) and [type cache](#type-cache)
+   **for all files** (there may be cross-file dependencies).
+    - Function analyzing results are preserved.
+    - At first this seems slow, but this should be fine for a number of reasons:
+        - Most of the work is function analyzing, not symbol lookup.
+        - In Jou, it is rare to re-export symbols imported from another file.
+            Also, a user can't have very many files open in the editor,
+            so the total number of files that the langserver knows about is somewhat small.
+        - Unused symbols are ignored.
+            For example, if you `import stdlib/io.jou"` and you only use `printf()`,
+            symbols like `class FILE` and `puts()` won't be analyzed at all.
+4. Evaluate all compile-time `if` statements that are not inside a function.
+    - It's possible to place imports under `if somewhat_complicated_condition:`,
+        so this step may end up bringing in more files to the project.
+        TODO: figure out how to handle this, back to step 2?
+5. Analyze all the functions that need to be analyzed.
+    - For example, if the AST of any file changes only inside a function body, only just that function gets reanalyzed.
+    - Find a previous function analyzing result from [the functon analyzing cache](#function-analyzing-cache) by `JouFile*` and function name
+    - Check if the function analyzing result can still be used (this may involve redoing the symbol lookups)
+    - If needed, do the function analyzing and store the result into the function analyzing cache
+6. Delete old function analyzing results that don't correspond with any function in any AST.
+7. For each file, figure out the diagnostics, and send changes.
+    - There is a 128-bit hash of the previously sent diagnostics in `JouFile`.
+    - The final diagnostics sent to the langserver depend on a lot of different things,
+        so there's no easy way to avoid rebuilding them every time an AST changes.
 
 
-Many edits of a file (e.g. adding a comment) do not affect the AST at all,
-and those are easy enough to detect by just comparing the old and new AST.
-But what exactly should we do when the AST changes?
+## Symbol Cache
 
+Conceptually, the symbol cache is a mapping whose keys are `(JouFile*, symbol name)` pairs, and each value is a `NULL` (not found) or a `Symbol*`.
+For example: value corresponding to key `(JouFile* of stdlib/io.jou, "printf")` might be a function symbol.
 
-## Symbol Hashes
+The same `Symbol*` can appear in multiple files.
+For example, if `foo.jou` imports `stdlib/io.jou` and uses `printf`,
+the keys `(JouFile* of foo.jou, "printf")` and `(JouFile* of stdlib/io.jou, "printf")` will point to the same `Symbol*`.
 
-
-
-
-## File Analyzing
-
-Symbol lookups and evaluating compile-time `if` statements
-are combined into a single "file analyzing" step,
-because they can depend on each other in both directions.
-These dependencies can also be cyclic or spread across multiple files.
-**This is the only step that deals with multiple files at once.**
+The symbol cache is populated lazily to support cyclic dependencies.
+This means that if the symbol table doesn't contain a symbol,
+it means that we haven't tried to look it up yet and it might still exist.
+Here are some examples of dependencies between symbols:
 
 ```python
 # Symbol lookup depends on evaluating a compile-time if statement
@@ -156,33 +153,8 @@ const B: int = C  # Error: constant C depends on itself
 const C: int = B  # Error: constant B depends on itself
 ```
 
-Analyzing results are stored in symbol tables.
-There's one symbol table for each file.
-Each symbol table is a hash table with symbol names as keys and analyzing results as values.
-
-File analyzing is done with lazy evaluation.
-Here are some examples that hopefully explain how this works:
-- If the user's project only uses `printf()`,
-    and the user doesn't open `stdlib/io.jou` in the editor to have a look inside,
-    we don't analyze every symbol of `stdlib/io.jou` in full detail.
-- It's useful to know that `stdlib/str.jou` doesn't define a `printf()`,
-    so that when looking up `printf()`, we can quickly put "not found" into the symbol table of `stdlib/str.jou`.
-    To help with that, the parser produces a list of possible symbol names
-    that could be defined somewhere in the file.
-    The parser doesn't know how compile-time `if` statements end up being evaluated,
-    so this list may contain symbol names that are not really defined in the file.
-- Symbol tables are caches, not sources of truth.
-    For example, the symbol table of `stdlib/io.jou` might not contain `puts()` if you never used `puts()`.
-    "Not found" is a valid analyzing result that can go in a symbol table,
-    and that's how you know for sure that a symbol does not exist.
-- Cycles are handled with marking.
-    In the above example, we end up trying to get the symbol for `B` or `C` recursively,
-    and when we get to the inner call, the symbol has already been marked as being currently analyzed.
-
-For now, all symbol tables are cleared when the AST of any file changes anywhere else than inside a function or method.
-To detect this, we simply compare the old and new ASTs without recursing into function bodies.
-I think it would be possible to figure out which symbols can remain cached,
-but this seems like a rabbit hole, and I don't want to think about it yet.
+Detecting cycles is easy to do by making the symbols available early,
+but marking them as being currently analyzed.
 
 To avoid getting many errors in code that uses symbols that contain errors,
 such as `A`, `B` and `C` in the above example,
@@ -192,73 +164,93 @@ you should try to accept it without causing more errors,
 because there is already an error somewhere else.
 
 
-## Function Analyzing
+## Function Analyzing Cache
 
-The whole function is always analyzed when anything inside it changes,
-and the results of function analyzing are cached.
-The idea is that analyzing one function is fast enough,
-but analyzing every function in a large file could be too slow to be done on every keystroke.
+To reanalyze functions only when needed, we cache function analyzing results as well as their dependencies.
 
-Function analyzing depends only on:
-- AST of the function
-- Results of symbol lookups (each lookup searches the current file and public symbols of imported files)
+Conceptually, the function analyzing cache is a mapping:
+- Keys: `(JouFile*, function name)`
+    - `JouFile*` is just the pointer needed to identify the file, not its contents.
+        This is similar to using the file path, but faster and less fragile (consider e.g. case-insensitive file systems).
+    - For methods, the "function name" looks like `SomeClass.some_method`.
+- Values: `(128-bit hash of function's AST, list of symbol lookups, analyzing results)`
+    - Hash of AST includes the signature (function name, AST for arguments, AST for return type).
+    - Symbol lookups list includes the lookups needed for signature and body.
+        The result of each lookups is also included, including "not found" results.
+    - Line numbers are relative to start of function, so that
+        adding an empty line to start of file doesn't cause every function to be reanalyzed.
 
-Because there is **only 2 things**, it's easy enough to check
-whether a function needs to be reanalyzed.
+To clarify how symbol lookups are hashed, suppose that the following code is in `foo.jou`:
 
-Caveats with the AST:
-- Adding a newline to the beginning of the file shouldn't cause
-    every function in the file to be reanalyzed
-    only because line numbers in AST have changed.
-    To fix this, line numbers inside each function are relative to the start of the function.
-    The `def` keyword is always on line 1.
-- Keeping the function's AST around for comparing would require
-    allocating it with a separate allocator in the parser, copying it, or
-    keeping around old parsing results.
-    Instead, we compute a 128-bit FNV-1a hash of the function's AST.
+```python
+import "stdlib/io.jou"
 
-Caveats with symbol lookups:
-- It's possible to place imports under `if somewhat_complicated_condition:`,
-    so it could take some time to eliminate the top-level `if` statements from AST.
-    This is done every time the file content changes.
-    I don't think this will be a problem in practice.
-- During analyzing, every symbol lookup done is stored in a list,
-    and when checking whether the function needs to be reanalyzed,
-    we re-run the same lookups.
-    This is more complicated than checking other checks mentioned here,
-    but still easy enough.
-- The list of symbol lookups is deduplicated to avoid checking the same things several times.
-- The list of symbol lookups needs to also contain failed symbol lookups:
-    if `printf` didn't exist before but the user has now added `import "stdlib/io.jou"`,
-    the "not found" diagnostic must go away.
-- It is important to also look up the argument types.
-    For example, suppose that a function uses `argument.some_field`, and the user deletes `some_field` from the class definition.
-    The function will get reanalyzed,
-    because looking up the argument type will now produce a different `Type*`.
+def main() -> int:
+    printf("hello\n")
+    printf("hi\n")
+    return 0
+```
 
-All this also applies to methods. A method is basically a function with a fancy name.
+The hash of `main()` function analyzing results consists of:
+- `JouFile*` pointer that represents `foo.jou`
+- hash of the `main()` function's AST
+- symbol lookup: `int` in file `foo.jou` → built-in type `int`
+- symbol lookup: `printf` in file `foo.jou` → function symbol, file `stdlib/io.jou`, signature `(byte*, ...) -> int`
+
+Each symbol lookup is stored only once, because often the same symbols are used several times.
 
 
-## Caching the Diagnostics
+## Hashing Types
 
-The final diagnostics sent to the langserver depend on a lot of different things,
-so we just recompute them instead of trying to predict whether they will change.
-We keep around a hash of the previous diagnostics,
-so that diagnostics are sent to the editor only for files whose diagonstics changed.
+The [function analyzing cache](#function-analyzing-cache) needs to hash symbols and types.
+It can't hash `Symbol*` or `Type*` pointers directly,
+because they are destroyed and recreated every time any AST changes outside a function body.
+They are hashed by content instead.
+
+A recursive function takes care of hashing types.
+To handle cyclic structures, recursion depth is used when the same type is encountered for a second time.
+For example, consider the following:
+
+```python
+class Foo:
+    x: int
+    bar: Bar
+    y: int
+
+class Bar:
+    foo_ptr: Foo*
+```
+
+To compute `hash(Foo)` (pseudo-code), roughly the following happens:
+
+- `hash(Foo)` begins. `Foo` is marked as being currently hashed at depth 1.
+    - `hash("x")`
+    - `hash(int)`
+    - `hash("bar")`
+    - `hash(Bar)` begins. `Bar` is marked as being currently hashed at depth 2.
+        - `hash("foo_ptr")`
+        - `hash(Foo*)` begins
+            - `hash(Foo)` returns `1`, not an actual hash
+        - `hash(Foo*)` is done
+    - `hash(Bar)` is done. `Bar` is marked as not being currently hashed.
+    - `hash("y")`
+    - `hash(int)`
+- `hash(Foo)` is done. `Foo` is marked as not being currently hashed.
+
+Note that if a type refers to itself recursively, the hash cannot be cached like you might expect:
+the result of `hash(Bar)` would be different if it was hashed by itself rather than as a member of `Foo`.
+It is easy to detect this as part of the hashing process:
+a type points to something cyclic if the chain of recursive calls returned the depth at some point.
+
+In reality, instead of making many small hashes like `hash("bar")`,
+we update the same hasher object.
+It is important to place boundaries properly, so that `ping: uint64` hashes differently than `pingu: int64`.
 
 
-## Types
+## Type Cache
 
-For both convenience and performance, I wanted to compare types with a simple `==` operator.
-This means that types should be either pointers or some kind of IDs.
-I chose pointers, because that also lets me do things like `puts(some_type.name)` while debugging.
-
-For classes, each `Type*` represents **one version** of the class and its fields
-(not methods, those are treated as functions).
-If a member is added or removed, you need a new `Type*`,
-and every function that used the old `Type*` will be reanalyzed.
-
-Jou also has several types that point at other types (also known as structural types):
+Jou has several types that can point at other types:
+- User-defined classes
 - `T*` (pointer)
 - `T[N]` (array)
 - `List[T]` (generic class, `List` is just an example)
@@ -267,126 +259,36 @@ Jou also has several types that point at other types (also known as structural t
 Comparing these with `==` means that these need to be stored somewhere.
 For example, if type `int*` already exists,
 we can't allocate a new `int*` when the user does `&some_int`.
-A field on the `Type*` representing `int` would work for pointers and arrays,
+A field on the `Type` representing `int` would work for pointers and arrays,
 but not `funcptr`'s or generics with 2 or more parameters.
-To make these lookups efficient, all `Type*` pointers are stored in a hash table.
 
-The next problem is that the big hash table of types
-wants to grow forever and consume a large amount of memory.
-To fix this, we use simple mark-and-sweep garbage collection:
+To make these lookups efficient, these `Type*` pointers are stored in the type cache.
+Conceptually, the type cache is a mapping whose
+keys are enough information to find a type (e.g. "array of 10 ints") and each value is a `Type*`.
 
-1. Mark all the types that are still being used by some cached results.
-    Also mark built-in types like `int` so that they won't be swept away.
-2. For each marked type, find out which other types it depends on:
-    `int*[2]` depends on `int*`, which depends on `int`.
-    Mark those too. Recurse.
-3. Sweep unmarked types.
-4. Clear the marks of remaining types.
+A `Type*` is **never modified** after it goes into the type cache.
+For example, to add a new field to an existing class,
+do not pull its `Type*` out of the type cache and modify it.
+Instead, just create a new `Type*` at the right time when the type cache has just been cleared.
 
 
-## AI draft
+## `Unknown`
 
-TODO: rewrite this into actual documentation, it is a much simpler design than the rest of what's here now
-
-----
-
-
-
-
-Here is a clean draft of your language server caching design doc, capturing your depth-based cycle handling, function-level memoization, and the pragmatic trade-offs you chose.
-
----
-
-# Design Doc: Function-Level Caching for the Jou Language Server
-
-**Status:** Draft
-
-**Target Language:** Jou (Akuli)
-
----
-
-## 1. Problem & Goals
-
-A full query-and-versioning engine (such as Salsa) adds significant complexity for a relatively small language like Jou. At the same time, naive full-project reanalysis on every edit is wasteful—especially when a user edits a rarely used type in a widely imported module (like `utils.jou`).
-
-### Key Observations About Jou & IDE Usage
-
-* **Bounded open files:** A user typically only has a small number of files open in the editor at once.
-* **Selective symbol usage:** Imported files do not need full deep analysis upfront; only the symbols actually referenced need to be resolved/inspected.
-* **Shallow re-export chains:** Re-exporting symbols from other files is rare in Jou, keeping cross-file lookup chains short, though cyclic type/symbol references are common.
-* **Fast top-level/symbol collection:** Re-running non-function-body analysis when needed is fast enough that caching *function body analysis* provides the main speedup.
-
-### Goals
-
-1. Cache function analysis results (including methods, treated uniformly as functions with qualified/special names) using a **128-bit cache key** with negligible collision probability.
-2. Reanalyze only functions whose inputs/dependencies have actually changed.
-3. Keep the invalidation model simple, predictable, and easy to maintain.
-
----
-
-## 2. Caching Strategy
-
-### What Is Cached
-
-* **Cached:** Analysis results for individual functions/methods (types, diagnostics, resolved references, etc., as produced by function-body analysis).
-* **Not cached (recomputed as needed):** Top-level/global symbol discovery and resolution leading into function analysis.
-
-### Cache Invalidation Rules
-
-A cached analysis entry for a function is considered obsolete if:
-
-1. There is a **newer** analysis entry/version for the same function name, **or**
-2. The current AST **no longer contains** a function with that name.
-
-*(Note: Because the cache key itself encodes the inputs observed during function analysis, an unchanged function with unchanged inputs naturally hits the cache via its 128-bit key.)*
-
----
-
-## 3. Designing the 128-Bit Function Cache Key
-
-A function's cache key is a **128-bit hash** built from:
-
-1. The function's own AST/definition (relevant to its body/signature).
-2. All global symbol lookups performed during function analysis, **including both hits and misses**—for example:
-* Lookup miss: "`printf` was not found in `stdlib/str.jou`"
-* Lookup hit: "`printf` was found in `stdlib/io.jou` with signature `<...>`"
+To somewhat avoid a single syntax error causing many errors in other parts of a project,
+there is an `Unknown` type and an `Unknown` value that are emitted for errors.
+So if you are working on some part of the langserver, and your code receives an `Unknown` type or value,
+you should try to accept it without causing more errors,
+because there is already an error somewhere else.
 
 
-3. Definitions of classes/types referenced during analysis (including fields, types, declaration order, and conditional compilation outcomes).
+## Future Ideas
 
-### Hashing Practices
+- It's useful to know that `stdlib/str.jou` doesn't define a `printf()`,
+    so that when looking up `printf()`, we can quickly put "not found" into the symbol table of `stdlib/str.jou`.
+    To help with that, maybe the parser should produces a list (or bloom filter?) of possible symbol names
+    that could possibly be defined somewhere in the file?
 
-* **Domain tagging:** Prefix every hashed item (lookup hit, lookup miss, field, type, back-reference) with a distinct tag and length/boundary markers so distinct inputs cannot serialize to the same byte stream.
-* **128-bit digest:** Use a strong 128-bit hash algorithm (e.g., xxHash3-128) so accidental collisions are practically nonexistent.
 
----
+## TODO
 
-## 4. Handling Cyclic Classes with Recursion Depth
-
-Classes and types in Jou can reference themselves directly or mutually (e.g., `Foo` has a `Bar*` field and `Bar` has a `Foo` field). A naive recursive hash would loop infinitely.
-
-### Depth-Based Cycle Markers
-
-During a single hash traversal:
-
-* Track the **current recursion depth** (e.g., `1` at the start of hashing a class, incrementing as recursion descends into nested types, and resetting to `0` when unwinding).
-* If hashing a class encounters a class that is **already active on the current call stack**, emit a cycle/back-reference marker containing that **active recursion depth** instead of recursing further.
-* Once a class finishes hashing, reset its active depth so it is no longer treated as an active ancestor.
-
-### Trade-offs & Implications
-
-* **Works for self-cycles and mutual cycles:** Because the depth refers to a frame on the active call stack, cycles terminate cleanly and bake the cycle structure into the hash.
-* **Not memoizable per-class across differing call depths:** Because the same class can be reached at different depths depending on the traversal path or entry point, per-class hash results aren't simply cached standalone by class alone—instead, the depth-aware traversal runs as part of computing the function's 128-bit key.
-* **Future optimization path:** If profiling later shows class/type hashing becoming a bottleneck in large graphs, this area is isolated and can be refined without changing the overall function-cache architecture.
-
----
-
-## 5. Open Questions / Future Tweaks to Watch
-
-* **Cache eviction:** Decide on a retention cap (such as a max cache size or max entries per function name) so long editing sessions don't accumulate unbounded stale entries.
-* **Diagnostics & source locations:** Verify whether any diagnostics stored in a cached function result depend on line/column numbers of external declarations that might shift during edits outside the function.
-* **Conditional compilation (`if SOME_CONSTANT:`):** Ensure constant conditions affecting visible fields/symbols are reflected consistently in lookups and hashed type shapes.
-
----
-
-Would you like to expand any section of this draft—such as concrete pseudocode for the cache key builder or a section on error/diagnostic handling?
+- implement everything
