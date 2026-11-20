@@ -1,0 +1,17 @@
+# "joutest -x" means: stop on first error. File 3 is skipped silently.
+[[tests]]
+files = "file*.jou"
+
+
+# Output: run: jou file1.jou
+# Output:  ok  jou file1.jou
+# Output: run: jou file2.jou
+# Output: FAIL jou file2.jou
+# Output:
+# Output:
+# Output: *** Command: jou file2.jou
+# Output: +compiler error in file "file2.jou", line 1: not a valid statement
+# Output: Process exited with code 1. The correct exit code would be 0.
+# Output:
+# Output:
+# Output: 1 succeeded, 1 failed
