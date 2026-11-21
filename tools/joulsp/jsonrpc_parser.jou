@@ -123,6 +123,7 @@ def parse_id(json: byte*) -> ID:
 
 
 # See https://www.jsonrpc.org/specification
+# TODO: handle batches?
 def handle_body(body_string: byte*) -> None:
     if not json_is_valid(body_string):
         fail("message body is not valid JSON")
@@ -139,8 +140,9 @@ def handle_body(body_string: byte*) -> None:
 
         params_json = json_get(body_string, "params")
         if params_json == NULL:
-            fail("JSON contains \"method\" but no \"params\"")
-        printf("request: %s. Params look like %.50s\n", method, params_json)
+            printf("request: %s. No params\n", method)
+        else:
+            printf("request: %s. Params look like %.100s\n", method, params_json)
 
         id_json = json_get(body_string, "id")
         if id_json == NULL:

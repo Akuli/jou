@@ -189,6 +189,6 @@ def main(argc: int, argv: byte**) -> int:
         if state.record_file != NULL:
             fputc('I', state.record_file)
             fwrite(input, 1, strlen(input) + 1, state.record_file)  # includes '\0' to indicate where it ends
-            fflush(state.record_file)
+            fflush(state.record_file)  # make input available when this thing crashes
 
         process_input(&state, input)
