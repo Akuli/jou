@@ -1,104 +1,194 @@
 import "stdlib/assert.jou"
+import "stdlib/mem.jou"
+import "stdlib/ascii.jou"
+import "stdlib/argparse.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
 
-# TODO: move this stuff to stdlib
+import "./state.jou"
+import "./fail.jou"
+
 if WINDOWS:
-    import "../joutest/windows_api.jou"
+    import "stdlib/windows_api/kernel32.jou"
 else:
-    import "../joutest/posix.jou"
+    import "../joutest/posix.jou"  # TODO: move this stuff to stdlib , or copy here
+    import "stdlib/errno.jou"
 
 
-global stdin_buf: byte[65536]
-
-# Reads from stdin to stdin_buf.
-# Stops reading when there is no more data available in stdin or stdin_buf is full.
-# Returns number of bytes read.
+# Stops reading when there is no more data available in stdin.
+#
+# Return values:
+#   positive    Data was read
+#   0           EOF on stdin
 #
 # Example usage:
 #
-#    declare sleep(seconds: uint32) -> uint32
-#
 #    def main() -> int:
+#        buf: byte[100]
 #        while True:
-#            nbytes = read_from_stdin()
-#            if nbytes < 0:
-#                fprintf(get_stderr(), "joulsp: error reading from stdin\n")
-#                return 1
-#
-#            fwrite(stdin_buf, 1, nbytes, get_stdout())
+#            nbytes = read_from_stdin(buf, sizeof(buf))
+#            if nbytes == 0:
+#                printf("EOF\n")
+#                return 0
+#            fwrite(buf, 1, nbytes, get_stdout())
 #            fflush(get_stdout())
-#            sleep(1)
 #
 # Run with:
 #
 #   $ yes hello | (while IFS= read -n1 c; do echo -n $c; sleep 0.1; done) | jou example.jou
 #
 # This should produce hellohellohellohello... so that it appears one chunk at a time.
-def read_from_stdin() -> int:
+#
+# A couple ways to test read errors (both on posix)
+#
+#   $ jou example.jou <&-
+#   $ jou example.jou < /
+def read_from_stdin(buf: byte*, buf_size: int) -> int:
     if WINDOWS:
         nbytes: uint32 = 0
-        ret = ReadFile(GetStdHandle((-10) as uint32), stdin_buf, sizeof(stdin_buf) as uint32, &nbytes, NULL)
+        ret = ReadFile(GetStdHandle(STD_INPUT_HANDLE), buf, buf_size as uint32, &nbytes, NULL)
         if ret == 0:
-            return -1
+            fail_with_windows_error("reading stdin failed", GetLastError())
         return nbytes as int
     else:
-        return read(0, stdin_buf, sizeof(stdin_buf)) as int
+        result = read(0, buf, buf_size) as int
+        if result < 0:
+            fail_with_errno("reading stdin failed", get_errno())
+        return result
 
 
-#def main(argc: int, argv: byte**) -> int:
-#
-#    args = CommandLineArgs{}
-#
-#    i = 1
-#    while i < argc:
-#        filename = take_arg(argv, &i, "--record")
-#        if filename != NULL:
-#            if args.replay_mode != ReplayMode.Normal:
-#                # TODO: test this
-#                fprintf(stderr, "%s: --record or --playback can only be specified once (try --help)\n", argv[0])
-#                return 2
-#            args.replay_mode = ReplayMode.Record
-#            args.replay_file = fopen(filename, "wb")
-#            if args.replay_file == NULL:
-#                # TODO: test this
-#                fprintf(stderr, "%s: cannot open \"%s\": %s\n", strerror(get_errno()))
-#                return 1
-#            continue
-#
-#        filename = take_arg(argv, &i, "--playback")
-#        if filename != NULL:
-#            if args.replay_mode != ReplayMode.Normal:
-#                # TODO: test this
-#                fprintf(stderr, "%s: --record or --playback can only be specified once (try --help)\n", argv[0])
-#                return 2
-#            args.replay_mode = ReplayMode.Playback
-#            playback_file = fopen(filename, "rb")
-#            if playback_file == NULL:
-#                # TODO: test this
-#                fprintf(stderr, "%s: cannot open \"%s\": %s\n", strerror(get_errno()))
-#                return 1
-#            continue
-#
-#        match argv[i]:
-#            case "--help":
-#                printf("Usage: %s [options]\n", argv[0])
-#                printf("\n")
-#                printf("Options:\n")
-#                printf("  --record FILE.bin     write inputs needed to reproduce bugs to FILE.bin\n")
-#                printf("  --playback FILE.bin   instead of reading stdin and project files, take all\n")
-#                printf("                        input from a file produced by --record and try to\n")
-#                printf("                        reproduce what the langserver did\n")
-#                return 2
-#
-#            case _:
-#
-#                fprintf(
-#
-#                
-#            
-#        match argv[i]:
-#            case "--record":
-#                if i == argc-1:
-#                    fprintf(stderr, "%s: --record needs a file name (try --help)\n")
+def get_input(state: LangserverState*, buf: byte*, buf_size: int) -> int:
+    if state.replay_file == NULL:
+        return read_from_stdin(buf, buf_size)
+
+    while True:
+        op_byte = fgetc(state.replay_file)
+        match op_byte:
+            case EOF:
+                if ferror(state.replay_file) != 0:
+                    fail_with_errno("reading replay file failed", get_errno())
+                return 0
+
+            case 'I':
+                # Input chunk that came from stdin on previous run
+                size_string: byte[7]
+                memset(size_string, 0, sizeof(size_string))
+                fread(size_string, 1, 6, state.replay_file)
+                if strlen(size_string) != 6:
+                    fail("reading input size from replay file failed")
+                input_size = atoi(size_string)
+                if input_size > buf_size:
+                    snprintf(big_buffer, sizeof(big_buffer), "replay file contains an input chunk that is too big (%u > %d)", input_size, buf_size)
+                    fail(big_buffer)
+                if fread(buf, 1, input_size as int, state.replay_file) != input_size:
+                    fail("reading input from replay file failed")
+                # TODO: Populate VFS with file contents as long as there's 'F' entry in file
+                #       (use ungetc() if no EOF after last file)
+                #       declare ungetc(c: int, stream: FILE*) -> int
+                return input_size as int
+
+            case _:
+                if is_ascii_letter(op_byte as byte) or is_ascii_digit(op_byte as byte):
+                    snprintf(big_buffer, sizeof(big_buffer), "replay file contains unknown op byte '%c'", op_byte)
+                else:
+                    snprintf(big_buffer, sizeof(big_buffer), "replay file contains unknown op byte 0x%02x", op_byte)
+                fail(big_buffer)
+
+
+def parse_command_line_args(argv: byte**) -> LangserverState:
+    parser = ArgumentParser{argv = argv}
+    state = LangserverState{}
+
+    while parser.next():
+        match parser.flag with strcmp:
+            case "--help":
+                printf("Usage: %s [options]\n", argv[0])
+                printf("\n")
+                printf("Options:\n")
+                printf("  --record FILE.bin   write inputs needed to reproduce bugs to FILE.bin\n")
+                printf("  --replay FILE.bin   instead of reading stdin and project files, take all\n")
+                printf("                      input from a file produced by --record and reproduce\n")
+                printf("                      what the langserver did\n")
+                exit(0)
+
+            case "--record":
+                if state.record_file != NULL:
+                    fprintf(get_stderr(), "%s: --record cannot be specified twice (try --help)\n", argv[0])
+                    exit(2)
+
+                filename = parser.take_value()
+                if filename == NULL:
+                    fprintf(get_stderr(), "%s: missing file name after --record (try --help)\n", argv[0])
+                    exit(2)
+
+                state.record_file = fopen(filename, "wb")
+                if state.record_file == NULL:
+                    fprintf(get_stderr(), "%s: cannot open \"%s\": %s\n", argv[0], filename, strerror(get_errno()))
+                    exit(2)
+
+            case "--replay":
+                if state.replay_file != NULL:
+                    fprintf(get_stderr(), "%s: --replay cannot be specified twice (try --help)\n", argv[0])
+                    exit(2)
+
+                filename = parser.take_value()
+                if filename == NULL:
+                    fprintf(get_stderr(), "%s: missing file name after --replay (try --help)\n", argv[0])
+                    exit(2)
+
+                state.replay_file = fopen(filename, "rb")
+                if state.replay_file == NULL:
+                    fprintf(get_stderr(), "%s: cannot open \"%s\": %s\n", argv[0], filename, strerror(get_errno()))
+                    exit(2)
+
+            case _:
+                fprintf(get_stderr(), "%s: unknown argument '%s' (try --help)\n", argv[0], parser.flag if parser.flag[0] != '\0' else parser.take_value())
+                exit(2)
+
+        if parser.pending_value != NULL:
+            fprintf(get_stderr(), "%s: flag \"%s\" does not take a value (try --help)\n", argv[0], parser.flag)
+            exit(2)
+
+    return state
+
+
+def init_record_and_replay(state: LangserverState*) -> None:
+    # Primeagen says, always add a version number, sure lets do it i guess
+    file_format_header = "joulsp replay v1\n"
+
+    if state.replay_file != NULL:
+        header_size = fread(big_buffer, 1, strlen(file_format_header), state.replay_file)
+        if header_size != strlen(file_format_header) or memcmp(big_buffer, file_format_header, header_size) != 0:
+            fail("unsupported file format in replay file")
+
+    if state.record_file != NULL:
+        fputs(file_format_header, state.record_file)
+
+
+def main(argc: int, argv: byte**) -> int:
+    state = parse_command_line_args(argv)
+
+    init_record_and_replay(&state)
+
+    # If you shrink this, existing files created with --record will no longer work.
+    # Starting with quite a small buffer.
+    # Also, please move out of stack if you grow this a lot :)
+    input_buf: byte[4096]
+
+    while True:
+        nbytes = get_input(&state, input_buf, sizeof(input_buf))
+        if nbytes == 0:
+            # Editor closed our stdin
+            return 0  # TODO: is this the correct thing to do here?
+
+        if state.record_file != NULL:
+            fputc('I', state.record_file)
+            assert nbytes <= 999999
+            fprintf(state.record_file, "%06d", nbytes)
+            fwrite(input_buf, 1, nbytes, state.record_file)
+            fflush(state.record_file)
+
+        printf("Got them bytes: (%d) ", nbytes)
+        fwrite(input_buf, 1, nbytes, get_stdout())
+        printf("\n")

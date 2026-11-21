@@ -1,0 +1,20 @@
+import "stdlib/errno.jou"
+import "stdlib/process.jou"
+import "stdlib/io.jou"
+
+
+@public
+def fail(message: byte*) -> noreturn:
+    fprintf(get_stderr(), "jou langserver error: %s\n", message)
+    exit(1)
+
+@public
+def fail_with_errno(message: byte*, errno_value: int) -> noreturn:
+    fprintf(get_stderr(), "jou langserver error: %s (%s)\n", message, strerror(errno_value))
+    exit(1)
+
+if WINDOWS:
+    @public
+    def fail_with_windows_error(message: byte*, windows_error: uint32) -> noreturn:
+        fprintf(get_stderr(), "jou langserver error: %s (Windows error %u)\n", message, windows_error)
+        exit(1)

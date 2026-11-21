@@ -1,12 +1,13 @@
+import "stdlib/io.jou"
+
+
+# Advantage: easy to format error messages and other temporary things
+# Disadvantage: easy to get overlapping snprintf() if two functions use this and call each other
 @public
-enum ReplayMode:
-    Normal      # the "production" mode
-    Record      # write all inputs to file
-    Playback    # read inputs from previously created file, not stdin
+global big_buffer: byte[1_000_000]
 
 
-class CommandLineArgs:
-    program_name: byte*
-
-    replay_mode: ReplayMode
+@public
+class LangserverState:
+    record_file: FILE*
     replay_file: FILE*
