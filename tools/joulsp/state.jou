@@ -1,4 +1,5 @@
 import "stdlib/io.jou"
+import "stdlib/list.jou"
 
 
 # Advantage: easy to format error messages and other temporary things
@@ -11,3 +12,6 @@ global big_buffer: byte[1_000_000]
 class LangserverState:
     record_file: FILE*
     replay_file: FILE*
+
+    # Used to accumulate input bytes until they form complete jsonrpc messages
+    input_accumulator: List[byte]

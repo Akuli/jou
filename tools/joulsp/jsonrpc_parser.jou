@@ -1,0 +1,175 @@
+# This file takes in chunks of data from stdin, collects them until they form
+# complete jsonrpc messages, and splits to individual messages.
+
+import "stdlib/mem.jou"
+import "stdlib/math.jou"
+import "stdlib/assert.jou"
+import "stdlib/json.jou"
+import "stdlib/io.jou"
+import "stdlib/ascii.jou"
+import "stdlib/intnative.jou"
+import "stdlib/list.jou"
+import "stdlib/str.jou"
+
+import "./state.jou"
+import "./fail.jou"
+
+
+def starts_with_ignore_case(s: byte*, prefix: byte*) -> bool:
+    for i = 0; prefix[i] != '\0'; i++:
+        if not (
+            s[i] == prefix[i]
+            or (is_ascii_letter(prefix[i]) and s[i] == prefix[i] ^ 32)
+        ):
+            return False
+    return True
+
+
+# Returns pointer just after headers, or NULL if headers are incomplete
+def parse_headers(s: byte*, content_length: int*) -> byte*:
+    while True:
+        end_of_header = strchr(s, '\n')
+        if end_of_header == NULL:
+            return NULL
+        end_of_header++
+
+        # Langserver spec guarantees it's \r\n, not just \n, but we support
+        # both in case I want to try something by pasting text to terminal.
+        if end_of_header == &s[1] or (*s == '\r' and end_of_header == &s[2]):
+            return end_of_header
+
+        if starts_with_ignore_case(s, "Content-Length: "):
+            *content_length = atoi(&s[16])
+
+        s = end_of_header
+
+
+@public
+def process_input(state: LangserverState*, input_chunk: byte*) -> None:
+    state.input_accumulator.extend_from_ptr(input_chunk, strlen(input_chunk))
+
+    # Make sure it ends with '\0' so we can treat it as a string
+    state.input_accumulator.append('\0')
+    state.input_accumulator.pop()  # does not deallocate/shrink
+
+    message_start = state.input_accumulator.ptr
+    while True:
+        content_length = -1
+        body = parse_headers(message_start, &content_length)
+        if body == NULL:
+            break  # not enough data yet
+        if content_length <= 0:
+            fail("failed to parse Content-Length header in input")
+
+        # This would be UB in C, because this may index beyond the array's end.
+        if &body[content_length] > state.input_accumulator.end():
+            break  # not enough data yet
+
+        # No need to copy to new place in memory, lol
+        old_byte = body[content_length]
+        body[content_length] = '\0'
+        handle_body(body)
+        body[content_length] = old_byte
+        message_start = &body[content_length]
+
+    # Yes, I know that memmove() is not as efficient as a ring buffer, but it's
+    # easily good enough for this.
+    nbytes_remaining = (state.input_accumulator.end() as intnative) - (message_start as intnative)
+    memmove(state.input_accumulator.ptr, message_start, nbytes_remaining)
+    state.input_accumulator.len = nbytes_remaining
+
+
+# TODO(Jou): allow accessing string inside JSON without a stupid heap allocation
+def json_to_fixed_size_string(json: byte*, out: byte*, out_size: intnative) -> bool:
+    assert out_size > 0
+    out[0] = '\0'
+
+    s = json_to_string(json)
+    if s == NULL:
+        return False
+    snprintf(out, out_size, "%s", s)
+    free(s)
+    return True
+
+
+# jsonrpc IDs can be strings or numbers. A bit problematic in Jou, but not
+# impossible to work around by assuming it's not crazy long.
+#
+# TODO: Can we carry around pointer to original JSON and just respond with
+# that, never persisting anything for a long time?
+class ID:
+    is_string: bool
+    union:
+        string: byte[100]
+        number: double  # TODO: Ideally this would be int64, https://github.com/Akuli/jou/issues/1404
+
+    def print(self) -> None:
+        if self.is_string:
+            printf("\"%s\"\n", self.string)
+        else:
+            printf("%g\n", self.number)
+
+
+def parse_id(json: byte*) -> ID:
+    number = json_to_double(json)
+    if not isnan(number):
+        return ID{number = number}
+
+    id = ID{is_string = True}
+    if not json_to_fixed_size_string(json, id.string, array_count(id.string)):
+        snprintf(big_buffer, sizeof(big_buffer), "could not parse ID in JSON")
+        fail(big_buffer)
+    return id
+
+
+# See https://www.jsonrpc.org/specification
+def handle_body(body_string: byte*) -> None:
+    if not json_is_valid(body_string):
+        fail("message body is not valid JSON")
+
+    if not json_equals_string(json_get(body_string, "jsonrpc"), "2.0"):
+        fail("JSON doesn't specify jsonrpc \"2.0\"")
+
+    method_json = json_get(body_string, "method")
+    if method_json != NULL:
+        # It is a request
+        method: byte[100]
+        if not json_to_fixed_size_string(json_get(body_string, "method"), method, sizeof(method)):
+            fail("could not get method from JSON")
+
+        params_json = json_get(body_string, "params")
+        if params_json == NULL:
+            fail("JSON contains \"method\" but no \"params\"")
+        printf("request: %s. Params look like %.50s\n", method, params_json)
+
+        id_json = json_get(body_string, "id")
+        if id_json == NULL:
+            printf("  no id\n")
+        else:
+            id = parse_id(id_json)
+            printf("  id = ")
+            id.print()
+
+    else:
+        # Responses always have an ID
+        id = parse_id(json_get(body_string, "id"))
+
+        result_json = json_get(body_string, "result")
+        if result_json != NULL:
+            # It is a success response
+            printf("success response. Result object is %.50s\n", result_json)
+        else:
+            # It is an error response
+            error_json = json_get(body_string, "error")
+            if error_json == NULL:
+                fail("JSON does not contain \"method\", \"result\" or \"error\"")
+
+            code = json_to_double(json_get(error_json, "code"))
+            # TODO(Jou): allow accessing string inside JSON without a stupid heap allocation
+            #            Would be nice to use big_buffer here
+            if not json_to_fixed_size_string(json_get(method_json, "message"), big_buffer, sizeof(big_buffer)):
+                fail("could not get \"message\" string from error JSON")
+            fprintf(get_stderr(), "jou langserver: received error %g: %s\n", code, big_buffer)
+
+        printf("  id = ")
+        id.print()
