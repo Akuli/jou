@@ -96,9 +96,8 @@ def get_input(state: LangserverState*, buf: byte*, buf_size: int) -> int:
                 fail(big_buffer)
 
 
-def parse_command_line_args(argv: byte**) -> LangserverState:
+def parse_command_line_args(state: LangserverState*, argv: byte**) -> None:
     parser = ArgumentParser{argv = argv}
-    state = LangserverState{}
 
     while parser.next():
         match parser.flag with strcmp:
@@ -150,8 +149,6 @@ def parse_command_line_args(argv: byte**) -> LangserverState:
             fprintf(get_stderr(), "%s: flag \"%s\" does not take a value (try --help)\n", argv[0], parser.flag)
             exit(2)
 
-    return state
-
 
 def init_record_and_replay(state: LangserverState*) -> None:
     # Primeagen says, always add a version number, sure lets do it i guess
@@ -167,7 +164,8 @@ def init_record_and_replay(state: LangserverState*) -> None:
 
 
 def main(argc: int, argv: byte**) -> int:
-    state = parse_command_line_args(argv)
+    state = LangserverState{}
+    parse_command_line_args(&state, argv)
 
     init_record_and_replay(&state)
 
