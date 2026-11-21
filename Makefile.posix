@@ -68,6 +68,11 @@ jou: jou_bootstrap config.jou $(COMPILER_SOURCES)
 joutest: jou_bootstrap $(JOUTEST_SOURCES)
 	./jou_bootstrap -o joutest tools/joutest/main.jou
 
+# TODO: somewhat temporary, should probably do this with jou_bootstrap and add to "all"
+JOULSP_SOURCES != find tools/joulsp -name '*.jou'
+joulsp: jou $(JOULSP_SOURCES)
+	./jou -o joulsp tools/joulsp/main.jou
+
 # Does not delete tmp/bootstrap_cache because bootstrapping is slow.
 .PHONY: clean
 clean:
