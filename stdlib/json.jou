@@ -217,7 +217,7 @@ class JSONBuilder:
     # Return value must be free()'d
     @public
     def finish(self) -> byte*:
-        assert self.depth == 0  # If this fails, you forgot to call end()
+        assert self.depth == 0  # If this fails, you forgot to call end_array() or end_object()
         self.output.append('\0')
         return self.output.ptr
 
