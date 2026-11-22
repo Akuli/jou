@@ -233,7 +233,6 @@ while true; do
     for (( i = 0 ; i < ${#numbered_commits[@]} ; i++ )) ; do
         if [ ${numbered_commits[i]} == $numbered_commit ]; then
             numbered_commit=${numbered_commits[i+1]}
-            [ -z "$numbered_commit" ] || echo -ne "${YELLOW}[$((i+1))/$(( ${#numbered_commits[@]} - 1))]${RESET} "
             break
         fi
     done
@@ -242,6 +241,7 @@ while true; do
         break
     fi
 
+    echo -ne "${YELLOW}[$((i+1))/$(( ${#numbered_commits[@]} - 1))]${RESET} "
     compile_next_jou_compiler $previous_numbered_commit $numbered_commit
 done
 
