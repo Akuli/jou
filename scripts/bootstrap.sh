@@ -35,6 +35,7 @@ else
 fi
 
 CYAN="\x1b[36m"
+YELLOW="\x1b[33m"
 RED="\x1b[31m"
 RESET="\x1b[0m"
 
@@ -240,6 +241,7 @@ while true; do
         break
     fi
 
+    echo -ne "${YELLOW}[$((i+1))/$(( ${#numbered_commits[@]} - 1))]${RESET} "
     compile_next_jou_compiler $previous_numbered_commit $numbered_commit
 done
 
