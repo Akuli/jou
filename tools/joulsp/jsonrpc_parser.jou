@@ -2,7 +2,6 @@
 # complete jsonrpc messages, and splits to individual messages.
 
 import "stdlib/mem.jou"
-import "stdlib/math.jou"
 import "stdlib/assert.jou"
 import "stdlib/json.jou"
 import "stdlib/ascii.jou"
@@ -80,31 +79,6 @@ def process_input(state: LangserverState*, input_chunk: byte*) -> None:
     state.input_accumulator.len = nbytes_remaining
 
 
-# TODO(Jou): allow accessing string inside JSON without a stupid heap allocation
-def json_to_fixed_size_string(json: byte*, out: byte*, out_size: intnative) -> bool:
-    assert out_size > 0
-    out[0] = '\0'
-
-    s = json_to_string(json)
-    if s == NULL:
-        return False
-    snprintf(out, out_size, "%s", s)
-    free(s)
-    return True
-
-
-def parse_id(json: byte*) -> RequestID:
-    number = json_to_double(json)
-    if not isnan(number):
-        return RequestID{number = number}
-
-    id = RequestID{is_string = True}
-    if not json_to_fixed_size_string(json, id.string, array_count(id.string)):
-        snprintf(big_buffer, sizeof(big_buffer), "could not parse ID in JSON: %s", json)
-        fail(big_buffer)
-    return id
-
-
 # TODO(Jou): this should probably be a method on JSONBuilder
 def finish_json_builder_without_freeing_memory(jb: JSONBuilder*) -> byte*:
     assert jb.depth == 0  # If this fails, you forgot to call end_array() or end_object()
@@ -129,43 +103,19 @@ def handle_one_message(state: LangserverState*, body_string: byte*) -> None:
 
     old_len = state.out.output.len
 
-    method_json = json_get(body_string, "method")
-    if method_json != NULL:
-        # It is a request
-        method: byte[200]
-        if not json_to_fixed_size_string(method_json, method, sizeof(method)):
-            fail("could not get method from JSON")
-
-        params_json = json_get(body_string, "params")  # may be NULL
-        if params_json != NULL:
-            # We have an unnecessary '}' at the end because that's where the
-            # outer JSON object ends. Avoid confusion when debugging.
-            *strrchr(params_json, '}') = '\0'
-
-        id_json = json_get(body_string, "id")
-        if id_json == NULL:
-            # no ID
-            handle_request(state, method, NULL, params_json)
-        else:
-            id = parse_id(id_json)
-            handle_request(state, method, &id, params_json)
-
+    if json_get(body_string, "method") != NULL:
+        handle_request(state, body_string)
+    elif json_get(body_string, "result") != NULL:
+        handle_success_response(body_string)
+    elif json_get(body_string, "error") != NULL:
+        handle_error_response(body_string)
     else:
-        # It is a response. Responses always contain ID of the corresponding request.
-        id = parse_id(json_get(body_string, "id"))
-
-        result_json = json_get(body_string, "result")
-        if result_json == NULL:
-            handle_error_response(body_string)
-        else:
-            # We have an unnecessary '}' at the end because that's where the
-            # outer JSON object ends. Avoid confusion when debugging.
-            *strrchr(result_json, '}') = '\0'
-            handle_success_response(id, result_json)
+        fail("JSON is not a jsonrpc 2.0 request, success result, or error result")
 
     something_was_added = state.out.output.len > old_len
 
     state.out.end_object()
+    state.out.output.append('\n')  # makes this nicer to work on, next headers go to their own line
     out_json = finish_json_builder_without_freeing_memory(&state.out)
 
     if something_was_added:

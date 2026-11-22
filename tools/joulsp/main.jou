@@ -134,8 +134,11 @@ def main(argc: int, argv: byte**) -> int:
     while True:
         input = get_input(&state)
         if input == NULL:
-            # Editor closed our stdin
-            return 0  # TODO: is this the correct thing to do here?
+            # For some reason I don't understand, whoever designed langserver
+            # protocol didn't think that this would be a good way to stop a
+            # langserver. Instead, there are TWO requests that the editor has
+            # to send to properly stop a langserver (shutdown and exit).
+            fail("stdin was closed")
 
         if state.record_file != NULL:
             fputc('I', state.record_file)
