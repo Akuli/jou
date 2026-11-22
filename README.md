@@ -300,11 +300,11 @@ It can compile itself.
 However, this doesn't help you much if you have nothing that can compile Jou code.
 
 To solve this problem, there are two scripts:
-- [`bootstrap_transpiler.py`](./scripts/bootstrap_transpiler.py) is a Python script that converts Jou code to C code.
+- [`scripts/bootstrap_transpiler.py`](./scripts/bootstrap_transpiler.py) is a Python script that converts Jou code to C code.
     It is not intended to be used for anything other than this.
     For example, it doesn't support all features of the Jou language,
     and when it doesn't support something, it usually fails with an unhelpful error message.
-- [`bootstrap.sh`](./scripts/bootstrap.sh) takes old versions of the Jou compiler from Git history,
+- [`scripts/bootstrap.sh`](./scripts/bootstrap.sh) takes old versions of the Jou compiler from Git history,
     starting with a commit that is compatible with `scripts/bootstrap_transpiler.py`.
     It then uses the previous Jou compiler to compile the next version of the Jou compiler
     until it gets a Jou compiler that supports the latest Jou syntax.
