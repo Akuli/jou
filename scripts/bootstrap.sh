@@ -24,7 +24,7 @@ numbered_commits=(
 )
 
 # This should be an item of the above list according to what
-# bootstrap_transpiler.py supports.
+# scripts/bootstrap_transpiler.py supports.
 bootstrap_transpiler_numbered_commit=030_bb3dc7d925fa28ce405fda5a4fc3c428f6f7c2b1
 
 if [[ "${OS:=$(uname)}" =~ Windows ]]; then
@@ -113,7 +113,7 @@ function transpile_with_python_and_compile() {
         echo "Converting Jou code to C..."
         local n
         n=$(getconf _NPROCESSORS_ONLN)
-        "$python" ../../../bootstrap_transpiler.py --split $n compiler/main.jou > compiler.c
+        "$python" ../../../scripts/bootstrap_transpiler.py --split $n compiler/main.jou > compiler.c
 
         echo "Compiling C code... ($n parallel processes)"
         local i

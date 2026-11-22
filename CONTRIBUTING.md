@@ -161,9 +161,9 @@ These pull requests should be marked with the `skip-release` label in GitHub.
 No new release is made if there are no new commits or they all have the `skip-release` label.
 
 Some parts of the build are done in `.github/workflows/windows.yml`,
-and the rest is in `release.sh` (invoked from `.github/workflows/release.yml`).
+and the rest is in `scripts/release.sh` (invoked from `.github/workflows/release.yml`).
 The difference is that `windows.yml` builds and tests the Windows zip file,
-and `release.sh` creates a GitHub release for it.
+and `scripts/release.sh` creates a GitHub release for it.
 
 There is also `jou --update`.
 On Windows it runs a PowerShell script that downloads and installs the latest release from GitHub Actions.

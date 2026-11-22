@@ -1,7 +1,7 @@
 all: jou.exe joutest.exe
 
-jou_bootstrap.exe: bootstrap.sh bootstrap_transpiler.py
-	bash ./bootstrap.sh
+jou_bootstrap.exe: scripts/bootstrap.sh scripts/bootstrap_transpiler.py
+	bash ./scripts/bootstrap.sh
 
 jou.exe: jou_bootstrap.exe $(wildcard compiler/*.jou compiler/*/*.jou)
 	./jou_bootstrap.exe -o jou.exe compiler/main.jou

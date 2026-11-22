@@ -11,7 +11,7 @@ from http.client import responses as status_code_names
 from pathlib import Path
 from datetime import datetime, timedelta
 
-PROJECT_ROOT = Path(__file__).absolute().parent
+PROJECT_ROOT = Path(__file__).absolute().parent.parent
 assert (PROJECT_ROOT / "README.md").is_file()
 os.chdir(PROJECT_ROOT)
 

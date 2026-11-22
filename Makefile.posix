@@ -56,8 +56,8 @@ config.jou: Makefile.posix
 	printf 'const JOU_CONFIG_ARM_CPU: bool = %s\n' `uname -mp | grep -qE 'arm|aarch64' && echo True || echo False` >> config.jou
 
 
-jou_bootstrap: bootstrap.sh bootstrap_transpiler.py config.jou
-	./bootstrap.sh
+jou_bootstrap: scripts/bootstrap.sh scripts/bootstrap_transpiler.py config.jou
+	./scripts/bootstrap.sh
 
 COMPILER_SOURCES != echo compiler/*.jou compiler/*/*.jou
 JOUTEST_SOURCES != echo tools/joutest/*.jou tools/joutest/*.toml
