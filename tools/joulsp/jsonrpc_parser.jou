@@ -69,7 +69,7 @@ def process_input(state: LangserverState*, input_chunk: byte*) -> None:
         # No need to copy to new place in memory, lol
         old_byte = body[content_length]
         body[content_length] = '\0'
-        handle_one_message(state, body)
+        handle_one_message(state, body)  # may change contents inside body string
         body[content_length] = old_byte
         message_start = &body[content_length]
 
@@ -137,6 +137,10 @@ def handle_one_message(state: LangserverState*, body_string: byte*) -> None:
             fail("could not get method from JSON")
 
         params_json = json_get(body_string, "params")  # may be NULL
+        if params_json != NULL:
+            # We have an unnecessary '}' at the end because that's where the
+            # outer JSON object ends. Avoid confusion when debugging.
+            *strrchr(params_json, '}') = '\0'
 
         id_json = json_get(body_string, "id")
         if id_json == NULL:
@@ -154,6 +158,9 @@ def handle_one_message(state: LangserverState*, body_string: byte*) -> None:
         if result_json == NULL:
             handle_error_response(body_string)
         else:
+            # We have an unnecessary '}' at the end because that's where the
+            # outer JSON object ends. Avoid confusion when debugging.
+            *strrchr(result_json, '}') = '\0'
             handle_success_response(id, result_json)
 
     something_was_added = state.out.output.len > old_len
