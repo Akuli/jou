@@ -5,14 +5,15 @@ import "stdlib/mem.jou"
 import "stdlib/math.jou"
 import "stdlib/assert.jou"
 import "stdlib/json.jou"
-import "stdlib/io.jou"
 import "stdlib/ascii.jou"
 import "stdlib/intnative.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 
 import "./state.jou"
+import "./stdin_and_stdout.jou"
 import "./fail.jou"
+import "./handlers.jou"
 
 
 def starts_with_ignore_case(s: byte*, prefix: byte*) -> bool:
@@ -68,7 +69,7 @@ def process_input(state: LangserverState*, input_chunk: byte*) -> None:
         # No need to copy to new place in memory, lol
         old_byte = body[content_length]
         body[content_length] = '\0'
-        handle_body(body)
+        handle_one_message(state, body)
         body[content_length] = old_byte
         message_start = &body[content_length]
 
@@ -92,61 +93,58 @@ def json_to_fixed_size_string(json: byte*, out: byte*, out_size: intnative) -> b
     return True
 
 
-# jsonrpc IDs can be strings or numbers. A bit problematic in Jou, but not
-# impossible to work around by assuming it's not crazy long.
-#
-# TODO: Can we carry around pointer to original JSON and just respond with
-# that, never persisting anything for a long time?
-class ID:
-    is_string: bool
-    union:
-        string: byte[100]
-        number: double  # TODO: Ideally this would be int64, https://github.com/Akuli/jou/issues/1404
-
-    def print(self) -> None:
-        if self.is_string:
-            printf("\"%s\"\n", self.string)
-        else:
-            printf("%g\n", self.number)
-
-
-def parse_id(json: byte*) -> ID:
+def parse_id(json: byte*) -> RequestID:
     number = json_to_double(json)
     if not isnan(number):
-        return ID{number = number}
+        return RequestID{number = number}
 
-    id = ID{is_string = True}
+    id = RequestID{is_string = True}
     if not json_to_fixed_size_string(json, id.string, array_count(id.string)):
-        snprintf(big_buffer, sizeof(big_buffer), "could not parse ID in JSON")
+        snprintf(big_buffer, sizeof(big_buffer), "could not parse ID in JSON: %s", json)
         fail(big_buffer)
     return id
 
 
+# TODO(Jou): this should probably be a method on JSONBuilder
+def finish_json_builder_without_freeing_memory(jb: JSONBuilder*) -> byte*:
+    assert jb.depth == 0  # If this fails, you forgot to call end_array() or end_object()
+
+    jb.output.append('\0')
+    jb.output.len = 0
+    return jb.output.ptr
+
+
 # See https://www.jsonrpc.org/specification
 # TODO: handle batches?
-def handle_body(body_string: byte*) -> None:
+def handle_one_message(state: LangserverState*, body_string: byte*) -> None:
     if not json_is_valid(body_string):
         fail("message body is not valid JSON")
 
     if not json_equals_string(json_get(body_string, "jsonrpc"), "2.0"):
         fail("JSON doesn't specify jsonrpc \"2.0\"")
 
+    assert state.out.output.len == 0
+    state.out.begin_object()
+    state.out.key("jsonrpc").string("2.0")
+
+    old_len = state.out.output.len
+
     method_json = json_get(body_string, "method")
     if method_json != NULL:
         # It is a request
         method: byte[200]
-        if not json_to_fixed_size_string(json_get(body_string, "method"), method, sizeof(method)):
+        if not json_to_fixed_size_string(method_json, method, sizeof(method)):
             fail("could not get method from JSON")
 
-        params_json = json_get(body_string, "params")
+        params_json = json_get(body_string, "params")  # may be NULL
 
         id_json = json_get(body_string, "id")
         if id_json == NULL:
             # no ID
-            handle_request(method, NULL, params_json)
+            handle_request(state, method, NULL, params_json)
         else:
             id = parse_id(id_json)
-            handle_request(method, &id, params_json)
+            handle_request(state, method, &id, params_json)
 
     else:
         # It is a response. Responses always contain ID of the corresponding request.
@@ -154,32 +152,17 @@ def handle_body(body_string: byte*) -> None:
 
         result_json = json_get(body_string, "result")
         if result_json == NULL:
-            # It is an error response
-            #
-            # TODO: These probably shouldn't be fatal, editor may respond with
-            # error if it doesn't support some feature
-            snprintf(big_buffer, sizeof(big_buffer), "received an error response: %s", body_string)
-            fail(big_buffer)
+            handle_error_response(body_string)
+        else:
+            handle_success_response(id, result_json)
 
-        # It is a success response
-        handle_response(id, result_json)
+    something_was_added = state.out.output.len > old_len
 
+    state.out.end_object()
+    out_json = finish_json_builder_without_freeing_memory(&state.out)
 
-def handle_request(method: byte*, id: ID*, params_json: byte*) -> None:
-    printf("request: %s, ", method)
-    if id == NULL:
-        printf("no id\n")
-    else:
-        printf("id=")
-        id.print()
-    if params_json != NULL:
-        maxlen = 500
-        printf("  params = %.*s%s\n", maxlen, params_json, "..." if strlen(params_json) > maxlen else "")
-
-
-def handle_response(id: ID, result_json: byte*) -> None:
-    printf("response for request with id=")
-    id.print()
-    if result_json != NULL:
-        maxlen = 50
-        printf("  result = %.*s%s\n", maxlen, result_json, "..." if strlen(result_json) > maxlen else "")
+    if something_was_added:
+        headers: byte[100]
+        sprintf(headers, "Content-Length: %zd\r\n\r\n", strlen(out_json))
+        write_to_stdout(headers)
+        write_to_stdout(out_json)

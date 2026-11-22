@@ -4,72 +4,23 @@ import "stdlib/argparse.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
+import "stdlib/errno.jou"
 
 import "./state.jou"
 import "./jsonrpc_parser.jou"
 import "./fail.jou"
-
-if WINDOWS:
-    import "stdlib/windows_api/kernel32.jou"
-else:
-    import "../joutest/posix.jou"  # TODO: move this stuff to stdlib , or copy here
-    import "stdlib/errno.jou"
+import "./stdin_and_stdout.jou"
 
 
 # If you shrink this, existing files created with --record will no longer work.
-# So, starting pretty small.
-global stdin_buf: byte[3]  # slow, but catches some bugs during development
-#global stdin_buf: byte[1024]
-
-
-# Stops reading when there is no more data available in stdin.
-# Returns a string. NULL means EOF.
-#
-# Example usage:
-#
-#    def main() -> int:
-#        while True:
-#            s = read_from_stdin()
-#            if s == NULL:
-#                printf("EOF\n")
-#                return 0
-#            printf("%s", s)
-#            fflush(get_stdout())
-#
-# Run with:
-#
-#   $ yes hello | (while IFS= read -n1 c; do echo -n $c; sleep 0.1; done) | jou example.jou
-#
-# This should produce hellohellohellohello... so that it appears one chunk at a time.
-#
-# A couple ways to test read errors (both on posix)
-#
-#   $ jou example.jou <&-
-#   $ jou example.jou < /
-def read_from_stdin() -> byte*:
-    if WINDOWS:
-        nbytes: uint32 = 0
-        ret = ReadFile(GetStdHandle(STD_INPUT_HANDLE), stdin_buf, (sizeof(stdin_buf) - 1) as uint32, &nbytes, NULL)
-        if ret == 0:
-            fail_with_windows_error("reading stdin failed", GetLastError())
-    else:
-        nbytes = read(0, stdin_buf, sizeof(stdin_buf) - 1) as int
-        if nbytes < 0:
-            fail_with_errno("reading stdin failed", get_errno())
-
-    if nbytes == 0:
-        return NULL
-
-    for i = 0; i < nbytes; i++:
-        if stdin_buf[i] == '\0':
-            fail("received zero byte on stdin")
-    stdin_buf[nbytes] = '\0'
-    return stdin_buf
-
+#global input_buf: byte[3]  # slow, but catches some bugs during development
+global input_buf: byte[4096]
 
 def get_input(state: LangserverState*) -> byte*:
     if state.replay_file == NULL:
-        return read_from_stdin()
+        if not read_from_stdin(input_buf, sizeof(input_buf)):
+            return NULL
+        return input_buf
 
     while True:
         op_byte = fgetc(state.replay_file)
@@ -86,9 +37,9 @@ def get_input(state: LangserverState*) -> byte*:
                     c = fgetc(state.replay_file)
                     if c == EOF:
                         fail("reading input from replay file failed")
-                    if i == array_count(stdin_buf):
+                    if i == array_count(input_buf):
                         fail("input string in replay file is too long")
-                    stdin_buf[i++] = c as byte
+                    input_buf[i++] = c as byte
                     # Stop after we copy zero byte
                     if c == '\0':
                         break
@@ -97,7 +48,7 @@ def get_input(state: LangserverState*) -> byte*:
                 #       (use ungetc() if no EOF after last file)
                 #       declare ungetc(c: int, stream: FILE*) -> int
 
-                return stdin_buf
+                return input_buf
 
             case _:
                 if is_ascii_letter(op_byte as byte) or is_ascii_digit(op_byte as byte):

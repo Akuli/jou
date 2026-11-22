@@ -1,0 +1,84 @@
+# We can't use stdlib/io.jou for stdin/stdout processing. It does buffering,
+# and on Windows, annoying newline handling.
+
+import "stdlib/str.jou"
+
+import "./fail.jou"
+
+if WINDOWS:
+    import "stdlib/windows_api/kernel32.jou"
+else:
+    import "stdlib/errno.jou"
+    import "stdlib/intnative.jou"
+
+    declare read(fd: int, buf: void*, count: intnative) -> intnative
+    declare write(fd: int, buf: void*, count: intnative) -> intnative
+
+
+# Stops reading when there is no more data available in stdin.
+# Return value True means that buf now has data and a '\0' to indicate the end.
+# Return value False means EOF.
+@public
+def read_from_stdin(buf: byte*, buf_size: int) -> bool:
+    if WINDOWS:
+        nbytes: uint32 = 0
+        ret = ReadFile(GetStdHandle(STD_INPUT_HANDLE), buf, (buf_size - 1) as uint32, &nbytes, NULL)
+        if ret == 0:
+            fail_with_windows_error("reading stdin failed", GetLastError())
+    else:
+        nbytes = read(0, buf, buf_size - 1) as int
+        if nbytes < 0:
+            fail_with_errno("reading stdin failed", get_errno())
+
+    if nbytes == 0:
+        return False
+
+    for i = 0; i < nbytes; i++:
+        if buf[i] == '\0':
+            fail("received zero byte on stdin")
+    buf[nbytes] = '\0'
+    return True
+
+
+@public
+def write_to_stdout(string: byte*) -> None:
+    if WINDOWS:
+        while *string != '\0':
+            nbytes: uint32 = 0
+            ret = WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), string, strlen(string) as uint32, &nbytes, NULL)
+            if ret == 0:
+                fail_with_windows_error("writing to stdout failed", GetLastError())
+            string = &string[nbytes]
+    else:
+        while *string != '\0':
+            ret = write(1, string, strlen(string))
+            if ret < 0:
+                fail_with_errno("writing to stdout failed", get_errno())
+            string = &string[ret]
+
+
+# Quick and dirty test/demo, basically cat
+#
+# The commands below probably won't work on windows.
+#
+# Check for buffering problems, should produce hellohellohellohello... slowly
+# one character at a time:
+#
+#   $ yes hello | (while IFS= read -n1 c; do echo -n $c; sleep 0.1; done) | jou stdin_and_stdout.jou
+#
+# Testing read errors:
+#
+#   $ jou stdin_and_stdout.jou <&-
+#   $ jou stdin_and_stdout.jou < /
+#
+# Testing write errors:
+#
+#   $ echo hello | jou stdin_and_stdout.jou >&-
+#   $ echo hello | jou stdin_and_stdout.jou > /dev/full
+def main() -> int:
+    buf: byte[100]
+    while True:
+        if not read_from_stdin(buf, sizeof(buf)):
+            write_to_stdout("EOF\n")
+            return 0
+        write_to_stdout(buf)

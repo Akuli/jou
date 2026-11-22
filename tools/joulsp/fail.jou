@@ -18,3 +18,8 @@ if WINDOWS:
     def fail_with_windows_error(message: byte*, windows_error: uint32) -> noreturn:
         fprintf(get_stderr(), "jou langserver error: %s (Windows error %u)\n", message, windows_error)
         exit(1)
+
+
+@public
+def show_warning(message: byte*) -> None:
+    fprintf(get_stderr(), "jou langserver warning: %s\n", message)

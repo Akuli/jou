@@ -1,5 +1,8 @@
+import "stdlib/assert.jou"
 import "stdlib/io.jou"
+import "stdlib/str.jou"
 import "stdlib/list.jou"
+import "stdlib/json.jou"
 
 
 # Advantage: easy to format error messages and other temporary things
@@ -15,3 +18,30 @@ class LangserverState:
 
     # Used to accumulate input bytes until they form complete jsonrpc messages
     input_accumulator: List[byte]
+
+    # Output JSON is built here before printing it
+    out: JSONBuilder
+
+
+# jsonrpc IDs can be strings or numbers. A bit problematic in Jou, but not
+# impossible to work around by assuming it's not crazy long.
+#
+# TODO: Can we carry around pointer to original JSON and just respond with
+# that, never persisting anything for a long time?
+@public
+class RequestID:
+    is_string: bool
+    union:
+        string: byte[100]
+        number: double  # TODO: Ideally this would be int64, https://github.com/Akuli/jou/issues/1404
+
+    @public
+    def to_debug_string(self) -> byte[102]:
+        result: byte[102]
+        assert array_count(result) == array_count(self.string) + 2
+
+        if self.is_string:
+            snprintf(result, sizeof(result), "\"%s\"", self.string)
+        else:
+            snprintf(result, sizeof(result), "%g", self.number)
+        return result

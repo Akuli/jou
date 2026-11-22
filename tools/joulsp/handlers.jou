@@ -1,0 +1,52 @@
+import "stdlib/str.jou"
+import "stdlib/json.jou"
+
+import "./fail.jou"
+import "./state.jou"
+
+
+def add_id(jb: JSONBuilder*, id: RequestID) -> None:
+    if id.is_string:
+        jb.key("id").string(id.string)
+    else:
+        jb.key("id").number(id.number)
+
+
+@public
+def handle_request(state: LangserverState*, method: byte*, id: RequestID*, params_json: byte*) -> None:
+    match method with strcmp:
+        case _:
+            id_debug_string: byte[102] = "(not given)"
+            if id != NULL:
+                id_debug_string = id.to_debug_string()
+            snprintf(
+                big_buffer,
+                sizeof(big_buffer),
+                "received unknown request: %s, id=%s, params=%s",
+                method,
+                id_debug_string,
+                "(not given)" if params_json == NULL else params_json,
+            )
+            show_warning(big_buffer)
+
+            if id != NULL:
+                add_id(&state.out, *id)
+            state.out.key("error")
+            state.out.begin_object()
+            state.out.key("code").number(-32601)
+            state.out.key("message").string("Method not found")
+            state.out.end_object()
+
+
+@public
+def handle_success_response(id: RequestID, result_json: byte*) -> None:
+    # TODO: do something with these? or just ignore them entirely?
+    id_debug_string = id.to_debug_string()
+    snprintf(big_buffer, sizeof(big_buffer), "got unexpected success response: id=%s, result=%s", id_debug_string, result_json)
+    show_warning(big_buffer)
+
+
+@public
+def handle_error_response(body_string: byte*) -> None:
+    snprintf(big_buffer, sizeof(big_buffer), "received an error response: %s", body_string)
+    show_warning(big_buffer)
