@@ -212,3 +212,19 @@ files = [
     "doc/types.md",
 ]
 expected_exit_code = "any"
+
+
+###############
+# Test joulsp #
+###############
+
+[[tests]]
+files = [
+    "tools/joulsp_tests/*.jou",
+]
+output_comment_rules = {
+    Output = '{comment}',
+    Warning = 'compiler warning for file "{file}", line {line}: {comment}'
+}
+output_comment_order = ["Warning", "Output"]
+cd_to_containing_directory = true
