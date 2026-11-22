@@ -134,44 +134,52 @@ def handle_body(body_string: byte*) -> None:
     method_json = json_get(body_string, "method")
     if method_json != NULL:
         # It is a request
-        method: byte[100]
+        method: byte[200]
         if not json_to_fixed_size_string(json_get(body_string, "method"), method, sizeof(method)):
             fail("could not get method from JSON")
 
         params_json = json_get(body_string, "params")
-        if params_json == NULL:
-            printf("request: %s. No params\n", method)
-        else:
-            printf("request: %s. Params look like %.100s\n", method, params_json)
 
         id_json = json_get(body_string, "id")
         if id_json == NULL:
-            printf("  no id\n")
+            # no ID
+            handle_request(method, NULL, params_json)
         else:
             id = parse_id(id_json)
-            printf("  id = ")
-            id.print()
+            handle_request(method, &id, params_json)
 
     else:
-        # Responses always have an ID
+        # It is a response. Responses always contain ID of the corresponding request.
         id = parse_id(json_get(body_string, "id"))
 
         result_json = json_get(body_string, "result")
-        if result_json != NULL:
-            # It is a success response
-            printf("success response. Result object is %.50s\n", result_json)
-        else:
+        if result_json == NULL:
             # It is an error response
-            error_json = json_get(body_string, "error")
-            if error_json == NULL:
-                fail("JSON does not contain \"method\", \"result\" or \"error\"")
+            #
+            # TODO: These probably shouldn't be fatal, editor may respond with
+            # error if it doesn't support some feature
+            snprintf(big_buffer, sizeof(big_buffer), "received an error response: %s", body_string)
+            fail(big_buffer)
 
-            code = json_to_double(json_get(error_json, "code"))
-            # TODO(Jou): allow accessing string inside JSON without a stupid heap allocation
-            #            Would be nice to use big_buffer here
-            if not json_to_fixed_size_string(json_get(method_json, "message"), big_buffer, sizeof(big_buffer)):
-                fail("could not get \"message\" string from error JSON")
-            fprintf(get_stderr(), "jou langserver: received error %g: %s\n", code, big_buffer)
+        # It is a success response
+        handle_response(id, result_json)
 
-        printf("  id = ")
+
+def handle_request(method: byte*, id: ID*, params_json: byte*) -> None:
+    printf("request: %s, ", method)
+    if id == NULL:
+        printf("no id\n")
+    else:
+        printf("id=")
         id.print()
+    if params_json != NULL:
+        maxlen = 500
+        printf("  params = %.*s%s\n", maxlen, params_json, "..." if strlen(params_json) > maxlen else "")
+
+
+def handle_response(id: ID, result_json: byte*) -> None:
+    printf("response for request with id=")
+    id.print()
+    if result_json != NULL:
+        maxlen = 50
+        printf("  result = %.*s%s\n", maxlen, result_json, "..." if strlen(result_json) > maxlen else "")
