@@ -60,7 +60,7 @@ else
         filename=jou_windows_64bit_2026-03-16-0500.zip
         sha=e1d62b64fac1798c41077f8b97902947d3430cc4b9b8cb988c7b56a75df7d697
         # This is the folder where the downloaded Jou compiler (jou.exe) will go.
-        # Placing it here makes bootstrap.sh use our downloaded Jou compiler
+        # Placing it here makes scripts/bootstrap.sh use our downloaded Jou compiler
         # instead of starting from scratch.
         jou_exe_folder=tmp/bootstrap_cache/030_bb3dc7d925fa28ce405fda5a4fc3c428f6f7c2b1
     else

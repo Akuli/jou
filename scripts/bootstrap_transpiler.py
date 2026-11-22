@@ -1,7 +1,7 @@
 """This file converts Jou code to C code.
 
 This is meant to be used only when setting up Jou on a system for the first
-time. Usually you don't need to run this manually, because bootstrap.sh figures
+time. Usually you don't need to run this manually, because scripts/bootstrap.sh figures
 out where Python is installed and invokes this with whatever Python you have.
 
 This is basically a mini Jou compiler. Here are the main ways how this differs

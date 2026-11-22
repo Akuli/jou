@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This scripts generates a new Jou release. It is invoked from GitHub Actions
+# scripts/release.sh generates a new Jou release. It is invoked from GitHub Actions
 # automatically as documented in CONTRIBUTING.md.
 
 set -e -o pipefail

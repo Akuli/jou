@@ -174,7 +174,7 @@ jobs:
     permissions:
       issues: write
     steps:
-      - uses: actions/checkout@v6  # needed to get create_issue.sh
+      - uses: actions/checkout@v6  # needed to get scripts/create_issue.sh
 
       - name: "Download the dummy files that indicate which VMs succeeded"
         uses: actions/download-artifact@v4  # Downloads all artifacts
@@ -187,6 +187,6 @@ jobs:
               echo "  ok"
             else
               echo "  Running tests failed, creating issue..."
-              ./create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
+              ./scripts/create_issue.sh "${{ secrets.GITHUB_TOKEN }}" "Running tests on $vm failed"
             fi
           done
