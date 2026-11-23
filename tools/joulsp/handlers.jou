@@ -6,12 +6,85 @@ import "stdlib/json.jou"
 import "stdlib/process.jou"
 import "stdlib/math.jou"
 import "stdlib/mem.jou"
+import "stdlib/utf8.jou"
 
 import "./fail.jou"
 import "./vfs.jou"
 import "./uri.jou"
 import "./lsp_enums.jou"
 import "./state.jou"
+
+
+# TODO(Jou): this belongs to stdlib/json.jou
+@public
+def json_to_int(json: byte*, fallback: int) -> int:
+    # Round-trip through double is fine, because any int fits into a double as is
+    d = json_to_double(json)
+    if isnan(d):
+        return fallback
+    return d as int
+
+
+def lsp_position_to_byte_offset(
+    file_content: byte*,
+    file_size: intnative,
+    json: byte*,
+) -> intnative:
+    assert file_content != NULL
+    assert file_size > 0
+
+    # There's something dumb about both numbers.
+    #
+    # Line numbers start at zero. Nobody does that. The convention is that they
+    # start from 1. My editor literally shows line numbers 1 2 3 ... on the
+    # left side of this code right now, as do most other editors.
+    #
+    # Column number is in UTF-16, not bytes or Unicode characters, because
+    # that's what JavaScript happens to use. There is an option that would
+    # change the offsets to UTF-8 or Unicode characters, but vscode doesn't
+    # support it, so it's useless.
+    lineno_0based = json_to_int(json_get(json, "line"), -1)
+    column_utf16 = json_to_int(json_get(json, "character"), -1)
+    if lineno_0based < 0 or column_utf16 < 0:
+        return -1
+
+    result: intnative = 0
+
+    # Go to start of line
+    newline_count = 0
+    while result < file_size and newline_count < lineno_0based:
+        if file_content[result++] == '\n':
+            newline_count++
+
+    # Go to correct place within the line
+    utf16_unit_count = 0
+    while result < file_size and utf16_unit_count < column_utf16:
+        # utf8_decode_char() stops at zero byte, but this shouldn't
+        if file_content[result] == '\0':
+            result++
+            utf16_unit_count++
+        else:
+            p = &file_content[result]
+            codepoint = utf8_decode_char(&p)
+            n = (p as intnative) - (&file_content[result] as intnative)
+            assert 0 <= n and n <= 4
+
+            if n == 0:
+                # invalid UTF-8 or zero byte, just do something without crashing i guess
+                assert codepoint == 0 or codepoint == -1
+                n = 1
+
+            if codepoint <= 0xffff:
+                # fits within one UTF-16 unit
+                utf16_unit_count++
+            else:
+                utf16_unit_count += 2
+
+            result += n
+
+    if newline_count == lineno_0based and utf16_unit_count == column_utf16:
+        return result
+    return -1
 
 
 # TODO(Jou): allow accessing string inside JSON without a stupid heap allocation
@@ -94,15 +167,15 @@ def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> 
     #if not ends_with(big_buffer, ".jou"):
     #    continue
 
-    file_content = json_to_string(json_get(json_get(params_json, "textDocument"), "text"))
+    file = vfs_get_or_create(state, big_buffer)
+
     # TODO(Jou): what if file contains '\0' byte? Ideally there would be a
     #            variant of json_to_string() that handles them properly.
-    vfs_write(state, big_buffer, file_content, strlen(file_content))
+    file_content = json_to_string(json_get(json_get(params_json, "textDocument"), "text"))
+    vfs_write(file, file_content, strlen(file_content))
     free(file_content)
 
-    fprintf(get_stderr(), "%s\n", big_buffer)
-
-    # TODO: implement this shi
+    file.print()
 
 
 def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -> None:
@@ -112,9 +185,28 @@ def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -
         fail("could not read file URI from textDocument/didChange params")
     uri_to_path(big_buffer)
 
-    fprintf(get_stderr(), "%s\n", big_buffer)
-#    old = vfs_read(
-    # TODO: implement this shi
+    file = vfs_get_if_exists(state, big_buffer)
+    if file == NULL:
+        fail("received textDocument/didChange for a previously unknown file")
+    if file.content == NULL:
+        fail("received textDocument/didChange for a file with unknown content")
+
+    for j = json_array_first(json_get(params_json, "contentChanges")); j != NULL; j = json_array_next(j):
+        start = lsp_position_to_byte_offset(file.content, file.size, json_get(json_get(j, "range"), "start"))
+        end = lsp_position_to_byte_offset(file.content, file.size, json_get(json_get(j, "range"), "end"))
+        if start == -1 or end == -1:
+            fail("failed to get range from textDocument/didChange event")
+
+        # TODO(Jou): what if file contains '\0' byte? Ideally there would be a
+        #            variant of json_to_string() that handles them properly.
+        text = json_to_string(json_get(j, "text"))
+        if text == NULL:
+            fail("failed to get text from textDocument/didChange event")
+
+        vfs_write_change(file, start, end - start, text, strlen(text))
+        free(text)
+
+    file.print()
 
 
 def get_id(body_json: byte*) -> RequestID:

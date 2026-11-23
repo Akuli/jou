@@ -3,9 +3,6 @@ import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/json.jou"
-import "stdlib/intnative.jou"
-
-import "./allocator.jou"
 
 
 # Advantage: easy to format error messages and other temporary things
@@ -17,10 +14,7 @@ global big_buffer: byte[1_000_000]
 # VFS = Virtual File System. Fancy name for file contents stored in memory.
 @public
 class VfsFile:
-    path: byte*
-
-    allocator: Allocator  # used for: VfsFile* itself, path, content, error
-    allocator_checkpoint: intnative  # allocator.reset(allocator_checkpoint) frees content and error
+    path: byte*  # allocated together with VfsFile, no need for a separate free()
 
     # monotonic_ns() value when to check this file again, to avoid disk IO
     # Anything before current time means that file needs to be checked again.
@@ -30,12 +24,16 @@ class VfsFile:
     # error and content cannot be both non-NULL. If both are NULL, it means
     # that reading the file hasn't been attempted yet.
     error: byte*  # '\0' terminated
-    content: byte*  # '\0' terminated but may contain '\0' bytes (need to check size)
+    content: byte*  # '\0' terminated but may contain '\0' bytes (need to check size), needs free()
 
-    # These are meaningful only when content != NULL
-    content_size: uint64
-    content_mtime: uint64  # funny name to emphasize dependency on content, 0 if not from disk
-    content_hash: uint64[2]
+    # -1 means unknown
+    #
+    # Can be known even if file content is not in memory. That is useful for
+    # embed_binary_file(), because we only need to know the array size.
+    size: int64
+    mtime: int64
+
+    content_hash: uint64[2]  # meaningful only when content != NULL
 
     @public
     def print(self) -> None:
@@ -45,10 +43,13 @@ class VfsFile:
         if self.content == NULL:
             fprintf(get_stderr(), "  content = NULL\n")
         else:
-            fprintf(get_stderr(), "  content = %zd bytes\n", strlen(self.content))
-            fprintf(get_stderr(), "  content_size = %zd\n", self.content_size)
-            fprintf(get_stderr(), "  content_mtime = %zd\n", self.content_mtime)
+            if strlen(self.content) <= 200:
+                fprintf(get_stderr(), "  content = %zd bytes:\n------begin content------\n%s\n------end content------\n", strlen(self.content), self.content)
+            else:
+                fprintf(get_stderr(), "  content = %zd bytes\n", strlen(self.content))
             fprintf(get_stderr(), "  content_hash = %016llx%016llx\n", self.content_hash[0], self.content_hash[1])
+        fprintf(get_stderr(), "  size = %zd\n", self.size)
+        fprintf(get_stderr(), "  mtime = %zd\n", self.mtime)
 
 
 @public
