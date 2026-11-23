@@ -1,6 +1,7 @@
 # VFS = Virtual File System. Fancy name for file contents stored in memory.
 
 import "stdlib/assert.jou"
+import "stdlib/io.jou"
 import "stdlib/limits.jou"
 import "stdlib/time.jou"
 import "stdlib/mem.jou"
@@ -10,6 +11,11 @@ import "stdlib/list.jou"
 
 import "./hash.jou"
 import "./state.jou"
+
+
+# TODO(Jou): This should probably be a `const`, but that triggers unreachable
+#            code warnings.
+global DEBUG_PRINTS: bool = True
 
 
 # Used to avoid frequent realloc()'s
@@ -66,6 +72,8 @@ def vfs_get_or_create(state: LangserverState*, path: byte*) -> VfsFile*:
     *file = VfsFile{path = &file[1] as byte*, size = -1, mtime = -1}
     strcpy(file.path, path)
     state.vfs.append(file)
+    if DEBUG_PRINTS:
+        fprintf(get_stderr(), "vfs: created file \"%s\"\n", path)
     return file
 
 
@@ -104,6 +112,9 @@ def vfs_write(file: VfsFile*, content: byte*, content_size: intnative) -> None:
     file.mtime = -1
     file.content_hash = hash(file.content, file.size)
 
+    if DEBUG_PRINTS:
+        fprintf(get_stderr(), "vfs: \"wrote\" file content of \"%s\" (now %lld bytes)\n", file.path, file.size)
+
 
 @public
 def vfs_write_change(file: VfsFile*, offset: intnative, old_len: intnative, new_data: byte*, new_len: intnative) -> None:
@@ -138,3 +149,8 @@ def vfs_write_change(file: VfsFile*, offset: intnative, old_len: intnative, new_
 
     file.size = new_size
     file.content_hash = hash(file.content, file.size)
+
+    if DEBUG_PRINTS:
+        fprintf(get_stderr(), "vfs: \"wrote\" a change to file content of \"%s\" (now %lld bytes)\n", file.path, file.size)
+        if file.size < 100:
+            fprintf(get_stderr(), "--- begin vfs file content ---\n%s\n--- end vfs file content---\n", file.content)
