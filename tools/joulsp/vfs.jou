@@ -154,3 +154,12 @@ def vfs_write_change(file: VfsFile*, offset: intnative, old_len: intnative, new_
         fprintf(get_stderr(), "vfs: \"wrote\" a change to file content of \"%s\" (now %lld bytes)\n", file.path, file.size)
         if file.size < 100:
             fprintf(get_stderr(), "--- begin vfs file content ---\n%s\n--- end vfs file content---\n", file.content)
+
+
+# Marks a file so that content will be read from disk next time it's needed
+@public
+def vfs_expire(file: VfsFile*) -> None:
+    file.expires_ns = 0
+
+    if DEBUG_PRINTS:
+        fprintf(get_stderr(), "vfs: marked \"%s\" as expired, currently stored file content won't be used\n", file.path)

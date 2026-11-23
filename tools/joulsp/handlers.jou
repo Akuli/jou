@@ -172,8 +172,6 @@ def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> 
     vfs_write(file, file_content, strlen(file_content))
     free(file_content)
 
-#    file.print()
-
 
 def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -> None:
     if not json_to_fixed_size_string(json_get(json_get(params_json, "textDocument"), "uri"), big_buffer, sizeof(big_buffer)):
@@ -201,7 +199,16 @@ def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -
         vfs_write_change(file, start, end - start, text, strlen(text))
         free(text)
 
-#    file.print()
+
+def handle_textDocument_didClose(state: LangserverState*, params_json: byte*) -> None:
+    if not json_to_fixed_size_string(json_get(json_get(params_json, "textDocument"), "uri"), big_buffer, sizeof(big_buffer)):
+        fail("could not read file URI from textDocument/didChlose params")
+    uri_to_path(big_buffer)
+
+    file = vfs_get_if_exists(state, big_buffer)
+    if file == NULL:
+        fail("received textDocument/didClose for a previously unknown file")
+    vfs_expire(file)
 
 
 def get_id(body_json: byte*) -> RequestID:
@@ -249,6 +256,9 @@ def handle_request(state: LangserverState*, body_json: byte*) -> None:
 
         case "textDocument/didChange":
             handle_textDocument_didChange(state, json_get(body_json, "params"))
+
+        case "textDocument/didClose":
+            handle_textDocument_didClose(state, json_get(body_json, "params"))
 
         case "$/setTrace":
             handle_S_setTrace()
