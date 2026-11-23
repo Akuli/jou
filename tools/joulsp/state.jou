@@ -21,10 +21,10 @@ class VfsFile:
     # INT64_MAX (opened) and 0 (closed) are used for files that do not come from disk.
     expires_ns: int64
 
-    # error and content cannot be both non-NULL. If both are NULL, it means
+    # You can't have both error and content, but if you have neither, it means
     # that reading the file hasn't been attempted yet.
-    error: byte*  # '\0' terminated
-    content: byte*  # '\0' terminated but may contain '\0' bytes (need to check size), needs free()
+    error: byte[200]  # empty if no error
+    content: byte*  # NULL if not known, '\0' terminated, may contain '\0' bytes (check size), needs free()
 
     # -1 means unknown
     #

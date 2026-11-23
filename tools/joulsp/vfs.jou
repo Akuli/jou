@@ -107,7 +107,7 @@ def vfs_write(file: VfsFile*, content: byte*, content_size: intnative) -> None:
     file.content[content_size] = '\0'
 
     file.size = content_size
-    file.error = NULL
+    file.error[0] = '\0'
     file.expires_ns = INT64_MAX
     file.mtime = -1
     file.content_hash = hash(file.content, file.size)
@@ -123,7 +123,7 @@ def vfs_write_change(file: VfsFile*, offset: intnative, old_len: intnative, new_
     assert offset >= 0
 
     # File should have been read already
-    assert file.error == NULL
+    assert file.error[0] == '\0'
     assert file.content != NULL
     assert file.size >= offset + old_len
 
