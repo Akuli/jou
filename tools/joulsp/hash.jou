@@ -1,0 +1,122 @@
+# TODO: also in compiler, put something to stdlib?
+#
+# The hash algorithm we use is MurmurHash3_x64_128:
+# https://github.com/aappleby/smhasher/blob/07bb4de10a63e8cc2e1724865454eba635742383/src/MurmurHash3.cpp#L255
+
+import "stdlib/intnative.jou"
+
+
+@inline
+def rotl64(x: uint64, r: int8) -> uint64:
+    return (x << r) | (x >> (64 - r))
+
+@inline
+def fmix64(k: uint64) -> uint64:
+    k ^= k >> 33
+    k *= 0xff51afd7ed558ccd
+    k ^= k >> 33
+    k *= 0xc4ceb9fe1a85ec53
+    k ^= k >> 33
+    return k
+
+@public
+def hash(data: byte*, data_len: intnative) -> uint64[2]:
+    c1: uint64 = 0x87c37b91114253d5
+    c2: uint64 = 0x4cf5ad432745937f
+
+    # Always use seed 0
+    h1: uint64 = 0
+    h2: uint64 = 0
+
+    nblocks = data_len >> 4
+    for i = 0 as intnative; i < nblocks; i++:
+        # Load uint64's from the input data
+        #
+        # This will work on platforms that don't support unaligned access.
+        # LLVM optimizes the mess.
+        k1: uint64 = 0
+        k2: uint64 = 0
+        for k = 0; k < 8; k++:
+            k1 |= (data[16*i + k] as uint64) << (8*k)
+        for k = 0; k < 8; k++:
+            k2 |= (data[16*i + 8 + k] as uint64) << (8*k)
+
+        k1 *= c1
+        k1 = rotl64(k1, 31)
+        k1 *= c2
+        h1 ^= k1
+
+        h1 = rotl64(h1, 27)
+        h1 += h2
+        h1 *= 5
+        h1 += 0x52dce729
+
+        k2 *= c2
+        k2 = rotl64(k2, 33)
+        k2 *= c1
+        h2 ^= k2
+
+        h2 = rotl64(h2, 31)
+        h2 += h1
+        h2 *= 5
+        h2 += 0x38495ab5
+
+    tail_len = data_len & 15
+    tail = &data[data_len - tail_len]
+
+    k1 = 0 as uint64
+    k2 = 0 as uint64
+
+    # TODO: can this be cleaned up without affecting performance?
+    if tail_len >= 15:
+        k2 ^= (tail[14] as uint64) << 48
+    if tail_len >= 14:
+        k2 ^= (tail[13] as uint64) << 40
+    if tail_len >= 13:
+        k2 ^= (tail[12] as uint64) << 32
+    if tail_len >= 12:
+        k2 ^= (tail[11] as uint64) << 24
+    if tail_len >= 11:
+        k2 ^= (tail[10] as uint64) << 16
+    if tail_len >= 10:
+        k2 ^= (tail[ 9] as uint64) << 8
+    if tail_len >=  9:
+        k2 ^= (tail[ 8] as uint64) << 0
+        k2 *= c2
+        k2 = rotl64(k2, 33)
+        k2 *= c1
+        h2 ^= k2
+    if tail_len >=  8:
+        k1 ^= (tail[ 7] as uint64) << 56
+    if tail_len >=  7:
+        k1 ^= (tail[ 6] as uint64) << 48
+    if tail_len >=  6:
+        k1 ^= (tail[ 5] as uint64) << 40
+    if tail_len >=  5:
+        k1 ^= (tail[ 4] as uint64) << 32
+    if tail_len >=  4:
+        k1 ^= (tail[ 3] as uint64) << 24
+    if tail_len >=  3:
+        k1 ^= (tail[ 2] as uint64) << 16
+    if tail_len >=  2:
+        k1 ^= (tail[ 1] as uint64) << 8
+    if tail_len >=  1:
+        k1 ^= (tail[ 0] as uint64) << 0
+        k1 *= c1
+        k1 = rotl64(k1, 31)
+        k1 *= c2
+        h1 ^= k1
+
+    h1 ^= data_len
+    h2 ^= data_len
+
+    h1 += h2
+    h2 += h1
+
+    h1 = fmix64(h1)
+    h2 = fmix64(h2)
+
+    h1 += h2
+    h2 += h1
+
+    return [h1, h2]

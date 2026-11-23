@@ -3,12 +3,52 @@ import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/json.jou"
+import "stdlib/intnative.jou"
+
+import "./allocator.jou"
 
 
 # Advantage: easy to format error messages and other temporary things
 # Disadvantage: easy to get overlapping snprintf() if two functions use this and call each other
 @public
 global big_buffer: byte[1_000_000]
+
+
+# VFS = Virtual File System. Fancy name for file contents stored in memory.
+@public
+class VfsFile:
+    path: byte*
+
+    allocator: Allocator  # used for: VfsFile* itself, path, content, error
+    allocator_checkpoint: intnative  # allocator.reset(allocator_checkpoint) frees content and error
+
+    # monotonic_ns() value when to check this file again, to avoid disk IO
+    # Anything before current time means that file needs to be checked again.
+    # INT64_MAX (opened) and 0 (closed) are used for files that do not come from disk.
+    expires_ns: int64
+
+    # error and content cannot be both non-NULL. If both are NULL, it means
+    # that reading the file hasn't been attempted yet.
+    error: byte*  # '\0' terminated
+    content: byte*  # '\0' terminated but may contain '\0' bytes (need to check size)
+
+    # These are meaningful only when content != NULL
+    content_size: uint64
+    content_mtime: uint64  # funny name to emphasize dependency on content, 0 if not from disk
+    content_hash: uint64[2]
+
+    @public
+    def print(self) -> None:
+        fprintf(get_stderr(), "VfsFile \"%s\"\n", self.path)
+        fprintf(get_stderr(), "  expires: %lld\n", self.expires_ns)
+        fprintf(get_stderr(), "  error = %s\n", self.error)
+        if self.content == NULL:
+            fprintf(get_stderr(), "  content = NULL\n")
+        else:
+            fprintf(get_stderr(), "  content = %zd bytes\n", strlen(self.content))
+            fprintf(get_stderr(), "  content_size = %zd\n", self.content_size)
+            fprintf(get_stderr(), "  content_mtime = %zd\n", self.content_mtime)
+            fprintf(get_stderr(), "  content_hash = %016llx%016llx\n", self.content_hash[0], self.content_hash[1])
 
 
 @public
@@ -19,8 +59,12 @@ class LangserverState:
     # Used to accumulate input bytes until they form complete jsonrpc messages
     input_accumulator: List[byte]
 
-    # Output JSON is built here before printing it
+    # Output JSON is built and stored here before printing it
     out: JSONBuilder
+
+    # I may want to add a hash table here later, but not needed yet
+    # If you add a hash table, be careful with path normalization! (e.g. Windows case insensitivity)
+    vfs: List[VfsFile*]
 
 
 # jsonrpc IDs can be strings or numbers. A bit problematic in Jou, but not

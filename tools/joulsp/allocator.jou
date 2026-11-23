@@ -1,0 +1,228 @@
+# TODO(Jou): maybe all of this really belongs to Jou stdlib
+
+import "stdlib/assert.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/intnative.jou"
+
+
+const MIN_BLOCK_SIZE: int = 1024
+
+# This seems to work well enough on most platforms
+if IS_32BIT:
+    const ALIGN: int = 8
+else:
+    const ALIGN: int = 16
+
+
+class Block:
+    used: intnative
+    size: intnative
+    data: byte*
+
+
+@public
+class Allocator:
+    # Useful for reset() and for finding out how memory-hungry your code is.
+    # This is not sum of bytes passed to alloc() because of padding.
+    bytes_allocated: intnative
+
+    # The size of i'th block is at least MIN_BLOCK_SIZE * 2^i, so we don't need
+    # many blocks even for huge memory allocations.
+    blocks: Block[30]
+
+    # This is not a pointer, so that the allocator can be moved to a different
+    # place in memory.
+    block_index: int
+
+    # The allocator detects overflowing allocated memory in many cases, but it
+    # only does this for a few of the most recent memory allocations.
+    traps: byte*[4]
+
+    # This speeds up the memory allocator slightly
+    # TODO: rename this flag properly
+    fast_and_furious: bool
+
+    def check_traps(self) -> None:
+        if not self.fast_and_furious:
+            for i = 0; i < array_count(self.traps); i++:
+                if self.traps[i] != NULL:
+                    assert *self.traps[i] == 'j'  # If this fails, you wrote beyond end of allocated space
+
+    # Returned memory is full of 'j' bytes. Hopefully that is useful for debugging.
+    # Returns NULL for zero-byte allocations.
+    # Returned memory is always aligned properly for practical use cases.
+    @public
+    def alloc(self, nbytes: intnative) -> void*:
+        self.check_traps()
+
+        assert nbytes >= 0
+        if nbytes == 0:
+            return NULL  # accessing alloc(0) result will crash
+
+        nbytes_before_padding = nbytes
+        if not self.fast_and_furious:
+            # Leave room for 1 trap byte
+            nbytes++
+        # Make everything properly aligned
+        nbytes += ALIGN - 1
+        nbytes &= ~((ALIGN - 1) as intnative)
+
+        result: byte* = NULL
+
+        new_block = True
+        for i = self.block_index; i < array_count(self.blocks); i++:
+            block = &self.blocks[i]
+            if block.used + nbytes <= block.size:
+                # Fast path: reuse same block as a previous allocation
+                self.block_index = i
+                new_block = False
+                break
+
+        if new_block:
+            # Slow path: allocate a new block
+            while self.blocks[self.block_index].size != 0:
+                self.block_index++
+                assert self.block_index < array_count(self.blocks)
+
+            block = &self.blocks[self.block_index]
+            assert block.used == 0
+            assert block.size == 0
+            assert block.data == NULL
+
+            if block == &self.blocks[0]:
+                block.size = MIN_BLOCK_SIZE
+            else:
+                block.size = 2 * block[-1].size  # always at least doubles
+
+            while block.size < nbytes:
+                block.size *= 2
+
+            block.data = malloc(block.size)
+            assert block.data != NULL  # If this fails, the system ran out of memory or you attempted alloc(big number)
+            if not self.fast_and_furious:
+                memset(block.data, 'j', block.size)  # for debugging
+
+        block = &self.blocks[self.block_index]
+        result = &block.data[block.used]
+        block.used += nbytes
+
+        self.bytes_allocated += nbytes
+        if not self.fast_and_furious:
+            self.traps = [self.traps[1], self.traps[2], self.traps[3], &result[nbytes_before_padding]]
+
+        return result
+
+    @public
+    def free_everything(self) -> None:
+        self.check_traps()
+
+        # Sanity check
+        sum: intnative = 0
+        for block = &self.blocks[0]; block < array_end(self.blocks); block++:
+            sum += block.used
+        assert sum == self.bytes_allocated
+
+        # Access memory from the allocator before we free it, so that it's
+        # possible to put the allocator inside memory allocated with the same
+        # allocator.
+        #
+        # Example:
+        #    temp = Allocator{}
+        #    allocator: Allocator* = temp.alloc(sizeof(*allocator))
+        #    *allocator = temp
+        #    ...    # use the allocator
+        #    allocator.free_all()
+        blocks_array = self.blocks
+
+        # Make the allocator usable again after calling this
+        *self = Allocator{}
+
+        for i = 0; i < array_count(blocks_array); i++:
+            free(blocks_array[i].data)
+
+    @public
+    def reset(self, nbytes: intnative) -> None:
+        assert 0 <= nbytes and nbytes <= self.bytes_allocated
+        assert nbytes & (ALIGN - 1) == 0
+
+        self.check_traps()
+        if not self.fast_and_furious:
+            memset(self.traps, 0, sizeof(self.traps))
+
+        # Sanity check
+        sum: intnative = 0
+        for block = &self.blocks[0]; block < array_end(self.blocks); block++:
+            sum += block.used
+        assert sum == self.bytes_allocated
+
+        bytes_to_free = self.bytes_allocated - nbytes
+        self.bytes_allocated = nbytes
+
+        while self.block_index > 0 and self.blocks[self.block_index].used <= bytes_to_free:
+            # Mark an entire block as not used
+            block = &self.blocks[self.block_index--]
+            bytes_to_free -= block.used
+            if not self.fast_and_furious:
+                memset(block.data, 'j', block.used)
+            block.used = 0
+
+        block = &self.blocks[self.block_index]
+        assert block.used >= bytes_to_free
+        block.used -= bytes_to_free
+        if not self.fast_and_furious:
+            memset(&block.data[block.used], 'j', bytes_to_free)
+
+    @public
+    def strdup(self, s: byte*) -> byte*:
+        result = self.alloc(strlen(s) + 1)
+        strcpy(result, s)
+        return result
+
+
+@public
+class Slice[T]:
+    ptr: T*
+    len: intnative
+
+    # TODO(Jou): Ideally this would be a generic method on Allocator. That way
+    #            you would be passing an explicit &slice, which would be good.
+    @public
+    @inline
+    def append(self, allocator: Allocator*, item: T) -> None:
+        assert allocator != NULL
+
+        # Somewhat arbitrary
+        initial_capacity = 4
+
+        # Allocate more memory at lengths 0, initial_capacity, 2*initial_capacity, 4*initial_capacity, ...
+        if self.len == 0:
+            self.ptr = allocator.alloc(sizeof(item) * initial_capacity)
+        elif self.len >= initial_capacity and self.len & (self.len - 1) == 0:
+            new_ptr = allocator.alloc(2*self.len*sizeof(item))
+            memcpy(new_ptr, self.ptr, sizeof(self.ptr[0]) * self.len)
+            self.ptr = new_ptr
+
+        self.ptr[self.len++] = item
+
+    # TODO: allocate the memory at once?
+    @public
+    @inline
+    def extend(self, allocator: Allocator*, slice: Slice[T]) -> None:
+        for p = slice.ptr; p < slice.end(); p++:
+            self.append(allocator, *p)
+
+    # Remove the last item from the slice and return it.
+    #
+    # In reality, the item remains in the memory used by the slice, and only
+    # the length of the slice changes.
+    @public
+    @inline
+    def pop(self) -> T:
+        assert self.len > 0  # If this fails, you are trying to pop from an empty slice
+        return self.ptr[--self.len]
+
+    @public
+    @inline
+    def end(self) -> T*:
+        return &self.ptr[self.len]

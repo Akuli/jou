@@ -1,0 +1,16 @@
+import "stdlib/io.jou"
+import "stdlib/str.jou"
+
+import "../joulsp/hash.jou"
+
+
+def main() -> int:
+    # Hash of empty data
+    h = hash(NULL, 0)
+    printf("%016llx%016llx\n", h[0], h[1])  # Output: 00000000000000000000000000000000
+
+    s = "Hello world, this is a test string that is multiple chunks long. Bla bla bla. Mur Murrr Murrrrrrrr!!!!"
+    h = hash(s, strlen(s))
+    printf("%016llx%016llx\n", h[0], h[1])  # Output: 1879638ed4e49bb1ab63d437a5a3717b
+
+    return 0

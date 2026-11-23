@@ -1,0 +1,108 @@
+# VFS = Virtual File System. Fancy name for file contents stored in memory.
+
+import "stdlib/assert.jou"
+import "stdlib/limits.jou"
+import "stdlib/time.jou"
+import "stdlib/mem.jou"
+import "stdlib/str.jou"
+import "stdlib/intnative.jou"
+import "stdlib/list.jou"
+
+import "./allocator.jou"
+import "./hash.jou"
+import "./state.jou"
+
+
+@inline
+def normalize_path_byte(b: byte) -> byte:
+    if WINDOWS:
+        # Non-ASCII is also case-insensitive on windows, but this should be
+        # good enough for anything practical
+        if 'A' <= b and b <= 'Z':
+            return 'a' + (b - 'A')
+        if b == '\\':
+            return '/'
+    return b
+
+def path_strcmp(a: byte*, b: byte*) -> int:
+    while *a != '\0' or *b != '\0':
+        a_byte = normalize_path_byte(*a++)
+        b_byte = normalize_path_byte(*b++)
+        if a_byte != b_byte:
+            return (a_byte as int) - (b_byte as int)
+    return 0
+
+
+def find_file(state: LangserverState*, path: byte*) -> VfsFile*:
+    # A hash table should be added if this becomes a bottleneck
+    for p = state.vfs.ptr; p < state.vfs.end(); p++:
+        if path_strcmp((*p).path, path) == 0:
+            return *p
+    return NULL
+
+def create_file(state: LangserverState*, path: byte*) -> VfsFile*:
+    # Allocate the file so that the allocator goes inside the file itself
+    temp = Allocator{}
+    file: VfsFile* = temp.alloc(sizeof(*file))
+    memset(file, 0, sizeof(*file))
+    file.allocator = temp
+
+    file.path = file.allocator.alloc(strlen(path) + 1)
+    strcpy(file.path, path)
+
+    file.allocator_checkpoint = file.allocator.bytes_allocated
+
+    state.vfs.append(file)
+    return file
+
+
+def read_file_from_disk(state: LangserverState*, file: VfsFile*) -> None:
+    assert False  # TODO
+
+
+# Returns error message or file contents
+@public
+def vfs_read(state: LangserverState*, path: byte*, is_error: bool*) -> byte*:
+    file = find_file(state, path)
+    if file == NULL:
+        file = create_file(state, path)
+
+    if file.expires_ns != INT64_MAX:  # Pseudo-optimization: don't call monotonic_ns() if not needed
+        now = monotonic_ns()
+        if file.expires_ns < now:
+            # File has expired, read now and expire again in 100ms
+            file.expires_ns = now + 100_000_000
+            read_file_from_disk(state, file)
+
+    assert False  # TODO
+
+
+# Does not actually write to disk, just pretends that file content is as specified
+@public
+def vfs_write(state: LangserverState*, path: byte*, content: byte*, content_size: intnative) -> None:
+    assert content_size >= 0
+
+    file = find_file(state, path)
+    if file == NULL:
+        file = create_file(state, path)
+
+    file.error = NULL
+
+    file.allocator.reset(file.allocator_checkpoint)
+    file.content = file.allocator.alloc(content_size + 1)
+    memcpy(file.content, content, content_size)
+    file.content[content_size] = '\0'
+
+    file.content_size = content_size as uint64
+    file.content_mtime = 0
+    file.content_hash = hash(file.content, content_size)
+    file.print()
+
+
+# This is the thing to do when editor closes a file, and we should read it from
+# disk next time we need it.
+@public
+def vfs_expire(state: LangserverState*, path: byte*) -> None:
+    file = find_file(state, path)
+    if file != NULL:
+        file.expires_ns = 0

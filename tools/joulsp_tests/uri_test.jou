@@ -1,0 +1,70 @@
+# Test cases are somewhat inspired by output of scripts/generate_langserver_uri_tests.sh
+
+import "stdlib/assert.jou"
+import "stdlib/str.jou"
+import "stdlib/io.jou"
+
+import "../joulsp/uri.jou"
+
+
+def test_uri_to_path_windows() -> None:
+    puts("*** uri_to_path_windows() ***")  # Output: *** uri_to_path_windows() ***
+    paths = [
+        # Output: C:\Users\Alice\project\index.ts
+        "file:///c%3A/Users/Alice/project/index.ts",
+
+        # Output: D:\Folder with Spaces\file Name!.txt
+        "file:///d%3A/Folder%20with%20Spaces/file%20Name%21.txt",
+
+        # Output: C:\data\item#1?draft=True.md
+        "file:///c%3A/data/item%231%3Fdraft%3DTrue.md",
+
+        # Output: \\server\share\docs\spec.pdf
+        "file://server/share/docs/spec.pdf",
+
+        # Output: C:\Örkki\Mörkö
+        "file:///c%3A/%C3%96rkki/M%C3%B6rk%C3%B6",
+
+        # Output: C:\
+        "file:///c%3A/",
+    ]
+
+    for i = 0; i < array_count(paths); i++:
+        buf: byte[100]
+        assert strlen(paths[i]) < sizeof(buf)
+        strcpy(buf, paths[i])
+        uri_to_path_windows(buf)
+        puts(buf)
+
+
+def test_uri_to_path_posix() -> None:
+    puts("*** uri_to_path_posix() ***")  # Output: *** uri_to_path_posix() ***
+    paths = [
+        # Output: /home/alice/project/index.ts
+        "file:///home/alice/project/index.ts",
+
+        # Output: /home/alice/Folder with Spaces/file Name!.txt
+        "file:///home/alice/Folder%20with%20Spaces/file%20Name%21.txt",
+
+        # Output: /tmp/data/item#1?draft=True.md
+        "file:///tmp/data/item%231%3Fdraft%3DTrue.md",
+
+        # Output: /home/alice/Örkki/Mörkö
+        "file:///home/alice/%C3%96rkki/M%C3%B6rk%C3%B6",
+
+        # Output: /
+        "file:///",
+    ]
+
+    for i = 0; i < array_count(paths); i++:
+        buf: byte[100]
+        assert strlen(paths[i]) < sizeof(buf)
+        strcpy(buf, paths[i])
+        uri_to_path_posix(buf)
+        puts(buf)
+
+
+def main() -> int:
+    test_uri_to_path_windows()
+    test_uri_to_path_posix()
+    return 0

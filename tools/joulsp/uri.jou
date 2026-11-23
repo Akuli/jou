@@ -1,0 +1,91 @@
+# Conversions between URIs (used in langserver protocol for some reason) and paths
+#
+# It is tempting to delete "path to URI" conversions and just reuse URIs that
+# the editor sent to the langserver, but then jump-to-definition wouldn't work
+# for files that are not open in the editor.
+#
+# All conversions are done in-place.
+#   URI --> path: never makes the string longer
+#   path --> URI: takes a buffer size as argument and does not exceed it
+
+import "stdlib/assert.jou"
+import "stdlib/ascii.jou"
+import "stdlib/str.jou"
+import "stdlib/mem.jou"
+
+
+global error_buf: byte[4096]
+
+
+# TODO(Jou): this is the 4th function named hexdigit_value() in this repository
+def hexdigit_value(b: byte) -> int:
+    if '0' <= b and b <= '9':
+        return b - '0'
+    if 'A' <= b and b <= 'F':
+        return 10 + (b - 'A')
+    if 'a' <= b and b <= 'f':
+        return 10 + (b - 'a')
+    return -1
+
+
+def eat_prefix(s: byte*, prefix: byte*) -> None:
+    assert starts_with(s, prefix)
+    memmove(s, &s[strlen(prefix)], strlen(s) - strlen(prefix) + 1)
+
+
+def undo_percent_escapes(s: byte*) -> None:
+    out = s
+    while *s != '\0':
+        if *s == '%' and hexdigit_value(s[1]) != -1 and hexdigit_value(s[2]) != -1:
+            *out++ = (16*hexdigit_value(s[1]) + hexdigit_value(s[2])) as byte
+            s = &s[3]
+        else:
+            *out++ = *s++
+    *out = '\0'
+
+
+@public  # public for tests
+def uri_to_path_windows(uri: byte*) -> None:
+    if not starts_with(uri, "file://"):
+        # Can't use big_buffer, because uri may be stored in it
+        snprintf(error_buf, sizeof(error_buf), "URI does not start with file:// like it should:", uri)
+
+    eat_prefix(uri, "file://")
+
+    undo_percent_escapes(uri)
+    for p = uri; *p != '\0'; p++:
+        if *p == '/':
+            *p = '\\'
+
+    if uri[0] == '\\':
+        # Turn \c:\Blah into C:\Blah
+        eat_prefix(uri, "\\")
+        if is_ascii_letter(uri[0]) and uri[1] == ':':
+            uri[0] &= ~32  # make uppercase
+    else:
+        # Turn server\share\file.pdf into \\server\share\file.pdf
+        # We deleted file:// so there's plenty of room to add a couple characters.
+        memmove(&uri[2], uri, strlen(uri) + 1)
+        uri[0] = '\\'
+        uri[1] = '\\'
+
+
+@public  # public for tests
+def uri_to_path_posix(uri: byte*) -> None:
+    if not starts_with(uri, "file:///"):
+        # Can't use big_buffer, because uri may be stored in it
+        snprintf(error_buf, sizeof(error_buf), "URI does not start with file:/// like it should:", uri)
+
+    eat_prefix(uri, "file://")
+    undo_percent_escapes(uri)
+
+
+@public
+def uri_to_path(uri: byte*) -> None:
+    if WINDOWS:
+        uri_to_path_windows(uri)
+    else:
+        uri_to_path_posix(uri)
+
+
+# TODO: path to URI
