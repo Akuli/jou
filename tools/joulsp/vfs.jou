@@ -1,7 +1,6 @@
 # VFS = Virtual File System. Fancy name for file contents stored in memory.
 
 import "stdlib/assert.jou"
-import "stdlib/io.jou"
 import "stdlib/limits.jou"
 import "stdlib/time.jou"
 import "stdlib/mem.jou"
@@ -103,12 +102,11 @@ def vfs_write(file: VfsFile*, content: byte*, content_size: intnative) -> None:
     file.error = NULL
     file.expires_ns = INT64_MAX
     file.mtime = -1
-    file.content_hash = hash(file.content, content_size)
+    file.content_hash = hash(file.content, file.size)
 
 
 @public
 def vfs_write_change(file: VfsFile*, offset: intnative, old_len: intnative, new_data: byte*, new_len: intnative) -> None:
-    printf("write change offset=%zd old_len=%zd new_len=%zd\n", offset, old_len, new_len)
     assert old_len >= 0
     assert new_len >= 0
     assert offset >= 0
@@ -117,6 +115,10 @@ def vfs_write_change(file: VfsFile*, offset: intnative, old_len: intnative, new_
     assert file.error == NULL
     assert file.content != NULL
     assert file.size >= offset + old_len
+
+    # File should be manually tracked, as in vfs_write(), not read from disk
+    assert file.expires_ns == INT64_MAX
+    assert file.mtime == -1
 
     new_size = file.size - old_len + new_len
     if next_power_of_2(new_size + 1) > next_power_of_2(file.size + 1):
@@ -133,3 +135,6 @@ def vfs_write_change(file: VfsFile*, offset: intnative, old_len: intnative, new_
 
     # Put new data to its place
     memcpy(&file.content[offset], new_data, new_len)
+
+    file.size = new_size
+    file.content_hash = hash(file.content, file.size)

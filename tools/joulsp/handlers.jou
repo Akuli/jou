@@ -1,7 +1,6 @@
 import "stdlib/str.jou"
 import "stdlib/assert.jou"
 import "stdlib/intnative.jou"
-import "stdlib/io.jou"
 import "stdlib/json.jou"
 import "stdlib/process.jou"
 import "stdlib/math.jou"
@@ -31,7 +30,7 @@ def lsp_position_to_byte_offset(
     json: byte*,
 ) -> intnative:
     assert file_content != NULL
-    assert file_size > 0
+    assert file_size >= 0
 
     # There's something dumb about both numbers.
     #
@@ -156,8 +155,6 @@ def handle_S_setTrace() -> None:
 
 
 def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> None:
-    fprintf(get_stderr(), "*** didOpen %s\n", params_json)
-
     if not json_to_fixed_size_string(json_get(json_get(params_json, "textDocument"), "uri"), big_buffer, sizeof(big_buffer)):
         fail("could not read file URI from textDocument/didChange params")
     uri_to_path(big_buffer)
@@ -175,12 +172,10 @@ def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> 
     vfs_write(file, file_content, strlen(file_content))
     free(file_content)
 
-    file.print()
+#    file.print()
 
 
 def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -> None:
-    fprintf(get_stderr(), "*** didChange %s\n", params_json)
-
     if not json_to_fixed_size_string(json_get(json_get(params_json, "textDocument"), "uri"), big_buffer, sizeof(big_buffer)):
         fail("could not read file URI from textDocument/didChange params")
     uri_to_path(big_buffer)
@@ -206,7 +201,7 @@ def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -
         vfs_write_change(file, start, end - start, text, strlen(text))
         free(text)
 
-    file.print()
+#    file.print()
 
 
 def get_id(body_json: byte*) -> RequestID:
