@@ -102,7 +102,7 @@ Use `find_current_executable()` to get a path to your executable as a string.
 The return value should be freed.
 
 For example, if I save the following file to `/home/akuli/thing.jou` and I run it with `jou thing.jou`,
-it prints `/home/akuli/jou_compiled/thing/thing`:
+it prints `/home/akuli/jou_compiled/thing`:
 
 ```python
 import "stdlib/fs.jou"
