@@ -24,18 +24,18 @@ def read_from_stdin(buf: byte*, buf_size: int) -> bool:
         nbytes: uint32 = 0
         ret = ReadFile(GetStdHandle(STD_INPUT_HANDLE), buf, (buf_size - 1) as uint32, &nbytes, NULL)
         if ret == 0:
-            fail_with_windows_error("reading stdin failed", GetLastError())
+            langserver_fail_with_windows_error("reading stdin failed", GetLastError())
     else:
         nbytes = read(0, buf, buf_size - 1) as int
         if nbytes < 0:
-            fail_with_errno("reading stdin failed", get_errno())
+            langserver_fail_with_errno("reading stdin failed", get_errno())
 
     if nbytes == 0:
         return False
 
     for i = 0; i < nbytes; i++:
         if buf[i] == '\0':
-            fail("received zero byte on stdin")
+            langserver_fail("received zero byte on stdin")
     buf[nbytes] = '\0'
     return True
 
@@ -47,13 +47,13 @@ def write_to_stdout(string: byte*) -> None:
             nbytes: uint32 = 0
             ret = WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), string, strlen(string) as uint32, &nbytes, NULL)
             if ret == 0:
-                fail_with_windows_error("writing to stdout failed", GetLastError())
+                langserver_fail_with_windows_error("writing to stdout failed", GetLastError())
             string = &string[nbytes]
     else:
         while *string != '\0':
             ret = write(1, string, strlen(string))
             if ret < 0:
-                fail_with_errno("writing to stdout failed", get_errno())
+                langserver_fail_with_errno("writing to stdout failed", get_errno())
             string = &string[ret]
 
 

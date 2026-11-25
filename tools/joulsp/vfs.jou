@@ -10,13 +10,69 @@ import "stdlib/intnative.jou"
 import "stdlib/list.jou"
 
 import "./hash.jou"
-import "./state.jou"
 
 
 # TODO(Jou): This should probably be a `const`, but that triggers unreachable
 #            code warnings.
 global DEBUG_PRINTS: bool = True
 
+
+@public
+class VfsFile:
+    path: byte*  # allocated together with VfsFile, no need for a separate free()
+
+    # monotonic_ns() value when to check this file again, to avoid disk IO
+    # Anything before current time means that file needs to be checked again.
+    # INT64_MAX (opened) and 0 (closed) are used for files that do not come from disk.
+    expires_ns: int64
+
+    # You can't have both error and content, but if you have neither, it means
+    # that reading the file hasn't been attempted yet.
+    error: byte[200]  # empty if no error
+    content: byte*  # NULL if not known, '\0' terminated, may contain '\0' bytes (check size), needs free()
+
+    # -1 means unknown
+    #
+    # Can be known even if file content is not in memory. That is useful for
+    # embed_binary_file(), because we only need to know the array size.
+    size: int64
+    mtime: int64
+
+    content_hash: uint64[2]  # meaningful only when content != NULL
+
+    @public
+    def print(self) -> None:
+        fprintf(get_stderr(), "VfsFile \"%s\"\n", self.path)
+        fprintf(get_stderr(), "  expires: %lld\n", self.expires_ns)
+        fprintf(get_stderr(), "  error = %s\n", self.error)
+        if self.content == NULL:
+            fprintf(get_stderr(), "  content = NULL\n")
+        else:
+            if strlen(self.content) <= 200:
+                fprintf(get_stderr(), "  content = %zd bytes:\n------begin content------\n%s\n------end content------\n", strlen(self.content), self.content)
+            else:
+                fprintf(get_stderr(), "  content = %zd bytes\n", strlen(self.content))
+            fprintf(get_stderr(), "  content_hash = %016llx%016llx\n", self.content_hash[0], self.content_hash[1])
+        fprintf(get_stderr(), "  size = %zd\n", self.size)
+        fprintf(get_stderr(), "  mtime = %zd\n", self.mtime)
+
+
+@public
+class VFS:
+    # I may want to add a hash table here later, but not needed yet
+    # If you add a hash table, be careful with path normalization! (e.g. Windows case insensitivity)
+    files: List[VfsFile*]
+
+    # If True, uses `assert` to ensure that nothing is read from the actual file
+    # system. Used when langserver is reproducing what it did before (--replay)
+    real_file_system_is_banned: bool
+
+    # After reading a file from the real file system, how long should the file
+    # contents be considered valid until it needs to be read again?
+    #
+    # Nanoseconds. 0 means files are valid forever (good for compiler).
+    real_file_system_expire_delay_ns: int64
+    
 
 # Used to avoid frequent realloc()'s
 def next_power_of_2(n: intnative) -> intnative:
@@ -52,9 +108,9 @@ def path_strcmp(a: byte*, b: byte*) -> int:
 
 # Returned pointer stays stable for a pretty long time
 @public
-def vfs_get_if_exists(state: LangserverState*, path: byte*) -> VfsFile*:
+def vfs_get_if_exists(vfs: VFS*, path: byte*) -> VfsFile*:
     # A hash table should be added if this becomes a bottleneck
-    for p = state.vfs.ptr; p < state.vfs.end(); p++:
+    for p = vfs.files.ptr; p < vfs.files.end(); p++:
         if path_strcmp((*p).path, path) == 0:
             return *p
     return NULL
@@ -62,8 +118,8 @@ def vfs_get_if_exists(state: LangserverState*, path: byte*) -> VfsFile*:
 
 # Returned pointer stays stable for a pretty long time
 @public
-def vfs_get_or_create(state: LangserverState*, path: byte*) -> VfsFile*:
-    existing = vfs_get_if_exists(state, path)
+def vfs_get_or_create(vfs: VFS*, path: byte*) -> VfsFile*:
+    existing = vfs_get_if_exists(vfs, path)
     if existing != NULL:
         return existing
 
@@ -71,26 +127,31 @@ def vfs_get_or_create(state: LangserverState*, path: byte*) -> VfsFile*:
     assert file != NULL
     *file = VfsFile{path = &file[1] as byte*, size = -1, mtime = -1}
     strcpy(file.path, path)
-    state.vfs.append(file)
+    vfs.files.append(file)
     if DEBUG_PRINTS:
-        fprintf(get_stderr(), "vfs: created file \"%s\"\n", path)
+        fprintf(get_stderr(), "vfs: created file \"%s\", content is unknown for now\n", path)
     return file
 
 
-def read_file_from_disk(state: LangserverState*, file: VfsFile*) -> None:
-    assert state.replay_file == NULL  # real file IO should never happen during replay
+def read_file_from_the_real_file_system(vfs: VFS*, file: VfsFile*) -> None:
+    assert not vfs.real_file_system_is_banned  # real file input should never happen during langserver --replay
     assert False  # TODO
 
 
 # Returns error message or file contents
 @public
-def vfs_read(state: LangserverState*, file: VfsFile*, is_error: bool*) -> byte*:
+def vfs_read(vfs: VFS*, file: VfsFile*, is_error: bool*) -> byte*:
     if file.expires_ns != INT64_MAX:  # Pseudo-optimization: don't call monotonic_ns() if not needed
         now = monotonic_ns()
         if file.expires_ns < now:
-            # File has expired, read now and expire again in 100ms
-            file.expires_ns = now + 100_000_000
-            read_file_from_disk(state, file)
+            # File has expired
+            assert vfs.real_file_system_expire_delay_ns >= 0
+            if vfs.real_file_system_expire_delay_ns == 0:
+                # No expiration
+                file.expires_ns = INT64_MAX
+            else:
+                file.expires_ns = now + vfs.real_file_system_expire_delay_ns
+            read_file_from_the_real_file_system(vfs, file)
 
     assert False  # TODO
 

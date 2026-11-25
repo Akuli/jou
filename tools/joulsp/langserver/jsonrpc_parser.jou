@@ -53,13 +53,15 @@ def process_input(state: LangserverState*, input_chunk: byte*) -> None:
     state.input_accumulator.pop()  # does not deallocate/shrink
 
     message_start = state.input_accumulator.ptr
+    num_messages = 0
+
     while True:
         content_length = -1
         body = parse_headers(message_start, &content_length)
         if body == NULL:
             break  # not enough data yet
         if content_length <= 0:
-            fail("failed to parse Content-Length header in input")
+            langserver_fail("failed to parse Content-Length header in input")
 
         # This would be UB in C, because this may index beyond the array's end.
         if &body[content_length] > state.input_accumulator.end():
@@ -70,13 +72,22 @@ def process_input(state: LangserverState*, input_chunk: byte*) -> None:
         body[content_length] = '\0'
         handle_one_message(state, body)  # may change contents inside body string
         body[content_length] = old_byte
+
         message_start = &body[content_length]
+        num_messages++
 
     # Yes, I know that memmove() is not as efficient as a ring buffer, but it's
     # easily good enough for this.
     nbytes_remaining = (state.input_accumulator.end() as intnative) - (message_start as intnative)
     memmove(state.input_accumulator.ptr, message_start, nbytes_remaining)
     state.input_accumulator.len = nbytes_remaining
+
+    if num_messages > 0:
+        # This is here so that if the langserver lags behind, many small edits
+        # can be processed before we get here.
+        pass  # TODO
+        #analyze_result = analyze(...)
+        #publish_diagnostics(analyze_result)
 
 
 # TODO(Jou): this should probably be a method on JSONBuilder
@@ -92,10 +103,10 @@ def finish_json_builder_without_freeing_memory(jb: JSONBuilder*) -> byte*:
 # TODO: handle batches?
 def handle_one_message(state: LangserverState*, body_string: byte*) -> None:
     if not json_is_valid(body_string):
-        fail("message body is not valid JSON")
+        langserver_fail("message body is not valid JSON")
 
     if not json_equals_string(json_get(body_string, "jsonrpc"), "2.0"):
-        fail("JSON doesn't specify jsonrpc \"2.0\"")
+        langserver_fail("JSON doesn't specify jsonrpc \"2.0\"")
 
     assert state.out.output.len == 0
     state.out.begin_object()
@@ -110,7 +121,8 @@ def handle_one_message(state: LangserverState*, body_string: byte*) -> None:
     elif json_get(body_string, "error") != NULL:
         handle_error_response(body_string)
     else:
-        fail("JSON is not a jsonrpc 2.0 request, success result, or error result")
+        langserver_warning("JSON is not a jsonrpc 2.0 request, success result, or error result")
+        return
 
     something_was_added = state.out.output.len > old_len
 

@@ -1,65 +1,16 @@
-import "stdlib/mem.jou"
-import "stdlib/ascii.jou"
 import "stdlib/argparse.jou"
 import "stdlib/io.jou"
 import "stdlib/process.jou"
 import "stdlib/str.jou"
 import "stdlib/errno.jou"
 
-import "./state.jou"
-import "./jsonrpc_parser.jou"
-import "./fail.jou"
-import "./stdin_and_stdout.jou"
+import "./langserver/langserver_main.jou"
 
 
-# If you shrink this, existing files created with --record will no longer work.
-#global input_buf: byte[3]  # slow, but catches some bugs during development
-global input_buf: byte[4096]
-
-def get_input(state: LangserverState*) -> byte*:
-    if state.replay_file == NULL:
-        if not read_from_stdin(input_buf, sizeof(input_buf)):
-            return NULL
-        return input_buf
-
-    while True:
-        op_byte = fgetc(state.replay_file)
-        match op_byte:
-            case EOF:
-                if ferror(state.replay_file) != 0:
-                    fail_with_errno("reading replay file failed", get_errno())
-                return NULL
-
-            case 'I':
-                # Input chunk that came from stdin on previous run
-                i = 0
-                while True:
-                    c = fgetc(state.replay_file)
-                    if c == EOF:
-                        fail("reading input from replay file failed")
-                    if i == array_count(input_buf):
-                        fail("input string in replay file is too long")
-                    input_buf[i++] = c as byte
-                    # Stop after we copy zero byte
-                    if c == '\0':
-                        break
-
-                # TODO: Populate VFS with file contents as long as there's 'F' entry in file
-                #       (use ungetc() if no EOF after last file)
-                #       declare ungetc(c: int, stream: FILE*) -> int
-
-                return input_buf
-
-            case _:
-                if is_ascii_letter(op_byte as byte) or is_ascii_digit(op_byte as byte):
-                    snprintf(big_buffer, sizeof(big_buffer), "replay file contains unknown op byte '%c'", op_byte)
-                else:
-                    snprintf(big_buffer, sizeof(big_buffer), "replay file contains unknown op byte 0x%02x", op_byte)
-                fail(big_buffer)
-
-
-def parse_command_line_args(state: LangserverState*, argv: byte**) -> None:
+def main(argc: int, argv: byte**) -> int:
     parser = ArgumentParser{argv = argv}
+    record_file: FILE* = NULL
+    replay_file: FILE* = NULL
 
     while parser.next():
         match parser.flag with strcmp:
@@ -74,7 +25,7 @@ def parse_command_line_args(state: LangserverState*, argv: byte**) -> None:
                 exit(0)
 
             case "--record":
-                if state.record_file != NULL:
+                if record_file != NULL:
                     fprintf(get_stderr(), "%s: --record cannot be specified twice (try --help)\n", argv[0])
                     exit(2)
 
@@ -83,13 +34,13 @@ def parse_command_line_args(state: LangserverState*, argv: byte**) -> None:
                     fprintf(get_stderr(), "%s: missing file name after --record (try --help)\n", argv[0])
                     exit(2)
 
-                state.record_file = fopen(filename, "wb")
-                if state.record_file == NULL:
+                record_file = fopen(filename, "wb")
+                if record_file == NULL:
                     fprintf(get_stderr(), "%s: cannot open \"%s\": %s\n", argv[0], filename, strerror(get_errno()))
                     exit(2)
 
             case "--replay":
-                if state.replay_file != NULL:
+                if replay_file != NULL:
                     fprintf(get_stderr(), "%s: --replay cannot be specified twice (try --help)\n", argv[0])
                     exit(2)
 
@@ -98,8 +49,8 @@ def parse_command_line_args(state: LangserverState*, argv: byte**) -> None:
                     fprintf(get_stderr(), "%s: missing file name after --replay (try --help)\n", argv[0])
                     exit(2)
 
-                state.replay_file = fopen(filename, "rb")
-                if state.replay_file == NULL:
+                replay_file = fopen(filename, "rb")
+                if replay_file == NULL:
                     fprintf(get_stderr(), "%s: cannot open \"%s\": %s\n", argv[0], filename, strerror(get_errno()))
                     exit(2)
 
@@ -111,38 +62,4 @@ def parse_command_line_args(state: LangserverState*, argv: byte**) -> None:
             fprintf(get_stderr(), "%s: flag \"%s\" does not take a value (try --help)\n", argv[0], parser.flag)
             exit(2)
 
-
-def init_record_and_replay(state: LangserverState*) -> None:
-    # Primeagen says, always add a version number, sure lets do it i guess
-    file_format_header = "joulsp replay v1\n"
-
-    if state.replay_file != NULL:
-        header_size = fread(big_buffer, 1, strlen(file_format_header), state.replay_file)
-        if header_size != strlen(file_format_header) or memcmp(big_buffer, file_format_header, header_size) != 0:
-            fail("unsupported file format in replay file")
-
-    if state.record_file != NULL:
-        fputs(file_format_header, state.record_file)
-
-
-def main(argc: int, argv: byte**) -> int:
-    state = LangserverState{}
-    parse_command_line_args(&state, argv)
-
-    init_record_and_replay(&state)
-
-    while True:
-        input = get_input(&state)
-        if input == NULL:
-            # For some reason I don't understand, whoever designed langserver
-            # protocol didn't think that this would be a good way to stop a
-            # langserver. Instead, there are TWO requests that the editor has
-            # to send to properly stop a langserver (shutdown and exit).
-            fail("stdin was closed")
-
-        if state.record_file != NULL:
-            fputc('I', state.record_file)
-            fwrite(input, 1, strlen(input) + 1, state.record_file)  # includes '\0' to indicate where it ends
-            fflush(state.record_file)  # make input available when this thing crashes
-
-        process_input(&state, input)
+    langserver(record_file, replay_file)

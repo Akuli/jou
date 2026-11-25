@@ -7,11 +7,11 @@ import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/utf8.jou"
 
+import "../vfs.jou"
 import "./fail.jou"
-import "./vfs.jou"
-import "./uri.jou"
 import "./lsp_enums.jou"
 import "./state.jou"
+import "./uri.jou"
 
 
 # TODO(Jou): this belongs to stdlib/json.jou
@@ -114,7 +114,7 @@ def begin_result(jb: JSONBuilder*, id: RequestID) -> None:
 def handle_initialize(state: LangserverState*, id: RequestID, params_json: byte*) -> None:
     client_caps = json_get(params_json, "capabilities")
     if client_caps == NULL:
-        fail("received initialize without client capabilities")
+        langserver_fail("received initialize without client capabilities")
     # TODO: use client capabilities for something?
 
     begin_result(&state.out, id)
@@ -156,7 +156,7 @@ def handle_S_setTrace() -> None:
 
 def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> None:
     if not json_to_fixed_size_string(json_get(json_get(params_json, "textDocument"), "uri"), big_buffer, sizeof(big_buffer)):
-        fail("could not read file URI from textDocument/didChange params")
+        langserver_fail("could not read file URI from textDocument/didChange params")
     uri_to_path(big_buffer)
 
     # Track all file types, anything can go into embed_binary_file() or embed_text_file()
@@ -164,7 +164,7 @@ def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> 
     #if not ends_with(big_buffer, ".jou"):
     #    continue
 
-    file = vfs_get_or_create(state, big_buffer)
+    file = vfs_get_or_create(&state.vfs, big_buffer)
 
     # TODO(Jou): what if file contains '\0' byte? Ideally there would be a
     #            variant of json_to_string() that handles them properly.
@@ -175,26 +175,28 @@ def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> 
 
 def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -> None:
     if not json_to_fixed_size_string(json_get(json_get(params_json, "textDocument"), "uri"), big_buffer, sizeof(big_buffer)):
-        fail("could not read file URI from textDocument/didChange params")
+        langserver_fail("could not read file URI from textDocument/didChange params")
     uri_to_path(big_buffer)
 
-    file = vfs_get_if_exists(state, big_buffer)
+    file = vfs_get_if_exists(&state.vfs, big_buffer)
     if file == NULL:
-        fail("received textDocument/didChange for a previously unknown file")
+        langserver_warning("received textDocument/didChange for a previously unknown file")
+        return
     if file.content == NULL:
-        fail("received textDocument/didChange for a file with unknown content")
+        langserver_warning("received textDocument/didChange for a file with unknown content")
+        return
 
     for j = json_array_first(json_get(params_json, "contentChanges")); j != NULL; j = json_array_next(j):
         start = lsp_position_to_byte_offset(file.content, file.size, json_get(json_get(j, "range"), "start"))
         end = lsp_position_to_byte_offset(file.content, file.size, json_get(json_get(j, "range"), "end"))
         if start == -1 or end == -1:
-            fail("failed to get range from textDocument/didChange event")
+            langserver_fail("failed to get range from textDocument/didChange event")
 
         # TODO(Jou): what if file contains '\0' byte? Ideally there would be a
         #            variant of json_to_string() that handles them properly.
         text = json_to_string(json_get(j, "text"))
         if text == NULL:
-            fail("failed to get text from textDocument/didChange event")
+            langserver_fail("failed to get text from textDocument/didChange event")
 
         vfs_write_change(file, start, end - start, text, strlen(text))
         free(text)
@@ -202,12 +204,12 @@ def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -
 
 def handle_textDocument_didClose(state: LangserverState*, params_json: byte*) -> None:
     if not json_to_fixed_size_string(json_get(json_get(params_json, "textDocument"), "uri"), big_buffer, sizeof(big_buffer)):
-        fail("could not read file URI from textDocument/didChlose params")
+        langserver_fail("could not read file URI from textDocument/didClose params")
     uri_to_path(big_buffer)
 
-    file = vfs_get_if_exists(state, big_buffer)
+    file = vfs_get_if_exists(&state.vfs, big_buffer)
     if file == NULL:
-        fail("received textDocument/didClose for a previously unknown file")
+        langserver_fail("received textDocument/didClose for a previously unknown file")
     vfs_expire(file)
 
 
@@ -215,7 +217,7 @@ def get_id(body_json: byte*) -> RequestID:
     id_json = json_get(body_json, "id")
     if id_json == NULL:
         snprintf(big_buffer, sizeof(big_buffer), "JSON does not have an ID, but it is needed: %s", body_json)
-        fail(big_buffer)
+        langserver_fail(big_buffer)
 
     number = json_to_double(id_json)
     if not isnan(number):
@@ -226,7 +228,7 @@ def get_id(body_json: byte*) -> RequestID:
         return string_id
 
     snprintf(big_buffer, sizeof(big_buffer), "could not parse ID in JSON: %s", body_json)
-    fail(big_buffer)
+    langserver_fail(big_buffer)
 
 
 # TODO(Jou): match json_get(body_json, "method") with json_equals_string:
@@ -265,7 +267,7 @@ def handle_request(state: LangserverState*, body_json: byte*) -> None:
 
         case _:
             snprintf(big_buffer, sizeof(big_buffer), "received unknown request: %s", body_json)
-            show_warning(big_buffer)
+            langserver_warning(big_buffer)
 
             if json_get(body_json, "id") != NULL:
                 id_to_json(state.out.key("id"), get_id(body_json))
@@ -280,10 +282,10 @@ def handle_request(state: LangserverState*, body_json: byte*) -> None:
 def handle_success_response(body_json: byte*) -> None:
     # TODO: do something with these? or just ignore them entirely?
     snprintf(big_buffer, sizeof(big_buffer), "got unexpected success response: %s", body_json)
-    show_warning(big_buffer)
+    langserver_warning(big_buffer)
 
 
 @public
 def handle_error_response(body_json: byte*) -> None:
     snprintf(big_buffer, sizeof(big_buffer), "received an error response: %s", body_json)
-    show_warning(big_buffer)
+    langserver_warning(big_buffer)
