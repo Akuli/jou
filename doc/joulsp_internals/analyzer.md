@@ -1,6 +1,9 @@
-# Design of joulsp
+# Analyzer Design
 
-Design goals:
+The analyzer is the part of the language server that finds errors in your code.
+In the future, the same analyzer will be used in the Jou compiler to reduce code duplication.
+
+Design goals for the analyzer:
 - Simple design: no version numbers, timestamps, or full-blown query engine
 - Fast enough on large Jou projects
 - Memory usage does not grow significantly if the langserver is used for a long time
@@ -10,11 +13,11 @@ Design goals:
 I found it surprisingly difficult to design something that satisfies these goals.
 Basically, it seems like I need to choose one of following downsides:
 - Recompute everything every time the user types one character
-- Building a full-blown query system with supports for dependencies and versioning
+- Build a full-blown query system with supports for dependencies and versioning (I tried to design this)
 - Cache invalidation hell
 
 I chose cache invalidation, and surprisingly, I'm quite happy with the resulting design.
-After several iterations of designing, the cache invalidation is surprisingly simple and predictable.
+After several iterations of designing, the cache invalidation part is surprisingly simple and predictable.
 
 
 ## Conventions
@@ -83,37 +86,70 @@ This also means that each `JouFile` doesn't need its own allocator.
 Just use `malloc()` for allocations tied to a `JouFile`.
 
 
-## Timeline
+## The `analyze()` function
 
-Here's mostly what happens during one iteration of the langserver's core (see [io-and-replay.md](io-and-replay.md)):
-1. Receive a langserver event from editor. For example, user opened or edited a file.
-2. Parse new and changed files. This produces new ASTs. Each `JouFile*` may also contain a previously parsed AST.
-3. If the old and new ASTs differ anywhere else than inside a function body (possibly in a signature),
-   clear the [symbol cache](#symbol-cache) and [type cache](#type-cache)
-   **for all files** (there may be cross-file dependencies).
-    - Function analyzing results are preserved.
-    - At first this seems slow, but this should be fine for a number of reasons:
-        - Most of the work is function analyzing, not symbol lookup.
-        - In Jou, it is rare to re-export symbols imported from another file.
-            Also, a user can't have very many files open in the editor,
-            so the total number of files that the langserver knows about is somewhat small.
-        - Unused symbols are ignored.
-            For example, if you `import stdlib/io.jou"` and you only use `printf()`,
-            symbols like `class FILE` and `puts()` won't be analyzed at all.
-4. Evaluate all compile-time `if` statements that are not inside a function.
-    - It's possible to place imports under `if somewhat_complicated_condition:`,
-        so this step may end up bringing in more files to the project.
-        TODO: figure out how to handle this, back to step 2?
-5. Analyze all the functions that need to be analyzed.
-    - For example, if the AST of any file changes only inside a function body, only just that function gets reanalyzed.
-    - Find a previous function analyzing result from [the functon analyzing cache](#function-analyzing-cache) by `JouFile*` and function name
-    - Check if the function analyzing result can still be used (this may involve redoing the symbol lookups)
-    - If needed, do the function analyzing and store the result into the function analyzing cache
-6. Delete old function analyzing results that don't correspond with any function in any AST.
-7. For each file, figure out the diagnostics, and send changes.
-    - There is a 128-bit hash of the previously sent diagnostics in `JouFile`.
-    - The final diagnostics sent to the langserver depend on a lot of different things,
-        so there's no easy way to avoid rebuilding them every time an AST changes.
+The interface of the analyzer is super simple: **just one function** called `analyze()`.
+
+In the langserver, `analyze()` is called after updating VFS with one or more input messages from the editor.
+For example, if the user is typing something into a file named `foo.jou` and the langserver is somewhat laggy,
+many small "one character was added to `foo.jou`" messages are processed before calling `analyze()`,
+and the `analyze()` call sees the resulting state of the VFS.
+For more details on this, see [io-and-replay.md](io-and-replay.md).
+
+Inputs of `analyze()`:
+- Analyzer state
+    - Includes a boolean indicating **langserver mode** or **compiler mode**, depending on how the analyzer is used.
+- VFS (Virtual File System, a fancy name for file contents stored in memory)
+- Array of `VfsFile*`
+    - In langserver mode, this is all the files that are open in the editor.
+    - In compiler mode, just the one file passed on command line.
+    - Below, "a file that should be fully analyzed" means any file of this array in langserver mode, and any `JouFile*` whatsoever in compiler mode.
+
+First, for each file in the array given to `analyze()`, a corresponding `JouFile*` is created if it doesn't exist yet.
+A `JouFile*` means a file in the analyzer state.
+
+Next `analyze()` parses all files whose content has changed since last time
+(VFS provides a content hash for quickly checking this) and all newly added files.
+
+Now `analyze()` can do all the analyzing except looking inside function bodies.
+This is skipped if during all the parsing we did so far, old and new AST of all `JouFile*`s
+were the same everywhere except inside function bodies.
+If there were any changes outside function bodies (or any new files):
+- Clear the [symbol cache](#symbol-cache) and [type cache](#type-cache) **for all files**.
+    - This is a simple way to handle cross-file dependencies.
+    - These caches are stored in the analyzer state.
+    - After this, we can do symbol lookups lazily again.
+    - [Function analyzing cache](#function-analyzing-cache) is **not** cleared.
+    - This seems slow, but [I think it will be fine](#why-clearing-symbol-cache-and-type-cache-should-be-fast-enough).
+- Evaluate all compile-time `if` statements. For each imported file that doesn't yet have a corresponding `JouFile*`, create it and parse the file.
+    - These two cannot be separated into two different steps,
+        because imports can be inside compile-time `if` statements.
+- Analyze everything except function bodies in all files that should be fully analyzed (this concept was defined above).
+- Delete outdated entries from [function analyzing cache](#function-analyzing-cache),
+    including functions that no longer exist.
+
+At this point no new files will be parsed during the `analyze()` call.
+So, if we are in langserver mode, let's clean up files that are no longer needed using simple mark-and-sweep garbage collection:
+- Mark every `JouFile*` corresponding to a `VfsFile*` in the array given to `analyze()`.
+- Recursively mark every `JouFile*` imported by a marked `JouFile*`
+- Sweep unmarked `JouFile*`s
+
+Lastly, `analyze()` analyzes function bodies in all files that should be fully analyzed (this concept was defined above).
+[Function analyzing cache](#function-analyzing-cache) is used to skip the analyzing
+when an up-to-date result already exists.
+
+
+### Why clearing symbol cache and type cache should be fast enough
+
+- Most of the work is function analyzing, not symbol lookup.
+- In Jou, it is rare to re-export symbols imported from another file.
+    Also, a user can't have very many files open in the editor,
+    so the total number of files that the langserver knows about is somewhat small.
+- Unused symbols are ignored due to laziness in symbol lookup.
+    For example, if you `import stdlib/io.jou"` and you only use `printf()`,
+    symbols like `class FILE` and `puts()` won't be analyzed at all.
+
+Ultimately, I'll find out when the langserver is usable enough for large Jou projects.
 
 
 ## Symbol Cache
