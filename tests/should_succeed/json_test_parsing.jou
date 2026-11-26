@@ -235,6 +235,27 @@ def test_strings() -> None:
     assert not json_equals_string("foo", "\"foo\"")
 
 
+# Check that json_equals_string() is compatible with Jou's match statement
+def test_match_with_json_equals_string() -> None:
+    json = "{\"foo\": \"\\u0062ar\"}"
+
+    match json_get(json, "foo") with json_equals_string:
+        case "foo":
+            printf("This shouldn't happen\n")
+        case "bar":
+            printf("It says bar\n")  # Output: It says bar
+        case _:
+            printf("Not found\n")
+
+    match json_get(json, "whatever") with json_equals_string:
+        case "foo":
+            printf("This shouldn't happen\n")
+        case "bar":
+            printf("This shouldn't happen either\n")
+        case _:
+            printf("It's not foo or bar because it's missing\n")  # Output: It's not foo or bar because it's missing
+
+
 def test_bools_and_null() -> None:
     assert json_is_valid("true")
     assert json_is_valid("false")
@@ -403,6 +424,7 @@ def main() -> int:
     test_get()
     test_bools_and_null()
     test_strings()
+    test_match_with_json_equals_string()
     test_numbers()
     test_json_from_github_api()
 

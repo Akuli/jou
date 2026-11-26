@@ -775,9 +775,11 @@ class AstToBuilder:
                     #   - funcptr
                     func = self.builder.get_funcptr(&match_stmt.func_signature)
                     args = [match_obj, case_obj]
-                    func_ret = self.builder.call_function(match_stmt.func_signature.to_funcptr_type(), func, args, 2)
-                    zero = self.builder.integer(match_stmt.func_signature.return_type, 0)
-                    cond = self.builder.eq(func_ret, zero)
+                    cond = self.builder.call_function(match_stmt.func_signature.to_funcptr_type(), func, args, 2)
+                    if match_stmt.func_signature.return_type != bool_type():
+                        # Assume it's somewhat like strcmp(), so zero means equal
+                        zero = self.builder.integer(match_stmt.func_signature.return_type, 0)
+                        cond = self.builder.eq(cond, zero)
                 otherwise = self.builder.add_block()
                 self.builder.branch(cond, then, otherwise)
                 self.builder.set_current_block(otherwise)
