@@ -231,18 +231,9 @@ def get_id(body_json: byte*) -> RequestID:
     langserver_fail(big_buffer)
 
 
-# TODO(Jou): match json_get(body_json, "method") with json_equals_string:
-#            Problem is that match statement needs int return value
-def json_equals_string_cmp(json: byte*, string: byte*) -> int:
-    if json_equals_string(json, string):
-        return 0
-    else:
-        return 1
-
-
 @public
 def handle_request(state: LangserverState*, body_json: byte*) -> None:
-    match json_get(body_json, "method") with json_equals_string_cmp:
+    match json_get(body_json, "method") with json_equals_string:
         case "initialize":
             handle_initialize(state, get_id(body_json), json_get(body_json, "params"))
         case "initialized":
