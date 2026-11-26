@@ -13,6 +13,9 @@ def show_evaluation(value: int, msg: byte*) -> int:
     puts(msg)
     return value
 
+def compare_first_byte(string: byte*, b: byte) -> bool:
+    return string[0] == b
+
 
 def main() -> int:
     match 1 + 2:
@@ -150,6 +153,12 @@ def main() -> int:
             printf("Hello there!\n")
         case _:
             printf("something else\n")  # Output: something else
+
+    match s with compare_first_byte:
+        case 'A':
+            printf("This shouldn't happen\n")
+        case 'H':
+            printf("Seems to work\n")  # Output: Seems to work
 
     free(s)
     return 0
