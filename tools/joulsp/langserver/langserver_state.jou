@@ -4,13 +4,7 @@ import "stdlib/str.jou"
 import "stdlib/list.jou"
 import "stdlib/json.jou"
 
-import "../vfs.jou"
-
-
-# Advantage: easy to format error messages and other temporary things
-# Disadvantage: easy to get overlapping snprintf() if two functions use this and call each other
-@public
-global big_buffer: byte[1_000_000]
+import "../analyzer/analyzer_state.jou"
 
 
 @public
@@ -18,13 +12,13 @@ class LangserverState:
     record_file: FILE*
     replay_file: FILE*
 
-    vfs: VFS
-
     # Used to accumulate input bytes until they form complete jsonrpc messages
     input_accumulator: List[byte]
 
     # Output JSON is built and stored here before printing it
     out: JSONBuilder
+
+    analyzer_state: AnalyzerState
 
 
 # jsonrpc IDs can be strings or numbers. A bit problematic in Jou, but not

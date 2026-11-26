@@ -4,9 +4,11 @@ import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/errno.jou"
 
-import "./state.jou"
-import "./jsonrpc_parser.jou"
+import "../analyzer/analyzer_state.jou"
+import "../big_buffer.jou"
 import "./fail.jou"
+import "./jsonrpc_parser.jou"
+import "./langserver_state.jou"
 import "./stdin_and_stdout.jou"
 
 
@@ -65,6 +67,8 @@ def init_record_and_replay(state: LangserverState*) -> None:
         if header_size != strlen(file_format_header) or memcmp(big_buffer, file_format_header, header_size) != 0:
             langserver_fail("unsupported file format in replay file")
 
+        state.analyzer_state.real_file_system_is_banned = True
+
     if state.record_file != NULL:
         fputs(file_format_header, state.record_file)
 
@@ -72,6 +76,7 @@ def init_record_and_replay(state: LangserverState*) -> None:
 @public
 def langserver(record_file: FILE*, replay_file: FILE*) -> noreturn:
     state = LangserverState{record_file = record_file, replay_file = replay_file}
+    state.analyzer_state.mode = AnalyzerMode.Langserver
     init_record_and_replay(&state)
 
     while True:

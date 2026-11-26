@@ -1,0 +1,80 @@
+import "stdlib/list.jou"
+import "stdlib/intnative.jou"
+
+import "../allocator.jou"
+
+
+@public
+class LocationRange:
+    start_lineno: int  # 1 means first line
+    start_column_utf8: int  # 0 means start of line, 1 means just after first byte, etc
+    end_lineno: int
+    end_column_utf8: int
+
+
+@public
+class Diagnostic:
+    path: byte*
+    range: LocationRange
+    text: byte*
+
+
+@public
+class AnalyzerFile:
+    allocator: Allocator  # freed when the entire file is no longer needed
+
+    path: byte*
+
+    # monotonic_ns() value when to check this file again, to avoid disk IO
+    # Anything before current time means that file needs to be checked again.
+    # INT64_MAX (opened) and 0 (closed) are used for files that do not come from disk.
+    expires_ns: int64
+
+    # You can't have both read_error and content, but if you have neither, it
+    # means that reading the file hasn't been attempted yet.
+    #
+    # Notes about content:
+    #   - '\0' terminated, but may contain '\0' bytes (check file size)
+    #   - allocated with realloc(), NOT the allocator, because there's no good
+    #     way to grow and keep the old contents if using the allocator
+    #
+    # Error message uses the same underlying buffer as the content itself.
+    read_error: byte*
+    content: byte*  # NULL if not known
+
+    # Once we have allocated memory for the file content, we don't free it
+    # until the whole file is no longer needed, because that's how the
+    # allocator works. When the file content is not known, the allocated
+    # memory is still stored here.
+    content_memory: byte*
+    content_capacity: intnative
+
+    # -1 means unknown
+    #
+    # Can be known even if file content is not in memory. That is useful for
+    # embed_binary_file(), because we only need to know the array size.
+    size: int64
+    mtime: int64
+
+    # Meaningful only when content != NULL
+    content_hash: uint64[2]
+
+
+@public
+enum AnalyzerMode:
+    Compiler
+    Langserver
+
+
+@public
+class AnalyzerState:
+    mode: AnalyzerMode
+    files: List[AnalyzerFile*]
+
+    # Resets at start of analyze().
+    # Used for e.g. the final list of diagnostics returned from analyze()
+    analyze_allocator: Allocator
+
+    # Used to ensure that langserver --replay does not depend on any other
+    # files than the file being replayed.
+    real_file_system_is_banned: bool

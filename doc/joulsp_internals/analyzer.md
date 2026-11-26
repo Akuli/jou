@@ -3,9 +3,11 @@
 The analyzer is the part of the language server that finds errors in your code.
 In the future, the same analyzer will be used in the Jou compiler to reduce code duplication.
 
-Design goals for the analyzer:
-- Simple design: no version numbers, timestamps, or full-blown query engine
+The main challenge with designing the analyzer is making it respond fast enough
+to small source code edits (e.g. user presses a key).
+Specifically, the design goals are:
 - Fast enough on large Jou projects
+- Simple design: no version numbers, timestamps, or full-blown query engine
 - Memory usage does not grow significantly if the langserver is used for a long time
 - The langserver is easy to work on (for example, types can be compared with `==` operator)
 - Cache invalidation hell should be rare when developing the langserver
@@ -13,11 +15,13 @@ Design goals for the analyzer:
 I found it surprisingly difficult to design something that satisfies these goals.
 Basically, it seems like I need to choose one of following downsides:
 - Recompute everything every time the user types one character
-- Build a full-blown query system with supports for dependencies and versioning (I tried to design this)
+- Build a full-blown query system with support for dependencies and versioning
 - Cache invalidation hell
 
-I chose cache invalidation, and surprisingly, I'm quite happy with the resulting design.
-After several iterations of designing, the cache invalidation part is surprisingly simple and predictable.
+I first tried making a query engine, but it became very complicated very quickly,
+so I chose cache invalidation hell.
+Surprisingly, I'm quite happy with the resulting design.
+After several iterations of designing, the cache invalidation part is quite simple and predictable.
 
 
 ## Conventions
@@ -26,15 +30,13 @@ In Jou, a method `do_thing()` in `class Foo` is basically a function named `Foo.
 When this document discusses "functions", it also includes methods.
 
 We assume that 128-bit hashes never have hash collisions.
-Currently the hash function is [MurmurHash3_x64_128](https://github.com/aappleby/smhasher/blob/07bb4de10a63e8cc2e1724865454eba635742383/src/MurmurHash3.cpp#L255).
-
-This document focuses on producing diagnostics (that is, mostly errors and warnings).
-Once those work, it should be easy enough to add other langserver features.
+Currently the hash function is [MurmurHash3_x64_128](https://stackoverflow.com/questions/11899616/murmurhash-what-is-it).
 
 
 ## High-Level Structure
 
-For now, let's focus on producing diagnostics (that is, mostly errors and warnings).
+Let's consider producing diagnostics (that is, mostly errors and warnings).
+Once those work, it should be easy enough to add other langserver features.
 Here are all the things that need to happen:
 
 ```
@@ -98,7 +100,7 @@ For more details on this, see [io-and-replay.md](io-and-replay.md).
 
 Inputs of `analyze()`:
 - Analyzer state
-    - Includes a boolean indicating **langserver mode** or **compiler mode**, depending on how the analyzer is used.
+    - Includes mode, either **langserver mode** or **compiler mode**, depending on how the analyzer is used.
 - VFS (Virtual File System, a fancy name for file contents stored in memory)
 - Array of `VfsFile*`
     - In langserver mode, this is all the files that are open in the editor.

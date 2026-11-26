@@ -7,10 +7,12 @@ import "stdlib/math.jou"
 import "stdlib/mem.jou"
 import "stdlib/utf8.jou"
 
-import "../vfs.jou"
+import "../allocator.jou"
+import "../analyzer/files.jou"
+import "../big_buffer.jou"
 import "./fail.jou"
+import "./langserver_state.jou"
 import "./lsp_enums.jou"
-import "./state.jou"
 import "./uri.jou"
 
 
@@ -164,12 +166,12 @@ def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> 
     #if not ends_with(big_buffer, ".jou"):
     #    continue
 
-    file = vfs_get_or_create(&state.vfs, big_buffer)
+    file = find_or_create_analyzer_file(&state.analyzer_state, big_buffer)
 
     # TODO(Jou): what if file contains '\0' byte? Ideally there would be a
     #            variant of json_to_string() that handles them properly.
     file_content = json_to_string(json_get(json_get(params_json, "textDocument"), "text"))
-    vfs_write(file, file_content, strlen(file_content))
+    set_analyzer_file_content(file, Slice[byte]{ptr = file_content, len = strlen(file_content)})
     free(file_content)
 
 
@@ -178,7 +180,7 @@ def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -
         langserver_fail("could not read file URI from textDocument/didChange params")
     uri_to_path(big_buffer)
 
-    file = vfs_get_if_exists(&state.vfs, big_buffer)
+    file = find_analyzer_file(&state.analyzer_state, big_buffer)
     if file == NULL:
         langserver_warning("received textDocument/didChange for a previously unknown file")
         return
@@ -198,7 +200,7 @@ def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -
         if text == NULL:
             langserver_fail("failed to get text from textDocument/didChange event")
 
-        vfs_write_change(file, start, end - start, text, strlen(text))
+        apply_change_to_analyzer_file_content(file, start, end - start, Slice[byte]{ptr = text, len = strlen(text)})
         free(text)
 
 
@@ -207,10 +209,11 @@ def handle_textDocument_didClose(state: LangserverState*, params_json: byte*) ->
         langserver_fail("could not read file URI from textDocument/didClose params")
     uri_to_path(big_buffer)
 
-    file = vfs_get_if_exists(&state.vfs, big_buffer)
+    file = find_analyzer_file(&state.analyzer_state, big_buffer)
     if file == NULL:
         langserver_fail("received textDocument/didClose for a previously unknown file")
-    vfs_expire(file)
+
+    file.expires_ns = 0  # will be read from disk next time it's needed
 
 
 def get_id(body_json: byte*) -> RequestID:
@@ -246,10 +249,8 @@ def handle_request(state: LangserverState*, body_json: byte*) -> None:
 
         case "textDocument/didOpen":
             handle_textDocument_didOpen(state, json_get(body_json, "params"))
-
         case "textDocument/didChange":
             handle_textDocument_didChange(state, json_get(body_json, "params"))
-
         case "textDocument/didClose":
             handle_textDocument_didClose(state, json_get(body_json, "params"))
 
