@@ -92,7 +92,7 @@ def simple_stat(state: AnalyzerState*, path: byte*, size: int64*, mtime_ns: int6
             fprintf(get_stderr(), "stat \"%s\" --> %s\n", path, error)
         fflush(get_stderr())
 
-    return NULL
+    return error
 
 # Ensure the file has error or stats. By stats, I mean size and mtime.
 @public
@@ -202,37 +202,34 @@ def invalidate_analyzer_files_changed_on_disk(state: AnalyzerState*) -> None:
         if file.is_open_in_editor:
             continue
 
-        if file.size == -1 or file.mtime_ns == -1:
-            # Stat is attempted before reading. It hasn't been done
-            # successfully, so there's nothing to invalidate.
-            assert file.content == NULL
-            continue
-
         if file.content == NULL:
-            # If we need stats results later, we will just stat it later.
-            # What matters is that nothing uses outdated stat results.
+            # Don't keep around old stat results or errors
             file.size = -1
             file.mtime_ns = -1
-            continue
+            file.error = NULL
 
-        assert file.error == NULL
+        else:
+            # We always stat before reading
+            assert file.size != -1
+            assert file.mtime_ns != -1
+            assert file.error == NULL
 
-        # We could call stat_analyzer_file(), but then we would need to grab
-        # file content and stat results to local variables, and temporarily set
-        # them to unknown. It's easier not to.
-        size, mtime_ns: int64
-        error = simple_stat(state, file.path, &size, &mtime_ns)
+            # We could call stat_analyzer_file(), but then we would need to grab
+            # file content and stat results to local variables, and temporarily set
+            # them to unknown. It's easier not to.
+            size, mtime_ns: int64
+            error = simple_stat(state, file.path, &size, &mtime_ns)
 
-        if error != NULL:
-            # Store error
-            file.allocator.reset(file.allocator_checkpoint)
-            file.error = file.allocator.strdup(error)
-            file.content = NULL
-        elif size != file.size or mtime_ns != file.mtime_ns:
-            # Content may have changed, invalidate it. We will need it later
-            # if we need it later.
-            file.content = NULL
-            file.size = size
+            if error != NULL:
+                # Store error
+                file.allocator.reset(file.allocator_checkpoint)
+                file.error = file.allocator.strdup(error)
+                file.content = NULL
+            elif size != file.size or mtime_ns != file.mtime_ns:
+                # Content may have changed, invalidate it. We will read it
+                # later if we need it.
+                file.content = NULL
+                file.size = size
 
 
 # After calling this, file won't be read from disk again.
