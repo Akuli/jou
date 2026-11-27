@@ -1,21 +1,8 @@
-# This file takes in chunks of data from stdin, collects them until they form
-# complete jsonrpc messages, and splits to individual messages.
-#
-# TODO: this file is much more than "jsonrpc parsing"...
-
-import "stdlib/mem.jou"
-import "stdlib/assert.jou"
-import "stdlib/json.jou"
 import "stdlib/ascii.jou"
-import "stdlib/intnative.jou"
-import "stdlib/list.jou"
 import "stdlib/str.jou"
 
-import "../analyzer/files.jou"
-import "./langserver_state.jou"
-import "./stdin_and_stdout.jou"
+import "../allocator.jou"
 import "./fail.jou"
-import "./handlers.jou"
 
 
 def starts_with_ignore_case(s: byte*, prefix: byte*) -> bool:
@@ -28,116 +15,35 @@ def starts_with_ignore_case(s: byte*, prefix: byte*) -> bool:
     return True
 
 
-# Returns pointer just after headers, or NULL if headers are incomplete
-def parse_headers(s: byte*, content_length: int*) -> byte*:
+# Returns slice describing where the body is, or empty slice if incomplete message
+@public
+def parse_jsonrpc_message(s: byte*) -> Slice[byte]:
+    content_length = -1
+
     while True:
+        if starts_with_ignore_case(s, "Content-Length: "):
+            content_length = atoi(&s[16])
+
         end_of_header = strchr(s, '\n')
         if end_of_header == NULL:
-            return NULL
+            return Slice[byte]{}
         end_of_header++
 
         # Langserver spec guarantees it's \r\n, not just \n, but we support
         # both in case I want to try something by pasting text to terminal.
         if end_of_header == &s[1] or (*s == '\r' and end_of_header == &s[2]):
-            return end_of_header
+            s = end_of_header
+            break
 
-        if starts_with_ignore_case(s, "Content-Length: "):
-            *content_length = atoi(&s[16])
-
+        # Parse the next header
         s = end_of_header
 
+    if content_length <= 0:
+        langserver_fail("failed to parse Content-Length header in input")
 
-@public
-def process_input(state: LangserverState*, input_chunk: byte*) -> None:
-    state.input_accumulator.extend_from_ptr(input_chunk, strlen(input_chunk))
+    # Check if we have the entire body
+    for i = 0; i < content_length; i++:
+        if s[i] == '\0':
+            return Slice[byte]{}
 
-    # Make sure it ends with '\0' so we can treat it as a string
-    state.input_accumulator.append('\0')
-    state.input_accumulator.pop()  # does not deallocate/shrink
-
-    if state.replay_file == NULL:
-        invalidate_analyzer_files_changed_on_disk(&state.analyzer_state)
-
-    message_start = state.input_accumulator.ptr
-    num_messages = 0
-
-    while True:
-        content_length = -1
-        body = parse_headers(message_start, &content_length)
-        if body == NULL:
-            break  # not enough data yet
-        if content_length <= 0:
-            langserver_fail("failed to parse Content-Length header in input")
-
-        # This would be UB in C, because this may index beyond the array's end.
-        if &body[content_length] > state.input_accumulator.end():
-            break  # not enough data yet
-
-        # No need to copy to new place in memory, lol
-        old_byte = body[content_length]
-        body[content_length] = '\0'
-        handle_one_message(state, body)  # may change contents inside body string
-        body[content_length] = old_byte
-
-        message_start = &body[content_length]
-        num_messages++
-
-    # Yes, I know that memmove() is not as efficient as a ring buffer, but it's
-    # easily good enough for this.
-    nbytes_remaining = (state.input_accumulator.end() as intnative) - (message_start as intnative)
-    memmove(state.input_accumulator.ptr, message_start, nbytes_remaining)
-    state.input_accumulator.len = nbytes_remaining
-
-    if num_messages > 0:
-        # This is here so that if the langserver lags behind, many small edits
-        # can be processed before we get here.
-        pass  # TODO
-        #analyze_result = analyze(...)
-        #publish_diagnostics(analyze_result)
-
-
-# TODO(Jou): this should probably be a method on JSONBuilder
-def finish_json_builder_without_freeing_memory(jb: JSONBuilder*) -> byte*:
-    assert jb.depth == 0  # If this fails, you forgot to call end_array() or end_object()
-
-    jb.output.append('\0')
-    jb.output.len = 0
-    return jb.output.ptr
-
-
-# See https://www.jsonrpc.org/specification
-# TODO: handle batches?
-def handle_one_message(state: LangserverState*, body_string: byte*) -> None:
-    if not json_is_valid(body_string):
-        langserver_fail("message body is not valid JSON")
-
-    if not json_equals_string(json_get(body_string, "jsonrpc"), "2.0"):
-        langserver_fail("JSON doesn't specify jsonrpc \"2.0\"")
-
-    assert state.out.output.len == 0
-    state.out.begin_object()
-    state.out.key("jsonrpc").string("2.0")
-
-    old_len = state.out.output.len
-
-    if json_get(body_string, "method") != NULL:
-        handle_request(state, body_string)
-    elif json_get(body_string, "result") != NULL:
-        handle_success_response(body_string)
-    elif json_get(body_string, "error") != NULL:
-        handle_error_response(body_string)
-    else:
-        langserver_warning("JSON is not a jsonrpc 2.0 request, success result, or error result")
-        return
-
-    something_was_added = state.out.output.len > old_len
-
-    state.out.end_object()
-    state.out.output.append('\n')  # makes this nicer to work on, next headers go to their own line
-    out_json = finish_json_builder_without_freeing_memory(&state.out)
-
-    if something_was_added:
-        headers: byte[100]
-        sprintf(headers, "Content-Length: %zd\r\n\r\n", strlen(out_json))
-        write_to_stdout(headers)
-        write_to_stdout(out_json)
+    return Slice[byte]{ptr = s, len = content_length}

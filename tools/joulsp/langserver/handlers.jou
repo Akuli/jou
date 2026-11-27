@@ -1,3 +1,4 @@
+import "stdlib/list.jou"
 import "stdlib/str.jou"
 import "stdlib/assert.jou"
 import "stdlib/intnative.jou"
@@ -11,6 +12,7 @@ import "../allocator.jou"
 import "../analyzer/files.jou"
 import "../big_buffer.jou"
 import "./fail.jou"
+import "./stdin_and_stdout.jou"
 import "./langserver_state.jou"
 import "./lsp_enums.jou"
 import "./uri.jou"
@@ -257,7 +259,6 @@ def get_id(body_json: byte*) -> RequestID:
     langserver_fail(big_buffer)
 
 
-@public
 def handle_request(state: LangserverState*, body_json: byte*) -> None:
     match json_get(body_json, "method") with json_equals_string:
         case "initialize":
@@ -293,14 +294,60 @@ def handle_request(state: LangserverState*, body_json: byte*) -> None:
             state.out.end_object()
 
 
-@public
 def handle_success_response(body_json: byte*) -> None:
     # TODO: do something with these? or just ignore them entirely?
     snprintf(big_buffer, sizeof(big_buffer), "got unexpected success response: %s", body_json)
     langserver_warning(big_buffer)
 
 
-@public
 def handle_error_response(body_json: byte*) -> None:
     snprintf(big_buffer, sizeof(big_buffer), "received an error response: %s", body_json)
     langserver_warning(big_buffer)
+
+
+# TODO(Jou): this should probably be a method on JSONBuilder
+def finish_json_builder_without_freeing_memory(jb: JSONBuilder*) -> byte*:
+    assert jb.depth == 0  # If this fails, you forgot to call end_array() or end_object()
+
+    jb.output.append('\0')
+    jb.output.len = 0
+    return jb.output.ptr
+
+
+# See https://www.jsonrpc.org/specification
+# TODO: handle jsonrpc batches? I don't expect any editor to use them...
+@public
+def handle_jsonrpc_message(state: LangserverState*, body_string: byte*) -> None:
+    if not json_is_valid(body_string):
+        langserver_fail("message body is not valid JSON")
+
+    if not json_equals_string(json_get(body_string, "jsonrpc"), "2.0"):
+        langserver_fail("JSON doesn't specify jsonrpc \"2.0\"")
+
+    assert state.out.output.len == 0
+    state.out.begin_object()
+    state.out.key("jsonrpc").string("2.0")
+
+    old_len = state.out.output.len
+
+    if json_get(body_string, "method") != NULL:
+        handle_request(state, body_string)
+    elif json_get(body_string, "result") != NULL:
+        handle_success_response(body_string)
+    elif json_get(body_string, "error") != NULL:
+        handle_error_response(body_string)
+    else:
+        langserver_warning("JSON is not a jsonrpc 2.0 request, success result, or error result")
+        return
+
+    something_was_added = state.out.output.len > old_len
+
+    state.out.end_object()
+    state.out.output.append('\n')  # makes this nicer to work on, next headers go to their own line
+    out_json = finish_json_builder_without_freeing_memory(&state.out)
+
+    if something_was_added:
+        headers: byte[100]
+        sprintf(headers, "Content-Length: %zd\r\n\r\n", strlen(out_json))
+        write_to_stdout(headers)
+        write_to_stdout(out_json)

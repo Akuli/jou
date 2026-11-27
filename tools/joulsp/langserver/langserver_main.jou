@@ -1,12 +1,18 @@
 import "stdlib/mem.jou"
+import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
+import "stdlib/list.jou"
 import "stdlib/ascii.jou"
 import "stdlib/io.jou"
 import "stdlib/str.jou"
 import "stdlib/errno.jou"
 
+import "../allocator.jou"
 import "../analyzer/analyzer_state.jou"
+import "../analyzer/files.jou"
 import "../big_buffer.jou"
 import "./fail.jou"
+import "./handlers.jou"
 import "./jsonrpc_parser.jou"
 import "./langserver_state.jou"
 import "./stdin_and_stdout.jou"
@@ -44,10 +50,13 @@ def get_input(state: LangserverState*) -> byte*:
                     if c == '\0':
                         break
 
-                # TODO: Populate VFS with file contents as long as there's 'F' entry in file
+                # TODO: Populate VFS with file contents as long as there's 'F' or 'S' entry in file
                 #       (use ungetc() if no EOF after last file)
                 #       declare ungetc(c: int, stream: FILE*) -> int
-
+                #       S = stat result
+                #       F = file content (can only appear after corresponding 'S')
+                #
+                # TODO: hook up something to fill these in, callback func?
                 return input_buf
 
             case _:
@@ -73,6 +82,50 @@ def init_record_and_replay(state: LangserverState*) -> None:
         fputs(file_format_header, state.record_file)
 
 
+def consume_input(state: LangserverState*) -> None:
+    if state.replay_file == NULL:
+        # If the input contains multiple jsonrpc messages that we process at
+        # once, we process them all with the same file contents, without
+        # statting files in between. I want to somewhat avoid extra stats,
+        # because they are slow, especially on Windows.
+        invalidate_analyzer_files_changed_on_disk(&state.analyzer_state)
+
+    # Make sure it ends with '\0' so we can treat it as a string
+    state.input_accumulator.append('\0')
+    state.input_accumulator.pop()  # does not deallocate/shrink
+
+    ptr = state.input_accumulator.ptr
+
+    body_start, body_end: byte*
+    while True:
+        body_slice = parse_jsonrpc_message(ptr)
+        if body_slice.len == 0:
+            break
+
+        # No need to copy to new place in memory, lol
+        old_byte = *body_slice.end()
+        *body_slice.end() = '\0'
+        handle_jsonrpc_message(state, body_slice.ptr)  # may change contents inside body string
+        *body_slice.end() = old_byte
+
+        assert body_slice.end() > ptr
+        ptr = body_slice.end()
+
+    if ptr == state.input_accumulator.ptr:
+        # No complete messages yet
+        return
+
+    # Yes, I know that memmove() is not as efficient as a ring buffer, but it's
+    # easily good enough for this.
+    nbytes_remaining = (state.input_accumulator.end() as intnative) - (ptr as intnative)
+    memmove(state.input_accumulator.ptr, ptr, nbytes_remaining)
+    state.input_accumulator.len = nbytes_remaining
+
+    # TODO
+    #analyze_result = analyze(...)
+    #publish_diagnostics(analyze_result)
+
+
 @public
 def langserver(record_file: FILE*, replay_file: FILE*) -> noreturn:
     state = LangserverState{record_file = record_file, replay_file = replay_file}
@@ -94,4 +147,5 @@ def langserver(record_file: FILE*, replay_file: FILE*) -> noreturn:
             fwrite(input, 1, strlen(input) + 1, state.record_file)  # includes '\0' to indicate where it ends
             fflush(state.record_file)  # make input available when this thing crashes
 
-        process_input(&state, input)
+        state.input_accumulator.extend_from_ptr(input, strlen(input))
+        consume_input(&state)
