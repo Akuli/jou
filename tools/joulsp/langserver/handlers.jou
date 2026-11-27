@@ -158,7 +158,7 @@ def handle_S_setTrace() -> None:
 
 def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> None:
     if not json_to_fixed_size_string(json_get(json_get(params_json, "textDocument"), "uri"), big_buffer, sizeof(big_buffer)):
-        langserver_fail("could not read file URI from textDocument/didChange params")
+        langserver_fail("could not read file URI from textDocument/didOpen params")
     uri_to_path(big_buffer)
 
     # Track all file types, anything can go into embed_binary_file() or embed_text_file()

@@ -257,13 +257,6 @@ def set_analyzer_file_content(state: AnalyzerState*, file: AnalyzerFile*, conten
         fflush(get_stderr())
 
 
-# TODO(Jou): stdlib?
-def memdup(mem: void*, n: intnative) -> void*:
-    result = malloc(n)
-    if result != NULL:
-        memcpy(result, mem, n)
-    return result
-
 @public
 def apply_change_to_analyzer_file_content(
     state: AnalyzerState*,
@@ -275,6 +268,7 @@ def apply_change_to_analyzer_file_content(
     assert old_len >= 0
     assert new.len >= 0
     assert offset >= 0
+    assert offset + old_len <= file.size
 
     assert file.is_open_in_editor
     assert file.size >= 0
@@ -294,22 +288,21 @@ def apply_change_to_analyzer_file_content(
         #
         # The allocator is awkward here, because we must reset it, which
         # makes the previous allocation invalid.
-        temp_buf: byte*
-        gonna_free: byte* = NULL
-        if old_size > sizeof(big_buffer):
-            temp_buf = memdup(file.content, old_size as intnative)
-            assert temp_buf != NULL
-            gonna_free = temp_buf
-        else:
+        if old_size + 1 <= sizeof(big_buffer):
             temp_buf = &big_buffer[0]
+        else:
+            temp_buf = malloc((old_size as intnative) + 1)
+            assert temp_buf != NULL
+
+        memcpy(temp_buf, file.content, (old_size as intnative) + 1)  # +1 to preserve '\0'
 
         file.content_capacity = 2*(new_size + 1)
-
         file.allocator.reset(file.allocator_checkpoint)
         file.content = file.allocator.alloc(file.content_capacity)
 
-        memcpy(file.content, temp_buf, old_size as intnative)
-        free(gonna_free)
+        memcpy(file.content, temp_buf, (old_size as intnative) + 1)
+        if temp_buf != &big_buffer[0]:
+            free(temp_buf)
 
     # Move everything after the changing part
     memmove(
@@ -327,5 +320,6 @@ def apply_change_to_analyzer_file_content(
     if state.debug_prints:
         fprintf(get_stderr(), "applied change to file \"%s\" (%lld bytes -> %lld bytes)\n", file.path, old_size, new_size)
         if file.size < 100:
-            fprintf(get_stderr(), "--- begin file content ---\n%s\n--- end file content---\n", file.content)
+            fprintf(get_stderr(), "--- begin slice ---\n%.*s\n--- end slice ---\n", new.len as int, new.ptr)
+            fprintf(get_stderr(), "--- begin file content ---\n%s\n--- end file content ---\n", file.content)
         fflush(get_stderr())

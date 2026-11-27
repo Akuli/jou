@@ -77,6 +77,7 @@ def init_record_and_replay(state: LangserverState*) -> None:
 def langserver(record_file: FILE*, replay_file: FILE*) -> noreturn:
     state = LangserverState{record_file = record_file, replay_file = replay_file}
     state.analyzer_state.mode = AnalyzerMode.Langserver
+    #state.analyzer_state.debug_prints = True
     init_record_and_replay(&state)
 
     while True:
