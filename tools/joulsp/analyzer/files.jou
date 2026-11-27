@@ -179,7 +179,6 @@ def read_analyzer_file(state: AnalyzerState*, file: AnalyzerFile*) -> None:
         return
 
     file.content_capacity = (file.size as intnative) + 1  # room for '\0'
-
     file.allocator.reset(file.allocator_checkpoint)
     file.content = file.allocator.alloc(file.content_capacity)
 
@@ -243,7 +242,6 @@ def set_analyzer_file_content(state: AnalyzerState*, file: AnalyzerFile*, conten
     file.error = NULL
 
     file.content_capacity = 2*(content.len + 1)  # room for '\0', won't need to reallocate soon
-
     file.allocator.reset(file.allocator_checkpoint)
     file.content = file.allocator.alloc(file.content_capacity)
 
