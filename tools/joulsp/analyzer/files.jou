@@ -1,20 +1,18 @@
 import "stdlib/assert.jou"
 import "stdlib/io.jou"
-import "stdlib/limits.jou"
-import "stdlib/time.jou"
 import "stdlib/mem.jou"
 import "stdlib/str.jou"
 import "stdlib/intnative.jou"
 import "stdlib/list.jou"
+import "stdlib/errno.jou"
 
 import "../allocator.jou"
+import "../big_buffer.jou"
 import "../hash.jou"
 import "./analyzer_state.jou"
 
-
-# TODO(Jou): This should probably be a `const`, but that triggers unreachable
-#            code warnings.
-global DEBUG_PRINTS: bool = True
+if not WINDOWS:
+    import "./posix_stat.jou"
 
 
 @inline
@@ -56,80 +54,222 @@ def find_or_create_analyzer_file(state: AnalyzerState*, path: byte*) -> Analyzer
 
     temp = Allocator{}
     file: AnalyzerFile* = temp.alloc(sizeof(*file))
-    *file = AnalyzerFile{allocator = temp, size = -1, mtime = -1}
+    *file = AnalyzerFile{allocator = temp, size = -1, mtime_ns = -1}
     # After this point, the allocator must be accessed through file.allocator.
 
     file.path = file.allocator.strdup(path)
     strcpy(file.path, path)
 
+    file.allocator_checkpoint = file.allocator.bytes_allocated
+
     state.files.append(file)
-    if DEBUG_PRINTS:
-        fprintf(get_stderr(), "\"created\" file \"%s\", content is unknown for now\n", path)
+    if state.debug_prints:
+        fprintf(get_stderr(), "new file \"%s\", content is unknown for now\n", path)
+        fflush(get_stderr())
     return file
 
 
-def read_file_from_the_real_file_system(state: AnalyzerState*, file: AnalyzerFile*) -> None:
+# On success: sets size and mtime, returns NULL
+# On error: returns error message string
+def simple_stat(state: AnalyzerState*, path: byte*, size: int64*, mtime_ns: int64*) -> byte*:
+    error: byte* = NULL
+
+    if WINDOWS:
+        assert False  # TODO
+    else:
+        st: Stat
+        if stat(path, &st) == 0:
+            *size = st.st_size as int64
+            *mtime_ns = st.st_mtim_sec * (1_000_000_000 as int64) + st.st_mtim_nsec
+        else:
+            error = strerror(get_errno())
+
+    if state.debug_prints:
+        if error == NULL:
+            # Don't print modified time, that would mess up tests
+            fprintf(get_stderr(), "stat \"%s\" --> success, %lld bytes\n", path, *size)
+        else:
+            fprintf(get_stderr(), "stat \"%s\" --> %s\n", path, error)
+        fflush(get_stderr())
+
+    return NULL
+
+# Ensure the file has error or stats. By stats, I mean size and mtime.
+@public
+def stat_analyzer_file(state: AnalyzerState*, file: AnalyzerFile*) -> None:
+    if file.error != NULL or (file.size != -1 and file.mtime_ns != -1):
+        return
+
     assert not state.real_file_system_is_banned  # real file input should never happen during langserver --replay
-    assert False  # TODO
-    # TODO: remember to hash it
+    assert file.content == NULL  # if content is known, stat results are also known
+
+    size: int64 = -1
+    mtime_ns: int64 = -1
+    error: byte* = simple_stat(state, file.path, &size, &mtime_ns)
+
+    if error == NULL:
+        assert size >= 0
+        assert mtime_ns >= 0
+        file.size = size
+        file.mtime_ns = mtime_ns
+    else:
+        file.allocator.reset(file.allocator_checkpoint)
+        file.error = file.allocator.strdup(error)
+        file.size = -1
+        file.mtime_ns = -1
 
 
-# Ensure the file has error message or file contents available
+# On success: sets size and mtime, returns NULL
+# On error: returns error message string
+def read_file(state: AnalyzerState*, path: byte*, out: byte*, size: intnative) -> byte*:
+    error: byte* = NULL
+
+    f = fopen(path, "rb")
+    if f == NULL:
+        error = strerror(get_errno())
+    else:
+        pos: intnative = 0
+        while pos < size:
+            n = fread(&out[pos], 1, size - pos, f)
+            if n == 0:
+                if ferror(f) == 0:
+                    # Handle race condition: file can get smaller between stat() and reading
+                    error = "file shrunk while reading it"
+                else:
+                    error = strerror(get_errno())
+                break
+            pos += n
+
+        # Handle race condition: file can get bigger between stat() and reading
+        if error == NULL and fgetc(f) != EOF:
+            error = "file grew while reading it"
+
+        fclose(f)
+
+    if state.debug_prints:
+        fprintf(
+            get_stderr(),
+            "read file \"%s\" (%zd bytes) --> %s\n",
+            path,
+            size,
+            "success" if error == NULL else error,
+        )
+        fflush(get_stderr())
+
+    return error
+
+# Ensure the file has error or content
 @public
 def read_analyzer_file(state: AnalyzerState*, file: AnalyzerFile*) -> None:
-    if file.expires_ns != INT64_MAX:  # Pseudo-optimization: don't call monotonic_ns() if not needed
-        now = monotonic_ns()
-        if file.expires_ns < now:
-            # File has expired
-            match state.mode:
-                case AnalyzerMode.Langserver:
-                    # Read file again from real system in 100ms
-                    file.expires_ns = now + 100_000_000
-                case AnalyzerMode.Compiler:
-                    # File was never read before, and will never expire again
-                    assert file.expires_ns == 0
-                    file.expires_ns = INT64_MAX
+    if file.content != NULL or file.error != NULL:
+        return
 
-            read_file_from_the_real_file_system(state, file)
+    assert not state.real_file_system_is_banned  # real file input should never happen during langserver --replay
+    assert not file.is_open_in_editor
 
-    assert file.content != NULL
-    assert file.content == file.content_memory
-    assert file.size != -1
-    assert file.content[file.size] == '\0'
+    # Stat it before we try to read it, so that
+    #   - later, we don't need to read the file if it hasn't changed
+    #   - we know file size for allocating memory for the content
+    #
+    # If the file changes between statting and reading, the stats will be
+    # wrong, which causes the file to be read again next time. That's fine.
+    # When reading, we can also check whether the given file size is correct.
+    stat_analyzer_file(state, file)
+    if file.error != NULL:
+        return
+
+    file.content_capacity = (file.size as intnative) + 1  # room for '\0'
+
+    file.allocator.reset(file.allocator_checkpoint)
+    file.content = file.allocator.alloc(file.content_capacity)
+
+    error = read_file(state, file.path, file.content, file.size as intnative)
+    if error == NULL:
+        file.content[file.size] = '\0'
+        file.content_hash = hash(file.content, file.size)
+    else:
+        # Store error
+        file.allocator.reset(file.allocator_checkpoint)
+        file.error = file.allocator.strdup(error)
+        file.content = NULL
 
 
-def ensure_capacity(file: AnalyzerFile*, capacity_needed: intnative) -> None:
-    if file.content_capacity < capacity_needed:
-        if file.content_capacity == 0:
-            file.content_capacity = 1
-        while file.content_capacity < capacity_needed:
-            file.content_capacity *= 2
-        file.content_memory = file.allocator.alloc(file.content_capacity)
+@public
+def invalidate_analyzer_files_changed_on_disk(state: AnalyzerState*) -> None:
+    for p = state.files.ptr; p < state.files.end(); p++:
+        file: AnalyzerFile* = *p
+
+        if file.is_open_in_editor:
+            continue
+
+        if file.size == -1 or file.mtime_ns == -1:
+            # Stat is attempted before reading. It hasn't been done
+            # successfully, so there's nothing to invalidate.
+            assert file.content == NULL
+            continue
+
+        if file.content == NULL:
+            # If we need stats results later, we will just stat it later.
+            # What matters is that nothing uses outdated stat results.
+            file.size = -1
+            file.mtime_ns = -1
+            continue
+
+        assert file.error == NULL
+
+        # We could call stat_analyzer_file(), but then we would need to grab
+        # file content and stat results to local variables, and temporarily set
+        # them to unknown. It's easier not to.
+        size, mtime_ns: int64
+        error = simple_stat(state, file.path, &size, &mtime_ns)
+
+        if error != NULL:
+            # Store error
+            file.allocator.reset(file.allocator_checkpoint)
+            file.error = file.allocator.strdup(error)
+            file.content = NULL
+        elif size != file.size or mtime_ns != file.mtime_ns:
+            # Content may have changed, invalidate it. We will need it later
+            # if we need it later.
+            file.content = NULL
+            file.size = size
 
 
 # After calling this, file won't be read from disk again.
 # To undo this and read file from disk when needed, set expires_ns to zero.
 @public
-def set_analyzer_file_content(file: AnalyzerFile*, content: Slice[byte]) -> None:
+def set_analyzer_file_content(state: AnalyzerState*, file: AnalyzerFile*, content: Slice[byte]) -> None:
     assert content.len >= 0
 
-    ensure_capacity(file, content.len + 1)
-    file.content = file.content_memory
-    memcpy(file.content, content.ptr, content.len)
-    file.content[content.len] = '\0'
-
-    file.expires_ns = INT64_MAX  # does not expire by itself
-    file.read_error = NULL
     file.size = content.len
-    file.mtime = -1
+    file.mtime_ns = -1
+    file.error = NULL
+
+    file.content_capacity = 2*(content.len + 1)  # room for '\0', won't need to reallocate soon
+
+    file.allocator.reset(file.allocator_checkpoint)
+    file.content = file.allocator.alloc(file.content_capacity)
+
+    memcpy(file.content, content.ptr, content.len)
+
+    file.content[file.size] = '\0'
     file.content_hash = hash(file.content, file.size)
 
-    if DEBUG_PRINTS:
-        fprintf(get_stderr(), "\"wrote\" file content of \"%s\" (now %lld bytes)\n", file.path, file.size)
+    if state.debug_prints:
+        fprintf(get_stderr(), "set file content of \"%s\" to %lld bytes\n", file.path, file.size)
+        fflush(get_stderr())
 
+
+# TODO(Jou): stdlib?
+def memdup(mem: void*, n: intnative) -> void*:
+    result = malloc(n)
+    if result != NULL:
+        memcpy(result, mem, n)
+    return result
 
 @public
 def apply_change_to_analyzer_file_content(
+    state: AnalyzerState*,
     file: AnalyzerFile*,
     offset: intnative,
     old_len: intnative,
@@ -139,34 +279,46 @@ def apply_change_to_analyzer_file_content(
     assert new.len >= 0
     assert offset >= 0
 
-    # File should have been read already
-    assert file.read_error == NULL
+    assert file.is_open_in_editor
+    assert file.size >= 0
+    assert file.mtime_ns == -1
+    assert file.error == NULL
     assert file.content != NULL
-    assert file.size >= offset + old_len
+    assert file.content[file.size] == '\0'
+    assert file.content_capacity >= file.size + 1
 
-    # File should be manually tracked, as in vfs_write(), not read from disk
-    assert file.expires_ns == INT64_MAX
-    assert file.mtime == -1
-
+    old_size = file.size
     new_size = file.size - old_len + new.len
     if new_size + 1 > file.content_capacity:
-        # Grow it first, otherwise result won't fit
-        assert new_size > file.size
-        assert file.content == file.content_memory
-        assert file.content[file.size] == '\0'
-        ensure_capacity(file, new_size + 1)
-        if file.content != file.content_memory:
-            # New, bigger chunk was allocated. Old memory was not and will not
-            # be freed.
-            assert file.content[file.size] == '\0'
-            memcpy(file.content_memory, file.content, file.size + 1)
-            file.content = file.content_memory
+        assert new_size > old_size
+        assert new.len > old_len
+
+        # Grow it while preserving file content
+        #
+        # The allocator is awkward here, because we must reset it, which
+        # makes the previous allocation invalid.
+        temp_buf: byte*
+        gonna_free: byte* = NULL
+        if old_size > sizeof(big_buffer):
+            temp_buf = memdup(file.content, old_size as intnative)
+            assert temp_buf != NULL
+            gonna_free = temp_buf
+        else:
+            temp_buf = &big_buffer[0]
+
+        file.content_capacity = 2*(new_size + 1)
+
+        file.allocator.reset(file.allocator_checkpoint)
+        file.content = file.allocator.alloc(file.content_capacity)
+
+        memcpy(file.content, temp_buf, old_size as intnative)
+        free(gonna_free)
 
     # Move everything after the changing part
     memmove(
         &file.content[offset + new.len],
         &file.content[offset + old_len],
-        file.size - (offset + old_len) + 1,  # +1 to preserve '\0'
+        old_size - (offset + old_len) + 1,  # +1 to preserve '\0'
     )
 
     # Put new data to its place
@@ -175,7 +327,8 @@ def apply_change_to_analyzer_file_content(
     file.size = new_size
     file.content_hash = hash(file.content, file.size)
 
-    if DEBUG_PRINTS:
-        fprintf(get_stderr(), "\"wrote\" a change to file content of \"%s\" (now %lld bytes)\n", file.path, file.size)
+    if state.debug_prints:
+        fprintf(get_stderr(), "applied change to file \"%s\" (%lld bytes -> %lld bytes)\n", file.path, old_size, new_size)
         if file.size < 100:
             fprintf(get_stderr(), "--- begin file content ---\n%s\n--- end file content---\n", file.content)
+        fflush(get_stderr())

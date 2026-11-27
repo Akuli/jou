@@ -22,41 +22,30 @@ class Diagnostic:
 @public
 class AnalyzerFile:
     allocator: Allocator  # freed when the entire file is no longer needed
-
     path: byte*
 
-    # monotonic_ns() value when to check this file again, to avoid disk IO
-    # Anything before current time means that file needs to be checked again.
-    # INT64_MAX (opened) and 0 (closed) are used for files that do not come from disk.
-    expires_ns: int64
+    # Used to .reset() the allocator before allocating content or error. The
+    # allocator is used for them once the AnalyzerFile* is constructed.
+    allocator_checkpoint: intnative
 
-    # You can't have both read_error and content, but if you have neither, it
-    # means that reading the file hasn't been attempted yet.
-    #
-    # Notes about content:
-    #   - '\0' terminated, but may contain '\0' bytes (check file size)
-    #   - allocated with realloc(), NOT the allocator, because there's no good
-    #     way to grow and keep the old contents if using the allocator
-    #
-    # Error message uses the same underlying buffer as the content itself.
-    read_error: byte*
-    content: byte*  # NULL if not known
+    # Langserver remembers which files are open in the editor
+    is_open_in_editor: bool
 
-    # Once we have allocated memory for the file content, we don't free it
-    # until the whole file is no longer needed, because that's how the
-    # allocator works. When the file content is not known, the allocated
-    # memory is still stored here.
-    content_memory: byte*
-    content_capacity: intnative
-
-    # -1 means unknown
+    # Stat results, -1 means unknown.
     #
     # Can be known even if file content is not in memory. That is useful for
     # embed_binary_file(), because we only need to know the array size.
     size: int64
-    mtime: int64
+    mtime_ns: int64
 
-    # Meaningful only when content != NULL
+    # NULL means unknown. You can't have error and content, but if you have
+    # neither, it means that reading the file hasn't been attempted yet.
+    error: byte*  # '\0' terminated, from statting or reading the file
+    content: byte*  # '\0' terminated but may contain '\0' bytes (check size)
+
+    # These are meaningful only when content != NULL. Hopefully the name is
+    # enough to remind you of that.
+    content_capacity: intnative  # how many bytes could be stored, at least size+1 because '\0'
     content_hash: uint64[2]
 
 
@@ -69,7 +58,9 @@ enum AnalyzerMode:
 @public
 class AnalyzerState:
     mode: AnalyzerMode
+
     files: List[AnalyzerFile*]
+    debug_prints: bool
 
     # Resets at start of analyze().
     # Used for e.g. the final list of diagnostics returned from analyze()

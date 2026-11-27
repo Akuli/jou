@@ -1,0 +1,37 @@
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+import "../joulsp/analyzer/analyzer_state.jou"
+import "../joulsp/analyzer/files.jou"
+
+
+def test_existing_file() -> None:
+    state = AnalyzerState{debug_prints = True}
+
+    # Output: new file "tests/data/hellohellohello.txt", content is unknown for now
+    file = find_or_create_analyzer_file(&state, "tests/data/hellohellohello.txt")
+    assert file.content == NULL
+
+    # Output: stat "tests/data/hellohellohello.txt" --> success, 15 bytes
+    # Output: read file "tests/data/hellohellohello.txt" (15 bytes) --> success
+    # Output: hellohellohello
+    read_analyzer_file(&state, file)
+    assert file.content != NULL
+    puts(file.content)
+    fflush(get_stdout())  # debug prints go to stderr, don't mix them up
+
+    # This does nothing
+    read_analyzer_file(&state, file)
+
+    invalidate_analyzer_files_changed_on_disk(&state)
+    # This stats it again but doesn't read it again
+    # Output: stat "tests/data/hellohellohello.txt" --> success, 15 bytes
+    # Output: hellohellohello
+    read_analyzer_file(&state, file)
+    puts(file.content)
+    fflush(get_stdout())
+
+
+def main() -> int:
+    test_existing_file()
+    return 0

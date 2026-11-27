@@ -1,5 +1,7 @@
 # This file takes in chunks of data from stdin, collects them until they form
 # complete jsonrpc messages, and splits to individual messages.
+#
+# TODO: this file is much more than "jsonrpc parsing"...
 
 import "stdlib/mem.jou"
 import "stdlib/assert.jou"
@@ -9,6 +11,7 @@ import "stdlib/intnative.jou"
 import "stdlib/list.jou"
 import "stdlib/str.jou"
 
+import "../analyzer/files.jou"
 import "./langserver_state.jou"
 import "./stdin_and_stdout.jou"
 import "./fail.jou"
@@ -51,6 +54,9 @@ def process_input(state: LangserverState*, input_chunk: byte*) -> None:
     # Make sure it ends with '\0' so we can treat it as a string
     state.input_accumulator.append('\0')
     state.input_accumulator.pop()  # does not deallocate/shrink
+
+    if state.replay_file == NULL:
+        invalidate_analyzer_files_changed_on_disk(&state.analyzer_state)
 
     message_start = state.input_accumulator.ptr
     num_messages = 0

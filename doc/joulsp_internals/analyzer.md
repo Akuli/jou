@@ -177,7 +177,7 @@ if True:
 # Evaluating a compile-time if statement depends on a symbol lookup
 const MY_CONSTANT: bool = True  # MY_CONSTANT is a symbol
 if MY_CONSTANT:
-    ...
+    pass
 
 # Example of a cyclic dependency with types (allowed because a pointer is used)
 class Foo:

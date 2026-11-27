@@ -167,11 +167,19 @@ def handle_textDocument_didOpen(state: LangserverState*, params_json: byte*) -> 
     #    continue
 
     file = find_or_create_analyzer_file(&state.analyzer_state, big_buffer)
+    if file.is_open_in_editor:
+        langserver_warning("received textDocument/didOpen for a file that is already open")
+        return
+    file.is_open_in_editor = True
 
     # TODO(Jou): what if file contains '\0' byte? Ideally there would be a
     #            variant of json_to_string() that handles them properly.
     file_content = json_to_string(json_get(json_get(params_json, "textDocument"), "text"))
-    set_analyzer_file_content(file, Slice[byte]{ptr = file_content, len = strlen(file_content)})
+    set_analyzer_file_content(
+        &state.analyzer_state,
+        file,
+        Slice[byte]{ptr = file_content, len = strlen(file_content)},
+    )
     free(file_content)
 
 
@@ -184,8 +192,8 @@ def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -
     if file == NULL:
         langserver_warning("received textDocument/didChange for a previously unknown file")
         return
-    if file.content == NULL:
-        langserver_warning("received textDocument/didChange for a file with unknown content")
+    if not file.is_open_in_editor:
+        langserver_warning("received textDocument/didChange for a file that isn't open in the editor")
         return
 
     for j = json_array_first(json_get(params_json, "contentChanges")); j != NULL; j = json_array_next(j):
@@ -200,7 +208,13 @@ def handle_textDocument_didChange(state: LangserverState*, params_json: byte*) -
         if text == NULL:
             langserver_fail("failed to get text from textDocument/didChange event")
 
-        apply_change_to_analyzer_file_content(file, start, end - start, Slice[byte]{ptr = text, len = strlen(text)})
+        apply_change_to_analyzer_file_content(
+            &state.analyzer_state,
+            file,
+            start,
+            end - start,
+            Slice[byte]{ptr = text, len = strlen(text)},
+        )
         free(text)
 
 
@@ -211,9 +225,18 @@ def handle_textDocument_didClose(state: LangserverState*, params_json: byte*) ->
 
     file = find_analyzer_file(&state.analyzer_state, big_buffer)
     if file == NULL:
-        langserver_fail("received textDocument/didClose for a previously unknown file")
+        langserver_warning("received textDocument/didClose for a previously unknown file")
+        return
+    if not file.is_open_in_editor:
+        langserver_warning("received textDocument/didClose for a file that was not opened before")
+        return
 
-    file.expires_ns = 0  # will be read from disk next time it's needed
+    # Read it from disk next time it's needed
+    file.is_open_in_editor = False
+    file.size = -1
+    assert file.mtime_ns == -1
+    assert file.error == NULL
+    file.content = NULL
 
 
 def get_id(body_json: byte*) -> RequestID:

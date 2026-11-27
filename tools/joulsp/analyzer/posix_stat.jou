@@ -1,0 +1,28 @@
+# TODO: move to stdlib?
+
+import "stdlib/assert.jou"
+import "stdlib/io.jou"
+
+assert LINUX and X86_CPU and not IS_32BIT  # TODO: other platforms!
+
+@public
+class Stat:
+    padding1: byte[48]
+    st_size: uint64
+    padding2: byte[32]
+    st_mtim_sec: int64
+    st_mtim_nsec: int
+    padding3: byte[200]  # plenty, on my system the entire struct is only 144 bytes
+
+@public
+declare stat(pathname: byte*, statbuf: Stat*) -> int
+
+
+# simple demo:  jou stat.jou
+def main() -> int:
+    sb: Stat
+    ret = stat("stat.jou", &sb)
+    assert ret == 0
+    printf("mtim = %lld, %d\n", sb.st_mtim_sec, sb.st_mtim_nsec)
+    printf("st_size = %lld\n", sb.st_size)
+    return 0
