@@ -1,0 +1,119 @@
+import "stdlib/utf8.jou"
+import "stdlib/limits.jou"
+import "stdlib/assert.jou"
+import "stdlib/intnative.jou"
+
+import "../allocator.jou"
+
+
+# In langserver protocol, locations in source files are represented with a line
+# number and a column number. So far so good. But there's something dumb about
+# both numbers.
+@public
+class LspPosition:
+    # Line numbers start at zero. Nobody does that. The convention is that they
+    # start from 1. My editor literally shows line numbers 1 2 3 ... on the
+    # left side of this code right now, as do most other editors.
+    line: int
+
+    # Column number is in UTF-16, not bytes or Unicode characters, because
+    # that's what JavaScript happens to use. There is an option that would
+    # change the offsets to UTF-8 or Unicode characters, but vscode doesn't
+    # support it, so it's useless.
+    character: int
+
+
+# To count how many UTF-16 units a UTF-8 string consists of, sum the values of
+# this function at each byte of the string.
+def utf16_count_contribution(b: byte) -> int:
+    # UTF-8 character starts with a start byte that looks like this, where x
+    # denotes one bit of data:
+    #
+    #   0xxx xxxx   --> 7 data bits, 1 byte in UTF-8, 1 unit in UTF-16 (ascii)
+    #   110x xxxx   --> 5+6 data bits, 2 bytes in UTF-8, 1 unit in UTF-16
+    #   1110 xxxx   --> 4+6+6 data bits, 3 bytes in UTF-8, 1 unit in UTF-16
+    #   1111 0xxx   --> 3+6+6+6 data bits, 4 bytes in UTF-8, 2 units in UTF-16
+    #
+    # After a non-ASCII start byte, there are continuation bytes. Each
+    # continuation byte holds 6 data bits.
+    #
+    # This assumes that the input is valid UTF-8.
+    #
+    # TODO(Jou): add something more convenient to stdlib
+    if b >> 3 == 0b11110:
+        return 2
+    if not is_utf8_continuation(b):
+        # assume start byte
+        return 1
+    return 0
+
+
+# Convert langserver line and column numbers to a byte offset
+@public
+def lsp_position_to_byte_offset(content: Slice[byte], lsp_position: LspPosition) -> intnative:
+    assert content.len >= 0
+    i: intnative = 0
+
+    # Go to start of line
+    newline_count = 0
+    while i < content.len and newline_count < lsp_position.line:
+        if content.ptr[i++] == '\n':
+            newline_count++
+
+    # Go to correct place within the line
+    utf16_count = 0
+    while i < content.len and utf16_count < lsp_position.character:
+        utf16_count += utf16_count_contribution(content.ptr[i++])
+
+    # If the last character before the position isn't ASCII, we stepped past
+    # its first byte, and we still need to finish the rest of it
+    while i < content.len and is_utf8_continuation(content.ptr[i]):
+        i++
+
+    return i
+
+
+# Finds all byte offsets where a line starts
+#
+# "hello\nworld" --> [0, 6]
+@public
+def build_lineno_table(allocator: Allocator*, content: Slice[byte]) -> Slice[int]:
+    assert content.len >= 0
+    assert content.len <= INT32_MAX
+
+    result = Slice[int]{}
+    result.append(allocator, 0)
+
+    for i = 0; i < content.len; i++:
+        if content.ptr[i] == '\n':
+            result.append(allocator, i+1)
+
+    return result
+
+
+# Convert a byte offset to langserver protocol line and column numbers
+@public
+def byte_offset_to_lsp_position(content: Slice[byte], lineno_table: Slice[int], byte_offset: intnative) -> LspPosition:
+    assert content.len >= 0
+    assert content.len <= INT32_MAX
+    assert 0 <= byte_offset and byte_offset <= content.len
+
+    # Find 0-based line number with binary search.
+    assert lineno_table.len >= 1
+    start = 0
+    end = lineno_table.len as int
+    while end - start >= 2:
+        i = (start + end) // 2
+        if byte_offset >= lineno_table.ptr[i]:
+            # The position is on the i'th line or some line after it
+            start = i
+        else:
+            end = i
+    assert end - start == 1
+    lsp_position = LspPosition{line = start}
+
+    # Find column number by counting UTF-16 units from start of line
+    for i = lineno_table.ptr[lsp_position.line]; i < byte_offset; i++:
+        lsp_position.character += utf16_count_contribution(content.ptr[i])
+
+    return lsp_position

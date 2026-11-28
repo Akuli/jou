@@ -1,0 +1,107 @@
+import "stdlib/ascii.jou"
+import "stdlib/list.jou"
+import "stdlib/assert.jou"
+import "stdlib/json.jou"
+import "stdlib/str.jou"
+
+import "../allocator.jou"
+import "./fail.jou"
+import "./stdin_and_stdout.jou"
+import "./langserver_state.jou"
+
+
+def starts_with_ignore_case(s: byte*, prefix: byte*) -> bool:
+    for i = 0; prefix[i] != '\0'; i++:
+        if not (
+            s[i] == prefix[i]
+            or (is_ascii_letter(prefix[i]) and s[i] == prefix[i] ^ 32)
+        ):
+            return False
+    return True
+
+
+# Returns slice describing where the body is, or empty slice if incomplete message
+@public
+def parse_jsonrpc_message(s: byte*) -> Slice[byte]:
+    content_length = -1
+
+    while True:
+        if starts_with_ignore_case(s, "Content-Length: "):
+            content_length = atoi(&s[16])
+
+        end_of_header = strchr(s, '\n')
+        if end_of_header == NULL:
+            return Slice[byte]{}
+        end_of_header++
+
+        # Langserver spec guarantees it's \r\n, not just \n, but we support
+        # both in case I want to try something by pasting text to terminal.
+        if end_of_header == &s[1] or (*s == '\r' and end_of_header == &s[2]):
+            s = end_of_header
+            break
+
+        # Parse the next header
+        s = end_of_header
+
+    if content_length <= 0:
+        langserver_fail("failed to parse Content-Length header in input")
+
+    # Check if we have the entire body
+    for i = 0; i < content_length; i++:
+        if s[i] == '\0':
+            return Slice[byte]{}
+
+    return Slice[byte]{ptr = s, len = content_length}
+
+
+# jsonrpc IDs can be strings or numbers. A bit problematic in Jou, but not
+# impossible to work around by assuming it's not crazy long.
+#
+# TODO: Can we carry around pointer to original JSON and just respond with
+# that, never persisting anything for a long time?
+@public
+class RequestID:
+    is_string: bool
+    union:
+        string: byte[100]
+        number: double  # TODO: Ideally this would be int64, https://github.com/Akuli/jou/issues/1404
+
+    @public
+    def to_debug_string(self) -> byte[102]:
+        result: byte[102]
+        assert array_count(result) == array_count(self.string) + 2
+
+        if self.is_string:
+            snprintf(result, sizeof(result), "\"%s\"", self.string)
+        else:
+            snprintf(result, sizeof(result), "%g", self.number)
+        return result
+
+
+# TODO(Jou): this should probably be a method on JSONBuilder
+def finish_json_builder_without_freeing_memory(jb: JSONBuilder*) -> byte*:
+    assert jb.depth == 0  # If this fails, you forgot to call end_array() or end_object()
+
+    jb.output.append('\0')
+    jb.output.len = 0
+    return jb.output.ptr
+
+
+@public
+def begin_jsonrpc_message(state: LangserverState*) -> None:
+    assert state.out.output.len == 0
+
+    state.out.begin_object()
+    state.out.key("jsonrpc").string("2.0")
+
+@public
+def end_jsonrpc_message(state: LangserverState*, doit: bool) -> None:
+    state.out.end_object()
+    state.out.output.append('\n')  # makes this nicer to work on, next headers go to their own line
+    out_json = finish_json_builder_without_freeing_memory(&state.out)
+
+    if doit:
+        headers: byte[100]
+        sprintf(headers, "Content-Length: %zd\r\n\r\n", strlen(out_json))
+        write_to_stdout(headers)
+        write_to_stdout(out_json)

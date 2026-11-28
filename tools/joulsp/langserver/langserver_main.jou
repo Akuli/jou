@@ -1,4 +1,5 @@
 import "stdlib/mem.jou"
+import "stdlib/json.jou"
 import "stdlib/assert.jou"
 import "stdlib/intnative.jou"
 import "stdlib/list.jou"
@@ -9,13 +10,82 @@ import "stdlib/errno.jou"
 
 import "../allocator.jou"
 import "../analyzer/analyzer_state.jou"
+import "../analyzer/analyzer_main.jou"
 import "../analyzer/files.jou"
 import "../big_buffer.jou"
 import "./fail.jou"
+import "./lsp_enums.jou"
 import "./handlers.jou"
-import "./jsonrpc_parser.jou"
+import "./jsonrpc.jou"
 import "./langserver_state.jou"
 import "./stdin_and_stdout.jou"
+import "./lsp_position.jou"
+
+
+# TODO: don't republish if file already has the same diagnostics (use hash)
+# TODO: publish empty array of diagnostics when closing file
+# TODO: refactor Content-Length and related code to the same place
+def publish_diagnostics(state: LangserverState*) -> None:
+    allocator: Allocator* = &state.analyzer_state.analyze_allocator
+
+    for fp = state.analyzer_state.files.ptr; fp < state.analyzer_state.files.end(); fp++:
+        file: AnalyzerFile* = *fp
+
+        if file.content == NULL:
+            continue
+        content_slice = Slice[byte]{ptr = file.content, len = file.size as intnative}
+
+        checkpoint = allocator.bytes_allocated
+        lineno_table = build_lineno_table(allocator, content_slice)
+
+        begin_jsonrpc_message(state)
+        state.out.key("method").string("textDocument/publishDiagnostics")
+        state.out.key("params").begin_object()
+
+        # FIXME: escaping!!!!!!!!!
+        snprintf(big_buffer, sizeof(big_buffer), "file://%s", file.path)
+        state.out.key("uri").string(big_buffer)
+        state.out.key("diagnostics").begin_array()
+
+        for diag = file.diagnostics.ptr; diag < file.diagnostics.end(); diag++:
+            lsp_start_pos = byte_offset_to_lsp_position(content_slice, lineno_table, diag.start_offset)
+            lsp_end_pos = byte_offset_to_lsp_position(content_slice, lineno_table, diag.end_offset)
+#            printf(
+#                "file %s, offsets %d (line %d, column %d) to %d (line %d, column %d): %s\n",
+#                file.path,
+#                diag.start_offset,
+#                lsp_start_pos.line,
+#                lsp_start_pos.character,
+#                diag.end_offset,
+#                lsp_end_pos.line,
+#                lsp_end_pos.character,
+#                diag.text,
+#            )
+
+            state.out.begin_object()
+
+            state.out.key("range").begin_object()
+            state.out.key("start").begin_object()
+            state.out.key("line").number(lsp_start_pos.line)
+            state.out.key("character").number(lsp_start_pos.character)
+            state.out.end_object()
+            state.out.key("end").begin_object()
+            state.out.key("line").number(lsp_end_pos.line)
+            state.out.key("character").number(lsp_end_pos.character)
+            state.out.end_object()
+            state.out.end_object()
+
+            state.out.key("severity").number(DiagnosticSeverity.Error as int)
+            state.out.key("source").string("jou")
+            state.out.key("message").string(diag.text)
+
+            state.out.end_object()
+
+        state.out.end_array()
+        state.out.end_object()
+
+        end_jsonrpc_message(state, True)
+        allocator.reset(checkpoint)
 
 
 # If you shrink this, existing files created with --record will no longer work.
@@ -121,16 +191,15 @@ def consume_input(state: LangserverState*) -> None:
     memmove(state.input_accumulator.ptr, ptr, nbytes_remaining)
     state.input_accumulator.len = nbytes_remaining
 
-    # TODO
-    #analyze_result = analyze(...)
-    #publish_diagnostics(analyze_result)
+    analyze(&state.analyzer_state)
+    publish_diagnostics(state)
 
 
 @public
-def langserver(record_file: FILE*, replay_file: FILE*) -> noreturn:
+def langserver(record_file: FILE*, replay_file: FILE*, debug_prints: bool) -> noreturn:
     state = LangserverState{record_file = record_file, replay_file = replay_file}
     state.analyzer_state.mode = AnalyzerMode.Langserver
-    #state.analyzer_state.debug_prints = True
+    state.analyzer_state.debug_prints = debug_prints
     init_record_and_replay(&state)
 
     while True:

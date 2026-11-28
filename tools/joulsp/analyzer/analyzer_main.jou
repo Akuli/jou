@@ -1,40 +1,51 @@
+import "stdlib/list.jou"
+import "stdlib/limits.jou"
+import "stdlib/intnative.jou"
+import "stdlib/str.jou"
+import "stdlib/assert.jou"
+
 import "../allocator.jou"
+import "./analyzer_state.jou"
 
 
-# The main_files argument is
-#   - in compiler mode: just the main file passed on command line
-#   - in langserver mode: all files the user has open in the editor
+def add_diagnostic(
+    state: AnalyzerState*,
+    file: AnalyzerFile*,
+    slice: Slice[byte],
+    text: byte*,
+) -> None:
+    assert slice.len > 0
+    assert slice.ptr >= file.content
+    assert slice.end() <= &file.content[file.size]
+
+    if (slice.end() as intnative) - (file.content as intnative) > INT32_MAX:
+        # source file bigger than 2GB?...lol
+        return
+
+    diag = Diagnostic{
+        start_offset = ((slice.ptr as intnative) - (file.content as intnative)) as int,
+        end_offset = ((slice.end() as intnative) - (file.content as intnative)) as int,
+        text = state.analyze_allocator.strdup(text),
+    }
+    file.diagnostics.append(&state.analyze_allocator, diag)
+
+
 @public
-def analyze(state: AnalyzerState*, vfs: VFS*, main_files: Slice[VfsFile*]) -> Slice[Diagnostic]:
-    state.analyze_allocator.reset()
+def analyze(state: AnalyzerState*) -> None:
+    state.analyze_allocator.reset(0)
 
-    # TODO: parse all files whose content has changed
-    #Next `analyze()` parses all files whose content has changed since last time
-    #(VFS provides a content hash for quickly checking this) and all newly added files.
+    for fp = state.files.ptr; fp < state.files.end(); fp++:
+        (*fp).diagnostics = Slice[Diagnostic]{}
 
-#Now `analyze()` can do all the analyzing except looking inside function bodies.
-#This is skipped if during all the parsing we did so far, old and new AST of all `JouFile*`s
-#were the same everywhere except inside function bodies.
-#If there were any changes outside function bodies (or any new files):
-#- Clear the [symbol cache](#symbol-cache) and [type cache](#type-cache) **for all files**.
-#    - This is a simple way to handle cross-file dependencies.
-#    - These caches are stored in the analyzer state.
-#    - After this, we can do symbol lookups lazily again.
-#    - [Function analyzing cache](#function-analyzing-cache) is **not** cleared.
-#    - This seems slow, but [I think it will be fine](#why-clearing-symbol-cache-and-type-cache-should-be-fast-enough).
-#- Evaluate all compile-time `if` statements. For each imported file that doesn't yet have a corresponding `JouFile*`, create it and parse the file.
-#    - These two cannot be separated into two different steps,
-#        because imports can be inside compile-time `if` statements.
-#- Analyze everything except function bodies in all files that should be fully analyzed (this concept was defined above).
-#- Delete outdated entries from [function analyzing cache](#function-analyzing-cache),
-#    including functions that no longer exist.
-#
-#At this point no new files will be parsed during the `analyze()` call.
-#So, if we are in langserver mode, let's clean up files that are no longer needed using simple mark-and-sweep garbage collection:
-#- Mark every `JouFile*` corresponding to a `VfsFile*` in the array given to `analyze()`.
-#- Recursively mark every `JouFile*` imported by a marked `JouFile*`
-#- Sweep unmarked `JouFile*`s
-#
-#Lastly, `analyze()` analyzes function bodies in all files that should be fully analyzed (this concept was defined above).
-#[Function analyzing cache](#function-analyzing-cache) is used to skip the analyzing
-#when an up-to-date result already exists.
+    for fp = state.files.ptr; fp < state.files.end(); fp++:
+        file: AnalyzerFile* = *fp
+
+        if not file.is_open_in_editor:
+            continue
+
+        assert file.content != NULL
+
+        # TODO: do better analyzing than looking for string "caca"
+        for p = file.content; p < &file.content[file.size]; p++:
+            if starts_with(p, "caca"):
+                add_diagnostic(state, file, Slice[byte]{ptr=p, len=4}, "märkää kakkaa")

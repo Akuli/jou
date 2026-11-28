@@ -9,8 +9,10 @@ import "./langserver/langserver_main.jou"
 
 def main(argc: int, argv: byte**) -> int:
     parser = ArgumentParser{argv = argv}
+
     record_file: FILE* = NULL
     replay_file: FILE* = NULL
+    debug_prints = False
 
     while parser.next():
         match parser.flag with strcmp:
@@ -22,6 +24,7 @@ def main(argc: int, argv: byte**) -> int:
                 printf("  --replay FILE.bin   instead of reading stdin and project files, take all\n")
                 printf("                      input from a file produced by --record and reproduce\n")
                 printf("                      what the langserver did\n")
+                printf("  -v / --verbose      show debug prints (these go to stderr)\n")
                 exit(0)
 
             case "--record":
@@ -54,6 +57,9 @@ def main(argc: int, argv: byte**) -> int:
                     fprintf(get_stderr(), "%s: cannot open \"%s\": %s\n", argv[0], filename, strerror(get_errno()))
                     exit(2)
 
+            case "-v" | "--verbose":
+                debug_prints = True
+
             case _:
                 fprintf(get_stderr(), "%s: unknown argument '%s' (try --help)\n", argv[0], parser.flag if parser.flag[0] != '\0' else parser.take_value())
                 exit(2)
@@ -62,4 +68,4 @@ def main(argc: int, argv: byte**) -> int:
             fprintf(get_stderr(), "%s: flag \"%s\" does not take a value (try --help)\n", argv[0], parser.flag)
             exit(2)
 
-    langserver(record_file, replay_file)
+    langserver(record_file, replay_file, debug_prints)

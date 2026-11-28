@@ -5,17 +5,10 @@ import "../allocator.jou"
 
 
 @public
-class LocationRange:
-    start_lineno: int  # 1 means first line
-    start_column_utf8: int  # 0 means start of line, 1 means just after first byte, etc
-    end_lineno: int
-    end_column_utf8: int
-
-
-@public
 class Diagnostic:
-    path: byte*
-    range: LocationRange
+    # If you have source file bigger than 2GB, you're screwed anyway
+    start_offset: int
+    end_offset: int
     text: byte*
 
 
@@ -47,6 +40,9 @@ class AnalyzerFile:
     # enough to remind you of that.
     content_capacity: intnative  # how many bytes could be stored, at least size+1 because '\0'
     content_hash: uint64[2]
+
+    # Allocated with analyze_allocator
+    diagnostics: Slice[Diagnostic]
 
 
 @public
